@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { createPublicClient, http, isAddress, parseAbi, type Address } from "viem";
 
+async function main() {
 const rpcUrl = process.env.RISE_RPC_URL || "https://rpc.risechain.com/";
 const factory = process.env.ICARUS_FACTORY as Address | undefined;
 const explorerApi = process.env.BLOCKSCOUT_API || "https://explorer.risechain.com/api";
@@ -51,3 +52,6 @@ const report = { generatedAt: new Date().toISOString(), chainId: 4153, candidate
 const json = JSON.stringify(report, (_key, value) => typeof value === "bigint" ? value.toString() : value, 2) + "\n";
 await mkdir(dirname(output), { recursive: true }); await writeFile(output, json); await writeFile(resolve(dirname(output), "factory-verified-source.sol"), factorySource.SourceCode); await writeFile(resolve(dirname(output), "implementation-verified-source.sol"), implementationSource.SourceCode); await writeFile(resolve(dirname(output), "icarus-vs-aerodrome.diff"), diff);
 console.log(json);
+}
+
+void main().catch((error) => { console.error(error); process.exitCode = 1; });
