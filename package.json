@@ -1,8 +1,8 @@
 {
   "name": "curveball",
   "private": true,
-  "workspaces": ["contracts"],
+  "workspaces": ["contracts", "backend", "frontend"],
   "scripts": {
-    "verify:icarus": "bun run --cwd=contracts verify:icarus"
+    "verify:icarus": "bun run --cwd=contracts verify:icarus", "dev:backend": "bun run --cwd=backend dev", "dev:frontend": "bun run --cwd=frontend dev"
   }
 }
