@@ -1,0 +1,57 @@
+{
+  "generatedAt": "2026-09-15T20:25:55.354Z",
+  "chainId": 4153,
+  "candidateFactory": "0xEe10C6a0f158bFEeef3d48Dc0D26130Cf6115615",
+  "rpcUrl": "https://rpc.risechain.com/",
+  "verification": {
+    "factory": {
+      "contractName": "PoolFactory",
+      "verified": true
+    },
+    "implementation": {
+      "address": "0xA24Bdf8ee26658c822796a30770F23c2425de966",
+      "contractName": "Pool",
+      "verified": true
+    }
+  },
+  "factoryReads": {
+    "isPaused": {
+      "ok": true,
+      "value": false
+    },
+    "pauser": {
+      "ok": true,
+      "value": "0x838fc4155Fc13B3b75030950Fd9B58DbCE874aE0"
+    },
+    "feeManager": {
+      "ok": true,
+      "value": "0x838fc4155Fc13B3b75030950Fd9B58DbCE874aE0"
+    },
+    "voter": {
+      "ok": true,
+      "value": "0xFB3773f03EFB35198b065e455090E55eE25D3177"
+    },
+    "volatileFee": {
+      "ok": true,
+      "value": "30"
+    },
+    "stableFee": {
+      "ok": true,
+      "value": "5"
+    },
+    "MAX_FEE": {
+      "ok": true,
+      "value": "300"
+    }
+  },
+  "assumedPoolMethodsMissingFromVerifiedSource": [],
+  "aerodromeComparison": {
+    "reference": "aerodrome-finance/contracts main",
+    "diffFile": "icarus-vs-aerodrome.diff",
+    "changedLines": 1252,
+    "status": "REVIEW_THE_ARCHIVED_DIFF_BEFORE_INTEGRATION"
+  },
+  "forkCreatePoolCheck": "NOT_RUN. Run only on a local fork with two freshly deployed throwaway ERC20s; this script intentionally never sends a mainnet transaction.",
+  "wethVerification": "NOT_RUN. Identify WETH by inspecting verified token contracts and live Icarus pools; never assume an OP-stack predeploy.",
+  "decision": "STOP_FOR_HUMAN_REVIEW"
+}

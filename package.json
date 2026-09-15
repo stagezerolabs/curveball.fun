@@ -1,0 +1,8 @@
+{
+  "name": "curveball",
+  "private": true,
+  "workspaces": ["contracts"],
+  "scripts": {
+    "verify:icarus": "bun run --cwd=contracts verify:icarus"
+  }
+}
