@@ -14,4 +14,4 @@ bun run verify:icarus
 
 The script refuses an unverified factory or ABI mismatch, writes evidence to `deployments/4153/icarus-verification.json`, and archives returned verified sources beside it. It never sends a transaction. Its output identifies the remaining blocking checks: line-by-line source diff, a local-fork `createPool` test with throwaway assets, and canonical RISE WETH identification.
 
-No launchpad, DEX adapter, or mainnet address is present yet. Human review of the M0 evidence is required before M1 begins.
+M1 adds a local-testable launchpad that uses direct Icarus-pool minting; its real factory address is isolated from deployment inputs until fork verification can use a compatible RPC.

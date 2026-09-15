@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { ethers } from "hardhat";
 
 const FACTORY = "0xEe10C6a0f158bFEeef3d48Dc0D26130Cf6115615";
-describe("Icarus factory fork verification", function () {
+(process.env.RISE_RPC_URL ? describe : describe.skip)("Icarus factory fork verification", function () {
   it("lets an arbitrary local-fork EOA create a volatile pool for two throwaway ERC20s", async function () {
     const [caller] = await ethers.getSigners();
     const Token = await ethers.getContractFactory("ThrowawayERC20");
