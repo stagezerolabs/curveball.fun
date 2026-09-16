@@ -1,19 +1,22 @@
 {
-    "name": "@curveball/frontend",
-    "private": true,
-    "type": "module",
-    "scripts": {
-        "dev": "vite",
-        "build": "vite build"
-    },
-    "dependencies": {
-        "@tanstack/react-query": "5.62.7",
-        "@vitejs/plugin-react": "4.3.4",
-        "react": "18.3.1",
-        "react-dom": "18.3.1",
-        "viem": "2.21.52",
-        "vite": "5.4.11",
-        "wagmi": "2.14.11"
-    },
-    "devDependencies": {}
+  "name": "@curveball/frontend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "test": "node --test src/app/routeTree.test.js"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "5.62.7",
+    "@vitejs/plugin-react": "4.3.4",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "viem": "2.21.52",
+    "vite": "5.4.11",
+    "wagmi": "2.14.11"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2"
+  }
 }
