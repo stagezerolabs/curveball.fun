@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: postgres:17.11-alpine
+    environment:
+      POSTGRES_DB: curveball
+      POSTGRES_PASSWORD: curveball
+      POSTGRES_USER: curveball
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U curveball -d curveball"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      CORS_ORIGIN: ${DOCKER_CORS_ORIGIN:-http://localhost:5173}
+      DATABASE_URL: postgresql://curveball:curveball@postgres:5432/curveball
+      LAUNCHPAD_ADDRESS: ${DOCKER_LAUNCHPAD_ADDRESS:-}
+      PORT: 3001
+      RPC_URL: ${DOCKER_RPC_URL:-http://host.docker.internal:8545}
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "bun",
+          "-e",
+          "fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    ports:
+      - "${DOCKER_BACKEND_PORT:-3001}:3001"
+
+volumes:
+  postgres_data:

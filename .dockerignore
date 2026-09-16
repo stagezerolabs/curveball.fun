@@ -1,0 +1,9 @@
+.git
+**/.env
+**/node_modules
+**/*.sqlite
+**/coverage
+**/dist
+contracts/artifacts
+contracts/cache
+contracts/typechain-types
