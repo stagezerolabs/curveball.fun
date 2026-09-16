@@ -1,6 +1,19 @@
 {
   "name": "@curveball/contracts",
   "private": true,
-  "scripts": { "verify:icarus": "tsx scripts/verify-icarus.ts", "test:fork": "RISE_RPC_URL=https://rpc.risechain.com/ hardhat test test/fork/icarus-factory.ts", "compile": "hardhat compile", "test": "hardhat test", "deploy:local": "hardhat run scripts/deploy-local.ts --network localhost" },
-  "devDependencies": { "@nomicfoundation/hardhat-toolbox": "5.0.0", "@openzeppelin/contracts": "5.1.0", "hardhat": "2.22.17", "tsx": "4.19.2", "typescript": "5.7.3", "viem": "2.21.52" }
+  "scripts": {
+    "verify:icarus": "tsx scripts/verify-icarus.ts",
+    "test:fork": "RISE_RPC_URL=https://rpc.risechain.com/ hardhat test test/fork/icarus-factory.ts",
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:local": "hardhat run scripts/deploy-local.ts --network localhost"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "5.0.0",
+    "@openzeppelin/contracts": "5.1.0",
+    "hardhat": "2.22.17",
+    "tsx": "4.19.2",
+    "typescript": "5.7.3",
+    "viem": "2.21.52"
+  }
 }
