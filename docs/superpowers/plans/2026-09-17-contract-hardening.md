@@ -30,7 +30,7 @@
 - Produces: constructor reverts if `s` or `vq` exceeds `uint128`.
 - Produces: all writes to `Market.vt`, `vq`, `realQ`, and `sold` use `SafeCast.toUint128`.
 
-- [ ] **Step 1: Write failing constructor-bound tests**
+- [x] **Step 1: Write failing constructor-bound tests**
 
 ```solidity
 function testRejectsValuesThatDoNotFitMarketState() external {
@@ -42,13 +42,13 @@ function testRejectsValuesThatDoNotFitMarketState() external {
 }
 ```
 
-- [ ] **Step 2: Run the new test and verify it fails**
+- [x] **Step 2: Run the new test and verify it fails**
 
 Run: `pnpm --dir contracts exec forge test --match-test testRejectsValuesThatDoNotFitMarketState`
 
 Expected: FAIL because the current constructor silently accepts the value.
 
-- [ ] **Step 3: Add minimal checked casts**
+- [x] **Step 3: Add minimal checked casts**
 
 ```solidity
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
@@ -60,13 +60,13 @@ markets[token] = Market(msg.sender, supply.toUint128(), initialVQ.toUint128(), 0
 
 Replace each existing raw `uint128(...)` state write with `.toUint128()`.
 
-- [ ] **Step 4: Run the complete contract suite**
+- [x] **Step 4: Run the complete contract suite**
 
 Run: `pnpm --dir contracts test`
 
 Expected: PASS, including the new constructor bound test.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```sh
 git add contracts/contracts/CurveballLaunchpad.sol contracts/test/Launchpad.t.sol
@@ -86,7 +86,7 @@ git commit -m "fix: bound launchpad market state"
 - Changes: `sellTokens(address token, uint256 amount, uint256 minOut, uint256 deadline)`.
 - Produces: browser calls with `Math.floor(Date.now() / 1000) + 300`.
 
-- [ ] **Step 1: Write failing expiry tests**
+- [x] **Step 1: Write failing expiry tests**
 
 ```solidity
 function testBuyRejectsExpiredDeadline() external {
@@ -101,13 +101,13 @@ function testBuyRejectsExpiredDeadline() external {
 }
 ```
 
-- [ ] **Step 2: Run the expiry test and verify it fails to compile**
+- [x] **Step 2: Run the expiry test and verify it fails to compile**
 
 Run: `pnpm --dir contracts exec forge test --match-test testBuyRejectsExpiredDeadline`
 
 Expected: FAIL because the current ABI has no deadline parameter.
 
-- [ ] **Step 3: Add a shared expiry guard and update all call sites**
+- [x] **Step 3: Add a shared expiry guard and update all call sites**
 
 ```solidity
 require(block.timestamp <= deadline, "expired");
@@ -115,13 +115,13 @@ require(block.timestamp <= deadline, "expired");
 
 Add `uint256 deadline` as the final parameter to both trade functions. Update all Foundry calls to use `type(uint256).max`, except the explicit expiry test. Update both frontend ABI items and append this value to the browser transaction arguments.
 
-- [ ] **Step 4: Run contract and browser checks**
+- [x] **Step 4: Run contract and browser checks**
 
 Run: `pnpm --dir contracts test && bun run typecheck && bun test && bun run build`
 
 Expected: PASS; the fork lifecycle remains green and the browser submits the new ABI shape.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```sh
 git add contracts src/lib/web3.js src/app/useStore.js
@@ -137,21 +137,21 @@ git commit -m "fix: expire stale launchpad trades"
 **Interfaces:**
 - Produces: security notes that accurately state the division guard is safe and that public deployment uses verified standard WETH.
 
-- [ ] **Step 1: Replace the incorrect L-02 recommendation**
+- [x] **Step 1: Replace the incorrect L-02 recommendation**
 
 State that the division condition is the overflow-safe equivalent of the first-mint product threshold; retain the test that proves a too-small pool defers graduation.
 
-- [ ] **Step 2: State the quote-token constraint in deployment documentation**
+- [x] **Step 2: State the quote-token constraint in deployment documentation**
 
 Document RISE WETH `0x4200000000000000000000000000000000000006`, the verified Icarus PoolFactory, and that deployment inputs must be independently re-verified immediately before broadcast.
 
-- [ ] **Step 3: Verify documentation references**
+- [x] **Step 3: Verify documentation references**
 
 Run: `rg -n "L-02|fee-on-transfer|deadline|WETH" contracts/scv-scan.md README.md`
 
 Expected: the old multiplication recommendation is absent and deployment constraints are explicit.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```sh
 git add contracts/scv-scan.md README.md
