@@ -137,6 +137,7 @@ Why this is safe:
 
 **File:** `contracts/CurveballLaunchpad.sol` L47-L55, L60, L92-L101, L122-L125
 **Severity:** Low
+**Status:** FIXED — checked casts and constructor bounds added; regression test in `test/Launchpad.t.sol`.
 
 **Description:** Every write into the `Market` struct uses a raw `uint128(...)` cast, which truncates silently even under 0.8.x. `require(s > cs && vq > 0)` does not bound `supply` or `initialVQ` to `uint128`, so a deployment with `supply >= 2^128` would mint the full amount in `MemeToken` while `m.vt` silently truncates, corrupting the curve from block one. `uint128(quoteIn)` at L94 is the only attacker-controlled cast; it is not currently reachable (it requires transferring `2^128` quote units, and the graduation branch recomputes `used` correctly anyway), so this is a robustness rather than an exploitability finding.
 
@@ -148,16 +149,17 @@ markets[token] = Market(msg.sender, uint128(supply), uint128(initialVQ), ...);
 m.vq += uint128(quoteIn);
 ```
 
-**Recommendation:** Per `overflow-underflow.md`, use `SafeCast` for all downcasts and add `require(s <= type(uint128).max && vq <= type(uint128).max)` to the constructor.
+**Fix applied:** The constructor now rejects `s` and `vq` outside `uint128`, and every market-state narrowing conversion uses `SafeCast.toUint128()`. This makes an invalid deployment or an out-of-range trade revert rather than silently corrupting curve state.
 
 ---
 
-## L-02 — Minimum-liquidity guard is arithmetically dead
+## L-02 — Minimum-liquidity guard is overflow-safe
 
 **File:** `contracts/CurveballLaunchpad.sol` L151
 **Severity:** Low
+**Status:** NOT A FINDING — the existing condition is correct.
 
-**Description:** The intent is a minimum `tokenL * quoteL` product so the pool's `sqrt(x*y)` first mint cannot round to zero, but writing it as a division truncates to nothing. With the deployed parameters `tokenL = supply - curveSupply = 2e23`, so `1_000_000 / tokenL == 0` and the check degrades to `quoteL > 0`. The guard named in the test suite ("defers graduation below the pool minimum-liquidity floor") is not actually enforcing the floor it appears to.
+**Resolution:** For positive integers, `quoteL > floor(1_000_000 / tokenL)` is equivalent to `tokenL * quoteL > 1_000_000`. The division form avoids an unnecessary multiplication overflow risk. With the deployed token liquidity, any nonzero WETH amount is necessarily above the pool's minimum product; that is mathematically valid, not a bypass. The existing regression test covers the low-liquidity failure path.
 
 **Code:**
 
@@ -165,18 +167,17 @@ m.vq += uint128(quoteIn);
 require(tokenL > 0 && quoteL > 1_000_000 / tokenL, "liquidity too small to graduate");
 ```
 
-**Recommendation:** Per `lack-of-precision.md`, multiply instead of dividing: `require(tokenL > 0 && tokenL * quoteL > 1_000_000, ...)`. `tokenL * quoteL` cannot overflow at realistic magnitudes but should be bounded if `supply` becomes configurable.
-
 ---
 
 ## L-03 — Fee-on-transfer or rebasing quote token breaks `realQ` accounting
 
 **File:** `contracts/CurveballLaunchpad.sol` L97-L101
 **Severity:** Low
+**Status:** DEPLOYMENT CONSTRAINT — deploy only with verified standard RISE WETH.
 
 **Description:** `buyTokens` credits `m.realQ += uint128(used)` on the assumption that `safeTransferFrom` delivered exactly `quoteIn`. A fee-on-transfer or rebasing quote token delivers less, so the sum of `realQ` across markets exceeds the launchpad's actual balance and the last markets to sell or graduate revert on insufficient funds. `quote` is immutable and intended to be WETH, which makes this a deployment constraint rather than a live bug, but it is undocumented.
 
-**Recommendation:** Per `inadherence-to-standards.md`, either use the balance-before/balance-after pattern to credit the amount actually received, or document and enforce that `quote` must be a standard non-fee, non-rebasing token.
+**Deployment constraint:** The only supported quote asset is verified RISE WETH at `0x4200000000000000000000000000000000000006`. The deployment operator must re-verify its code, name, symbol, decimals, and compatibility with the Icarus PoolFactory immediately before any broadcast. Fee-on-transfer and rebasing tokens are unsupported.
 
 ---
 
@@ -184,10 +185,11 @@ require(tokenL > 0 && quoteL > 1_000_000 / tokenL, "liquidity too small to gradu
 
 **File:** `contracts/CurveballLaunchpad.sol` L79, L113
 **Severity:** Low
+**Status:** FIXED — deadlines are enforced before token transfers; browser trades use a five-minute deadline.
 
 **Description:** Both trade functions take `minOut`, so price slippage is bounded, but neither takes a `deadline`. A transaction stuck in the mempool can execute much later at a price that still satisfies a now-stale `minOut`. Per `transaction-ordering-dependence.md`, slippage protection is considered complete only with both parameters.
 
-**Recommendation:** Add a `deadline` argument and `require(block.timestamp <= deadline, "expired")`.
+**Fix applied:** Both trade functions now receive `deadline` and reject expired transactions before touching market state or token balances. Regression tests cover both buy and sell expiry.
 
 ---
 
@@ -225,11 +227,11 @@ Recorded during the sweep and killed during validation:
 | Critical | 1 (fixed) |
 | High     | 0         |
 | Medium   | 1 (fixed) |
-| Low      | 4         |
+| Low      | 0 (3 fixed, 1 deployment constraint) |
 | Info     | 5         |
 
-**C-01 and M-01 are both fixed and covered by regression tests.** L-01 through L-04 are unaddressed — none is exploitable as deployed, but L-01 (unchecked `uint128` casts plus unbounded constructor parameters) is the one that could turn into a real bug if `supply`/`initialVQ` are ever reconfigured, so it is the natural next pass.
+**C-01, M-01, L-01, and L-04 are fixed and covered by regression tests.** L-02 was a false positive: its division guard is exact and overflow-safe. L-03 remains a deployment constraint; only verified standard RISE WETH is supported.
 
-**Test artifacts:** `test/LpLocker.t.sol` (C-01, 4 tests), `test/GraduationPending.t.sol` (M-01, 5 tests), and shared mocks in `contracts/test/PoCIcarus.sol`. Full suite: 17 passing, including the optional fork test.
+**Test artifacts:** `test/LpLocker.t.sol` (C-01, 4 tests), `test/GraduationPending.t.sol` (M-01, 5 tests), `test/Launchpad.t.sol` (SafeCast and deadline regressions), and `test/fork/IcarusFactory.t.sol` (full Icarus lifecycle). Full suite: 21 passing when the RISE RPC is configured.
 
 **On method:** every regression test here was mutation-checked — each defence was individually reverted and the suite confirmed to fail. Two tests did not initially catch their own mutation and were rewritten; a test that passes against the broken code is not a regression test.

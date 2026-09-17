@@ -121,12 +121,13 @@ RISE mainnet deployment is intentionally blocked until the candidate Icarus fact
 
 ```sh
 cp contracts/.env.example contracts/.env
-# Set ICARUS_FACTORY only after independently identifying the candidate address.
+# Re-verify the documented candidate immediately before any deployment review.
+ICARUS_FACTORY=0xEe10C6a0f158bFEeef3d48Dc0D26130Cf6115615
 set -a; source contracts/.env; set +a
 make -C contracts verify-icarus
 ```
 
-Evidence is written to `deployments/4153/icarus-verification.json` with the verified source files and `icarus-vs-aerodrome.diff` beside it. Integration still requires human review of that diff, canonical RISE WETH identification, and a successful local-fork `createPool` test using throwaway ERC-20s:
+Evidence is written to `deployments/4153/icarus-verification.json` with the verified source files and `icarus-vs-aerodrome.diff` beside it. The current candidate is Icarus PoolFactory `0xEe10C6a0f158bFEeef3d48Dc0D26130Cf6115615`; its verified pool implementation is `0xA24Bdf8ee26658c822796a30770F23c2425de966`. The only supported quote asset is verified RISE WETH `0x4200000000000000000000000000000000000006`. Re-verify all three immediately before any deployment review. Integration still requires human review of the archived diff and a successful local-fork lifecycle test:
 
 ```sh
 cd contracts
@@ -138,8 +139,8 @@ The guarded `make -C contracts deploy-devnet` target requires explicit devnet in
 ## Security notes
 
 - `LpLocker` validates that a pool was registered by the launchpad, derives payout tokens from that pool, and distributes only the balance delta received from `claimFees()`. Regression tests cover the historical cross-pool theft path.
-- The launchpad uses `SafeERC20`, `ReentrancyGuard`, deterministic per-creator token salts, and slippage limits. Its quote token must be a standard, non-fee, non-rebasing ERC-20 such as verified WETH.
-- The current contract review is in [`contracts/scv-scan.md`](contracts/scv-scan.md). It records open low-severity hardening items, including bounded `uint128` casts, a corrected minimum-liquidity expression, and trade deadlines. Resolve and retest those items before any public deployment.
+- The launchpad uses `SafeERC20`, `ReentrancyGuard`, checked packed-state casts, deterministic per-creator token salts, deadlines, and slippage limits. Its quote token must be verified RISE WETH; fee-on-transfer and rebasing assets are unsupported.
+- The current contract review is in [`contracts/scv-scan.md`](contracts/scv-scan.md). It records the remaining deployment constraints and required evidence before any public deployment.
 
 ## Environment
 
