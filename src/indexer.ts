@@ -31,6 +31,18 @@ const events = [
   ),
 ];
 
+// Logs carry no timestamp, so resolve each distinct block once per batch. Trade
+// rows without a real chain time would silently corrupt every 24h metric.
+async function blockTimes(numbers: Set<bigint>) {
+  const entries = await Promise.all(
+    [...numbers].map(async (blockNumber) => {
+      const block = await client.getBlock({ blockNumber });
+      return [blockNumber, new Date(Number(block.timestamp) * 1000)] as const;
+    }),
+  );
+  return new Map(entries);
+}
+
 export async function indexToHead() {
   const [state] = await db
     .select({ value: indexerState.value })
@@ -53,6 +65,15 @@ export async function indexToHead() {
         }),
       })),
     );
+    const tradeBlocks = new Set<bigint>();
+    for (const { event, logs } of batches) {
+      if (event.name !== "Trade") continue;
+      for (const log of logs) {
+        if (log.blockNumber != null) tradeBlocks.add(log.blockNumber);
+      }
+    }
+    const times = await blockTimes(tradeBlocks);
+
     const applied = await db.transaction(async (tx) => {
       await tx
         .insert(indexerState)
@@ -90,12 +111,22 @@ export async function indexToHead() {
                 quote: args.quoteAmount.toString(),
                 amount: args.tokenAmount.toString(),
                 tx: log.transactionHash,
+                blockNumber: log.blockNumber?.toString() ?? null,
+                blockTime:
+                  log.blockNumber == null
+                    ? null
+                    : (times.get(log.blockNumber) ?? null),
               })
               .onConflictDoNothing({ target: trades.eventKey });
           } else if (event.name === "Graduated") {
             await tx
               .update(tokens)
-              .set({ graduated: true, pool: args.pool, updatedAt: new Date() })
+              .set({
+                graduated: true,
+                pool: args.pool,
+                quoteLiquidity: args.quoteLiquidity?.toString() ?? null,
+                updatedAt: new Date(),
+              })
               .where(eq(tokens.address, args.token));
           }
         }

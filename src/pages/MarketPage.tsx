@@ -1,18 +1,24 @@
+import { useMemo } from "react";
+import { useAccount } from "wagmi";
 import { useStore } from "../app/useStore.js";
 import { AppLink } from "../components/Navigation";
-import { TokenAvatar } from "../components/TokenAvatar";
-import { TradeCard } from "../components/TradeCard";
-import { TransactionHistory } from "../components/TransactionHistory";
-import { useAccount } from "wagmi";
-import { formatEthAmount, formatPercent } from "../lib/format.js";
-import type { Navigate, Token } from "../types";
+import { MarketHeader } from "../components/MarketHeader";
+import { MarketTabs } from "../components/MarketTabs";
+import { MilestonePanel } from "../components/MilestonePanel";
+import { PriceChart } from "../components/PriceChart";
+import { TradePanel } from "../components/TradePanel";
+import { useFetch } from "../lib/useFetch";
+import { mockConfig } from "../lib/mockData";
+import type { LaunchpadConfig, Navigate, Token } from "../types";
 
 export function MarketPage({
   token,
   navigate,
+  connectWallet,
 }: {
   token?: Token;
   navigate: Navigate;
+  connectWallet: () => void;
 }) {
   const { loading, marketError, actionError } = useStore() as {
     loading: boolean;
@@ -20,6 +26,9 @@ export function MarketPage({
     actionError: string;
   };
   const { address } = useAccount();
+  const { data } = useFetch<LaunchpadConfig | null>("/api/config", null);
+  // Dev-only: an unconfigured launchpad falls back to sample settings.
+  const config = useMemo(() => data ?? mockConfig(), [data]);
   const error = actionError || marketError;
 
   if (loading) return <main className="page-status wrap">Loading market…</main>;
@@ -34,77 +43,39 @@ export function MarketPage({
         </AppLink>
       </main>
     );
+
   return (
-    <main className="page-main">
-      <section className="market-detail-heading wrap">
-        <AppLink className="back-link" route="markets" navigate={navigate}>
-          ← All markets
-        </AppLink>
-        <div className="market-title-row">
-          <TokenAvatar token={token} className="detail-avatar" />
-          <div>
-            <span
-              className={`status-pill ${token.graduated ? "graduated" : "live"}`}
-            >
-              <i /> {token.graduated ? "Graduated" : "Curve live"}
-            </span>
-            <h1>
-              {token.name} <small>${token.symbol}</small>
-            </h1>
-          </div>
-        </div>
-        <p className="market-address">
-          Contract <span>{token.address}</span>
-        </p>
-      </section>
-      <section className="market-detail-grid wrap">
-        <div className="market-chart-card">
-          <div className="visual-label">
-            <span>Bonding curve</span>
-            <strong>{token.graduated ? "Complete" : "Live"}</strong>
-          </div>
-          <svg viewBox="0 0 760 360" aria-label="Bonding curve chart">
-            <path
-              className="detail-grid"
-              d="M30 300H730M30 220H730M30 140H730M30 60H730"
-            />
-            <path
-              className="detail-area"
-              d="M30 310C220 310 330 290 430 230S600 90 730 45V330H30Z"
-            />
-            <path
-              className="curve-line"
-              d="M30 310C220 310 330 290 430 230S600 90 730 45"
-            />
-          </svg>
-          <div className="market-facts">
-            <p>
-              <span>Network</span>
-              <strong>RISE</strong>
-            </p>
-            <p>
-              <span>Progress</span>
-              <strong>
-                {token.graduated ? "100%" : formatPercent(token.progress)}
-              </strong>
-            </p>
-            <p>
-              <span>Price</span>
-              <strong>
-                {token.graduated
-                  ? "On Icarus"
-                  : `${formatEthAmount(token.price)} ETH`}
-              </strong>
-            </p>
-          </div>
-        </div>
-        <TradeCard token={token} address={address} />
-      </section>
-      <section className="market-history wrap">
-        <TransactionHistory tokenAddress={token.address} />
-      </section>
+    <main className="market-page wrap">
+      <AppLink className="back-link" route="markets" navigate={navigate}>
+        ← All markets
+      </AppLink>
+
+      <MarketHeader token={token} />
+      <PriceChart token={token} />
+      <TradePanel
+        token={token}
+        address={address}
+        config={config}
+        connectWallet={connectWallet}
+      />
+      <MilestonePanel
+        token={token}
+        address={address}
+        config={config}
+        connectWallet={connectWallet}
+      />
+      <MarketTabs
+        token={token}
+        address={address}
+        connectWallet={connectWallet}
+      />
+
+      <p className="disclaimer">
+        Market data may be delayed. Nothing here is financial advice.
+      </p>
+
       {error && (
-        <p className="notice floating-notice wrap" role="alert">
+        <p className="notice floating-notice" role="alert">
           {error}
         </p>
       )}

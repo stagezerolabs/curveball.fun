@@ -11,8 +11,10 @@ import {
   contractAbi,
   erc20Abi,
   launchpadAddress,
+  lockerAbi,
   wagmiConfig,
 } from "../lib/web3.js";
+import { mockTokens } from "../lib/mockData";
 
 export const useStore = create((set, get) => ({
   tokens: [],
@@ -36,7 +38,8 @@ export const useStore = create((set, get) => ({
       const response = await fetch(`${apiUrl}/tokens`);
       if (!response.ok) throw new Error("API failure");
       const tokens = await response.json();
-      set({ tokens, loading: false });
+      // Dev-only: an empty API falls back to sample data. Real rows always win.
+      set({ tokens: tokens.length ? tokens : mockTokens(), loading: false });
     } catch (error) {
       set({
         marketError:
@@ -169,6 +172,29 @@ export const useStore = create((set, get) => ({
         quotePreview: null,
       });
       await get().fetchTokens();
+    } catch (error) {
+      handleActionError(error);
+    } finally {
+      endAction();
+    }
+  },
+
+  // LpLocker.claim is permissionless: the caller pays gas, the creator and
+  // treasury receive the fees. Nothing is routed to whoever clicks this.
+  claimPoolFees: async (locker, pool) => {
+    const { startAction, endAction, handleActionError } = get();
+    startAction();
+    try {
+      if (!locker || !pool) throw Error("This market has no pool yet.");
+      const hash = await writeContract(wagmiConfig, {
+        address: locker,
+        abi: lockerAbi,
+        functionName: "claim",
+        args: [pool],
+      });
+      set({ tradeMessage: "Claiming pool fees…" });
+      await waitForTransactionReceipt(wagmiConfig, { hash });
+      set({ tradeMessage: "Pool fees sent to the creator and treasury." });
     } catch (error) {
       handleActionError(error);
     } finally {

@@ -14,6 +14,7 @@ export function App() {
   const { navigate, route } = useRouter();
   const { address } = useAccount();
   const { connect, connectors } = useConnect();
+  const connectWallet = () => connect({ connector: connectors[0] });
   const { tokens, loading, fetchTokens } = useStore() as {
     tokens: Token[];
     loading: boolean;
@@ -42,7 +43,13 @@ export function App() {
       page = <MarketsPage navigate={navigate} />;
       break;
     case "market":
-      page = <MarketPage navigate={navigate} token={token} />;
+      page = (
+        <MarketPage
+          navigate={navigate}
+          token={token}
+          connectWallet={connectWallet}
+        />
+      );
       break;
     case "launch":
       page = <LaunchPage />;
@@ -55,7 +62,7 @@ export function App() {
     <div className="site-shell">
       <Header
         address={address}
-        connectWallet={() => connect({ connector: connectors[0] })}
+        connectWallet={connectWallet}
         navigate={navigate}
         routeId={route.id}
       />

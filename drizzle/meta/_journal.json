@@ -15,6 +15,13 @@
       "when": 1789609222202,
       "tag": "0001_giant_richard_fisk",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789678814383,
+      "tag": "0002_misty_squirrel_girl",
+      "breakpoints": true
     }
   ]
 }

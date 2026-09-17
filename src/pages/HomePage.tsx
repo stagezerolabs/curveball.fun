@@ -1,18 +1,29 @@
 import { useMemo, useState } from "react";
-import { ArrowIcon } from "../components/ArrowIcon";
-import { AppLink } from "../components/Navigation";
+import { Featured } from "../components/Featured";
+import { MarketList } from "../components/MarketList";
 import { TokenCard } from "../components/TokenCard";
 import { useStore } from "../app/useStore.js";
 import type { Navigate, Token } from "../types";
 
+type Tab = "trending" | "new" | "graduated";
+type Sort = "volume" | "newest" | "oldest" | "cap" | "progress";
+type View = "grid" | "list";
+
+const TABS: { id: Tab; label: string; sort: Sort }[] = [
+  { id: "trending", label: "Trending", sort: "volume" },
+  { id: "new", label: "New", sort: "newest" },
+  { id: "graduated", label: "Graduated", sort: "cap" },
+];
+
 const SORTS: { id: Sort; label: string }[] = [
+  { id: "volume", label: "24h volume" },
   { id: "newest", label: "Newest" },
   { id: "oldest", label: "Oldest" },
   { id: "cap", label: "Market cap" },
   { id: "progress", label: "Progress" },
 ];
 
-type Sort = "newest" | "oldest" | "cap" | "progress";
+const SKELETON_CARDS = 6;
 
 const byNewest = (a: Token, b: Token) =>
   new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
@@ -24,78 +35,39 @@ function sortTokens(tokens: Token[], sort: Sort) {
     return list.sort((a, b) => (b.marketCap ?? -1) - (a.marketCap ?? -1));
   if (sort === "progress")
     return list.sort((a, b) => (b.progress ?? -1) - (a.progress ?? -1));
+  if (sort === "volume")
+    return list.sort((a, b) => (b.volume24h ?? -1) - (a.volume24h ?? -1));
   return list.sort(byNewest);
 }
 
-function Panel({
-  id,
-  title,
-  copy,
-  tokens,
-  sort,
-  onSort,
-  navigate,
-  loading,
-}: {
-  id: string;
-  title: string;
-  copy: string;
-  tokens: Token[];
-  sort?: Sort;
-  onSort?: (sort: Sort) => void;
-  navigate: Navigate;
-  loading: boolean;
-}) {
+function GraduateIcon() {
   return (
-    <section className={`launch-explore ${id}`} aria-labelledby={`${id}-title`}>
-      <header className="launch-explore-head">
-        <div>
-          <div className="launch-explore-title-row">
-            <h2 id={`${id}-title`}>{title}</h2>
-            <span className="launch-explore-count">
-              {loading ? "—" : tokens.length}
-            </span>
-          </div>
-          <p>{copy}</p>
-        </div>
-        {onSort && (
-          <div
-            className="launch-explore-sorts"
-            role="tablist"
-            aria-label="Sort"
-          >
-            {SORTS.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                role="tab"
-                aria-selected={sort === item.id}
-                className={sort === item.id ? "active" : ""}
-                onClick={() => onSort(item.id)}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-        )}
-      </header>
-      {loading ? (
-        <p className="launch-explore-empty">Loading the latest curves…</p>
-      ) : tokens.length ? (
-        <ul className="launch-explore-grid">
-          {tokens.map((token, index) => (
-            <TokenCard
-              key={token.address}
-              token={token}
-              index={index}
-              navigate={navigate}
-            />
-          ))}
-        </ul>
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      <path d="M10 3 18 7l-8 4-8-4 8-4Z" />
+      <path d="M5.5 9v4.5c0 1.1 2 2 4.5 2s4.5-.9 4.5-2V9" />
+    </svg>
+  );
+}
+
+function ViewIcon({ view }: { view: View }) {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      {view === "grid" ? (
+        <>
+          <rect x="3" y="3" width="6" height="6" rx="1.5" />
+          <rect x="11" y="3" width="6" height="6" rx="1.5" />
+          <rect x="3" y="11" width="6" height="6" rx="1.5" />
+          <rect x="11" y="11" width="6" height="6" rx="1.5" />
+        </>
       ) : (
-        <p className="launch-explore-empty">Nothing here yet.</p>
+        <>
+          <path d="M7 5h10M7 10h10M7 15h10" />
+          <circle cx="3.5" cy="5" r="1" />
+          <circle cx="3.5" cy="10" r="1" />
+          <circle cx="3.5" cy="15" r="1" />
+        </>
       )}
-    </section>
+    </svg>
   );
 }
 
@@ -105,81 +77,112 @@ export function HomePage({ navigate }: { navigate: Navigate }) {
     loading: boolean;
     marketError: string;
   };
-  const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<Sort>("newest");
+  const [tab, setTab] = useState<Tab>("trending");
+  const [sort, setSort] = useState<Sort>("volume");
+  const [view, setView] = useState<View>("grid");
 
-  const matched = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (!needle) return tokens;
-    return tokens.filter((token) =>
-      `${token.name} ${token.symbol} ${token.address}`
-        .toLowerCase()
-        .includes(needle),
-    );
-  }, [tokens, query]);
+  const listed = useMemo(() => {
+    const set =
+      tab === "graduated"
+        ? tokens.filter((token) => token.graduated)
+        : tokens.filter((token) => !token.graduated);
+    return sortTokens(set, sort);
+  }, [tokens, tab, sort]);
 
-  const graduated = useMemo(
-    () =>
-      sortTokens(
-        matched.filter((token) => token.graduated),
-        "cap",
-      ),
-    [matched],
-  );
-  const live = useMemo(
-    () =>
-      sortTokens(
-        matched.filter((token) => !token.graduated),
-        sort,
-      ),
-    [matched, sort],
-  );
+  function selectTab(next: Tab) {
+    setTab(next);
+    setSort(TABS.find((item) => item.id === next)?.sort ?? "newest");
+  }
 
   return (
     <main className="launchpad wrap">
-      <header className="launch-toolbar">
-        <label className="launch-search">
-          <svg viewBox="0 0 20 20" aria-hidden="true">
-            <circle cx="9" cy="9" r="6" />
-            <path d="M13.5 13.5 17 17" />
-          </svg>
-          <input
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search tokens by name, symbol or address"
-            aria-label="Search tokens"
-          />
-        </label>
-        <AppLink className="primary-button" route="launch" navigate={navigate}>
-          Create <ArrowIcon />
-        </AppLink>
-      </header>
-
       {marketError && (
         <p className="notice" role="alert">
           {marketError}
         </p>
       )}
 
-      <Panel
-        id="graduated"
-        title="Graduated"
-        copy="Curves that completed. Liquidity has moved to Icarus."
-        tokens={graduated}
-        navigate={navigate}
-        loading={loading}
-      />
-      <Panel
-        id="live"
-        title="On the curve"
-        copy="Live bonding curves still climbing toward graduation."
-        tokens={live}
-        sort={sort}
-        onSort={setSort}
-        navigate={navigate}
-        loading={loading}
-      />
+      <Featured tokens={tokens} loading={loading} navigate={navigate} />
+
+      <section className="board" aria-label="All markets">
+        <header className="board-head">
+          <div className="board-tabs" role="tablist" aria-label="Market filter">
+            {TABS.map((item) => (
+              <button
+                key={item.id}
+                role="tab"
+                id={`tab-${item.id}`}
+                aria-selected={tab === item.id}
+                aria-controls="board-panel"
+                className={tab === item.id ? "active" : ""}
+                onClick={() => selectTab(item.id)}
+              >
+                {item.id === "graduated" && <GraduateIcon />}
+                {item.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="board-controls">
+            <label className="board-sort">
+              <span className="visually-hidden">Sort markets by</span>
+              <select
+                value={sort}
+                onChange={(event) => setSort(event.target.value as Sort)}
+              >
+                {SORTS.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="board-view" role="group" aria-label="Layout">
+              {(["grid", "list"] as View[]).map((item) => (
+                <button
+                  key={item}
+                  className={view === item ? "active" : ""}
+                  aria-pressed={view === item}
+                  aria-label={`${item === "grid" ? "Grid" : "List"} view`}
+                  onClick={() => setView(item)}
+                >
+                  <ViewIcon view={item} />
+                </button>
+              ))}
+            </div>
+          </div>
+        </header>
+
+        <div id="board-panel" role="tabpanel" aria-labelledby={`tab-${tab}`}>
+          {loading && !tokens.length ? (
+            <ul className="tcard-grid" aria-busy="true">
+              {Array.from({ length: SKELETON_CARDS }, (_, index) => (
+                <li key={index} className="tcard skeleton" />
+              ))}
+            </ul>
+          ) : !listed.length ? (
+            <p className="board-empty">
+              {tab === "graduated"
+                ? "No curve has graduated yet."
+                : "No live curves right now."}
+            </p>
+          ) : view === "grid" ? (
+            <ul className="tcard-grid">
+              {listed.map((token, index) => (
+                <TokenCard
+                  key={token.address}
+                  token={token}
+                  index={index}
+                  navigate={navigate}
+                />
+              ))}
+            </ul>
+          ) : (
+            <MarketList tokens={listed} loading={false} navigate={navigate} />
+          )}
+        </div>
+      </section>
     </main>
   );
 }
