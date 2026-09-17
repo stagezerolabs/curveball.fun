@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import { ethers } from "hardhat";
+import "@nomicfoundation/hardhat-toolbox";
+import hre from "hardhat";
+
+const { ethers } = hre;
 describe("CurveballLaunchpad", () => {
   it("trades then graduates by direct pool mint", async () => {
     const [o, a] = await ethers.getSigners();
