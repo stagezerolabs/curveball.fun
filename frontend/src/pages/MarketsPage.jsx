@@ -1,6 +1,8 @@
 import { MarketList } from "../components/MarketList.jsx";
+import { useStore } from "../app/useStore.js";
 
-export function MarketsPage({ tokens, loading, error, navigate }) {
+export function MarketsPage({ navigate }) {
+  const { tokens, loading, marketError: error } = useStore();
   return (
     <main className="page-main">
       <section className="page-heading wrap">

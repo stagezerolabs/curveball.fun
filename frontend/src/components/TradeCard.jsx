@@ -1,11 +1,11 @@
+import { useStore } from "../app/useStore.js";
+
 export function TradeCard({
   token,
   address,
-  amount,
-  setAmount,
-  trade,
-  isPending,
 }) {
+  const { amount, setAmount, trade, isPending } = useStore();
+
   if (token.graduated) {
     return (
       <aside className="trade-card market-trade-card">

@@ -1,17 +1,16 @@
+import { useStore } from "../app/useStore.js";
 import { AppLink } from "../components/Navigation.jsx";
 import { TradeCard } from "../components/TradeCard.jsx";
+import { useAccount } from "wagmi";
 
 export function MarketPage({
   token,
-  loading,
-  error,
-  address,
-  amount,
-  setAmount,
-  trade,
-  isPending,
   navigate,
 }) {
+  const { loading, marketError, actionError } = useStore();
+  const { address } = useAccount();
+  const error = actionError || marketError;
+
   if (loading) return <main className="page-status wrap">Loading market…</main>;
   if (!token)
     return (
@@ -87,10 +86,6 @@ export function MarketPage({
         <TradeCard
           token={token}
           address={address}
-          amount={amount}
-          setAmount={setAmount}
-          trade={trade}
-          isPending={isPending}
         />
       </section>
       {error && (

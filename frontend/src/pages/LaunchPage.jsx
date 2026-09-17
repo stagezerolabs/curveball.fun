@@ -1,6 +1,11 @@
 import { ArrowIcon } from "../components/ArrowIcon.jsx";
+import { useStore } from "../app/useStore.js";
+import { useAccount } from "wagmi";
 
-export function LaunchPage({ address, create, isPending, error }) {
+export function LaunchPage() {
+  const { address } = useAccount();
+  const { createToken: create, isPending, actionError: error } = useStore();
+
   return (
     <main className="launch-page">
       <section className="wrap launch-layout">
