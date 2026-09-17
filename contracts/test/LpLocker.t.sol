@@ -89,7 +89,7 @@ contract LpLockerTest is TestBase {
         vm.prank(creator);
         quote.approve(address(launchpad), 1_000 ether);
         vm.prank(creator);
-        launchpad.buyTokens(token, 1_000 ether, 1);
+        launchpad.buyTokens(token, 1_000 ether, 1, DEADLINE);
         (
             address marketCreator,
             uint128 vt,

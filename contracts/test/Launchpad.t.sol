@@ -24,7 +24,7 @@ contract LaunchpadTest is TestBase {
         vm.prank(TRADER);
         quote.approve(address(launchpad), 100);
         vm.prank(TRADER);
-        launchpad.buyTokens(token, 100, 1);
+        launchpad.buyTokens(token, 100, 1, DEADLINE);
 
         (,,,,, bool graduated,, address pool) = launchpad.markets(token);
         assertTrue(graduated, "market did not graduate");
@@ -42,6 +42,47 @@ contract LaunchpadTest is TestBase {
         locker.setLaunchpad(TRADER);
     }
 
+    function testRejectsValuesThatDoNotFitMarketState() external {
+        MockWETH quote = new MockWETH();
+        MockIcarusFactory factory = new MockIcarusFactory();
+        LpLocker locker = new LpLocker(address(this), 5_000);
+        vm.expectRevert();
+        new CurveballLaunchpad(
+            address(quote), address(factory), address(locker), uint256(type(uint128).max) + 1, 1, 1
+        );
+        vm.expectRevert();
+        new CurveballLaunchpad(
+            address(quote), address(factory), address(locker), 2, 1, uint256(type(uint128).max) + 1
+        );
+    }
+
+    function testBuyRejectsExpiredDeadline() external {
+        (MockWETH quote, CurveballLaunchpad launchpad) = _deploy(1_000_000, 800_000, 10);
+        address token = launchpad.createToken("Expired", "EXP", "");
+        quote.mint(TRADER, 1);
+        vm.prank(TRADER);
+        quote.approve(address(launchpad), 1);
+        vm.expectRevert();
+        vm.prank(TRADER);
+        launchpad.buyTokens(token, 1, 1, 0);
+    }
+
+    function testSellRejectsExpiredDeadline() external {
+        (MockWETH quote, CurveballLaunchpad launchpad) = _deploy(1_000_000, 800_000, 10);
+        quote.mint(TRADER, 10);
+        address token = launchpad.createToken("Expired", "EXP", "");
+        vm.prank(TRADER);
+        quote.approve(address(launchpad), 10);
+        vm.prank(TRADER);
+        launchpad.buyTokens(token, 10, 1, DEADLINE);
+        uint256 balance = MemeToken(token).balanceOf(TRADER);
+        vm.prank(TRADER);
+        MemeToken(token).approve(address(launchpad), balance);
+        vm.expectRevert();
+        vm.prank(TRADER);
+        launchpad.sellTokens(token, balance, 1, 0);
+    }
+
     function testHolderCanSellBackBeforeGraduation() external {
         (MockWETH quote, CurveballLaunchpad launchpad) = _deploy(1_000_000, 800_000, 10);
         quote.mint(TRADER, 20);
@@ -49,12 +90,12 @@ contract LaunchpadTest is TestBase {
         vm.prank(TRADER);
         quote.approve(address(launchpad), 20);
         vm.prank(TRADER);
-        launchpad.buyTokens(token, 10, 1);
+        launchpad.buyTokens(token, 10, 1, DEADLINE);
         uint256 balance = MemeToken(token).balanceOf(TRADER);
         vm.prank(TRADER);
         MemeToken(token).approve(address(launchpad), balance);
         vm.prank(TRADER);
-        launchpad.sellTokens(token, balance, 1);
+        launchpad.sellTokens(token, balance, 1, DEADLINE);
         (,,,, uint128 sold,,,) = launchpad.markets(token);
         assertEq(sold, 0, "curve was not reset");
     }
@@ -66,7 +107,7 @@ contract LaunchpadTest is TestBase {
         vm.prank(TRADER);
         quote.approve(address(launchpad), 100);
         vm.prank(TRADER);
-        launchpad.buyTokens(token, 100, 1);
+        launchpad.buyTokens(token, 100, 1, DEADLINE);
         (,,,,,, bool pending,) = launchpad.markets(token);
         assertTrue(pending, "graduation was not deferred");
     }
@@ -81,7 +122,7 @@ contract LaunchpadTest is TestBase {
         vm.prank(TRADER);
         quote.approve(address(launchpad), 100);
         vm.prank(TRADER);
-        launchpad.buyTokens(token, 100, 1);
+        launchpad.buyTokens(token, 100, 1, DEADLINE);
         (,,,,,,, address marketPool) = launchpad.markets(token);
         assertEq(marketPool, pool, "pre-created pool was not reused");
     }

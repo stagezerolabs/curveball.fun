@@ -27,7 +27,7 @@ contract GraduationPendingTest is TestBase {
         token.approve(address(market.launchpad), market.sold);
         uint256 before = market.quote.balanceOf(HOLDER);
         vm.prank(HOLDER);
-        market.launchpad.sellTokens(market.token, market.sold, 0);
+        market.launchpad.sellTokens(market.token, market.sold, 0, DEADLINE);
 
         assertEq(market.quote.balanceOf(HOLDER) - before, market.realQ, "quote not recovered");
         assertEq(token.balanceOf(HOLDER), 0, "token not returned");
@@ -41,7 +41,7 @@ contract GraduationPendingTest is TestBase {
         vm.prank(HOLDER);
         MemeToken(market.token).approve(address(market.launchpad), market.sold);
         vm.prank(HOLDER);
-        market.launchpad.sellTokens(market.token, 1 ether, 0);
+        market.launchpad.sellTokens(market.token, 1 ether, 0, DEADLINE);
         (,,,, uint128 sold,, bool pending,) = market.launchpad.markets(market.token);
         assertTrue(!pending, "pending flag stayed set");
         assertTrue(sold < 800_000 ether, "curve is still full");
@@ -52,13 +52,13 @@ contract GraduationPendingTest is TestBase {
         vm.prank(HOLDER);
         MemeToken(market.token).approve(address(market.launchpad), market.sold);
         vm.prank(HOLDER);
-        market.launchpad.sellTokens(market.token, 1 ether, 0);
+        market.launchpad.sellTokens(market.token, 1 ether, 0, DEADLINE);
         market.factory.setBroken(false);
         market.quote.mint(HOLDER, 1_000 ether);
         vm.prank(HOLDER);
         market.quote.approve(address(market.launchpad), 1_000 ether);
         vm.prank(HOLDER);
-        market.launchpad.buyTokens(market.token, 1_000 ether, 1);
+        market.launchpad.buyTokens(market.token, 1_000 ether, 1, DEADLINE);
 
         (,,, uint128 realQ,, bool graduated, bool pending,) = market.launchpad.markets(market.token);
         assertTrue(graduated, "market did not graduate");
@@ -71,7 +71,7 @@ contract GraduationPendingTest is TestBase {
         PendingMarket memory market = _pendingMarket();
         vm.prank(HOLDER);
         vm.expectRevert();
-        market.launchpad.buyTokens(market.token, 1, 0);
+        market.launchpad.buyTokens(market.token, 1, 0, DEADLINE);
         vm.expectRevert();
         market.launchpad.graduate(market.token);
     }
@@ -95,7 +95,7 @@ contract GraduationPendingTest is TestBase {
         vm.prank(firstHolder);
         MemeToken(first).approve(address(launchpad), firstSold);
         vm.prank(firstHolder);
-        launchpad.sellTokens(first, firstSold, 0);
+        launchpad.sellTokens(first, firstSold, 0, DEADLINE);
         _assertSolvent(quote, launchpad, first, second);
 
         (,,, uint128 secondQuote, uint128 secondSold,,,) = launchpad.markets(second);
@@ -103,7 +103,7 @@ contract GraduationPendingTest is TestBase {
         MemeToken(second).approve(address(launchpad), secondSold);
         uint256 before = quote.balanceOf(secondHolder);
         vm.prank(secondHolder);
-        launchpad.sellTokens(second, secondSold, 0);
+        launchpad.sellTokens(second, secondSold, 0, DEADLINE);
         uint256 repaid = quote.balanceOf(secondHolder) - before;
         assertTrue(repaid <= secondQuote, "second market was overpaid");
         assertTrue(secondQuote - repaid <= 2, "rounding dust too large");
@@ -124,7 +124,7 @@ contract GraduationPendingTest is TestBase {
         vm.prank(HOLDER);
         market.quote.approve(address(market.launchpad), 1_000 ether);
         vm.prank(HOLDER);
-        market.launchpad.buyTokens(market.token, 1_000 ether, 1);
+        market.launchpad.buyTokens(market.token, 1_000 ether, 1, DEADLINE);
         (
             address creator,
             uint128 vt,
@@ -156,7 +156,7 @@ contract GraduationPendingTest is TestBase {
         vm.prank(holder);
         quote.approve(address(launchpad), amount);
         vm.prank(holder);
-        launchpad.buyTokens(token, amount, 1);
+        launchpad.buyTokens(token, amount, 1, DEADLINE);
     }
 
     function _assertSolvent(MockWETH quote, CurveballLaunchpad launchpad, address first, address second) private view {

@@ -153,12 +153,13 @@ export const useStore = create((set, get) => ({
         args: [token.address, input],
       });
       const minOut = (output * 97n) / 100n;
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
 
       const hash = await writeContract(wagmiConfig, {
         address: launchpadAddress,
         abi: contractAbi,
         functionName: side === "buy" ? "buyTokens" : "sellTokens",
-        args: [token.address, input, minOut],
+        args: [token.address, input, minOut, deadline],
       });
       set({ tradeMessage: "Confirming…" });
       await waitForTransactionReceipt(wagmiConfig, { hash });
