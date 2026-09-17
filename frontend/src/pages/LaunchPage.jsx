@@ -69,6 +69,30 @@ export function LaunchPage() {
             Metadata URI <small>Optional</small>
             <input name="uri" type="url" placeholder="https://…" />
           </label>
+          <label>
+            Image URL <small>Optional</small>
+            <input name="imageUrl" type="url" placeholder="https://…/image.png" />
+          </label>
+          <label>
+            Description <small>Optional</small>
+            <input
+              name="description"
+              maxLength={500}
+              placeholder="What is it?"
+            />
+          </label>
+          <label>
+            Website <small>Optional</small>
+            <input name="website" type="url" placeholder="https://…" />
+          </label>
+          <label>
+            X handle <small>Optional</small>
+            <input name="xHandle" maxLength={60} placeholder="@yourtoken" />
+          </label>
+          <label>
+            Telegram <small>Optional</small>
+            <input name="telegram" maxLength={60} placeholder="t.me/…" />
+          </label>
           <button
             className="launch-button"
             type="submit"

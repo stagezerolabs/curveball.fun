@@ -1,7 +1,9 @@
 import { useStore } from "../app/useStore.js";
 import { AppLink } from "../components/Navigation.jsx";
+import { TokenAvatar } from "../components/TokenAvatar.jsx";
 import { TradeCard } from "../components/TradeCard.jsx";
 import { useAccount } from "wagmi";
+import { formatEthAmount, formatPercent } from "../lib/format.js";
 
 export function MarketPage({
   token,
@@ -30,9 +32,7 @@ export function MarketPage({
           ← All markets
         </AppLink>
         <div className="market-title-row">
-          <div className="token-avatar detail-avatar">
-            {(token.symbol || "?").slice(0, 1)}
-          </div>
+          <TokenAvatar token={token} className="detail-avatar" />
           <div>
             <span
               className={`status-pill ${token.graduated ? "graduated" : "live"}`}
@@ -74,12 +74,16 @@ export function MarketPage({
               <strong>RISE</strong>
             </p>
             <p>
-              <span>Pricing</span>
-              <strong>Bonding curve</strong>
+              <span>Progress</span>
+              <strong>
+                {token.graduated ? "100%" : formatPercent(token.progress)}
+              </strong>
             </p>
             <p>
-              <span>Protection</span>
-              <strong>3% slippage</strong>
+              <span>Price</span>
+              <strong>
+                {token.graduated ? "On Icarus" : `${formatEthAmount(token.price)} ETH`}
+              </strong>
             </p>
           </div>
         </div>

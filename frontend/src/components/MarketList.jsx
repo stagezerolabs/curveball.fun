@@ -1,5 +1,7 @@
 import { AppLink } from "./Navigation.jsx";
 import { ArrowIcon } from "./ArrowIcon.jsx";
+import { TokenAvatar } from "./TokenAvatar.jsx";
+import { formatEthAmount, formatPercent } from "../lib/format.js";
 
 export function MarketList({ tokens, loading, navigate }) {
   return (
@@ -27,9 +29,7 @@ export function MarketList({ tokens, loading, navigate }) {
           onClick={() => navigate("market", { address: token.address })}
         >
           <span className="token-cell">
-            <span className={`token-avatar hue-${index % 4}`}>
-              {(token.symbol || "?").slice(0, 1)}
-            </span>
+            <TokenAvatar token={token} index={index} />
             <span>
               <strong>{token.name}</strong>
               <small>${token.symbol}</small>
@@ -40,9 +40,25 @@ export function MarketList({ tokens, loading, navigate }) {
           >
             <i /> {token.graduated ? "Graduated" : "Curve live"}
           </span>
-          <span className="address-cell">
-            {token.address.slice(0, 6)}…{token.address.slice(-4)} <ArrowIcon />
-          </span>
+          {token.graduated ? (
+            <span className="market-cell">
+              <strong>Graduated</strong>
+              <ArrowIcon />
+            </span>
+          ) : (
+            <span className="market-cell">
+              <strong>{formatEthAmount(token.price)} ETH</strong>
+              <small>{formatEthAmount(token.marketCap)} ETH cap</small>
+            </span>
+          )}
+          {!token.graduated && (
+            <span className="row-progress" aria-hidden="true">
+              <span
+                className="row-progress-fill"
+                style={{ width: formatPercent(token.progress) }}
+              />
+            </span>
+          )}
         </button>
       ))}
     </div>

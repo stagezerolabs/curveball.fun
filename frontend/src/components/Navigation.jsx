@@ -1,4 +1,6 @@
+import { useBalance } from "wagmi";
 import { routeHref } from "../app/routeTree.js";
+import { formatEthAmount } from "../lib/format.js";
 
 export function AppLink({ route, params, navigate, children, ...props }) {
   const href = routeHref(route, params);
@@ -41,6 +43,7 @@ export function Brand({ navigate }) {
 }
 
 export function Header({ address, connectWallet, navigate, routeId }) {
+  const { data: balance } = useBalance({ address });
   return (
     <header className="nav wrap">
       <Brand navigate={navigate} />
@@ -60,12 +63,19 @@ export function Header({ address, connectWallet, navigate, routeId }) {
           Launch
         </AppLink>
       </nav>
-      <button className="wallet-button" onClick={connectWallet}>
-        <span className={address ? "wallet-dot connected" : "wallet-dot"} />
-        {address
-          ? `${address.slice(0, 5)}…${address.slice(-4)}`
-          : "Connect wallet"}
-      </button>
+      <span className="wallet-group">
+        {address && balance && (
+          <span className="wallet-balance">
+            {formatEthAmount(Number(balance.formatted))} ETH
+          </span>
+        )}
+        <button className="wallet-button" onClick={connectWallet}>
+          <span className={address ? "wallet-dot connected" : "wallet-dot"} />
+          {address
+            ? `${address.slice(0, 5)}…${address.slice(-4)}`
+            : "Connect wallet"}
+        </button>
+      </span>
     </header>
   );
 }

@@ -29,6 +29,11 @@ export const tokens = pgTable(
     creator: text().notNull(),
     graduated: boolean().default(false).notNull(),
     pool: text(),
+    imageUrl: text("image_url"),
+    description: text(),
+    website: text(),
+    xHandle: text("x_handle"),
+    telegram: text(),
     ...timestamps,
   },
   (table) => [
