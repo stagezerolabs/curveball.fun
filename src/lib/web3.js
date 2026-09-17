@@ -17,6 +17,13 @@ export const launchpadAddress = import.meta.env.VITE_LAUNCHPAD_ADDRESS;
 export const contractAbi = [
   {
     type: "function",
+    name: "quote",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "address" }],
+  },
+  {
+    type: "function",
     name: "createToken",
     stateMutability: "nonpayable",
     inputs: [
@@ -67,6 +74,29 @@ export const contractAbi = [
       { type: "uint256", name: "a" },
     ],
     outputs: [{ type: "uint256" }],
+  },
+];
+
+export const erc20Abi = [
+  {
+    type: "function",
+    name: "allowance",
+    stateMutability: "view",
+    inputs: [
+      { type: "address", name: "owner" },
+      { type: "address", name: "spender" },
+    ],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "approve",
+    stateMutability: "nonpayable",
+    inputs: [
+      { type: "address", name: "spender" },
+      { type: "uint256", name: "amount" },
+    ],
+    outputs: [{ type: "bool" }],
   },
 ];
 

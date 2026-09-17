@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { formatEther, parseEther } from "viem";
 import {
+  getAccount,
   readContract,
   waitForTransactionReceipt,
   writeContract,
@@ -8,6 +9,7 @@ import {
 import {
   apiUrl,
   contractAbi,
+  erc20Abi,
   launchpadAddress,
   wagmiConfig,
 } from "../lib/web3.js";
@@ -115,6 +117,32 @@ export const useStore = create((set, get) => ({
         throw Error("Enter an amount greater than zero.");
 
       const input = parseEther(amount);
+      const account = getAccount(wagmiConfig);
+      if (!account.address) throw Error("Connect your wallet to trade.");
+      const asset =
+        side === "buy"
+          ? await readContract(wagmiConfig, {
+              address: launchpadAddress,
+              abi: contractAbi,
+              functionName: "quote",
+            })
+          : token.address;
+      const allowance = await readContract(wagmiConfig, {
+        address: asset,
+        abi: erc20Abi,
+        functionName: "allowance",
+        args: [account.address, launchpadAddress],
+      });
+      if (allowance < input) {
+        set({ tradeMessage: "Approve the exact amount in your wallet…" });
+        const approvalHash = await writeContract(wagmiConfig, {
+          address: asset,
+          abi: erc20Abi,
+          functionName: "approve",
+          args: [launchpadAddress, input],
+        });
+        await waitForTransactionReceipt(wagmiConfig, { hash: approvalHash });
+      }
       const output = await readContract(wagmiConfig, {
         address: launchpadAddress,
         abi: contractAbi,
