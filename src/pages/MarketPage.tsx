@@ -27,8 +27,12 @@ export function MarketPage({
   };
   const { address } = useAccount();
   const { data } = useFetch<LaunchpadConfig | null>("/api/config", null);
-  // Dev-only: an unconfigured launchpad falls back to sample settings.
-  const config = useMemo(() => data ?? mockConfig(), [data]);
+  // A launchpad the server could not read comes back as an object of nulls, not
+  // as no object, so test a field rather than the object itself.
+  const config = useMemo(
+    () => (data?.creatorShareBps == null ? (mockConfig() ?? data) : data),
+    [data],
+  );
   const error = actionError || marketError;
 
   if (loading) return <main className="page-status wrap">Loading market…</main>;

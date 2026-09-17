@@ -5,6 +5,12 @@
   # (the contracts workspace matches several framework signatures) and fails.
   command = "bun run build"
 
+# The Netlify CLI re-runs the command above during `deploy`, so build env vars
+# must be set here — setting them only on the CI build step has no effect, the
+# rebuild discards that output. Delete this block to strip demo data.
+[build.environment]
+  VITE_DEMO_DATA = "true"
+
 [[redirects]]
   from = "/api/*"
   to = "https://curveball-kamicash-eb63bc77.koyeb.app/api/:splat"

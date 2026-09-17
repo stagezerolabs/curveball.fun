@@ -2590,3 +2590,16 @@ not as "disabled" — use a flat surface instead. */
     overflow-x: auto;
   }
 }
+
+.demo-banner {
+  background: var(--orange);
+  color: #1a0d07;
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0;
+  padding: 9px 24px;
+  text-align: center;
+}
+.demo-banner strong {
+  font-weight: 700;
+}

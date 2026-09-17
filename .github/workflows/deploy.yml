@@ -21,7 +21,11 @@ jobs:
 
       - run: bun run typecheck
 
+      # Demo data ships until the contracts are deployed, so the site is
+      # presentable with an empty database. Remove to strip it from the bundle.
       - run: bun run build
+        env:
+          VITE_DEMO_DATA: "true"
 
       - name: Publish to Netlify
         # dist/ is already built by the step above; this only uploads it.
