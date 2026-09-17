@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 interface Vm {
     function prank(address) external;
+    function deal(address who, uint256 newBalance) external;
     function expectRevert() external;
     function setEnv(string calldata name, string calldata value) external;
     function toString(address value) external pure returns (string memory);
