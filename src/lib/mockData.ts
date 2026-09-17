@@ -17,7 +17,10 @@ import type {
   TradePage,
 } from "../types";
 
-const ENABLED = import.meta.env.DEV;
+const ENABLED =
+  import.meta.env.DEV || import.meta.env.VITE_DEMO_DATA === "true";
+
+export const DEMO_DATA = ENABLED;
 
 const minutesAgo = (minutes: number) =>
   new Date(Date.now() - minutes * 60_000).toISOString();
