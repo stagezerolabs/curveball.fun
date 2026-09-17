@@ -6,3 +6,6 @@ typechain-types
 *.sqlite
 .env
 coverage
+
+# Local Netlify folder
+.netlify

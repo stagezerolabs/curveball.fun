@@ -1,4 +1,8 @@
-import { ethers } from "hardhat";
+import "@nomicfoundation/hardhat-toolbox";
+import hre from "hardhat";
+
+const { ethers } = hre;
+
 async function main() {
   const [owner] = await ethers.getSigners();
   const W = await ethers.getContractFactory("MockWETH");

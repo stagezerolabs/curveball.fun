@@ -100,7 +100,10 @@ async function main() {
       throw new Error(
         `Source is not verified for ${address}. STOP: do not integrate Icarus.`,
       );
-    return result;
+    return {
+      SourceCode: result.SourceCode,
+      ContractName: result.ContractName,
+    };
   }
   async function read(functionName: any) {
     try {
