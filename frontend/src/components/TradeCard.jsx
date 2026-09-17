@@ -1,7 +1,10 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { formatEther } from "viem";
 import { useStore } from "../app/useStore.js";
-import { formatEthAmount } from "../lib/format.js";
+import { formatAddress, formatEthAmount } from "../lib/format.js";
+import { ArrowIcon } from "./ArrowIcon.jsx";
+
+const ICARUS_URL = "https://icarus.finance";
 
 export function TradeCard({ token, address }) {
   const {
@@ -25,21 +28,7 @@ export function TradeCard({ token, address }) {
   }, [amount, side, token.address, token.graduated]);
 
   if (token.graduated) {
-    return (
-      <aside className="trade-card market-trade-card">
-        <div className="trade-card-head">
-          <div>
-            <span>Market status</span>
-            <h3>Graduated</h3>
-          </div>
-        </div>
-        <div className="graduated-message">
-          <span aria-hidden="true">↗</span>
-          <strong>This token has graduated.</strong>
-          <p>Its curve is complete and liquidity has moved to Icarus.</p>
-        </div>
-      </aside>
-    );
+    return <GraduatedCard token={token} />;
   }
 
   const unit = side === "buy" ? "ETH" : token.symbol;
@@ -120,6 +109,53 @@ export function TradeCard({ token, address }) {
           {tradeMessage}
         </p>
       )}
+    </aside>
+  );
+}
+
+function GraduatedCard({ token }) {
+  const [copied, setCopied] = useState(false);
+
+  const copyPool = async () => {
+    try {
+      await navigator.clipboard.writeText(token.pool);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  return (
+    <aside className="trade-card market-trade-card">
+      <div className="trade-card-head">
+        <div>
+          <span>Market status</span>
+          <h3>Graduated</h3>
+        </div>
+      </div>
+      <div className="graduated-message">
+        <span aria-hidden="true">↗</span>
+        <strong>This token has graduated.</strong>
+        <p>Its curve is complete and liquidity has moved to Icarus.</p>
+      </div>
+      {token.pool && (
+        <div className="pool-address">
+          <span>Pool</span>
+          <code>{formatAddress(token.pool)}</code>
+          <button type="button" onClick={copyPool}>
+            {copied ? "Copied" : "Copy"}
+          </button>
+        </div>
+      )}
+      <a
+        className="primary-button icarus-link"
+        href={`${ICARUS_URL}/${token.address}`}
+        target="_blank"
+        rel="noreferrer"
+      >
+        Trade on Icarus <ArrowIcon />
+      </a>
     </aside>
   );
 }

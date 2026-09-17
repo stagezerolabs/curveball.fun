@@ -2,6 +2,7 @@ import { useStore } from "../app/useStore.js";
 import { AppLink } from "../components/Navigation.jsx";
 import { TokenAvatar } from "../components/TokenAvatar.jsx";
 import { TradeCard } from "../components/TradeCard.jsx";
+import { TransactionHistory } from "../components/TransactionHistory.jsx";
 import { useAccount } from "wagmi";
 import { formatEthAmount, formatPercent } from "../lib/format.js";
 
@@ -91,6 +92,9 @@ export function MarketPage({
           token={token}
           address={address}
         />
+      </section>
+      <section className="market-history wrap">
+        <TransactionHistory tokenAddress={token.address} />
       </section>
       {error && (
         <p className="notice floating-notice wrap" role="alert">

@@ -577,6 +577,82 @@ button {
   margin-bottom: 70px;
   margin-top: -90px;
 }
+.market-history {
+  padding-bottom: 130px;
+}
+.tx-history {
+  background: var(--surface);
+  border-radius: 22px;
+  box-shadow: var(--shadow-border);
+  padding: 22px 24px 8px;
+}
+.tx-history-label {
+  color: #879087;
+  display: flex;
+  font-size: 10px;
+  font-weight: 700;
+  justify-content: space-between;
+  letter-spacing: 0.1em;
+  padding-bottom: 14px;
+  text-transform: uppercase;
+}
+.tx-history-label strong {
+  color: var(--ink);
+}
+.tx-empty {
+  color: var(--muted);
+  font-size: 13px;
+  padding: 10px 0 22px;
+}
+.tx-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tx-row {
+  align-items: center;
+  border-top: 1px solid rgba(20, 34, 27, 0.08);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: auto 1fr auto;
+  padding: 14px 0;
+}
+.tx-side {
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 12px;
+}
+.tx-buy .tx-side {
+  background: #e6f4ec;
+  color: #2f845d;
+}
+.tx-sell .tx-side {
+  background: #fdeee7;
+  color: #b8461f;
+}
+.tx-amounts {
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  font-weight: 600;
+}
+.tx-amounts small {
+  color: #8a928c;
+  font-size: 11px;
+  font-weight: 600;
+}
+.tx-link {
+  color: #7d867f;
+  font:
+    500 11px ui-monospace,
+    monospace;
+  transition: color 120ms ease-out;
+}
+.tx-link:hover {
+  color: var(--orange);
+}
 .page-status {
   align-items: center;
   display: flex;
@@ -1042,6 +1118,42 @@ input:focus-visible {
   color: var(--muted);
   font-size: 12px;
   margin: 7px 0;
+}
+.pool-address {
+  align-items: center;
+  background: #f1f2ec;
+  border-radius: 12px;
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 12px 14px;
+}
+.pool-address span {
+  color: #737c74;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.pool-address code {
+  color: var(--ink);
+  flex: 1;
+  font: 500 12px ui-monospace, monospace;
+}
+.pool-address button {
+  background: transparent;
+  border: 1px solid rgba(20, 34, 27, 0.18);
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 700;
+  min-height: 26px;
+  padding: 0 10px;
+}
+.icarus-link {
+  justify-content: center;
+  margin-top: 16px;
+  width: 100%;
 }
 
 .launch-page {
