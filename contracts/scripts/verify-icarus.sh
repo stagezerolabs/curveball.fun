@@ -19,7 +19,14 @@ for command in cast curl diff jq; do require "$command"; done
 }
 
 call() {
-  cast call "$factory" "$1" --rpc-url "$rpc_url"
+  local result
+  for _ in 1 2 3; do
+    if result="$(cast call "$factory" "$1" --rpc-url "$rpc_url")"; then
+      printf '%s' "$result"
+      return
+    fi
+  done
+  return 1
 }
 
 source_for() {
@@ -39,7 +46,8 @@ contract_name_for() {
 }
 
 extract_contract() {
-  local source="$1" suffix="$2" normalized="$source" extracted
+  local source="$1" suffix="$2" normalized extracted
+  normalized="$source"
   [[ "$normalized" == '{{'*'}}' ]] && normalized="${normalized:1:${#normalized}-2}"
   extracted="$(jq -er --arg suffix "$suffix" '.sources | to_entries[] | select(.key | endswith($suffix)) | .value.content' <<<"$normalized" 2>/dev/null | head -n 1)" || true
   printf '%s' "${extracted:-$source}"
