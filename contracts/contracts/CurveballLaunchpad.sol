@@ -112,7 +112,10 @@ contract CurveballLaunchpad is ReentrancyGuard {
 
     function sellTokens(address token, uint256 amount, uint256 minOut) external nonReentrant returns (uint256 out) {
         Market storage m = markets[token];
-        require(m.creator != address(0) && !m.graduated && !m.pending && amount <= m.sold, "inactive");
+        // Deliberately reachable while `m.pending`: a market whose graduation keeps reverting must not
+        // trap holders. Selling stays solvent regardless, because `m.vq == initialVQ + m.realQ` holds on
+        // every path, so `out` can never exceed this market's own quote balance.
+        require(m.creator != address(0) && !m.graduated && amount <= m.sold, "inactive");
         uint256 k = uint256(m.vt) * m.vq;
         uint256 newVt = uint256(m.vt) + amount;
         uint256 newVq = (k + newVt - 1) / newVt;
@@ -123,6 +126,9 @@ contract CurveballLaunchpad is ReentrancyGuard {
         m.vq = uint128(newVq);
         m.sold -= uint128(amount);
         m.realQ -= uint128(out);
+        // The curve is no longer full, so it is no longer awaiting graduation. Clearing this reopens
+        // buying, and the next buy that refills the curve retries graduation on its own.
+        if (m.pending && m.sold < curveSupply) m.pending = false;
         quote.safeTransfer(msg.sender, out);
         emit Trade(token, msg.sender, false, out, amount, m.vq, m.vt, m.sold);
     }
