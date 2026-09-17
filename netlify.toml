@@ -1,5 +1,9 @@
 [build]
   publish = "dist"
+  # Explicit, even though CI builds before publishing. Without a command the
+  # Netlify CLI runs framework detection, which is ambiguous in this repo
+  # (the contracts workspace matches several framework signatures) and fails.
+  command = "bun run build"
 
 [[redirects]]
   from = "/api/*"
