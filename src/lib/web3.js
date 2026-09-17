@@ -1,7 +1,7 @@
 import { createConfig } from "wagmi";
 import { injected } from "wagmi/connectors";
 import { hardhat } from "wagmi/chains";
-import { defineChain, http, parseAbiItem } from "viem";
+import { defineChain, http } from "viem";
 
 const rise = defineChain({
   id: 4153,
@@ -69,10 +69,6 @@ export const contractAbi = [
     outputs: [{ type: "uint256" }],
   },
 ];
-
-export const tokenCreatedEvent = parseAbiItem(
-  "event TokenCreated(address indexed token,address indexed creator,string name,string symbol,string uri)",
-);
 
 export const wagmiConfig = createConfig({
   chains: [chain],

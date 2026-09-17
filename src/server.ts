@@ -118,67 +118,6 @@ api.get("/tokens", async (c) => {
     .orderBy(desc(tokens.graduated));
   return c.json(await enrichWithMarketData(rows));
 });
-const metadataValidators: Record<
-  string,
-  (value: unknown) => string | null | undefined
-> = {
-  imageUrl: (value) => validateOptionalUrl(value, 500),
-  website: (value) => validateOptionalUrl(value, 300),
-  description: (value) => validateOptionalText(value, 500),
-  xHandle: (value) => validateOptionalText(value, 60),
-  telegram: (value) => validateOptionalText(value, 60),
-};
-function validateOptionalText(value: unknown, maxLength: number) {
-  if (value === null || value === undefined) return null;
-  if (typeof value !== "string" || value.length > maxLength) {
-    throw new Error("invalid field");
-  }
-  const trimmed = value.trim();
-  return trimmed.length ? trimmed : null;
-}
-function validateOptionalUrl(value: unknown, maxLength: number) {
-  const trimmed = validateOptionalText(value, maxLength);
-  if (!trimmed) return trimmed;
-  try {
-    const url = new URL(trimmed);
-    if (url.protocol !== "http:" && url.protocol !== "https:") {
-      throw new Error("bad protocol");
-    }
-  } catch {
-    throw new Error("invalid url");
-  }
-  return trimmed;
-}
-
-api.patch("/tokens/:address/metadata", async (c) => {
-  let body: Record<string, unknown>;
-  try {
-    body = await c.req.json();
-  } catch {
-    return c.json({ error: "invalid json body" }, 400);
-  }
-  const fields: Record<string, string | null> = {};
-  for (const key of Object.keys(metadataValidators)) {
-    if (!(key in body)) continue;
-    try {
-      fields[key] = metadataValidators[key](body[key]) ?? null;
-    } catch {
-      return c.json({ error: `invalid ${key}` }, 400);
-    }
-  }
-  if (Object.keys(fields).length === 0) {
-    return c.json({ error: "no valid metadata fields provided" }, 400);
-  }
-  const [updated] = await db
-    .update(tokens)
-    .set(fields)
-    .where(
-      and(eq(tokens.address, c.req.param("address")), isNull(tokens.deletedAt)),
-    )
-    .returning();
-  return updated ? c.json(updated) : c.json({ error: "not found" }, 404);
-});
-
 api.get("/tokens/:address/transactions", async (c) => {
   const rows = await db
     .select({

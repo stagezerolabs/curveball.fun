@@ -10,7 +10,7 @@ The repository is a local-testable implementation. **It is not approved for RISE
 | --- | --- |
 | Smart contracts | Solidity 0.8.24 launchpad, locked token, LP locker, Icarus interfaces, mocks, Foundry tests, and deployment scripts |
 | Web app | React 18, Vite, Wagmi, Viem, Zustand, and a small client-side router |
-| API | Bun + Hono endpoints for health checks, token markets, editable token metadata, and trade history |
+| API | Bun + Hono endpoints for health checks, token markets, and trade history |
 | Data | Postgres with Drizzle migrations; an idempotent chain indexer persists `TokenCreated`, `Trade`, and `Graduated` events |
 | Local stack | Docker Compose starts Postgres, the API/web server, and the indexer; `Makefile` wraps common commands |
 
@@ -111,10 +111,9 @@ The browser wallet must also be connected to the local Anvil chain. The local de
 | --- | --- |
 | `GET /api/health` | Verifies Postgres connectivity |
 | `GET /api/tokens` | Returns indexed markets, enriched from the launchpad when configured |
-| `PATCH /api/tokens/:address/metadata` | Stores optional image, description, website, X handle, and Telegram details |
 | `GET /api/tokens/:address/transactions` | Returns indexed trades for a market |
 
-Metadata accepts only HTTP(S) URLs for `imageUrl` and `website`; all submitted fields have length limits. The indexer owns on-chain market fields, while creators can supply the off-chain presentation metadata after their creation transaction confirms.
+The indexer owns all market data returned by the API. Creator-editable off-chain metadata is intentionally disabled until it has wallet-signature ownership verification.
 
 ## Icarus verification and deployment gate
 
