@@ -1,7 +1,11 @@
 import { AppLink } from "./Navigation";
 import { TokenAvatar } from "./TokenAvatar";
 import {
+  changeTone,
   formatAddress,
+  formatChange,
+  formatCompact,
+  formatCount,
   formatEthAmount,
   formatPercent,
   formatRelativeTime,
@@ -20,55 +24,63 @@ export function TokenCard({
   return (
     <li>
       <AppLink
-        className="launch-card"
+        className="tcard"
         route="market"
         params={{ address: token.address }}
         navigate={navigate}
       >
-        <span className="launch-card-media">
-          <TokenAvatar
-            token={token}
-            index={index}
-            className="launch-card-logo"
-          />
-          <span className="launch-card-badges">
-            {token.graduated ? (
-              <span className="launch-card-badge graduated">Graduated</span>
-            ) : (
-              <span className="launch-card-badge live">
-                {formatPercent(token.progress)}
-              </span>
-            )}
+        <span className="tcard-media">
+          <TokenAvatar token={token} index={index} className="tcard-image" />
+          <span className={`tcard-change change ${changeTone(token.change24h)}`}>
+            {formatChange(token.change24h)} <small>24h</small>
           </span>
-        </span>
-        <span className="launch-card-body">
-          <span className="launch-card-name-row">
-            <strong>{token.name}</strong>
-            <small>${token.symbol}</small>
+          <span className="tcard-milestone">
+            {token.graduated
+              ? "Graduated"
+              : `${formatPercent(token.progress)} of graduation`}
           </span>
-          <span className="launch-card-mcap">
-            <span className="launch-card-mcap-value">
-              {formatEthAmount(token.marketCap)}
+          {!token.graduated && (
+            <span className="tcard-progress" aria-hidden="true">
+              <span style={{ width: formatPercent(token.progress) }} />
             </span>
-            <span className="launch-card-mcap-label">ETH cap</span>
-            {!token.graduated && (
-              <span className="launch-card-price">
-                / {formatEthAmount(token.price)} ETH
+          )}
+        </span>
+
+        <span className="tcard-body">
+          <span className="tcard-title">
+            <strong>${token.symbol}</strong>
+            <small>{token.name}</small>
+            {token.quoteSymbol && (
+              <span className="tcard-paired">
+                Paired with<i>{token.quoteSymbol}</i>
               </span>
             )}
           </span>
-          <span className="launch-card-meta">
-            <span>{formatAddress(token.creator)}</span>
-            <time dateTime={token.createdAt}>
-              {formatRelativeTime(token.createdAt)}
-            </time>
+
+          <span className="tcard-meta">
+            {formatAddress(token.address)} · {formatRelativeTime(token.createdAt)}
+          </span>
+
+          <span className="tcard-figures">
+            <span>
+              <small>Market cap</small>
+              <strong>{formatCompact(token.marketCap)} ETH</strong>
+            </span>
+            <span className="tcard-figure-end">
+              <small>Price</small>
+              <strong>{formatEthAmount(token.price)} ETH</strong>
+            </span>
+          </span>
+
+          <span className="tcard-footer">
+            <span className={token.graduated ? "graduated" : "live"}>
+              <i aria-hidden="true" />
+              {token.graduated ? "Graduated" : "Curve live"}
+            </span>
+            <span>{formatCount(token.holders)} holders</span>
+            <span>Vol {formatCompact(token.volume24h)} ETH</span>
           </span>
         </span>
-        {!token.graduated && (
-          <span className="launch-card-progress" aria-hidden="true">
-            <span style={{ width: formatPercent(token.progress) }} />
-          </span>
-        )}
       </AppLink>
     </li>
   );

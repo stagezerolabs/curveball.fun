@@ -82,6 +82,13 @@ export const contractAbi = [
 export const erc20Abi = [
   {
     type: "function",
+    name: "balanceOf",
+    stateMutability: "view",
+    inputs: [{ type: "address", name: "owner" }],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
     name: "allowance",
     stateMutability: "view",
     inputs: [
@@ -107,3 +114,13 @@ export const wagmiConfig = createConfig({
   connectors: [injected()],
   transports: { [chain.id]: http(chain.rpcUrls.default.http[0]) },
 });
+
+export const lockerAbi = [
+  {
+    type: "function",
+    name: "claim",
+    stateMutability: "nonpayable",
+    inputs: [{ type: "address", name: "pool" }],
+    outputs: [],
+  },
+];

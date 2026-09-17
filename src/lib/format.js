@@ -29,3 +29,35 @@ export function formatRelativeTime(value) {
   }
   return "just now";
 }
+
+export function formatCompact(value) {
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
+  if (Math.abs(value) < 1000) return formatEthAmount(value);
+  return value.toLocaleString(undefined, {
+    notation: "compact",
+    maximumFractionDigits: 2,
+  });
+}
+
+// "+70.9%" / "-22.7%" / "+<0.1%" / "0%" — tiny moves stay visibly non-zero
+// instead of rounding to "+0.0%".
+export function formatChange(value) {
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
+  if (value === 0) return "0%";
+  const sign = value > 0 ? "+" : "-";
+  const magnitude = Math.abs(value);
+  if (magnitude < 0.1) return `${sign}<0.1%`;
+  return `${sign}${magnitude.toLocaleString(undefined, { maximumFractionDigits: 1 })}%`;
+}
+
+export function changeTone(value) {
+  if (value === null || value === undefined || Number.isNaN(value)) return "flat";
+  if (value > 0) return "up";
+  if (value < 0) return "down";
+  return "flat";
+}
+
+export function formatCount(value) {
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
+  return value.toLocaleString();
+}

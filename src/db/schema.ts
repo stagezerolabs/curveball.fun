@@ -34,6 +34,9 @@ export const tokens = pgTable(
     website: text(),
     xHandle: text("x_handle"),
     telegram: text(),
+    // Quote-side liquidity moved to the Icarus pool at graduation, in wei.
+    // Emitted by Graduated(); null until a token graduates.
+    quoteLiquidity: text("quote_liquidity"),
     ...timestamps,
   },
   (table) => [
@@ -55,6 +58,11 @@ export const trades = pgTable(
     quote: text().notNull(),
     amount: text().notNull(),
     tx: text().notNull(),
+    // Chain time, not row-insert time. Every time-windowed metric (24h volume,
+    // 24h change, price history) reads this — created_at is only a fallback for
+    // rows indexed before these columns existed, and is wrong for any backfill.
+    blockNumber: text("block_number"),
+    blockTime: timestamp("block_time", { withTimezone: true }),
     ...timestamps,
   },
   (table) => [
@@ -62,6 +70,7 @@ export const trades = pgTable(
     index("trades_token_idx")
       .on(table.token)
       .where(sql`${table.deletedAt} IS NULL`),
+    index("trades_token_time_idx").on(table.token, table.blockTime),
   ],
 );
 
