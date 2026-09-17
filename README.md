@@ -120,18 +120,15 @@ The indexer owns all market data returned by the API. Creator-editable off-chain
 RISE mainnet deployment is intentionally blocked until the candidate Icarus factory is verified. The verification script reads the factory and implementation, fetches their Blockscout-verified sources, checks the required ABI surface, and produces a source diff against Aerodrome reference contracts. It only performs reads and writes evidence files; it never sends a transaction.
 
 ```sh
-cp contracts/.env.example contracts/.env
 # Re-verify the documented candidate immediately before any deployment review.
-ICARUS_FACTORY=0xEe10C6a0f158bFEeef3d48Dc0D26130Cf6115615
-set -a; source contracts/.env; set +a
+# Set ICARUS_FACTORY in .env to 0xEe10C6a0f158bFEeef3d48Dc0D26130Cf6115615.
 make -C contracts verify-icarus
 ```
 
 Evidence is written to `deployments/4153/icarus-verification.json` with the verified source files and `icarus-vs-aerodrome.diff` beside it. The current candidate is Icarus PoolFactory `0xEe10C6a0f158bFEeef3d48Dc0D26130Cf6115615`; its verified pool implementation is `0xA24Bdf8ee26658c822796a30770F23c2425de966`. The only supported quote asset is verified RISE WETH `0x4200000000000000000000000000000000000006`. Re-verify all three immediately before any deployment review. Integration still requires human review of the archived diff and a successful local-fork lifecycle test:
 
 ```sh
-cd contracts
-RISE_RPC_URL=https://rpc.risechain.com/ pnpm test:fork
+pnpm --dir contracts test:fork
 ```
 
 The guarded `make -C contracts deploy-devnet` target requires explicit devnet inputs and refuses chain ID `4153`, so it cannot deploy to RISE mainnet.
@@ -144,4 +141,4 @@ The guarded `make -C contracts deploy-devnet` target requires explicit devnet in
 
 ## Environment
 
-Root [`.env.example`](.env.example) defines application, database, RPC, and frontend variables. [`contracts/.env.example`](contracts/.env.example) defines only verification and guarded deployment inputs. Addresses are deliberately absent from both files.
+Root [`.env.example`](.env.example) defines application, database, frontend, verification, and guarded deployment inputs. Copy it once to `.env`; contract commands load that shared file. Addresses are deliberately absent from the template.
