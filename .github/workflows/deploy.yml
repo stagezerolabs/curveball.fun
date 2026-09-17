@@ -24,7 +24,9 @@ jobs:
       - run: bun run build
 
       - name: Publish to Netlify
-        run: bunx netlify-cli@17 deploy --prod --dir=dist --message "$GITHUB_SHA"
+        # --no-build: dist/ is already built above. Without it the CLI runs
+        # framework detection and fails on this repo with ambiguous matches.
+        run: bunx netlify-cli@17 deploy --prod --no-build --dir=dist --message "$GITHUB_SHA"
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: 98c3e594-e664-4fc9-b8c2-e3b0e876d003
