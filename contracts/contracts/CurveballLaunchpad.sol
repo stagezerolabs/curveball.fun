@@ -3,12 +3,14 @@ pragma solidity ^0.8.24;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {MemeToken} from "./MemeToken.sol";
 import {LpLocker} from "./LpLocker.sol";
 import {IIcarusFactory, IIcarusPool} from "./interfaces/IIcarus.sol";
 
 contract CurveballLaunchpad is ReentrancyGuard {
     using SafeERC20 for IERC20;
+    using SafeCast for uint256;
 
     struct Market {
         address creator;
@@ -45,7 +47,7 @@ contract CurveballLaunchpad is ReentrancyGuard {
     );
 
     constructor(address q, address f, address l, uint256 s, uint256 cs, uint256 vq) {
-        require(s > cs && vq > 0);
+        require(s > cs && vq > 0 && s <= type(uint128).max && vq <= type(uint128).max, "bad curve");
         quote = IERC20(q);
         factory = IIcarusFactory(f);
         locker = LpLocker(l);
@@ -57,7 +59,7 @@ contract CurveballLaunchpad is ReentrancyGuard {
     function createToken(string calldata n, string calldata s, string calldata uri) external returns (address token) {
         bytes32 salt = keccak256(abi.encode(msg.sender, creatorNonce[msg.sender]++, block.chainid));
         token = address(new MemeToken{salt: salt}(n, s, uri, supply, address(this)));
-        markets[token] = Market(msg.sender, uint128(supply), uint128(initialVQ), 0, 0, false, false, address(0));
+        markets[token] = Market(msg.sender, supply.toUint128(), initialVQ.toUint128(), 0, 0, false, false, address(0));
         emit TokenCreated(token, msg.sender, n, s, uri);
     }
 
@@ -76,7 +78,12 @@ contract CurveballLaunchpad is ReentrancyGuard {
         out = uint256(m.vq) - newVq;
     }
 
-    function buyTokens(address token, uint256 quoteIn, uint256 minOut) external nonReentrant returns (uint256 out) {
+    function buyTokens(address token, uint256 quoteIn, uint256 minOut, uint256 deadline)
+        external
+        nonReentrant
+        returns (uint256 out)
+    {
+        require(block.timestamp <= deadline, "expired");
         Market storage m = markets[token];
         require(m.creator != address(0) && !m.graduated && !m.pending && quoteIn > 0, "inactive");
         uint256 k = uint256(m.vt) * m.vq;
@@ -89,16 +96,16 @@ contract CurveballLaunchpad is ReentrancyGuard {
             newVt = uint256(m.vt) - out;
             uint256 newVq = (k + newVt - 1) / newVt;
             used = newVq - m.vq;
-            m.vq = uint128(newVq);
+            m.vq = newVq.toUint128();
         } else {
-            m.vq += uint128(quoteIn);
+            m.vq += quoteIn.toUint128();
         }
         require(out >= minOut && out > 0, "slippage");
         quote.safeTransferFrom(msg.sender, address(this), quoteIn);
         if (quoteIn > used) quote.safeTransfer(msg.sender, quoteIn - used);
-        m.vt = uint128(newVt);
-        m.sold += uint128(out);
-        m.realQ += uint128(used);
+        m.vt = newVt.toUint128();
+        m.sold += out.toUint128();
+        m.realQ += used.toUint128();
         IERC20(token).safeTransfer(msg.sender, out);
         emit Trade(token, msg.sender, true, used, out, m.vq, m.vt, m.sold);
         if (m.sold == curveSupply) {
@@ -110,19 +117,30 @@ contract CurveballLaunchpad is ReentrancyGuard {
         }
     }
 
-    function sellTokens(address token, uint256 amount, uint256 minOut) external nonReentrant returns (uint256 out) {
+    function sellTokens(address token, uint256 amount, uint256 minOut, uint256 deadline)
+        external
+        nonReentrant
+        returns (uint256 out)
+    {
+        require(block.timestamp <= deadline, "expired");
         Market storage m = markets[token];
-        require(m.creator != address(0) && !m.graduated && !m.pending && amount <= m.sold, "inactive");
+        // Deliberately reachable while `m.pending`: a market whose graduation keeps reverting must not
+        // trap holders. Selling stays solvent regardless, because `m.vq == initialVQ + m.realQ` holds on
+        // every path, so `out` can never exceed this market's own quote balance.
+        require(m.creator != address(0) && !m.graduated && amount <= m.sold, "inactive");
         uint256 k = uint256(m.vt) * m.vq;
         uint256 newVt = uint256(m.vt) + amount;
         uint256 newVq = (k + newVt - 1) / newVt;
         out = uint256(m.vq) - newVq;
         require(out >= minOut && out <= m.realQ, "slippage");
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
-        m.vt = uint128(newVt);
-        m.vq = uint128(newVq);
-        m.sold -= uint128(amount);
-        m.realQ -= uint128(out);
+        m.vt = newVt.toUint128();
+        m.vq = newVq.toUint128();
+        m.sold -= amount.toUint128();
+        m.realQ -= out.toUint128();
+        // The curve is no longer full, so it is no longer awaiting graduation. Clearing this reopens
+        // buying, and the next buy that refills the curve retries graduation on its own.
+        if (m.pending && m.sold < curveSupply) m.pending = false;
         quote.safeTransfer(msg.sender, out);
         emit Trade(token, msg.sender, false, out, amount, m.vq, m.vt, m.sold);
     }

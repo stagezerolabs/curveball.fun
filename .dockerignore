@@ -3,7 +3,7 @@
 **/node_modules
 **/*.sqlite
 **/coverage
-**/dist
+dist
 contracts/artifacts
 contracts/cache
 contracts/typechain-types

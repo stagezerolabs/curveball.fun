@@ -2,6 +2,8 @@ node_modules
 dist
 artifacts
 cache
+out
+broadcast
 typechain-types
 *.sqlite
 .env
@@ -9,3 +11,6 @@ coverage
 
 # Local Netlify folder
 .netlify
+.agents/
+
+.worktrees/

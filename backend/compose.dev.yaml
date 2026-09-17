@@ -1,7 +1,0 @@
-# Local dev override: expose Postgres to the host so the backend can run
-# outside Docker (colima containers cannot reach host services on this machine).
-# Usage: docker compose -f compose.yaml -f compose.dev.yaml up -d postgres
-services:
-  postgres:
-    ports:
-      - "5433:5432"
