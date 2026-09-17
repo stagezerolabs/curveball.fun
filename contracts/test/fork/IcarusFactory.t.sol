@@ -59,7 +59,7 @@ contract IcarusFactoryForkTest is TestBase {
         vm.prank(TRADER);
         IWETH(WETH).approve(address(launchpad), 40 ether);
         vm.prank(TRADER);
-        launchpad.buyTokens(token, 40 ether, 800_000 ether);
+        launchpad.buyTokens(token, 40 ether, 800_000 ether, DEADLINE);
 
         (,,,,, bool graduated,, address pool) = launchpad.markets(token);
         assertTrue(graduated && IIcarusFactoryFork(FACTORY).isPool(pool), "market did not graduate on Icarus");

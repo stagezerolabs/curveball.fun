@@ -13,6 +13,7 @@ interface Vm {
 
 abstract contract TestBase {
     Vm internal constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
+    uint256 internal constant DEADLINE = type(uint256).max;
 
     function assertTrue(bool value, string memory message) internal pure {
         require(value, message);
