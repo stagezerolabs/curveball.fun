@@ -42,6 +42,20 @@ contract LaunchpadTest is TestBase {
         locker.setLaunchpad(TRADER);
     }
 
+    function testRejectsValuesThatDoNotFitMarketState() external {
+        MockWETH quote = new MockWETH();
+        MockIcarusFactory factory = new MockIcarusFactory();
+        LpLocker locker = new LpLocker(address(this), 5_000);
+        vm.expectRevert();
+        new CurveballLaunchpad(
+            address(quote), address(factory), address(locker), uint256(type(uint128).max) + 1, 1, 1
+        );
+        vm.expectRevert();
+        new CurveballLaunchpad(
+            address(quote), address(factory), address(locker), 2, 1, uint256(type(uint128).max) + 1
+        );
+    }
+
     function testHolderCanSellBackBeforeGraduation() external {
         (MockWETH quote, CurveballLaunchpad launchpad) = _deploy(1_000_000, 800_000, 10);
         quote.mint(TRADER, 20);
