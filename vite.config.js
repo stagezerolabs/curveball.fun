@@ -6,7 +6,7 @@ import react from "@vitejs/plugin-react";
 // that path to the deployed API by default — running the local Hono process needs
 // a database. Set API_URL=http://localhost:3001 to hit a local backend instead.
 const apiTarget =
-  process.env.API_URL || "https://curveball-kamicash-eb63bc77.koyeb.app";
+  process.env.API_URL || "https://curveball-kamicash-7a463851.koyeb.app";
 
 export default defineConfig({
   plugins: [react()],

@@ -7,6 +7,7 @@ Curveball is deployed on RISE mainnet with a typed browser SDK and no production
 - Launchpad: [`0x1A34768eAb2F6b925D25ca1d6daC03C1a25Ad39E`](https://explorer.risechain.com/address/0x1a34768eab2f6b925d25ca1d6dac03c1a25ad39e)
 - LP locker: [`0xFC301f5349EB1ee9F12E8d6d446Ce5e526984782`](https://explorer.risechain.com/address/0xfc301f5349eb1ee9f12e8d6d446ce5e526984782)
 - Deployment block: `22216399`
+- Production API: [`curveball-kamicash-7a463851.koyeb.app`](https://curveball-kamicash-7a463851.koyeb.app/api/health)
 
 ## What is here
 

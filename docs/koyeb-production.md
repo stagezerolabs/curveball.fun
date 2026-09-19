@@ -2,6 +2,8 @@
 
 The frontend remains a static Netlify build. Koyeb runs two services from the same repository image: the API and the indexer. Both use production Postgres and the verified RISE mainnet deployment; neither has a demo-data fallback.
 
+Production API: `https://curveball-kamicash-7a463851.koyeb.app`
+
 ## API service
 
 - Build from the repository `Dockerfile`.
@@ -31,6 +33,8 @@ bun run indexer
 ```
 
 Run one indexer replica. It verifies the RPC chain and begins at `INDEXER_START_BLOCK`, avoiding a scan from genesis. Database writes are idempotent, but a single replica keeps RPC traffic and operational behavior predictable.
+
+Koyeb Free Instances cannot run Worker Services and automatically scale web services to zero. The API is currently deployed on the organization's single Free Instance for UI testing. Before the production token launch, move the organization to Starter or higher and deploy the indexer as an always-on `eco-nano` worker (currently listed by Koyeb at approximately $1.61/month), or choose an equivalent always-on instance.
 
 ## Frontend build
 
