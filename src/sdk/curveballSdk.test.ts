@@ -61,12 +61,12 @@ describe("Curveball SDK write boundary", () => {
       validateTokenInput({
         name: "  NominateBear ",
         symbol: " nbr ",
-        uri: " https://curveball.fun/api/metadata/nominatebear ",
+        uri: " https://curveball-fun.netlify.app/api/metadata/nominatebear ",
       }),
     ).toEqual({
       name: "NominateBear",
       symbol: "NBR",
-      uri: "https://curveball.fun/api/metadata/nominatebear",
+      uri: "https://curveball-fun.netlify.app/api/metadata/nominatebear",
     });
     expect(createDeadline(1_700_000_000_000, 300)).toBe(1_700_000_300n);
   });
@@ -99,7 +99,7 @@ describe("Curveball SDK receipt boundary", () => {
     });
     const data = encodeAbiParameters(
       [{ type: "string" }, { type: "string" }, { type: "string" }],
-      ["NominateBear", "NBR", "https://curveball.fun/api/metadata/nominatebear"],
+      ["NominateBear", "NBR", "https://curveball-fun.netlify.app/api/metadata/nominatebear"],
     );
 
     expect(
