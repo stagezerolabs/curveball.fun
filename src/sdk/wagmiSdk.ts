@@ -1,7 +1,6 @@
 import {
   getAccount,
   getBytecode,
-  getChainId,
   readContract,
   simulateContract,
   switchChain,
@@ -25,6 +24,7 @@ import {
   createDeadline,
   findCreatedToken,
   validateTokenInput,
+  walletNeedsChainSwitch,
   type CurveballDeployment,
   type TokenInput,
 } from "./curveballSdk";
@@ -112,8 +112,11 @@ export function createWagmiCurveballSdk(
   async function ensureWallet(): Promise<Address> {
     const account = getAccount(config);
     if (!account.address) throw new CurveballSdkError("Connect a wallet to continue.");
-    if (getChainId(config) !== deployment.chainId) {
-      await switchChain(config, { chainId: deployment.chainId });
+    if (walletNeedsChainSwitch(account.chainId, deployment.chainId)) {
+      const switched = await switchChain(config, { chainId: deployment.chainId });
+      if (switched.id !== deployment.chainId) {
+        throw new CurveballSdkError("Switch your wallet to RISE mainnet to continue.");
+      }
     }
     return getAddress(account.address);
   }

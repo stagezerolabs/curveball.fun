@@ -8,9 +8,16 @@ import {
   findCreatedToken,
   defineCurveballDeployment,
   validateTokenInput,
+  walletNeedsChainSwitch,
 } from "./curveballSdk";
 
 describe("Curveball SDK deployment boundary", () => {
+  test("detects a wallet connected to Ethereum instead of RISE", () => {
+    expect(walletNeedsChainSwitch(1, RISE_CHAIN_ID)).toBe(true);
+    expect(walletNeedsChainSwitch(RISE_CHAIN_ID, RISE_CHAIN_ID)).toBe(false);
+    expect(walletNeedsChainSwitch(undefined, RISE_CHAIN_ID)).toBe(true);
+  });
+
   test("accepts a checksummed RISE mainnet deployment and derives transaction bounds", () => {
     const launchpad = getAddress("0x1111111111111111111111111111111111111111");
     const deployment = defineCurveballDeployment({
