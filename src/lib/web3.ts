@@ -2,6 +2,7 @@ import { createConfig } from "wagmi";
 import { injected } from "wagmi/connectors";
 import { defineChain, getAddress, http, isAddress, type Address } from "viem";
 import {
+  CURVEBALL_LAUNCHPAD_ADDRESS,
   RISE_CHAIN_ID,
   defineCurveballDeployment,
 } from "../sdk/curveballSdk";
@@ -32,7 +33,9 @@ export const wagmiConfig = createConfig({
   transports: { [rise.id]: http(rise.rpcUrls.default.http[0]) },
 });
 
-const configuredLaunchpad = import.meta.env.VITE_LAUNCHPAD_ADDRESS?.trim();
+const configuredLaunchpad =
+  import.meta.env.VITE_LAUNCHPAD_ADDRESS?.trim() ||
+  CURVEBALL_LAUNCHPAD_ADDRESS;
 
 export const launchpadAddress: Address | null =
   configuredLaunchpad && isAddress(configuredLaunchpad)

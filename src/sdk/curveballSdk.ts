@@ -7,6 +7,9 @@ import {
 import { launchpadAbi } from "./contracts";
 
 export const RISE_CHAIN_ID = 4153 as const;
+export const CURVEBALL_LAUNCHPAD_ADDRESS = getAddress(
+  "0x1A34768eAb2F6b925D25ca1d6daC03C1a25Ad39E",
+);
 
 export function walletNeedsChainSwitch(
   walletChainId: number | undefined,

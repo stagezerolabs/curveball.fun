@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { encodeAbiParameters, encodeEventTopics, getAddress } from "viem";
 import { launchpadAbi } from "./contracts";
 import {
+  CURVEBALL_LAUNCHPAD_ADDRESS,
   RISE_CHAIN_ID,
   applySlippage,
   createDeadline,
@@ -12,6 +13,12 @@ import {
 } from "./curveballSdk";
 
 describe("Curveball SDK deployment boundary", () => {
+  test("ships the canonical RISE launchpad without relying on build-time env", () => {
+    expect(CURVEBALL_LAUNCHPAD_ADDRESS).toBe(
+      getAddress("0x1A34768eAb2F6b925D25ca1d6daC03C1a25Ad39E"),
+    );
+  });
+
   test("detects a wallet connected to Ethereum instead of RISE", () => {
     expect(walletNeedsChainSwitch(1, RISE_CHAIN_ID)).toBe(true);
     expect(walletNeedsChainSwitch(RISE_CHAIN_ID, RISE_CHAIN_ID)).toBe(false);
