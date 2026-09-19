@@ -8,6 +8,13 @@ import { launchpadAbi } from "./contracts";
 
 export const RISE_CHAIN_ID = 4153 as const;
 
+export function walletNeedsChainSwitch(
+  walletChainId: number | undefined,
+  targetChainId: number,
+): boolean {
+  return walletChainId !== targetChainId;
+}
+
 export type CurveballDeployment = Readonly<{
   chainId: typeof RISE_CHAIN_ID;
   launchpad: Address;
