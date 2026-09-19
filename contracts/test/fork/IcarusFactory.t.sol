@@ -70,7 +70,7 @@ contract IcarusFactoryForkTest is TestBase {
         assertTrue(keccak256(bytes(MemeToken(token).symbol())) == keccak256("NBR"), "wrong token symbol");
         assertTrue(
             keccak256(bytes(MemeToken(token).metadataURI()))
-                == keccak256("https://curveball.fun/api/metadata/nominatebear"),
+                == keccak256("https://curveball-fun.netlify.app/api/metadata/nominatebear"),
             "wrong metadata URI"
         );
     }

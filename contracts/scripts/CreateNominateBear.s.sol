@@ -31,7 +31,8 @@ contract CreateNominateBear {
         );
 
         vm.startBroadcast();
-        token = launchpad.createToken("NominateBear", "NBR", "https://curveball.fun/api/metadata/nominatebear");
+        token =
+            launchpad.createToken("NominateBear", "NBR", "https://curveball-fun.netlify.app/api/metadata/nominatebear");
         vm.stopBroadcast();
     }
 }

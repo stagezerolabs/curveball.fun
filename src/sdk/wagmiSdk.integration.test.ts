@@ -51,7 +51,7 @@ test.skipIf(!rpcUrl || !launchpad || !account)(
     const created = await sdk.createToken({
       name: "SDK Integration",
       symbol: "SDKI",
-      uri: "https://curveball.fun/api/metadata/nominatebear",
+      uri: "https://curveball-fun.netlify.app/api/metadata/nominatebear",
     });
     expect(await getBytecode(config, { address: created.token, chainId: 4153 })).not.toBe("0x");
 
