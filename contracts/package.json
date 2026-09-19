@@ -4,8 +4,8 @@
   "scripts": {
     "compile": "forge build",
     "test": "forge test",
-    "test:fork": "set -a; . ../.env; set +a; forge test --match-path test/fork/IcarusFactory.t.sol",
-    "deploy:local": "set -a; . ../.env; set +a; forge script scripts/DeployLocal.s.sol:DeployLocal --rpc-url ${RPC_URL:-http://127.0.0.1:8545} --broadcast"
+    "test:fork": "env_file=\"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")/.env\"; set -a; . \"$env_file\"; set +a; forge test --match-path test/fork/IcarusFactory.t.sol",
+    "deploy:local": "env_file=\"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")/.env\"; set -a; . \"$env_file\"; set +a; forge script scripts/DeployLocal.s.sol:DeployLocal --rpc-url ${RPC_URL:-http://127.0.0.1:8545} --broadcast"
   },
   "devDependencies": {
     "@openzeppelin/contracts": "5.1.0"

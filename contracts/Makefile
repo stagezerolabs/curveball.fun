@@ -1,4 +1,5 @@
--include ../.env
+ENV_FILE := $(shell dirname "$$(git rev-parse --path-format=absolute --git-common-dir)")/.env
+-include $(ENV_FILE)
 
 ACCOUNT ?= dot
 
