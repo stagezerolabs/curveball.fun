@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { useAccount } from "wagmi";
 import { useStore } from "../app/useStore.js";
 import { AppLink } from "../components/Navigation";
@@ -8,7 +7,6 @@ import { MilestonePanel } from "../components/MilestonePanel";
 import { PriceChart } from "../components/PriceChart";
 import { TradePanel } from "../components/TradePanel";
 import { useFetch } from "../lib/useFetch";
-import { mockConfig } from "../lib/mockData";
 import type { LaunchpadConfig, Navigate, Token } from "../types";
 
 export function MarketPage({
@@ -27,12 +25,7 @@ export function MarketPage({
   };
   const { address } = useAccount();
   const { data } = useFetch<LaunchpadConfig | null>("/api/config", null);
-  // A launchpad the server could not read comes back as an object of nulls, not
-  // as no object, so test a field rather than the object itself.
-  const config = useMemo(
-    () => (data?.creatorShareBps == null ? (mockConfig() ?? data) : data),
-    [data],
-  );
+  const config = data;
   const error = actionError || marketError;
 
   if (loading) return <main className="page-status wrap">Loading market…</main>;

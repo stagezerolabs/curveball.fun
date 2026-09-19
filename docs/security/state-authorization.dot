@@ -1,0 +1,22 @@
+digraph CurveballAuthorization {
+  graph [rankdir=TB, bgcolor="transparent"];
+  node [shape=box, style="rounded,filled", fillcolor="#f8fafc", fontname="Helvetica"];
+  edge [fontname="Helvetica", fontsize=10];
+
+  deployer [label="dot deployer", fillcolor="#fef3c7"];
+  locker [label="LpLocker"];
+  launchpad [label="CurveballLaunchpad\nNO owner/admin"];
+  creator [label="Any creator"];
+  trader [label="Any trader"];
+  caller [label="Any fee-claim caller"];
+  factoryAdmin [label="External Icarus feeManager / pauser", fillcolor="#fee2e2"];
+  factory [label="Icarus PoolFactory", fillcolor="#dcfce7"];
+
+  deployer -> locker [label="owner; setLaunchpad exactly once"];
+  deployer -> locker [label="immutable treasury address"];
+  launchpad -> locker [label="only address allowed to register pools"];
+  creator -> launchpad [label="createToken; owns creator fee destination"];
+  trader -> launchpad [label="buy/sell with minOut + deadline"];
+  caller -> locker [label="claim registered pool fees; receives nothing"];
+  factoryAdmin -> factory [label="pause; set pool and unstaked fee bounds"];
+}

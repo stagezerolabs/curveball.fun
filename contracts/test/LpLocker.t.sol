@@ -13,6 +13,27 @@ contract LpLockerTest is TestBase {
     address private constant ATTACKER = address(0xA11CE);
     address private constant VICTIM = address(0xBEEF);
 
+    function testTreasuryControlsItsOwnHandoff() external {
+        LpLocker locker = new LpLocker(TREASURY, 5_000);
+        address multisig = address(0xCAFE);
+
+        vm.prank(ATTACKER);
+        vm.expectRevert();
+        locker.setTreasury(multisig);
+
+        vm.prank(TREASURY);
+        locker.setTreasury(multisig);
+        assertEq(locker.treasury(), multisig, "treasury was not updated");
+
+        vm.prank(TREASURY);
+        vm.expectRevert();
+        locker.setTreasury(TREASURY);
+
+        vm.prank(multisig);
+        vm.expectRevert();
+        locker.setTreasury(address(0));
+    }
+
     function testCreatorCannotDrainAnotherMarketsLockedLp() external {
         (MockWETH quote, LpLocker locker, CurveballLaunchpad launchpad) = _deploy();
         (, address victimPool) = _launch(quote, launchpad, VICTIM, "VICTIM");

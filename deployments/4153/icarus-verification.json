@@ -1,0 +1,45 @@
+{
+  "generatedAt": "2026-09-19T12:40:33Z",
+  "chainId": 4153,
+  "candidateFactory": "0xEe10C6a0f158bFEeef3d48Dc0D26130Cf6115615",
+  "verification": {
+    "factory": {
+      "contractName": "PoolFactory",
+      "verified": true,
+      "codeHash": "0x6c1342d984ac76dfe9ec5b20d4657e68390078c6747ccc0b6bbaafbe1379e628"
+    },
+    "implementation": {
+      "address": "0xA24Bdf8ee26658c822796a30770F23c2425de966",
+      "contractName": "Pool",
+      "verified": true,
+      "codeHash": "0x86d3cb4be9f4f211f6df84b9cc262297750aaa84dcd26fa034e80010aad5055e"
+    }
+  },
+  "liveFactoryState": {
+    "paused": false,
+    "volatileFeeBps": 30,
+    "unstakedFeeBps": 1000
+  },
+  "assumedPoolMethodsMissingFromVerifiedSource": [],
+  "aerodromeComparison": {
+    "reference": "aerodrome-finance/contracts main",
+    "diffFile": "icarus-vs-aerodrome.diff",
+    "changedLines": 112,
+    "status": "REVIEW_THE_ARCHIVED_DIFF_BEFORE_INTEGRATION"
+  },
+  "forkLifecycleCheck": "PASSED: pool creation, Curveball deployment, token creation, graduation, and fee claim on a local RISE fork.",
+  "wethVerification": {
+    "address": "0x4200000000000000000000000000000000000006",
+    "contractName": "WETH",
+    "verified": true,
+    "name": "Wrapped Ether",
+    "symbol": "WETH",
+    "decimals": 18,
+    "codeHash": "0xe354d52f6267708b1b69faf84795aaf6abfa01e623ca8f912023399888e58fdb"
+  },
+  "humanReview": {
+    "diffReviewed": true,
+    "note": "Icarus adds bounded unstaked/gauge fee routing and updated OpenZeppelin hooks; Curveball-required volatile pool interfaces are unchanged."
+  },
+  "decision": "PASS_MAINNET_INTEGRATION_GATE"
+}

@@ -10,9 +10,12 @@ contract LpLocker is ReentrancyGuard {
 
     address public launchpad;
     address public immutable owner;
-    address public immutable treasury;
+    address public treasury;
     uint16 public immutable creatorShareBps;
     mapping(address => address) public creatorOf;
+    event LaunchpadSet(address indexed launchpad);
+    event PoolRegistered(address indexed pool, address indexed creator);
+    event TreasuryUpdated(address indexed previousTreasury, address indexed newTreasury);
     event FeesClaimed(address indexed pool, uint256 creator0, uint256 creator1, uint256 treasury0, uint256 treasury1);
 
     constructor(address t, uint16 share) {
@@ -27,11 +30,23 @@ contract LpLocker is ReentrancyGuard {
         require(msg.sender == owner, "owner only");
         require(launchpad == address(0) && l != address(0), "already set");
         launchpad = l;
+        emit LaunchpadSet(l);
+    }
+
+    /// @notice Hands fee custody to a replacement treasury such as a multisig.
+    /// @dev Authority follows the current fee recipient; there is no separate admin that can redirect fees.
+    function setTreasury(address nextTreasury) external {
+        require(msg.sender == treasury, "treasury only");
+        require(nextTreasury != address(0), "bad treasury");
+        address previousTreasury = treasury;
+        treasury = nextTreasury;
+        emit TreasuryUpdated(previousTreasury, nextTreasury);
     }
 
     function register(address pool, address creator) external {
         require(msg.sender == launchpad && creatorOf[pool] == address(0), "not launchpad");
         creatorOf[pool] = creator;
+        emit PoolRegistered(pool, creator);
     }
 
     /// @notice Splits a pool's trading fees between its creator and the treasury.

@@ -4,6 +4,7 @@ import { serveStatic } from "hono/bun";
 import { createPublicClient, http, parseAbiItem } from "viem";
 import { db } from "./db";
 import { tokens, trades } from "./db/schema";
+import { readChainRuntime } from "./runtimeConfig";
 import {
   candles,
   holders,
@@ -13,11 +14,9 @@ import {
   type TokenStats,
 } from "./marketStats";
 
-const launchpadAddress = Bun.env.LAUNCHPAD_ADDRESS as `0x${string}` | undefined;
-const hasLaunchpad = Boolean(
-  launchpadAddress && /^0x[0-9a-fA-F]{40}$/.test(launchpadAddress),
-);
-const rpcUrl = Bun.env.RPC_URL || "http://127.0.0.1:8545";
+const runtime = readChainRuntime(Bun.env);
+const launchpadAddress = runtime.launchpadAddress ?? undefined;
+const hasLaunchpad = Boolean(launchpadAddress);
 const launchpadAbi = [
   parseAbiItem("function supply() view returns (uint256)"),
   parseAbiItem("function curveSupply() view returns (uint256)"),
@@ -29,8 +28,24 @@ const launchpadAbi = [
   ),
 ];
 const publicClient = hasLaunchpad
-  ? createPublicClient({ transport: http(rpcUrl) })
+  ? createPublicClient({ transport: http(runtime.rpcUrl) })
   : null;
+
+async function assertChainDeployment() {
+  if (!publicClient || !launchpadAddress) return;
+  const [chainId, bytecode] = await Promise.all([
+    publicClient.getChainId(),
+    publicClient.getBytecode({ address: launchpadAddress }),
+  ]);
+  if (chainId !== runtime.expectedChainId) {
+    throw new Error(
+      `RPC chain mismatch: expected ${runtime.expectedChainId}, received ${chainId}.`,
+    );
+  }
+  if (!bytecode || bytecode === "0x") {
+    throw new Error("No launchpad bytecode exists at LAUNCHPAD_ADDRESS.");
+  }
+}
 
 const erc20Abi = [parseAbiItem("function symbol() view returns (string)")];
 const lockerAbi = [
@@ -241,8 +256,18 @@ async function enrichWithMarketData<
 const api = new Hono();
 
 api.get("/health", async (c) => {
-  await db.execute(sql`SELECT 1`);
-  return c.json({ ok: true });
+  await Promise.all([db.execute(sql`SELECT 1`), assertChainDeployment()]);
+  return c.json({ ok: true, chainId: runtime.expectedChainId });
+});
+
+api.get("/metadata/nominatebear", (c) => {
+  c.header("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400");
+  return c.json({
+    name: "NominateBear",
+    symbol: "NBR",
+    description: "The first token launched on Curveball.",
+    website: "https://curveball.fun/markets",
+  });
 });
 
 api.get("/tokens", async (c) => {
@@ -323,7 +348,7 @@ api.get("/tokens/:address/transactions", async (c) => {
   return c.json({ rows, total: counted?.total ?? 0, page, limit });
 });
 
-const app = new Hono();
+export const app = new Hono();
 
 app.route("/api", api);
 app.all("/api/*", (c) => c.json({ error: "not found" }, 404));

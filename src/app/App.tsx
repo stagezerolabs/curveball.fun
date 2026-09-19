@@ -6,7 +6,6 @@ import { LaunchPage } from "../pages/LaunchPage";
 import { MarketPage } from "../pages/MarketPage";
 import { MarketsPage } from "../pages/MarketsPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
-import { DEMO_DATA } from "../lib/mockData";
 import { useRouter } from "./useRouter.js";
 import { useStore } from "./useStore.js";
 import type { Token } from "../types";
@@ -61,12 +60,6 @@ export function App() {
 
   return (
     <div className="site-shell">
-      {DEMO_DATA && (
-        <p className="demo-banner" role="status">
-          <strong>Demo data.</strong> The contracts are not deployed yet — every
-          number on this site is made up.
-        </p>
-      )}
       <Header
         address={address}
         connectWallet={connectWallet}

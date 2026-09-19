@@ -1,0 +1,9 @@
+testMode: property
+testLimit: 20000
+seqLen: 100
+coverage: true
+corpusDir: echidna-corpus
+filterBlacklist: false
+filterFunctions:
+  - "CurveballProperties.buy(uint96)"
+  - "CurveballProperties.sell(uint96)"

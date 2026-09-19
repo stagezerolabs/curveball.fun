@@ -2,8 +2,10 @@ import { eq } from "drizzle-orm";
 import { createPublicClient, http, parseAbiItem } from "viem";
 import { db } from "./db";
 import { indexerState, tokens, trades } from "./db/schema";
+import { readChainRuntime } from "./runtimeConfig";
 
-const address = Bun.env.LAUNCHPAD_ADDRESS as `0x${string}` | undefined;
+const runtime = readChainRuntime(Bun.env);
+const address = runtime.launchpadAddress ?? undefined;
 if (!address) {
   if (import.meta.main) {
     console.log("Indexer disabled: LAUNCHPAD_ADDRESS is not configured");
@@ -11,13 +13,8 @@ if (!address) {
   }
   throw new Error("LAUNCHPAD_ADDRESS is required");
 }
-if (!/^0x[0-9a-fA-F]{40}$/.test(address)) {
-  throw new Error(
-    "LAUNCHPAD_ADDRESS must be a contract address for the indexer",
-  );
-}
 const client = createPublicClient({
-  transport: http(Bun.env.RPC_URL || "http://127.0.0.1:8545"),
+  transport: http(runtime.rpcUrl),
 });
 const events = [
   parseAbiItem(
@@ -44,12 +41,18 @@ async function blockTimes(numbers: Set<bigint>) {
 }
 
 export async function indexToHead() {
+  const chainId = await client.getChainId();
+  if (chainId !== runtime.expectedChainId) {
+    throw new Error(
+      `Indexer RPC chain mismatch: expected ${runtime.expectedChainId}, received ${chainId}.`,
+    );
+  }
   const [state] = await db
     .select({ value: indexerState.value })
     .from(indexerState)
     .where(eq(indexerState.key, "last_block"))
     .limit(1);
-  let from = BigInt(state?.value || "0");
+  let from = BigInt(state?.value || runtime.indexerStartBlock);
   const to = await client.getBlockNumber();
   while (from <= to) {
     const end = from + 999n < to ? from + 999n : to;
@@ -77,7 +80,10 @@ export async function indexToHead() {
     const applied = await db.transaction(async (tx) => {
       await tx
         .insert(indexerState)
-        .values({ key: "last_block", value: "0" })
+        .values({
+          key: "last_block",
+          value: runtime.indexerStartBlock.toString(),
+        })
         .onConflictDoNothing({ target: indexerState.key });
       const [current] = await tx
         .select({ value: indexerState.value })

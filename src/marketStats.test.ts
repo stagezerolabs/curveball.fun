@@ -16,6 +16,7 @@ test.skipIf(!databaseUrl)(
   "market stats derive volume, holders and 24h change from indexed trades",
   async () => {
     Bun.env.DATABASE_URL = databaseUrl;
+    Bun.env.DATABASE_SSL = databaseUrl!.includes("sslmode=require") ? "true" : "false";
     const [{ db, closeDatabase }, { trades }, { marketStats }] =
       await Promise.all([
         import("./db"),

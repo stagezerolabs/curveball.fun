@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { useFetch } from "../lib/useFetch";
-import { mockCandles } from "./../lib/mockData";
 import { formatCompact, formatEthAmount } from "../lib/format.js";
 import type { Candle, CandleRange, Token } from "../types";
 
@@ -33,11 +32,7 @@ export function PriceChart({ token }: { token: Token }) {
     `/api/tokens/${token.address}/candles?range=${range}`,
     [],
   );
-  // Dev-only: an empty API falls back to sample data. Real rows always win.
-  const candles = useMemo(
-    () => (data.length ? data : mockCandles(token.address, range)),
-    [data, token.address, range],
-  );
+  const candles = data;
 
   // Market cap is price × total supply, so the curve shape is identical — only
   // the axis labels change. Deriving it avoids a second series over the wire.

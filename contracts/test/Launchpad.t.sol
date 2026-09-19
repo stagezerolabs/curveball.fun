@@ -11,6 +11,11 @@ import {TestBase} from "./TestBase.sol";
 contract LaunchpadTest is TestBase {
     address private constant TRADER = address(0xA11CE);
 
+    function testMemeTokenRejectsZeroLaunchpad() external {
+        vm.expectRevert();
+        new MemeToken("Invalid", "BAD", "", 1, address(0));
+    }
+
     function testTradesThenGraduatesByDirectPoolMint() external {
         MockWETH quote = new MockWETH();
         MockIcarusFactory factory = new MockIcarusFactory();
@@ -47,13 +52,9 @@ contract LaunchpadTest is TestBase {
         MockIcarusFactory factory = new MockIcarusFactory();
         LpLocker locker = new LpLocker(address(this), 5_000);
         vm.expectRevert();
-        new CurveballLaunchpad(
-            address(quote), address(factory), address(locker), uint256(type(uint128).max) + 1, 1, 1
-        );
+        new CurveballLaunchpad(address(quote), address(factory), address(locker), uint256(type(uint128).max) + 1, 1, 1);
         vm.expectRevert();
-        new CurveballLaunchpad(
-            address(quote), address(factory), address(locker), 2, 1, uint256(type(uint128).max) + 1
-        );
+        new CurveballLaunchpad(address(quote), address(factory), address(locker), 2, 1, uint256(type(uint128).max) + 1);
     }
 
     function testBuyRejectsExpiredDeadline() external {

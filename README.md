@@ -2,14 +2,19 @@
 
 Curveball is a token-launch application for RISE. Anyone can create a fixed-supply ERC-20, trade it through a constant-product bonding curve, and graduate it into a volatile Icarus pool once the curve sells out. The accompanying web app lists markets, lets connected wallets create and trade tokens, and shows indexed trade history.
 
-The repository is a local-testable implementation. **It is not approved for RISE mainnet deployment.** Mainnet integration remains behind the Icarus verification gate described below.
+Curveball is deployed on RISE mainnet with a typed browser SDK and no production mock-data path. Its automated contract, fork, property, SDK, runtime, and build gates pass. It has not received an independent third-party audit; read [`docs/security/mainnet-security-review.md`](docs/security/mainnet-security-review.md) before handling real value.
+
+- Launchpad: [`0x1A34768eAb2F6b925D25ca1d6daC03C1a25Ad39E`](https://explorer.risechain.com/address/0x1a34768eab2f6b925d25ca1d6dac03c1a25ad39e)
+- LP locker: [`0xFC301f5349EB1ee9F12E8d6d446Ce5e526984782`](https://explorer.risechain.com/address/0xfc301f5349eb1ee9f12e8d6d446ce5e526984782)
+- Deployment block: `22216399`
 
 ## What is here
 
 | Area | Implementation |
 | --- | --- |
-| Smart contracts | Solidity 0.8.24 launchpad, locked token, LP locker, Icarus interfaces, mocks, Foundry tests, and deployment scripts |
+| Smart contracts | Solidity 0.8.24 launchpad, locked token, LP locker, Icarus interfaces, local-only test doubles, Foundry/Echidna tests, and guarded production scripts |
 | Web app | React 18, Vite, Wagmi, Viem, Zustand, and a small client-side router |
+| SDK | Typed deployment checks, reads, quotes, exact approvals, trades, launches, claims, treasury handoff, receipt parsing, and normalized errors |
 | API | Bun + Hono endpoints for health checks, token markets, and trade history |
 | Data | Postgres with Drizzle migrations; an idempotent chain indexer persists `TokenCreated`, `Trade`, and `Graduated` events |
 | Local stack | Docker Compose starts Postgres, the API/web server, and the indexer; `Makefile` wraps common commands |
@@ -33,7 +38,9 @@ contracts/                 Solidity launchpad, locker, token, tests, and scripts
   scripts/                 Local deployer, guarded devnet deployer, Icarus verifier
   test/                    Unit, regression, deployment, and optional fork tests
 src/                       React client, Hono server, Drizzle schema, and indexer
+  sdk/                     Sole browser-side contract integration layer
 drizzle/                   Generated Postgres migrations
+docs/                      Mainnet spec, Koyeb runbook, and security evidence
 compose.yaml               App, indexer, and Postgres local stack
 ```
 
@@ -46,7 +53,7 @@ Install Bun dependencies, create a local environment file, and start the API and
 ```sh
 bun install
 cp .env.example .env
-# Set DATABASE_URL. Leave LAUNCHPAD_ADDRESS empty to browse the seeded API without chain reads.
+# Set DATABASE_URL. Local development may omit LAUNCHPAD_ADDRESS; production fails closed.
 bun run dev:api
 bun run dev:web
 ```
@@ -109,35 +116,42 @@ The browser wallet must also be connected to the local Anvil chain. The local de
 
 | Endpoint | Description |
 | --- | --- |
-| `GET /api/health` | Verifies Postgres connectivity |
+| `GET /api/health` | Verifies Postgres, RISE chain ID, and launchpad bytecode |
+| `GET /api/metadata/nominatebear` | Permanent metadata endpoint used by the first production token |
 | `GET /api/tokens` | Returns indexed markets, enriched from the launchpad when configured |
 | `GET /api/tokens/:address/transactions` | Returns indexed trades for a market |
 
 The indexer owns all market data returned by the API. Creator-editable off-chain metadata is intentionally disabled until it has wallet-signature ownership verification.
 
-## Icarus verification and deployment gate
+## RISE mainnet release gate
 
-RISE mainnet deployment is intentionally blocked until the candidate Icarus factory is verified. The verification script reads the factory and implementation, fetches their Blockscout-verified sources, checks the required ABI surface, and produces a source diff against Aerodrome reference contracts. It only performs reads and writes evidence files; it never sends a transaction.
-
-```sh
-# Re-verify the documented candidate immediately before any deployment review.
-# Set ICARUS_FACTORY in .env to 0xEe10C6a0f158bFEeef3d48Dc0D26130Cf6115615.
-make -C contracts verify-icarus
-```
-
-Evidence is written to `deployments/4153/icarus-verification.json` with the verified source files and `icarus-vs-aerodrome.diff` beside it. The current candidate is Icarus PoolFactory `0xEe10C6a0f158bFEeef3d48Dc0D26130Cf6115615`; its verified pool implementation is `0xA24Bdf8ee26658c822796a30770F23c2425de966`. The only supported quote asset is verified RISE WETH `0x4200000000000000000000000000000000000006`. Re-verify all three immediately before any deployment review. Integration still requires human review of the archived diff and a successful local-fork lifecycle test:
+The verification script reads the official Icarus factory and implementation, fetches their Blockscout-verified sources, checks the required ABI surface, validates RISE WETH, runs the fork lifecycle, and produces a source diff against Aerodrome reference contracts. It only performs reads and writes evidence files; it never sends a transaction or stores the RPC URL.
 
 ```sh
-pnpm --dir contracts test:fork
+# Set an HTTPS RISE_RPC_URL in .env, review the archived diff, then acknowledge it.
+HUMAN_REVIEW_ACK=ICARUS_DIFF_REVIEWED_2026_09_19 make -C contracts verify-icarus
 ```
 
-The guarded `make -C contracts deploy-devnet` target requires explicit devnet inputs and refuses chain ID `4153`, so it cannot deploy to RISE mainnet.
+Evidence is written to `deployments/4153/icarus-verification.json` with verified sources and `icarus-vs-aerodrome.diff` beside it. The factory is `0xEe10C6a0f158bFEeef3d48Dc0D26130Cf6115615`, its verified implementation is `0xA24Bdf8ee26658c822796a30770F23c2425de966`, and the only supported quote asset is verified RISE WETH `0x4200000000000000000000000000000000000006`.
+
+```sh
+cd contracts
+forge test --match-path 'test/fork/*'
+```
+
+The canonical deployment is recorded in [`deployments/4153/curveball.json`](deployments/4153/curveball.json). First-token creation remains interactive because Foundry must unlock the encrypted `dot` keystore locally:
+
+```sh
+CONFIRM_TOKEN=CREATE_NOMINATEBEAR_NBR LAUNCHPAD_ADDRESS=0x1A34768eAb2F6b925D25ca1d6daC03C1a25Ad39E make -C contracts create-nominatebear
+```
+
+Never place the keystore password on the command line. Follow [`docs/koyeb-production.md`](docs/koyeb-production.md), verify the metadata endpoint is live, and only then create NominateBear.
 
 ## Security notes
 
-- `LpLocker` validates that a pool was registered by the launchpad, derives payout tokens from that pool, and distributes only the balance delta received from `claimFees()`. Regression tests cover the historical cross-pool theft path.
+- `LpLocker` validates that a pool was registered by the launchpad, derives payout tokens from that pool, and distributes only the balance delta received from `claimFees()`. Regression tests cover the historical cross-pool theft path. The current treasury can hand its role to a non-zero multisig without an upgrade or redeployment.
 - The launchpad uses `SafeERC20`, `ReentrancyGuard`, checked packed-state casts, deterministic per-creator token salts, deadlines, and slippage limits. Its quote token must be verified RISE WETH; fee-on-transfer and rebasing assets are unsupported.
-- The current contract review is in [`contracts/scv-scan.md`](contracts/scv-scan.md). It records the remaining deployment constraints and required evidence before any public deployment.
+- The current review, residual risks, static-analysis triage, and evidence map are in [`docs/security/mainnet-security-review.md`](docs/security/mainnet-security-review.md).
 
 ## Environment
 
