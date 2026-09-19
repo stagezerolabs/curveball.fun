@@ -1,0 +1,233 @@
+--- ../deployments/4153/aerodrome-PoolFactory.sol	2026-09-19 13:40:09
++++ ../deployments/4153/icarus-PoolFactory.sol	2026-09-19 13:40:10
+@@ -1,5 +1,5 @@
+-// SPDX-License-Identifier: BUSL-1.1
+-pragma solidity 0.8.19;
++// SPDX-License-Identifier: GPL-2.0
++pragma solidity 0.8.30;
+
+ import {IPoolFactory} from "../interfaces/factories/IPoolFactory.sol";
+ import {IPool} from "../interfaces/IPool.sol";
+@@ -13,10 +13,13 @@
+
+     uint256 public stableFee;
+     uint256 public volatileFee;
++    uint256 public unstakedFee;
++    uint256 public constant MAX_UNSTAKED_FEE = 5000; // 50%
+     uint256 public constant MAX_FEE = 300; // 3%
+-    // Override to indicate there is custom 0% fee - as a 0 value in the customFee mapping indicates
++    // Override to indicate there is custom 0% fee - as a 0 value in the customFee and customUnstakedFee mappings indicates
+     // that no custom fee rate has been set
+     uint256 public constant ZERO_FEE_INDICATOR = 420;
++    uint256 public constant ZERO_UNSTAKED_FEE_INDICATOR = 42000;
+     address public feeManager;
+
+     /// @dev used to change the name/symbol of the pool by calling emergencyCouncil
+@@ -26,6 +29,7 @@
+     address[] public allPools;
+     mapping(address => bool) private _isPool; // simplified check if its a pool, given that `stable` flag might not be available in peripherals
+     mapping(address => uint256) public customFee; // override for custom fees
++    mapping(address => uint256) public customUnstakedFee; // override for custom fees
+
+     address internal _temp0;
+     address internal _temp1;
+@@ -39,6 +43,7 @@
+         isPaused = false;
+         stableFee = 5; // 0.05%
+         volatileFee = 30; // 0.3%
++        unstakedFee = 0; // 0%
+     }
+
+     /// @inheritdoc IPoolFactory
+@@ -48,7 +53,12 @@
+
+     /// @inheritdoc IPoolFactory
+     function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address) {
+-        return fee > 1 ? address(0) : fee == 1 ? _getPool[tokenA][tokenB][true] : _getPool[tokenA][tokenB][false];
++        return
++            fee > 1
++                ? address(0)
++                : fee == 1
++                    ? _getPool[tokenA][tokenB][true]
++                    : _getPool[tokenA][tokenB][false];
+     }
+
+     /// @inheritdoc IPoolFactory
+@@ -98,6 +108,7 @@
+         } else {
+             volatileFee = _fee;
+         }
++        emit SetFee(_stable, _fee);
+     }
+
+     /// @inheritdoc IPoolFactory
+@@ -111,9 +122,45 @@
+     }
+
+     /// @inheritdoc IPoolFactory
++    function setUnstakedFee(uint256 fee) external {
++        if (msg.sender != feeManager) revert NotFeeManager();
++        if (fee > MAX_UNSTAKED_FEE) revert FeeTooHigh();
++
++        unstakedFee = fee;
++        emit SetUnstakedFee(fee);
++    }
++
++    /// @inheritdoc IPoolFactory
++    function setCustomUnstakedFee(address pool, uint256 fee) external {
++        if (msg.sender != feeManager) revert NotFeeManager();
++        if (fee > MAX_UNSTAKED_FEE && fee != ZERO_UNSTAKED_FEE_INDICATOR) revert FeeTooHigh();
++        if (!_isPool[pool]) revert InvalidPool();
++
++        customUnstakedFee[pool] = fee;
++        emit SetCustomUnstakedFee(pool, fee);
++    }
++
++    /// @inheritdoc IPoolFactory
++    function getUnstakedFee(address pool) external view returns (uint256) {
++        uint256 fee = customUnstakedFee[pool];
++        return fee == ZERO_UNSTAKED_FEE_INDICATOR
++            ? 0
++            :fee != 0
++                ? fee
++                : unstakedFee;
++    }
++
++    /// @inheritdoc IPoolFactory
+     function getFee(address pool, bool _stable) public view returns (uint256) {
+         uint256 fee = customFee[pool];
+-        return fee == ZERO_FEE_INDICATOR ? 0 : fee != 0 ? fee : _stable ? stableFee : volatileFee;
++        return
++            fee == ZERO_FEE_INDICATOR
++                ? 0
++                : fee != 0
++                    ? fee
++                    : _stable
++                        ? stableFee
++                        : volatileFee;
+     }
+
+     /// @inheritdoc IPoolFactory
+@@ -138,4 +185,4 @@
+         _isPool[pool] = true;
+         emit PoolCreated(token0, token1, stable, pool, allPools.length);
+     }
+-}
++}
+\ No newline at end of file
+--- ../deployments/4153/aerodrome-Pool.sol	2026-09-19 13:40:10
++++ ../deployments/4153/icarus-Pool.sol	2026-09-19 13:40:10
+@@ -1,5 +1,5 @@
+-// SPDX-License-Identifier: GPL-3.0-or-later
+-pragma solidity 0.8.19;
++// SPDX-License-Identifier: GPL-2.0
++pragma solidity 0.8.30;
+
+ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+ import {IPool} from "./interfaces/IPool.sol";
+@@ -11,10 +11,10 @@
+ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+ import {ERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
+-import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
++import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
+ /// @title Pool
+-/// @author velodrome.finance, Solidly, Uniswap Labs, @figs999, @pegahcarter
++/// @author velodrome.finance, @figs999, @pegahcarter
+ /// @notice Protocol token pool, either stable or volatile
+ contract Pool is IPool, ERC20Permit, ReentrancyGuard {
+     using SafeERC20 for IERC20;
+@@ -28,6 +28,7 @@
+
+     uint256 internal constant MINIMUM_LIQUIDITY = 10 ** 3;
+     uint256 internal constant MINIMUM_K = 10 ** 10;
++    uint256 internal constant BPS = 10000;
+
+     /// @inheritdoc IPool
+     address public token0;
+@@ -36,6 +37,8 @@
+     /// @inheritdoc IPool
+     address public poolFees;
+     /// @inheritdoc IPool
++    address public gaugeFees;
++    /// @inheritdoc IPool
+     address public factory;
+
+     /// @inheritdoc IPool
+@@ -82,6 +85,7 @@
+         _voter = IPoolFactory(factory).voter();
+         (token0, token1, stable) = (_token0, _token1, _stable);
+         poolFees = address(new PoolFees(_token0, _token1));
++        gaugeFees = address(new PoolFees(_token0, _token1));
+         string memory symbol0 = ERC20(_token0).symbol();
+         string memory symbol1 = ERC20(_token1).symbol();
+         if (_stable) {
+@@ -150,9 +154,21 @@
+         if (claimed0 > 0 || claimed1 > 0) {
+             claimable0[sender] = 0;
+             claimable1[sender] = 0;
+-
+             PoolFees(poolFees).claimFeesFor(sender, claimed0, claimed1);
++        }
+
++        if (IVoter(_voter).gauges(address(this)) == sender) {
++            uint256 gaugeClaimable0 = IERC20(token0).balanceOf(gaugeFees);
++            uint256 gaugeClaimable1 = IERC20(token1).balanceOf(gaugeFees);
++
++            if (gaugeClaimable0 > 0 || gaugeClaimable1 > 0) {
++                PoolFees(gaugeFees).claimFeesFor(sender, gaugeClaimable0, gaugeClaimable1);
++                claimed0 += gaugeClaimable0;
++                claimed1 += gaugeClaimable1;
++            }
++        }
++
++        if (claimed0 > 0 || claimed1 > 0) {
+             emit Claim(sender, sender, claimed0, claimed1);
+         }
+     }
+@@ -374,8 +390,20 @@
+         {
+             // scope for reserve{0,1}Adjusted, avoids stack too deep errors
+             (address _token0, address _token1) = (token0, token1);
+-            if (amount0In > 0) _update0((amount0In * IPoolFactory(factory).getFee(address(this), stable)) / 10000); // accrue fees for token0 and move them out of pool
+-            if (amount1In > 0) _update1((amount1In * IPoolFactory(factory).getFee(address(this), stable)) / 10000); // accrue fees for token1 and move them out of pool
++            uint256 _fee = IPoolFactory(factory).getFee(address(this), stable);
++            uint256 _gaugefee = IPoolFactory(factory).getUnstakedFee(address(this));
++            if (amount0In > 0) {
++                uint256 _fee0 = (amount0In * _fee) / BPS;
++                uint256 _gaugeFee0 = (_fee0 * _gaugefee) / BPS;
++                if (_gaugeFee0 > 0) IERC20(_token0).safeTransfer(gaugeFees, _gaugeFee0);
++                _update0(_fee0 - _gaugeFee0); // accrue fees for token0 and move them out of pool
++            }
++            if (amount1In > 0) {
++                uint256 _fee1 = (amount1In * _fee) / BPS;
++                uint256 _gaugeFee1 = (_fee1 * _gaugefee) / BPS;
++                if (_gaugeFee1 > 0) IERC20(_token1).safeTransfer(gaugeFees, _gaugeFee1);
++                _update1(_fee1 - _gaugeFee1); // accrue fees for token1 and move them out of pool
++            }
+             _balance0 = IERC20(_token0).balanceOf(address(this)); // since we removed tokens, we need to reconfirm balances, can also simply use previous balance - amountIn/ 10000, but doing balanceOf again as safety check
+             _balance1 = IERC20(_token1).balanceOf(address(this));
+             // The curve, either x3y+y3x for stable pools, or x*y for volatile pools
+@@ -453,7 +481,7 @@
+     /// @inheritdoc IPool
+     function getAmountOut(uint256 amountIn, address tokenIn) external view returns (uint256) {
+         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
+-        amountIn -= (amountIn * IPoolFactory(factory).getFee(address(this), stable)) / 10000; // remove fee from amount received
++        amountIn -= (amountIn * IPoolFactory(factory).getFee(address(this), stable)) / BPS; // remove fee from amount received
+         return _getAmountOut(amountIn, tokenIn, _reserve0, _reserve1);
+     }
+
+@@ -502,8 +530,9 @@
+         return _symbol;
+     }
+
+-    function _beforeTokenTransfer(address from, address to, uint256) internal override {
++    function _update(address from, address to, uint256 amount) internal override {
+         _updateFor(from);
+         _updateFor(to);
++        super._update(from, to, amount);
+     }
+-}
++}
+\ No newline at end of file

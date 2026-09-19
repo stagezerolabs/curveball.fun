@@ -4,8 +4,11 @@ pragma solidity ^0.8.24;
 import {ThrowawayERC20} from "../../contracts/test/ThrowawayERC20.sol";
 import {CurveballLaunchpad} from "../../contracts/CurveballLaunchpad.sol";
 import {LpLocker} from "../../contracts/LpLocker.sol";
+import {MemeToken} from "../../contracts/MemeToken.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {TestBase} from "../TestBase.sol";
+import {DeployMainnet} from "../../scripts/DeployMainnet.s.sol";
+import {CreateNominateBear} from "../../scripts/CreateNominateBear.s.sol";
 
 interface IIcarusFactoryFork {
     function createPool(address tokenA, address tokenB, bool stable) external returns (address);
@@ -29,6 +32,48 @@ contract IcarusFactoryForkTest is TestBase {
     address private constant FACTORY = 0xEe10C6a0f158bFEeef3d48Dc0D26130Cf6115615;
     address private constant WETH = 0x4200000000000000000000000000000000000006;
     address private constant TRADER = address(0xA11CE);
+    address private constant DOT = 0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3;
+
+    function testMainnetDeploymentScriptWiresVerifiedContracts() external {
+        string memory rpcUrl = vm.envOr("RISE_RPC_URL", "");
+        if (bytes(rpcUrl).length == 0) return;
+        vm.createSelectFork(rpcUrl);
+        vm.setEnv("CONFIRM_MAINNET", "DEPLOY_CURVEBALL_RISE_4153");
+        vm.setEnv("TREASURY", vm.toString(DOT));
+
+        (LpLocker locker, CurveballLaunchpad launchpad) = new DeployMainnet().run();
+
+        assertEq(locker.treasury(), DOT, "wrong treasury");
+        assertEq(locker.launchpad(), address(launchpad), "wrong launchpad binding");
+        assertEq(address(launchpad.quote()), WETH, "wrong quote token");
+        assertEq(address(launchpad.factory()), FACTORY, "wrong factory");
+        assertEq(launchpad.supply(), 1_000_000 ether, "wrong supply");
+        assertEq(launchpad.curveSupply(), 800_000 ether, "wrong curve supply");
+        assertEq(launchpad.initialVQ(), 10 ether, "wrong virtual quote");
+        assertEq(locker.creatorShareBps(), 5_000, "wrong fee split");
+    }
+
+    function testNominateBearCreationScriptUsesProductionMetadata() external {
+        string memory rpcUrl = vm.envOr("RISE_RPC_URL", "");
+        if (bytes(rpcUrl).length == 0) return;
+        vm.createSelectFork(rpcUrl);
+        vm.setEnv("CONFIRM_MAINNET", "DEPLOY_CURVEBALL_RISE_4153");
+        vm.setEnv("TREASURY", vm.toString(DOT));
+        (, CurveballLaunchpad launchpad) = new DeployMainnet().run();
+        vm.setEnv("LAUNCHPAD_ADDRESS", vm.toString(address(launchpad)));
+        vm.setEnv("CONFIRM_TOKEN", "CREATE_NOMINATEBEAR_NBR");
+
+        address token = new CreateNominateBear().run();
+
+        assertTrue(token.code.length > 0, "token was not deployed");
+        assertTrue(keccak256(bytes(MemeToken(token).name())) == keccak256("NominateBear"), "wrong token name");
+        assertTrue(keccak256(bytes(MemeToken(token).symbol())) == keccak256("NBR"), "wrong token symbol");
+        assertTrue(
+            keccak256(bytes(MemeToken(token).metadataURI()))
+                == keccak256("https://curveball.fun/api/metadata/nominatebear"),
+            "wrong metadata URI"
+        );
+    }
 
     function testCreateVolatilePoolWithThrowawayTokens() external {
         string memory rpcUrl = vm.envOr("RISE_RPC_URL", "");

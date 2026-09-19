@@ -1,0 +1,27 @@
+digraph CurveballCallSurface {
+  graph [rankdir=LR, bgcolor="transparent"];
+  node [shape=box, style="rounded,filled", fillcolor="#eef2ff", fontname="Helvetica"];
+  edge [fontname="Helvetica", fontsize=10];
+
+  wallet [label="Wallet / any caller", fillcolor="#fef3c7"];
+  launchpad [label="CurveballLaunchpad\ncreateToken · quoteBuy/quoteSell\nbuyTokens · sellTokens · graduate"];
+  token [label="MemeToken\nlocked ERC-20 + permit"];
+  quote [label="RISE WETH\nverified ERC-20", fillcolor="#dcfce7"];
+  factory [label="Icarus PoolFactory\ngetPool · createPool · isPool", fillcolor="#dcfce7"];
+  pool [label="Icarus volatile Pool\nskim · mint · claimFees", fillcolor="#dcfce7"];
+  locker [label="LpLocker\nregister · claim"];
+  treasury [label="Treasury (dot initially)", fillcolor="#fef3c7"];
+  creator [label="Market creator", fillcolor="#fef3c7"];
+
+  wallet -> launchpad [label="create / buy / sell / graduate"];
+  wallet -> locker [label="permissionless fee claim"];
+  launchpad -> token [label="CREATE2 deploy / transfer / unlock"];
+  wallet -> quote [label="exact approval"];
+  launchpad -> quote [label="transferFrom / refund / liquidity"];
+  launchpad -> factory [label="volatile pool only (stable=false)"];
+  launchpad -> pool [label="skim, fund, mint LP"];
+  launchpad -> locker [label="LP recipient + register(pool, creator)"];
+  locker -> pool [label="claimFees; measure balance delta"];
+  locker -> creator [label="50% of received LP fees"];
+  locker -> treasury [label="50% of received LP fees"];
+}

@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { useFetch } from "../lib/useFetch";
-import { mockHolders, mockPosition, mockTradePage } from "../lib/mockData";
 import {
   formatAddress,
   formatCompact,
@@ -81,19 +80,16 @@ function TradesTab({ token }: { token: Token }) {
     `/api/tokens/${token.address}/transactions?page=${page}&limit=${PAGE_SIZE}`,
     { rows: [], total: 0, page, limit: PAGE_SIZE },
   );
-  // An API that predates pagination returns a bare array, so never trust the
-  // shape. Dev-only: an empty result falls back to sample data.
+  // An API that predates pagination returns a bare array, so normalize its shape.
   const trades = useMemo(() => {
     const rows = Array.isArray(data) ? (data as Trade[]) : data?.rows;
-    if (rows?.length)
-      return {
-        rows,
-        total: Array.isArray(data) ? rows.length : (data?.total ?? rows.length),
-        page: Array.isArray(data) ? 1 : (data?.page ?? page),
-        limit: Array.isArray(data) ? rows.length : (data?.limit ?? PAGE_SIZE),
-      };
-    return mockTradePage(token.address, page, PAGE_SIZE);
-  }, [data, token.address, page]);
+    return {
+      rows: rows ?? [],
+      total: Array.isArray(data) ? (rows?.length ?? 0) : (data?.total ?? 0),
+      page: Array.isArray(data) ? 1 : (data?.page ?? page),
+      limit: Array.isArray(data) ? (rows?.length || PAGE_SIZE) : (data?.limit ?? PAGE_SIZE),
+    };
+  }, [data, page]);
 
   if (loading && !trades.rows.length)
     return <div className="tab-panel skeleton" />;
@@ -175,11 +171,7 @@ function HoldersTab({ token }: { token: Token }) {
     `/api/tokens/${token.address}/holders`,
     [],
   );
-  // Dev-only: an empty API falls back to sample data. Real rows always win.
-  const holders = useMemo(
-    () => (data.length ? data : mockHolders(token.address)),
-    [data, token.address],
-  );
+  const holders = data;
   const supply = useMemo(
     () => holders.reduce((total, holder) => total + holder.balance, 0),
     [holders],
@@ -332,16 +324,7 @@ function AccountTab({
     address ? `/api/tokens/${token.address}/position/${address}` : null,
     null,
   );
-  // Dev-only: an empty API falls back to sample data. Real rows always win.
-  const position = useMemo(
-    () =>
-      !address
-        ? null
-        : data && data.trades > 0
-          ? data
-          : mockPosition(token.address, address),
-    [data, address, token.address],
-  );
+  const position = address ? data : null;
 
   if (!address)
     return (

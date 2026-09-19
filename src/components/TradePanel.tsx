@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-import { formatEther, parseEther } from "viem";
-import { useReadContract } from "wagmi";
+import { formatEther } from "viem";
 import { useStore } from "../app/useStore.js";
-import { erc20Abi } from "../lib/web3.js";
+import { useTokenBalance } from "../sdk/react";
 import { formatEthAmount, formatPercent } from "../lib/format.js";
 import type { Address } from "viem";
 import type { LaunchpadConfig, Token } from "../types";
@@ -58,13 +57,10 @@ export function TradePanel({
 
   // Buying spends the quote token, selling spends the token itself.
   const balanceOf = side === "buy" ? config?.quoteToken : token.address;
-  const { data: balance } = useReadContract({
-    address: (balanceOf ?? undefined) as Address | undefined,
-    abi: erc20Abi,
-    functionName: "balanceOf",
-    args: address ? [address] : undefined,
-    query: { enabled: Boolean(address && balanceOf) },
-  });
+  const { data: balance } = useTokenBalance(
+    (balanceOf ?? undefined) as Address | undefined,
+    address,
+  );
 
   useEffect(() => {
     if (token.graduated) return undefined;

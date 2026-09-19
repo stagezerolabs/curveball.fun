@@ -8,6 +8,9 @@ typechain-types
 *.sqlite
 .env
 coverage
+contracts/echidna-corpus/
+.trash/
+contracts/crytic-export/
 
 # Local Netlify folder
 .netlify

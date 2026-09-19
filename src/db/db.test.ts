@@ -9,6 +9,7 @@ test.skipIf(!databaseUrl)(
   "the schema and concurrent indexer work with Postgres",
   async () => {
     Bun.env.DATABASE_URL = databaseUrl;
+    Bun.env.DATABASE_SSL = databaseUrl!.includes("sslmode=require") ? "true" : "false";
     const [{ db, closeDatabase }, { tokens }] = await Promise.all([
       import("./index"),
       import("./schema"),
@@ -57,7 +58,11 @@ test.skipIf(!databaseUrl)(
             jsonrpc: "2.0",
             id,
             result:
-              method === "eth_blockNumber" ? `0x${start.toString(16)}` : [],
+              method === "eth_chainId"
+                ? "0x7a69"
+                : method === "eth_blockNumber"
+                  ? `0x${start.toString(16)}`
+                  : [],
           });
         },
       });

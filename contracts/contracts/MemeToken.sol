@@ -12,6 +12,7 @@ contract MemeToken is ERC20, ERC20Permit {
         ERC20(n, s)
         ERC20Permit(n)
     {
+        require(lp != address(0), "bad launchpad");
         launchpad = lp;
         metadataURI = uri;
         _mint(lp, supply);

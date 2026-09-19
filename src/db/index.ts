@@ -7,7 +7,7 @@ if (!databaseUrl) throw new Error("DATABASE_URL is required");
 
 const client = postgres(databaseUrl, {
   prepare: false,
-  ssl: Bun.env.DATABASE_SSL === "true" ? "require" : undefined,
+  ...(Bun.env.DATABASE_SSL === "true" ? { ssl: "require" as const } : {}),
 });
 
 export const db = drizzle(client, { schema });
