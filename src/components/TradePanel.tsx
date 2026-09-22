@@ -1,8 +1,14 @@
 import { useEffect, useState } from "react";
 import { formatEther } from "viem";
+import { useBalance } from "wagmi";
 import { useStore } from "../app/useStore.js";
 import { useTokenBalance } from "../sdk/react";
-import { formatEthAmount, formatPercent } from "../lib/format.js";
+import { formatEthAmount, formatPercent, formatUsd } from "../lib/format.js";
+import {
+  getBuyFundingState,
+  TradeFundingStatus,
+} from "./TradeFundingStatus";
+import { NATIVE_GAS_RESERVE } from "../sdk/wagmiSdk";
 import type { Address } from "viem";
 import type { LaunchpadConfig, Token } from "../types";
 
@@ -57,10 +63,11 @@ export function TradePanel({
 
   // Buying spends the quote token, selling spends the token itself.
   const balanceOf = side === "buy" ? config?.quoteToken : token.address;
-  const { data: balance } = useTokenBalance(
+  const { data: assetBalance } = useTokenBalance(
     (balanceOf ?? undefined) as Address | undefined,
     address,
   );
+  const { data: nativeBalance } = useBalance({ address });
 
   useEffect(() => {
     if (token.graduated) return undefined;
@@ -74,6 +81,17 @@ export function TradePanel({
 
   // Execution price vs the current spot price: how far this size moves the curve.
   const input = Number(amount);
+  const buyFunding =
+    side === "buy"
+      ? getBuyFundingState(amount, assetBalance, nativeBalance?.value)
+      : null;
+  const presetBalance =
+    side === "buy" && assetBalance !== undefined && nativeBalance
+      ? assetBalance +
+        (nativeBalance.value > NATIVE_GAS_RESERVE
+          ? nativeBalance.value - NATIVE_GAS_RESERVE
+          : 0n)
+      : assetBalance;
   const executionPrice =
     received && input > 0
       ? side === "buy"
@@ -86,8 +104,8 @@ export function TradePanel({
       : null;
 
   function applyPreset(percent: number) {
-    if (balance === undefined) return;
-    const portion = (balance as bigint) * BigInt(percent) / 100n;
+    if (presetBalance === undefined) return;
+    const portion = presetBalance * BigInt(percent) / 100n;
     setAmount(formatEther(portion));
   }
 
@@ -136,7 +154,7 @@ export function TradePanel({
             <button
               key={percent}
               type="button"
-              disabled={balance === undefined}
+              disabled={presetBalance === undefined}
               onClick={() => applyPreset(percent)}
             >
               {percent === 100 ? "Max" : `${percent}%`}
@@ -159,6 +177,14 @@ export function TradePanel({
         <span className="amount-unit">{payingWith}</span>
       </div>
 
+      {side === "buy" && (
+        <TradeFundingStatus
+          amount={amount}
+          wethBalance={assetBalance}
+          nativeBalance={nativeBalance?.value}
+        />
+      )}
+
       <div className="trade-summary" aria-live="polite">
         <Row
           label="You receive"
@@ -176,7 +202,7 @@ export function TradePanel({
             atLeast === null ? "—" : `${formatEthAmount(atLeast)} ${receiving}`
           }
         />
-        <Row label="Price" value={`${formatEthAmount(token.price)} ${quoteSymbol}`} />
+        <Row label="Price" value={formatUsd(token.priceUsd)} />
         <Row label="Slippage limit" value={`${SLIPPAGE_BPS / 100}%`} />
         <Row
           label="Price impact"
@@ -188,7 +214,7 @@ export function TradePanel({
       {address ? (
         <button
           className={`trade-submit ${side}`}
-          disabled={isPending || !(input > 0)}
+          disabled={isPending || !(input > 0) || buyFunding?.canFund === false}
           onClick={() => trade(side, token)}
         >
           {isPending ? "Pending…" : side === "buy" ? "Buy" : "Sell"}

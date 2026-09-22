@@ -1,0 +1,111 @@
+{
+  "version": 1,
+  "base_branch": "main",
+  "risk_rules": [
+    {
+      "level": "high",
+      "patterns": [
+        ".codex/**",
+        ".github/**",
+        ".env*",
+        "Dockerfile",
+        "compose*.yaml",
+        "contracts/contracts/**",
+        "contracts/package.json",
+        "contracts/pnpm-lock.yaml",
+        "contracts/scripts/**",
+        "contracts/test/**",
+        "drizzle/**",
+        "src/db/**",
+        "src/indexer.ts",
+        "src/runtimeConfig.*",
+        "src/server.ts",
+        "src/sdk/**",
+        "drizzle.config.ts",
+        "netlify.toml",
+        "tools/codex-quality/**"
+      ]
+    },
+    {
+      "level": "medium",
+      "patterns": [
+        "package.json",
+        "bun.lock",
+        "contracts/Makefile",
+        "scripts/**",
+        "src/**",
+        "vite.config.*"
+      ]
+    }
+  ],
+  "gates": {
+    "always": [
+      {
+        "id": "diff-check",
+        "command": ["git", "diff", "--check"],
+        "timeout": 30
+      }
+    ],
+    "medium": [
+      {
+        "id": "typecheck",
+        "command": ["bun", "run", "typecheck"],
+        "timeout": 120
+      },
+      {
+        "id": "unit-tests",
+        "command": ["bun", "test"],
+        "timeout": 180
+      },
+      {
+        "id": "production-build",
+        "command": ["bun", "run", "build"],
+        "timeout": 180
+      }
+    ],
+    "high": []
+  },
+  "conditional_gates": [
+    {
+      "id": "contract-tests",
+      "patterns": ["contracts/**"],
+      "command": ["make", "-C", "contracts", "test"],
+      "timeout": 180
+    },
+    {
+      "id": "rise-fork-tests",
+      "patterns": [
+        "contracts/contracts/**",
+        "contracts/scripts/**",
+        "contracts/test/fork/**",
+        "src/runtimeConfig.*"
+      ],
+      "command": ["make", "-C", "contracts", "test-fork-strict"],
+      "required_env": ["RISE_TESTNET_RPC_URL"],
+      "timeout": 300
+    },
+    {
+      "id": "postgres-integration",
+      "patterns": [
+        "drizzle/**",
+        "src/db/**",
+        "src/indexer.ts",
+        "src/marketStats.*"
+      ],
+      "command": ["bun", "run", "test:integration:db"],
+      "required_env": ["TEST_DATABASE_URL"],
+      "timeout": 300
+    },
+    {
+      "id": "sdk-rise-integration",
+      "patterns": ["src/sdk/**"],
+      "command": ["bun", "run", "test:integration:sdk"],
+      "required_env": [
+        "SDK_TESTNET_FORK_RPC_URL",
+        "SDK_TESTNET_FORK_LAUNCHPAD",
+        "SDK_TESTNET_FORK_ACCOUNT"
+      ],
+      "timeout": 300
+    }
+  ]
+}

@@ -4,7 +4,7 @@
   "scripts": {
     "compile": "forge build",
     "test": "forge test",
-    "test:fork": "env_file=\"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")/.env\"; set -a; . \"$env_file\"; set +a; forge test --match-path test/fork/IcarusFactory.t.sol",
+    "test:fork": "env_file=\"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")/.env\"; set -a; . \"$env_file\"; set +a; RISE_TESTNET_RPC_URL=${RISE_TESTNET_RPC_URL:-https://testnet.riselabs.xyz} forge test --match-path test/fork/IcarusFactory.t.sol",
     "deploy:local": "env_file=\"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")/.env\"; set -a; . \"$env_file\"; set +a; forge script scripts/DeployLocal.s.sol:DeployLocal --rpc-url ${RPC_URL:-http://127.0.0.1:8545} --broadcast"
   },
   "devDependencies": {

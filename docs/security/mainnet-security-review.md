@@ -1,5 +1,7 @@
 # RISE mainnet security review
 
+> Historical mainnet evidence. The active application target is RISE Testnet; this report remains unchanged as an audit record for deployment `4153`.
+
 Date: 2026-09-19
 
 Scope: `CurveballLaunchpad`, `MemeToken`, `LpLocker`, production deployment/token scripts, SDK transaction boundaries, and the verified Icarus contracts used at graduation.

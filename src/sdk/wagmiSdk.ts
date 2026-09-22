@@ -1,5 +1,6 @@
 import {
   getAccount,
+  getBalance,
   getBytecode,
   readContract,
   simulateContract,
@@ -19,7 +20,6 @@ import {
 } from "viem";
 import { erc20Abi, launchpadAbi, lockerAbi } from "./contracts";
 import {
-  RISE_CHAIN_ID,
   applySlippage,
   createDeadline,
   findCreatedToken,
@@ -71,7 +71,34 @@ export type ConfirmedTrade = ConfirmedWrite &
     input: bigint;
     quotedOutput: bigint;
     minimumOutput: bigint;
+    wrappedAmount: bigint;
   }>;
+
+export type WagmiActions = Readonly<{
+  getAccount: typeof getAccount;
+  getBalance: typeof getBalance;
+  getBytecode: typeof getBytecode;
+  readContract: typeof readContract;
+  simulateContract: typeof simulateContract;
+  switchChain: typeof switchChain;
+  waitForTransactionReceipt: typeof waitForTransactionReceipt;
+  writeContract: typeof writeContract;
+}>;
+
+const defaultWagmiActions: WagmiActions = {
+  getAccount,
+  getBalance,
+  getBytecode,
+  readContract,
+  simulateContract,
+  switchChain,
+  waitForTransactionReceipt,
+  writeContract,
+};
+
+// Wrapping, approval, and the buy each consume native gas. Keep a small RISE
+// testnet buffer instead of allowing the wrap to drain the wallet completely.
+export const NATIVE_GAS_RESERVE = 10_000_000_000_000n; // 0.00001 ETH
 
 export class CurveballSdkError extends Error {
   constructor(
@@ -108,21 +135,22 @@ function sameAddress(left: string, right: string): boolean {
 export function createWagmiCurveballSdk(
   config: Config,
   deployment: CurveballDeployment,
+  actions: WagmiActions = defaultWagmiActions,
 ) {
   async function ensureWallet(): Promise<Address> {
-    const account = getAccount(config);
+    const account = actions.getAccount(config);
     if (!account.address) throw new CurveballSdkError("Connect a wallet to continue.");
     if (walletNeedsChainSwitch(account.chainId, deployment.chainId)) {
-      const switched = await switchChain(config, { chainId: deployment.chainId });
+      const switched = await actions.switchChain(config, { chainId: deployment.chainId });
       if (switched.id !== deployment.chainId) {
-        throw new CurveballSdkError("Switch your wallet to RISE mainnet to continue.");
+        throw new CurveballSdkError("Switch your wallet to RISE Testnet to continue.");
       }
     }
     return getAddress(account.address);
   }
 
   async function confirm(hash: Hash): Promise<ConfirmedWrite> {
-    const receipt = await waitForTransactionReceipt(config, {
+    const receipt = await actions.waitForTransactionReceipt(config, {
       chainId: deployment.chainId,
       hash,
       confirmations: 1,
@@ -135,7 +163,7 @@ export function createWagmiCurveballSdk(
 
   async function validateDeployment(expected: ExpectedRuntime = {}): Promise<CurveballRuntime> {
     try {
-      const bytecode = await getBytecode(config, {
+      const bytecode = await actions.getBytecode(config, {
         address: deployment.launchpad,
         chainId: deployment.chainId,
       });
@@ -145,37 +173,37 @@ export function createWagmiCurveballSdk(
 
       const [quote, factory, locker, supply, curveSupply, initialVirtualQuote] =
         await Promise.all([
-          readContract(config, {
+          actions.readContract(config, {
             address: deployment.launchpad,
             abi: launchpadAbi,
             functionName: "quote",
             chainId: deployment.chainId,
           }),
-          readContract(config, {
+          actions.readContract(config, {
             address: deployment.launchpad,
             abi: launchpadAbi,
             functionName: "factory",
             chainId: deployment.chainId,
           }),
-          readContract(config, {
+          actions.readContract(config, {
             address: deployment.launchpad,
             abi: launchpadAbi,
             functionName: "locker",
             chainId: deployment.chainId,
           }),
-          readContract(config, {
+          actions.readContract(config, {
             address: deployment.launchpad,
             abi: launchpadAbi,
             functionName: "supply",
             chainId: deployment.chainId,
           }),
-          readContract(config, {
+          actions.readContract(config, {
             address: deployment.launchpad,
             abi: launchpadAbi,
             functionName: "curveSupply",
             chainId: deployment.chainId,
           }),
-          readContract(config, {
+          actions.readContract(config, {
             address: deployment.launchpad,
             abi: launchpadAbi,
             functionName: "initialVQ",
@@ -184,37 +212,37 @@ export function createWagmiCurveballSdk(
         ]);
       const [treasury, creatorShareBps, lockerLaunchpad, quoteName, quoteSymbol, quoteDecimals] =
         await Promise.all([
-          readContract(config, {
+          actions.readContract(config, {
             address: locker,
             abi: lockerAbi,
             functionName: "treasury",
             chainId: deployment.chainId,
           }),
-          readContract(config, {
+          actions.readContract(config, {
             address: locker,
             abi: lockerAbi,
             functionName: "creatorShareBps",
             chainId: deployment.chainId,
           }),
-          readContract(config, {
+          actions.readContract(config, {
             address: locker,
             abi: lockerAbi,
             functionName: "launchpad",
             chainId: deployment.chainId,
           }),
-          readContract(config, {
+          actions.readContract(config, {
             address: quote,
             abi: erc20Abi,
             functionName: "name",
             chainId: deployment.chainId,
           }),
-          readContract(config, {
+          actions.readContract(config, {
             address: quote,
             abi: erc20Abi,
             functionName: "symbol",
             chainId: deployment.chainId,
           }),
-          readContract(config, {
+          actions.readContract(config, {
             address: quote,
             abi: erc20Abi,
             functionName: "decimals",
@@ -259,7 +287,7 @@ export function createWagmiCurveballSdk(
   async function quoteTrade(side: TradeSide, token: Address, input: bigint): Promise<bigint> {
     if (input <= 0n) throw new CurveballSdkError("Trade amount must be greater than zero.");
     try {
-      return await readContract(config, {
+      return await actions.readContract(config, {
         address: deployment.launchpad,
         abi: launchpadAbi,
         functionName: side === "buy" ? "quoteBuy" : "quoteSell",
@@ -275,7 +303,7 @@ export function createWagmiCurveballSdk(
     try {
       const account = await ensureWallet();
       const token = validateTokenInput(input);
-      const simulation = await simulateContract(config, {
+      const simulation = await actions.simulateContract(config, {
         account,
         address: deployment.launchpad,
         abi: launchpadAbi,
@@ -283,7 +311,7 @@ export function createWagmiCurveballSdk(
         args: [token.name, token.symbol, token.uri],
         chainId: deployment.chainId,
       });
-      const confirmed = await confirm(await writeContract(config, simulation.request));
+      const confirmed = await confirm(await actions.writeContract(config, simulation.request));
       return { ...confirmed, ...findCreatedToken(confirmed.receipt) };
     } catch (error) {
       throw explainError(error);
@@ -295,14 +323,47 @@ export function createWagmiCurveballSdk(
       if (input <= 0n) throw new CurveballSdkError("Trade amount must be greater than zero.");
       const account = await ensureWallet();
       const tokenAddress = getAddress(token);
-      const quote = await readContract(config, {
+      const quote = await actions.readContract(config, {
         address: deployment.launchpad,
         abi: launchpadAbi,
         functionName: "quote",
         chainId: deployment.chainId,
       });
       const asset = side === "buy" ? quote : tokenAddress;
-      const allowance = await readContract(config, {
+      const balance = await actions.readContract(config, {
+        address: asset,
+        abi: erc20Abi,
+        functionName: "balanceOf",
+        args: [account],
+        chainId: deployment.chainId,
+      });
+      let wrappedAmount = 0n;
+      if (balance < input) {
+        if (side === "sell") {
+          throw new CurveballSdkError("Your token balance is too low for this sale.");
+        }
+        wrappedAmount = input - balance;
+        const nativeBalance = await actions.getBalance(config, {
+          address: account,
+          chainId: deployment.chainId,
+        });
+        if (nativeBalance.value < wrappedAmount + NATIVE_GAS_RESERVE) {
+          throw new CurveballSdkError(
+            "Not enough ETH to wrap the required WETH and pay network fees.",
+          );
+        }
+        const wrapping = await actions.simulateContract(config, {
+          account,
+          address: quote,
+          abi: erc20Abi,
+          functionName: "deposit",
+          value: wrappedAmount,
+          chainId: deployment.chainId,
+        });
+        await confirm(await actions.writeContract(config, wrapping.request));
+      }
+
+      const allowance = await actions.readContract(config, {
         address: asset,
         abi: erc20Abi,
         functionName: "allowance",
@@ -310,7 +371,7 @@ export function createWagmiCurveballSdk(
         chainId: deployment.chainId,
       });
       if (allowance < input) {
-        const approval = await simulateContract(config, {
+        const approval = await actions.simulateContract(config, {
           account,
           address: asset,
           abi: erc20Abi,
@@ -318,14 +379,14 @@ export function createWagmiCurveballSdk(
           args: [deployment.launchpad, input],
           chainId: deployment.chainId,
         });
-        await confirm(await writeContract(config, approval.request));
+        await confirm(await actions.writeContract(config, approval.request));
       }
 
       // Quote after approval confirmation so minOut is based on the freshest state.
       const quotedOutput = await quoteTrade(side, tokenAddress, input);
       const minimumOutput = applySlippage(quotedOutput, deployment.slippageBps);
       if (minimumOutput <= 0n) throw new CurveballSdkError("Trade output is too small.");
-      const simulation = await simulateContract(config, {
+      const simulation = await actions.simulateContract(config, {
         account,
         address: deployment.launchpad,
         abi: launchpadAbi,
@@ -338,8 +399,8 @@ export function createWagmiCurveballSdk(
         ],
         chainId: deployment.chainId,
       });
-      const confirmed = await confirm(await writeContract(config, simulation.request));
-      return { ...confirmed, side, input, quotedOutput, minimumOutput };
+      const confirmed = await confirm(await actions.writeContract(config, simulation.request));
+      return { ...confirmed, side, input, quotedOutput, minimumOutput, wrappedAmount };
     } catch (error) {
       throw explainError(error);
     }
@@ -348,7 +409,7 @@ export function createWagmiCurveballSdk(
   async function claimPoolFees(locker: Address, pool: Address): Promise<ConfirmedWrite> {
     try {
       const account = await ensureWallet();
-      const configuredLocker = await readContract(config, {
+      const configuredLocker = await actions.readContract(config, {
         address: deployment.launchpad,
         abi: launchpadAbi,
         functionName: "locker",
@@ -357,7 +418,7 @@ export function createWagmiCurveballSdk(
       if (!sameAddress(locker, configuredLocker)) {
         throw new CurveballSdkError("Fee claim rejected: locker does not belong to Curveball.");
       }
-      const creator = await readContract(config, {
+      const creator = await actions.readContract(config, {
         address: configuredLocker,
         abi: lockerAbi,
         functionName: "creatorOf",
@@ -367,7 +428,7 @@ export function createWagmiCurveballSdk(
       if (creator === zeroAddress) {
         throw new CurveballSdkError("Fee claim rejected: pool is not registered.");
       }
-      const simulation = await simulateContract(config, {
+      const simulation = await actions.simulateContract(config, {
         account,
         address: configuredLocker,
         abi: lockerAbi,
@@ -375,7 +436,7 @@ export function createWagmiCurveballSdk(
         args: [getAddress(pool)],
         chainId: deployment.chainId,
       });
-      return await confirm(await writeContract(config, simulation.request));
+      return await confirm(await actions.writeContract(config, simulation.request));
     } catch (error) {
       throw explainError(error);
     }
@@ -384,13 +445,13 @@ export function createWagmiCurveballSdk(
   async function handoffTreasury(nextTreasury: Address): Promise<ConfirmedWrite> {
     try {
       const account = await ensureWallet();
-      const configuredLocker = await readContract(config, {
+      const configuredLocker = await actions.readContract(config, {
         address: deployment.launchpad,
         abi: launchpadAbi,
         functionName: "locker",
         chainId: deployment.chainId,
       });
-      const currentTreasury = await readContract(config, {
+      const currentTreasury = await actions.readContract(config, {
         address: configuredLocker,
         abi: lockerAbi,
         functionName: "treasury",
@@ -403,7 +464,7 @@ export function createWagmiCurveballSdk(
       if (replacement === zeroAddress || sameAddress(replacement, currentTreasury)) {
         throw new CurveballSdkError("Choose a different non-zero treasury address.");
       }
-      const simulation = await simulateContract(config, {
+      const simulation = await actions.simulateContract(config, {
         account,
         address: configuredLocker,
         abi: lockerAbi,
@@ -411,7 +472,7 @@ export function createWagmiCurveballSdk(
         args: [replacement],
         chainId: deployment.chainId,
       });
-      return await confirm(await writeContract(config, simulation.request));
+      return await confirm(await actions.writeContract(config, simulation.request));
     } catch (error) {
       throw explainError(error);
     }

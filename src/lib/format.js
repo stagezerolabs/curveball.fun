@@ -39,6 +39,29 @@ export function formatCompact(value) {
   });
 }
 
+const usdFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  maximumSignificantDigits: 6,
+});
+
+const compactUsdFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  notation: "compact",
+  maximumFractionDigits: 2,
+});
+
+export function formatUsd(value) {
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
+  return usdFormatter.format(value);
+}
+
+export function formatUsdCompact(value) {
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
+  return compactUsdFormatter.format(value);
+}
+
 // "+70.9%" / "-22.7%" / "+<0.1%" / "0%" — tiny moves stay visibly non-zero
 // instead of rounding to "+0.0%".
 export function formatChange(value) {

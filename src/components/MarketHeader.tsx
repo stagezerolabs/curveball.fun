@@ -4,13 +4,14 @@ import {
   changeTone,
   formatAddress,
   formatChange,
-  formatCompact,
-  formatEthAmount,
   formatRelativeTime,
+  formatUsd,
+  formatUsdCompact,
 } from "../lib/format.js";
 import type { Token } from "../types";
+import { RISE_TESTNET_EXPLORER_URL } from "../sdk/curveballSdk";
 
-const EXPLORER = "https://explorer.risechain.com/address/";
+const EXPLORER = `${RISE_TESTNET_EXPLORER_URL}/address/`;
 
 function CopyButton({ value, label }: { value: string; label: string }) {
   const [copied, setCopied] = useState(false);
@@ -122,7 +123,7 @@ export function MarketHeader({ token }: { token: Token }) {
           </div>
         </div>
         <div className="market-headline-value">
-          <strong>{formatCompact(token.marketCap)} ETH</strong>
+          <strong>{formatUsdCompact(token.marketCapUsd)}</strong>
           <span>
             <span className={`change ${changeTone(token.change24h)}`}>
               {formatChange(token.change24h)} <small>24h</small>
@@ -157,7 +158,7 @@ export function MarketHeader({ token }: { token: Token }) {
         </div>
         <div>
           <dt>Price</dt>
-          <dd>{formatEthAmount(token.price)} ETH</dd>
+          <dd>{formatUsd(token.priceUsd)}</dd>
         </div>
       </dl>
     </header>

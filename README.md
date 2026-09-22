@@ -2,12 +2,15 @@
 
 Curveball is a token-launch application for RISE. Anyone can create a fixed-supply ERC-20, trade it through a constant-product bonding curve, and graduate it into a volatile Icarus pool once the curve sells out. The accompanying web app lists markets, lets connected wallets create and trade tokens, and shows indexed trade history.
 
-Curveball is deployed on RISE mainnet with a typed browser SDK and no production mock-data path. Its automated contract, fork, property, SDK, runtime, and build gates pass. It has not received an independent third-party audit; read [`docs/security/mainnet-security-review.md`](docs/security/mainnet-security-review.md) before handling real value.
+Curveball is deployed on RISE Testnet with a typed browser SDK and no production mock-data path. The dependency, fork, runtime, and build gates pass. It has not received an independent third-party audit.
 
-- Launchpad: [`0x1A34768eAb2F6b925D25ca1d6daC03C1a25Ad39E`](https://explorer.risechain.com/address/0x1a34768eab2f6b925d25ca1d6dac03c1a25ad39e)
-- LP locker: [`0xFC301f5349EB1ee9F12E8d6d446Ce5e526984782`](https://explorer.risechain.com/address/0xfc301f5349eb1ee9f12e8d6d446ce5e526984782)
-- Deployment block: `22216399`
-- Production API: [`curveball-kamicash-7a463851.koyeb.app`](https://curveball-kamicash-7a463851.koyeb.app/api/health)
+- Network: RISE Testnet (`11155931`)
+- Launchpad: [`0x1A34768eAb2F6b925D25ca1d6daC03C1a25Ad39E`](https://explorer.testnet.riselabs.xyz/address/0x1a34768eab2f6b925d25ca1d6dac03c1a25ad39e)
+- LP locker: [`0xFC301f5349EB1ee9F12E8d6d446Ce5e526984782`](https://explorer.testnet.riselabs.xyz/address/0xfc301f5349eb1ee9f12e8d6d446ce5e526984782)
+- Deployment block: `55002177`
+- Testnet API: [`curveball-kamicash-7a463851.koyeb.app`](https://curveball-kamicash-7a463851.koyeb.app/api/health)
+- Testnet UI: [`curveball-fun.netlify.app`](https://curveball-fun.netlify.app)
+- Migration runbook: [`docs/rise-testnet.md`](docs/rise-testnet.md)
 
 ## What is here
 
@@ -41,7 +44,7 @@ contracts/                 Solidity launchpad, locker, token, tests, and scripts
 src/                       React client, Hono server, Drizzle schema, and indexer
   sdk/                     Sole browser-side contract integration layer
 drizzle/                   Generated Postgres migrations
-docs/                      Mainnet spec, Koyeb runbook, and security evidence
+docs/                      Testnet runbook, historical mainnet spec, and security evidence
 compose.yaml               App, indexer, and Postgres local stack
 ```
 
@@ -124,35 +127,34 @@ The browser wallet must also be connected to the local Anvil chain. The local de
 
 The indexer owns all market data returned by the API. Creator-editable off-chain metadata is intentionally disabled until it has wallet-signature ownership verification.
 
-## RISE mainnet release gate
+Connected creators can open `/profile` from the wallet button to see every token they deployed. This dashboard reads launch events directly from RISE Testnet beginning at block `55002177`, so creator discovery does not depend on the hosted indexer being awake.
 
-The verification script reads the official Icarus factory and implementation, fetches their Blockscout-verified sources, checks the required ABI surface, validates RISE WETH, runs the fork lifecycle, and produces a source diff against Aerodrome reference contracts. It only performs reads and writes evidence files; it never sends a transaction or stores the RPC URL.
+## RISE Testnet release gate
+
+The testnet verification script pins the Icarus factory and implementation bytecode, checks the required ABI/state surface, validates RISE WETH, and runs the complete Curveball lifecycle on a fresh fork. The Icarus testnet contracts are not source-verified on Blockscout or Sourcify, so this is an explicitly accepted testnet risk. The gate only performs reads and writes evidence files; it never sends a transaction or stores the RPC URL.
 
 ```sh
-# Set an HTTPS RISE_RPC_URL in .env, review the archived diff, then acknowledge it.
-HUMAN_REVIEW_ACK=ICARUS_DIFF_REVIEWED_2026_09_19 make -C contracts verify-icarus
+RISE_TESTNET_RPC_URL=https://testnet.riselabs.xyz make -C contracts verify-icarus-testnet
 ```
 
-Evidence is written to `deployments/4153/icarus-verification.json` with verified sources and `icarus-vs-aerodrome.diff` beside it. The factory is `0xEe10C6a0f158bFEeef3d48Dc0D26130Cf6115615`, its verified implementation is `0xA24Bdf8ee26658c822796a30770F23c2425de966`, and the only supported quote asset is verified RISE WETH `0x4200000000000000000000000000000000000006`.
+Evidence is written to [`deployments/11155931/icarus-verification.json`](deployments/11155931/icarus-verification.json). The factory is `0x8221dfB70c9A2dE60253dcfC58231FD529bbF4F9`, its implementation is `0x74309f2134DA3E920094A5B0d5DF5d5Dcd1942b1`, and the only supported quote asset is RISE Testnet WETH `0x4200000000000000000000000000000000000006`.
 
 ```sh
 cd contracts
 forge test --match-path 'test/fork/*'
 ```
 
-The canonical deployment is recorded in [`deployments/4153/curveball.json`](deployments/4153/curveball.json). First-token creation remains interactive because Foundry must unlock the encrypted `dot` keystore locally:
+The canonical deployment is recorded in [`deployments/11155931/curveball.json`](deployments/11155931/curveball.json). Deployment remains interactive because Foundry must unlock the encrypted `dot` keystore locally. Follow [`docs/rise-testnet.md`](docs/rise-testnet.md); never place the keystore password on the command line.
 
-```sh
-CONFIRM_TOKEN=CREATE_NOMINATEBEAR_NBR LAUNCHPAD_ADDRESS=0x1A34768eAb2F6b925D25ca1d6daC03C1a25Ad39E make -C contracts create-nominatebear
-```
+The testnet launchpad and the archived mainnet launchpad share the same hexadecimal address because the same deployer nonce produced both. Always validate chain ID `11155931`; an address alone does not identify the deployment.
 
-Never place the keystore password on the command line. Follow [`docs/koyeb-production.md`](docs/koyeb-production.md), verify the metadata endpoint is live, and only then create NominateBear.
+The release is not complete until the API health check reports testnet chain `11155931`, one always-on indexer is running from the deployment block, Netlify has the testnet launchpad address, and the documented `CBT` buy/sell smoke test succeeds.
 
 ## Security notes
 
 - `LpLocker` validates that a pool was registered by the launchpad, derives payout tokens from that pool, and distributes only the balance delta received from `claimFees()`. Regression tests cover the historical cross-pool theft path. The current treasury can hand its role to a non-zero multisig without an upgrade or redeployment.
 - The launchpad uses `SafeERC20`, `ReentrancyGuard`, checked packed-state casts, deterministic per-creator token salts, deadlines, and slippage limits. Its quote token must be verified RISE WETH; fee-on-transfer and rebasing assets are unsupported.
-- The current review, residual risks, static-analysis triage, and evidence map are in [`docs/security/mainnet-security-review.md`](docs/security/mainnet-security-review.md).
+- The archived mainnet review, residual risks, static-analysis triage, and evidence map remain in [`docs/security/mainnet-security-review.md`](docs/security/mainnet-security-review.md); they do not constitute an independent audit of the new testnet deployment.
 
 ## Environment
 

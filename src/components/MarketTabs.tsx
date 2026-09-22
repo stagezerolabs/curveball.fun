@@ -9,8 +9,9 @@ import {
 } from "../lib/format.js";
 import type { Address } from "viem";
 import type { Holder, Position, Token, Trade, TradePage } from "../types";
+import { RISE_TESTNET_EXPLORER_URL } from "../sdk/curveballSdk";
 
-const EXPLORER_ADDRESS = "https://explorer.risechain.com/address/";
+const EXPLORER_ADDRESS = `${RISE_TESTNET_EXPLORER_URL}/address/`;
 const PAGE_SIZE = 30;
 const TABS = ["trades", "holders", "about", "account"] as const;
 type Tab = (typeof TABS)[number];

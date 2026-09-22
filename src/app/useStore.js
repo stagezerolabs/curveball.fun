@@ -18,6 +18,16 @@ export const useStore = create((set, get) => ({
   setAmount: (amount) => set({ amount, quotePreview: null }),
   setSide: (side) => set({ side, quotePreview: null }),
   setActionError: (actionError) => set({ actionError }),
+  mergeTokens: (discovered) =>
+    set((state) => {
+      const merged = new Map(
+        discovered.map((token) => [token.address.toLowerCase(), token]),
+      );
+      for (const token of state.tokens) {
+        merged.set(token.address.toLowerCase(), token);
+      }
+      return { tokens: [...merged.values()], marketError: "" };
+    }),
 
   fetchTokens: async () => {
     set({ loading: true, marketError: "" });
@@ -59,11 +69,12 @@ export const useStore = create((set, get) => ({
 
   createToken: async (event) => {
     event.preventDefault();
+    const submittedForm = event.currentTarget;
     const { startAction, endAction, handleActionError } = get();
     startAction();
 
     try {
-      const form = new FormData(event.currentTarget);
+      const form = new FormData(submittedForm);
       const result = await requireCurveballSdk().createToken({
         name: String(form.get("name") ?? ""),
         symbol: String(form.get("symbol") ?? ""),
@@ -74,7 +85,7 @@ export const useStore = create((set, get) => ({
         tradeMessage: `Token created at ${result.token}.`,
         lastCreatedToken: result.token,
       });
-      event.currentTarget.reset();
+      submittedForm.reset();
       await get().fetchTokens();
     } catch (error) {
       handleActionError(error);

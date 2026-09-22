@@ -3,7 +3,7 @@ import { encodeAbiParameters, encodeEventTopics, getAddress } from "viem";
 import { launchpadAbi } from "./contracts";
 import {
   CURVEBALL_LAUNCHPAD_ADDRESS,
-  RISE_CHAIN_ID,
+  RISE_TESTNET_CHAIN_ID,
   applySlippage,
   createDeadline,
   findCreatedToken,
@@ -13,29 +13,32 @@ import {
 } from "./curveballSdk";
 
 describe("Curveball SDK deployment boundary", () => {
-  test("ships the canonical RISE launchpad without relying on build-time env", () => {
+  test("ships the canonical RISE Testnet launchpad", () => {
+    // The testnet deployment has the same address as the historical mainnet
+    // deployment because it used the same deployer nonce. Chain ID separates them.
     expect(CURVEBALL_LAUNCHPAD_ADDRESS).toBe(
       getAddress("0x1A34768eAb2F6b925D25ca1d6daC03C1a25Ad39E"),
     );
+    expect(RISE_TESTNET_CHAIN_ID).toBe(11_155_931);
   });
 
   test("detects a wallet connected to Ethereum instead of RISE", () => {
-    expect(walletNeedsChainSwitch(1, RISE_CHAIN_ID)).toBe(true);
-    expect(walletNeedsChainSwitch(RISE_CHAIN_ID, RISE_CHAIN_ID)).toBe(false);
-    expect(walletNeedsChainSwitch(undefined, RISE_CHAIN_ID)).toBe(true);
+    expect(walletNeedsChainSwitch(1, RISE_TESTNET_CHAIN_ID)).toBe(true);
+    expect(walletNeedsChainSwitch(RISE_TESTNET_CHAIN_ID, RISE_TESTNET_CHAIN_ID)).toBe(false);
+    expect(walletNeedsChainSwitch(undefined, RISE_TESTNET_CHAIN_ID)).toBe(true);
   });
 
-  test("accepts a checksummed RISE mainnet deployment and derives transaction bounds", () => {
+  test("accepts a checksummed RISE testnet deployment and derives transaction bounds", () => {
     const launchpad = getAddress("0x1111111111111111111111111111111111111111");
     const deployment = defineCurveballDeployment({
-      chainId: RISE_CHAIN_ID,
+      chainId: RISE_TESTNET_CHAIN_ID,
       launchpad,
       slippageBps: 300,
       deadlineSeconds: 300,
     });
 
     expect(deployment.launchpad).toBe(launchpad);
-    expect(deployment.chainId).toBe(4153);
+    expect(deployment.chainId).toBe(11155931);
     expect(applySlippage(10_000n, deployment.slippageBps)).toBe(9_700n);
   });
 
@@ -49,10 +52,10 @@ describe("Curveball SDK deployment boundary", () => {
         slippageBps: 300,
         deadlineSeconds: 300,
       }),
-    ).toThrow("RISE mainnet");
+    ).toThrow("RISE Testnet");
     expect(() =>
       defineCurveballDeployment({
-        chainId: RISE_CHAIN_ID,
+        chainId: RISE_TESTNET_CHAIN_ID,
         launchpad,
         slippageBps: 10_000,
         deadlineSeconds: 300,
@@ -60,7 +63,7 @@ describe("Curveball SDK deployment boundary", () => {
     ).toThrow("slippage");
     expect(() =>
       defineCurveballDeployment({
-        chainId: RISE_CHAIN_ID,
+        chainId: RISE_TESTNET_CHAIN_ID,
         launchpad,
         slippageBps: 300,
         deadlineSeconds: 0,

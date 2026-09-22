@@ -3,7 +3,7 @@ import { defineConfig } from "drizzle-kit";
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error("DATABASE_URL is required");
 const sslUrl =
-  process.env.DATABASE_SSL === "true"
+  process.env.DATABASE_SSL === "true" && !/[?&]sslmode=/.test(url)
     ? `${url}${url.includes("?") ? "&" : "?"}sslmode=require`
     : url;
 

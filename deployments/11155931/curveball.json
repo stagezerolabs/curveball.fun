@@ -1,0 +1,25 @@
+{
+  "chainId": 11155931,
+  "deploymentBlock": 55002177,
+  "deployer": "0xd07988ecbcf446b9650dc93ed9c61bf97f02a8d3",
+  "launchpad": {
+    "address": "0x1A34768eAb2F6b925D25ca1d6daC03C1a25Ad39E",
+    "transactionHash": "0x059a9194975aa1e7659e78338116d072752a94fff4f5e78268a68abc31f8b485",
+    "codeHash": "0x0d50a4b8cc8b2e2a74eb34fa81aa7bd79511927aced1d46092b47646a8401e8c",
+    "verified": true
+  },
+  "locker": {
+    "address": "0xFC301f5349EB1ee9F12E8d6d446Ce5e526984782",
+    "transactionHash": "0xa3f44d33529bf3af7a6cac2ee2ad5d4c374697be4b3d822481ee89d0f59c0e98",
+    "bindingTransactionHash": "0x6ee61f1c1dec73a877c00ef517545b59ecc60d98a3d607e844d67963358436a5",
+    "codeHash": "0x6763acadc9f6f734dd9917a97edd8708a79c4bad3ffd029375ad396fae698f17",
+    "verified": true
+  },
+  "quoteToken": "0x4200000000000000000000000000000000000006",
+  "icarusFactory": "0x8221dfB70c9A2dE60253dcfC58231FD529bbF4F9",
+  "tokenSupply": "1000000000000000000000000",
+  "curveSupply": "800000000000000000000000",
+  "initialVirtualQuote": "10000000000000000000",
+  "creatorShareBps": 5000,
+  "initialTreasury": "0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3"
+}

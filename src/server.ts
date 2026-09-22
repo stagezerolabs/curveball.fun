@@ -4,7 +4,9 @@ import { serveStatic } from "hono/bun";
 import { createPublicClient, http, parseAbiItem } from "viem";
 import { db } from "./db";
 import { tokens, trades } from "./db/schema";
+import { createCoinGeckoEthUsdSource, createEthUsdProvider } from "./ethUsd";
 import { readChainRuntime } from "./runtimeConfig";
+import { addUsdValuation } from "./usdValuation";
 import {
   candles,
   holders,
@@ -30,6 +32,12 @@ const launchpadAbi = [
 const publicClient = hasLaunchpad
   ? createPublicClient({ transport: http(runtime.rpcUrl) })
   : null;
+const coinGecko = createCoinGeckoEthUsdSource({
+  apiKey: Bun.env.COINGECKO_API_KEY?.trim() || undefined,
+});
+const ethUsdProvider = createEthUsdProvider({
+  getEthUsd: coinGecko.getEthUsd,
+});
 
 async function assertChainDeployment() {
   if (!publicClient || !launchpadAddress) return;
@@ -182,7 +190,7 @@ async function enrichWithMarketData<
 >(rows: T[]) {
   if (rows.length === 0) return [];
 
-  const [stats, symbol, constants] = await Promise.all([
+  const [stats, symbol, constants, ethUsdRate] = await Promise.all([
     marketStats().catch((error) => {
       console.error("market stats", error);
       return new Map<string, TokenStats>();
@@ -190,6 +198,10 @@ async function enrichWithMarketData<
     getQuoteSymbol(),
     getCurveConstants().catch((error) => {
       console.error("curve constants", error);
+      return null;
+    }),
+    ethUsdProvider.getRate().catch((error) => {
+      console.error("ETH/USD rate", error);
       return null;
     }),
   ]);
@@ -231,7 +243,7 @@ async function enrichWithMarketData<
 
     const result = onChain[index];
     if (!result || result.status !== "fulfilled" || supplyHuman === null)
-      return merged;
+      return addUsdValuation(merged, ethUsdRate);
 
     const [, vt, vq, , sold, onChainGraduated] = result.value;
     const soldNum = Number(sold);
@@ -240,7 +252,7 @@ async function enrichWithMarketData<
     // undefined before the first trade.
     const price =
       !onChainGraduated && Number(vt) > 0 ? Number(vq) / Number(vt) : null;
-    return {
+    return addUsdValuation({
       ...merged,
       graduated: merged.graduated || onChainGraduated,
       price,
@@ -249,7 +261,7 @@ async function enrichWithMarketData<
         constants && constants.curveSupply > 0n
           ? Math.min(100, (soldNum / Number(constants.curveSupply)) * 100)
           : 0,
-    };
+    }, ethUsdRate);
   });
 }
 

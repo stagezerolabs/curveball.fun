@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 
 const databaseUrl = Bun.env.TEST_DATABASE_URL;
+const TEST_TOKEN = "0x000000000000000000000000000000000000c0de";
 
 test.skipIf(!databaseUrl)(
   "the schema and concurrent indexer work with Postgres",
@@ -24,7 +25,7 @@ test.skipIf(!databaseUrl)(
       await db
         .insert(tokens)
         .values({
-          address: "0x000000000000000000000000000000000000c0de",
+          address: TEST_TOKEN,
           name: "Curveball",
           symbol: "CURVE",
           creator: "test",
@@ -35,7 +36,7 @@ test.skipIf(!databaseUrl)(
         .select()
         .from(tokens)
         .where(
-          eq(tokens.address, "0x000000000000000000000000000000000000c0de"),
+          eq(tokens.address, TEST_TOKEN),
         );
 
       expect(token?.symbol).toBe("CURVE");
@@ -68,6 +69,8 @@ test.skipIf(!databaseUrl)(
       });
       Bun.env.LAUNCHPAD_ADDRESS = "0x0000000000000000000000000000000000000001";
       Bun.env.RPC_URL = rpc.url.toString();
+      Bun.env.EXPECTED_CHAIN_ID = "31337";
+      Bun.env.INDEXER_START_BLOCK = "0";
       try {
         const { indexToHead } = await import("../indexer");
         await Promise.all([indexToHead(), indexToHead()]);
@@ -92,7 +95,9 @@ test.skipIf(!databaseUrl)(
         }
       }
     } finally {
+      await db.delete(tokens).where(eq(tokens.address, TEST_TOKEN));
       await closeDatabase();
     }
   },
+  30_000,
 );

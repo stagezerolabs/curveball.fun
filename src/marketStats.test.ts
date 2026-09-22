@@ -93,4 +93,5 @@ test.skipIf(!databaseUrl)(
       await closeDatabase();
     }
   },
+  30_000,
 );

@@ -19,7 +19,9 @@ function selectTokens(tokens: Token[], tab: Tab) {
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
   }
-  return [...tokens].sort((a, b) => (b.marketCap ?? -1) - (a.marketCap ?? -1));
+  return [...tokens].sort(
+    (a, b) => (b.marketCapUsd ?? -1) - (a.marketCapUsd ?? -1),
+  );
 }
 
 export function MarketsPage({ navigate }: { navigate: Navigate }) {

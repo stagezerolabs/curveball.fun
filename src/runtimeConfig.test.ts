@@ -8,20 +8,20 @@ describe("production chain runtime", () => {
     );
   });
 
-  test("accepts a complete RISE mainnet runtime", () => {
+  test("accepts a complete RISE testnet runtime", () => {
     expect(
       readChainRuntime({
         NODE_ENV: "production",
-        RPC_URL: "https://rpc.risechain.com/",
+        RPC_URL: "https://testnet.riselabs.xyz",
         LAUNCHPAD_ADDRESS: "0x1111111111111111111111111111111111111111",
-        EXPECTED_CHAIN_ID: "4153",
+        EXPECTED_CHAIN_ID: "11155931",
         INDEXER_START_BLOCK: "123456",
       }),
     ).toEqual({
       production: true,
-      rpcUrl: "https://rpc.risechain.com/",
+      rpcUrl: "https://testnet.riselabs.xyz",
       launchpadAddress: "0x1111111111111111111111111111111111111111",
-      expectedChainId: 4153,
+      expectedChainId: 11155931,
       indexerStartBlock: 123456n,
     });
   });

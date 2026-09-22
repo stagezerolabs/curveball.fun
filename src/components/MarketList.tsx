@@ -1,7 +1,7 @@
 import { AppLink } from "./Navigation";
 import { ArrowIcon } from "./ArrowIcon";
 import { TokenAvatar } from "./TokenAvatar";
-import { formatEthAmount, formatPercent } from "../lib/format.js";
+import { formatPercent, formatUsd, formatUsdCompact } from "../lib/format.js";
 import type { Navigate, Token } from "../types";
 
 export function MarketList({
@@ -56,8 +56,8 @@ export function MarketList({
             </span>
           ) : (
             <span className="market-cell">
-              <strong>{formatEthAmount(token.price)} ETH</strong>
-              <small>{formatEthAmount(token.marketCap)} ETH cap</small>
+              <strong>{formatUsd(token.priceUsd)}</strong>
+              <small>{formatUsdCompact(token.marketCapUsd)} cap</small>
             </span>
           )}
           {!token.graduated && (

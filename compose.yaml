@@ -22,6 +22,8 @@ services:
     environment:
       DATABASE_URL: postgresql://curveball:curveball@postgres:5432/curveball
       LAUNCHPAD_ADDRESS: ${DOCKER_LAUNCHPAD_ADDRESS:-}
+      EXPECTED_CHAIN_ID: ${DOCKER_EXPECTED_CHAIN_ID:-31337}
+      INDEXER_START_BLOCK: ${DOCKER_INDEXER_START_BLOCK:-0}
       PORT: 3001
       RPC_URL: ${DOCKER_RPC_URL:-http://host.docker.internal:8545}
     extra_hosts:
@@ -50,6 +52,8 @@ services:
     environment:
       DATABASE_URL: postgresql://curveball:curveball@postgres:5432/curveball
       LAUNCHPAD_ADDRESS: ${DOCKER_LAUNCHPAD_ADDRESS:-}
+      EXPECTED_CHAIN_ID: ${DOCKER_EXPECTED_CHAIN_ID:-31337}
+      INDEXER_START_BLOCK: ${DOCKER_INDEXER_START_BLOCK:-0}
       RPC_URL: ${DOCKER_RPC_URL:-http://host.docker.internal:8545}
     extra_hosts:
       - host.docker.internal:host-gateway

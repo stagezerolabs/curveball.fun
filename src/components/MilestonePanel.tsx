@@ -1,5 +1,5 @@
 import { useStore } from "../app/useStore.js";
-import { formatEthAmount, formatPercent } from "../lib/format.js";
+import { formatPercent, formatUsd } from "../lib/format.js";
 import type { Address } from "viem";
 import type { LaunchpadConfig, Token } from "../types";
 
@@ -54,14 +54,14 @@ export function MilestonePanel({
         <div>
           <dt>Target price</dt>
           <dd>
-            {config?.targetPrice
-              ? `${formatEthAmount(config.targetPrice)} ETH`
+            {config?.targetPrice && token.ethUsd
+              ? formatUsd(config.targetPrice * token.ethUsd)
               : "—"}
           </dd>
         </div>
         <div>
           <dt>Now trading at</dt>
-          <dd>{formatEthAmount(token.price)} ETH</dd>
+          <dd>{formatUsd(token.priceUsd)}</dd>
         </div>
       </dl>
 

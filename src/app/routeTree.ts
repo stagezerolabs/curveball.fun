@@ -5,10 +5,12 @@ type Route = {
 };
 
 const routes: Route[] = [
-  { id: "home", path: "/", title: "Curveball — Fair token launches" },
+  { id: "landing", path: "/", title: "Curveball — Fair token launches" },
+  { id: "home", path: "/app", title: "Explore — Curveball" },
   { id: "markets", path: "/markets", title: "Markets — Curveball" },
   { id: "market", path: "/markets/:address", title: "Market — Curveball" },
   { id: "launch", path: "/launch", title: "Launch — Curveball" },
+  { id: "profile", path: "/profile", title: "Your launches — Curveball" },
   { id: "notFound", path: "*", title: "Page not found — Curveball" },
 ];
 

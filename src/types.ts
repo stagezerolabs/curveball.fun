@@ -11,6 +11,11 @@ export type Token = {
   createdAt: string;
   price?: number | null;
   marketCap?: number | null;
+  priceUsd?: number | null;
+  marketCapUsd?: number | null;
+  ethUsd?: number | null;
+  usdUpdatedAt?: string | null;
+  usdStale?: boolean;
   progress?: number | null;
   imageUrl?: string | null;
   pool?: Address | null;
@@ -21,6 +26,7 @@ export type Token = {
   holders?: number | null;
   liquidity?: number | null;
   peakMarketCap?: number | null;
+  peakMarketCapUsd?: number | null;
   quoteSymbol?: string | null;
   priceHistory?: number[] | null;
   description?: string | null;

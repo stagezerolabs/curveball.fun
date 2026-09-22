@@ -26,13 +26,15 @@ export function readChainRuntime(
   }
 
   const expectedChainId = Number(
-    env.EXPECTED_CHAIN_ID || (production ? "4153" : "31337"),
+    env.EXPECTED_CHAIN_ID || (production ? "11155931" : "31337"),
   );
   if (!Number.isSafeInteger(expectedChainId) || expectedChainId <= 0) {
     throw new Error("EXPECTED_CHAIN_ID must be a positive integer.");
   }
-  if (production && expectedChainId !== 4153) {
-    throw new Error("Production EXPECTED_CHAIN_ID must be RISE mainnet (4153).");
+  if (production && expectedChainId !== 11_155_931) {
+    throw new Error(
+      "Production EXPECTED_CHAIN_ID must be RISE Testnet (11155931).",
+    );
   }
 
   const start = env.INDEXER_START_BLOCK ?? (production ? "" : "0");

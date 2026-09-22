@@ -18,3 +18,4 @@ contracts/crytic-export/
 
 .worktrees/
 .neon
+.vercel

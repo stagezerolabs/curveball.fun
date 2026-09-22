@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { TokenAvatar } from "./TokenAvatar";
 import { useStore } from "../app/useStore.js";
-import { formatEthAmount } from "../lib/format.js";
+import { formatUsdCompact } from "../lib/format.js";
 import type { KeyboardEvent } from "react";
 import type { Navigate, Token } from "../types";
 
@@ -38,7 +38,7 @@ export function NavSearch({ navigate }: { navigate: Navigate }) {
           .toLowerCase()
           .includes(needle),
       )
-      .sort((a, b) => (b.marketCap ?? -1) - (a.marketCap ?? -1))
+      .sort((a, b) => (b.marketCapUsd ?? -1) - (a.marketCapUsd ?? -1))
       .slice(0, MAX_RESULTS);
   }, [tokens, query]);
 
@@ -160,7 +160,7 @@ export function NavSearch({ navigate }: { navigate: Navigate }) {
                     <span className="nav-result-name">{token.name}</span>
                     <span className="nav-result-symbol">${token.symbol}</span>
                     <span className="nav-result-cap">
-                      {formatEthAmount(token.marketCap)} ETH
+                      {formatUsdCompact(token.marketCapUsd)}
                     </span>
                   </button>
                 </li>

@@ -15,7 +15,10 @@ contract Deploy {
     DeployVm constant vm = DeployVm(address(uint160(uint256(keccak256("hevm cheat code")))));
 
     function run() external returns (LpLocker locker, CurveballLaunchpad launchpad) {
-        require(block.chainid == vm.envUint("EXPECTED_CHAIN_ID") && block.chainid != 4153, "wrong chain");
+        require(
+            block.chainid == vm.envUint("EXPECTED_CHAIN_ID") && block.chainid != 4153 && block.chainid != 11_155_931,
+            "wrong chain"
+        );
         address quote = vm.envAddress("QUOTE_TOKEN");
         address factory = vm.envAddress("ICARUS_FACTORY");
         address treasury = vm.envAddress("TREASURY");
