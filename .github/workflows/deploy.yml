@@ -1,35 +1,13 @@
-name: Deploy to Netlify
+name: Mainnet publication disabled
 
-# Deploy keys are disabled on this org, so Netlify cannot pull the repo itself.
-# This builds here and pushes the result to Netlify instead.
+# Local-first milestone: no push may publish the testnet or demo build as the mainnet site.
+# Replace this workflow only after the mainnet release gates and production approval.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
-  deploy:
+  release-status:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - run: bun install --frozen-lockfile
-
-      - run: bun run typecheck
-
-      # Demo data ships until the contracts are deployed, so the site is
-      # presentable with an empty database. Remove to strip it from the bundle.
-      - run: bun run build
-        env:
-          VITE_DEMO_DATA: "true"
-
-      - name: Publish to Netlify
-        # dist/ is already built by the step above; this only uploads it.
-        run: bunx netlify-cli@17 deploy --prod --dir=dist --message "$GITHUB_SHA"
-        env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID: 98c3e594-e664-4fc9-b8c2-e3b0e876d003
+      - name: Report release state
+        run: echo 'Publication is disabled until the mainnet release gates pass.'

@@ -13,7 +13,7 @@ import {
   discoverToken,
   type CreatorTokenClient,
 } from "../creatorTokens";
-import { RISE_TESTNET_CHAIN_ID } from "../sdk/curveballSdk";
+import { activeChainId, launchpadAddress } from "../lib/web3";
 import type { LaunchpadConfig, Navigate, Token } from "../types";
 
 export function MarketPage({
@@ -33,11 +33,12 @@ export function MarketPage({
     actionError: string;
   };
   const { address } = useAccount();
-  const publicClient = usePublicClient({ chainId: RISE_TESTNET_CHAIN_ID });
+  const publicClient = usePublicClient({ chainId: activeChainId });
   const [onchainToken, setOnchainToken] = useState<Token | null>();
   const [discoveryError, setDiscoveryError] = useState("");
   const { data } = useFetch<LaunchpadConfig | null>("/api/config", null);
-  const config = data;
+  const config = data?.chainId === activeChainId && data.launchpadAddress?.toLowerCase() === launchpadAddress?.toLowerCase()
+    ? data : null;
   const error = actionError || marketError || discoveryError;
   const resolvedToken = token ?? onchainToken;
 
@@ -72,7 +73,7 @@ export function MarketPage({
         setDiscoveryError(
           cause instanceof Error
             ? cause.message
-            : "Could not read this market from RISE Testnet.",
+            : "Could not read this market from the configured network.",
         );
       });
 

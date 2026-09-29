@@ -1,0 +1,17 @@
+{
+  "chainId": 4153,
+  "status": "not-deployed",
+  "launchpad": null,
+  "locker": null,
+  "firstMarket": {
+    "name": "Curveball",
+    "symbol": "CURVE",
+    "token": null
+  },
+  "quote": "0x4200000000000000000000000000000000000006",
+  "icarusPoolFactory": "0xEe10C6a0f158bFEeef3d48Dc0D26130Cf6115615",
+  "supplyWei": "1000000000000000000000000",
+  "curveSupplyWei": "800000000000000000000000",
+  "initialVirtualQuoteWei": "10000000000000000000",
+  "creatorShareBps": 5000
+}

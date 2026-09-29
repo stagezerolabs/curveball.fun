@@ -16,7 +16,6 @@
     "test": "bun test",
     "test:integration:db": "bun scripts/require-test-env.ts TEST_DATABASE_URL -- bun test --timeout 30000 src/db/db.test.ts && bun scripts/require-test-env.ts TEST_DATABASE_URL -- bun test --timeout 30000 src/marketStats.test.ts",
     "test:integration:sdk": "bun scripts/require-test-env.ts SDK_TESTNET_FORK_RPC_URL SDK_TESTNET_FORK_LAUNCHPAD SDK_TESTNET_FORK_ACCOUNT -- bun test src/sdk/wagmiSdk.integration.test.ts",
-    "test:quality-hooks": "python3 -m unittest discover -s tools/codex-quality/tests -v",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",

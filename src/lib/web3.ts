@@ -3,6 +3,8 @@ import { injected } from "wagmi/connectors";
 import { defineChain, getAddress, http, isAddress, type Address } from "viem";
 import {
   CURVEBALL_LAUNCHPAD_ADDRESS,
+  RISE_MAINNET_CHAIN_ID,
+  RISE_MAINNET_EXPLORER_URL,
   RISE_TESTNET_CHAIN_ID,
   RISE_TESTNET_EXPLORER_URL,
   RISE_TESTNET_RPC_URL,
@@ -12,10 +14,18 @@ import { createWagmiCurveballSdk } from "../sdk/wagmiSdk";
 import { resolveRiseTestnetRpcUrl } from "./clientRuntime";
 
 const riseTestnetRpcUrl = resolveRiseTestnetRpcUrl(import.meta.env);
+export const activeChainId = Number(import.meta.env.VITE_CHAIN_ID || RISE_TESTNET_CHAIN_ID);
+export const activeExplorerUrl = activeChainId === RISE_MAINNET_CHAIN_ID
+  ? RISE_MAINNET_EXPLORER_URL
+  : RISE_TESTNET_EXPLORER_URL;
+export const activeDeploymentBlock = BigInt(
+  import.meta.env.VITE_DEPLOYMENT_BLOCK ||
+    (activeChainId === RISE_TESTNET_CHAIN_ID ? "55002177" : "0"),
+);
 
 export const riseTestnet = defineChain({
-  id: RISE_TESTNET_CHAIN_ID,
-  name: "RISE Testnet",
+  id: activeChainId,
+  name: activeChainId === RISE_MAINNET_CHAIN_ID ? "RISE Mainnet" : activeChainId === 31_337 ? "Local Anvil" : "RISE Testnet",
   nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
   rpcUrls: {
     default: {
@@ -25,7 +35,7 @@ export const riseTestnet = defineChain({
   blockExplorers: {
     default: {
       name: "RISE Explorer",
-      url: RISE_TESTNET_EXPLORER_URL,
+      url: activeExplorerUrl,
     },
   },
 });
@@ -42,7 +52,13 @@ export const wagmiConfig = createConfig({
 
 const configuredLaunchpad =
   import.meta.env.VITE_LAUNCHPAD_ADDRESS?.trim() ||
-  CURVEBALL_LAUNCHPAD_ADDRESS;
+  (activeChainId === RISE_TESTNET_CHAIN_ID ? CURVEBALL_LAUNCHPAD_ADDRESS : "");
+if (activeChainId === RISE_MAINNET_CHAIN_ID && (!configuredLaunchpad || !import.meta.env.VITE_DEPLOYMENT_BLOCK)) {
+  throw new Error("Mainnet requires VITE_LAUNCHPAD_ADDRESS and VITE_DEPLOYMENT_BLOCK.");
+}
+if (activeChainId === RISE_MAINNET_CHAIN_ID && configuredLaunchpad.toLowerCase() === CURVEBALL_LAUNCHPAD_ADDRESS.toLowerCase()) {
+  throw new Error("The archived mainnet launchpad cannot be used for v2.");
+}
 
 export const launchpadAddress: Address | null =
   configuredLaunchpad && isAddress(configuredLaunchpad)
@@ -53,7 +69,7 @@ export const curveballSdk = launchpadAddress
   ? createWagmiCurveballSdk(
       wagmiConfig,
       defineCurveballDeployment({
-        chainId: RISE_TESTNET_CHAIN_ID,
+        chainId: activeChainId,
         launchpad: launchpadAddress,
         slippageBps: 300,
         deadlineSeconds: 300,
@@ -63,7 +79,7 @@ export const curveballSdk = launchpadAddress
 
 export function requireCurveballSdk() {
   if (!curveballSdk) {
-    throw new Error("Curveball testnet deployment is not configured.");
+    throw new Error("Curveball deployment is not configured.");
   }
   return curveballSdk;
 }

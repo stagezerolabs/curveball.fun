@@ -27,6 +27,7 @@ import {
   walletNeedsChainSwitch,
   type CurveballDeployment,
   type TokenInput,
+  RISE_MAINNET_CHAIN_ID,
 } from "./curveballSdk";
 
 export type TradeSide = "buy" | "sell";
@@ -97,7 +98,7 @@ const defaultWagmiActions: WagmiActions = {
 };
 
 // Wrapping, approval, and the buy each consume native gas. Keep a small RISE
-// testnet buffer instead of allowing the wrap to drain the wallet completely.
+// gas buffer instead of allowing the wrap to drain the wallet completely.
 export const NATIVE_GAS_RESERVE = 10_000_000_000_000n; // 0.00001 ETH
 
 export class CurveballSdkError extends Error {
@@ -143,7 +144,21 @@ export function createWagmiCurveballSdk(
     if (walletNeedsChainSwitch(account.chainId, deployment.chainId)) {
       const switched = await actions.switchChain(config, { chainId: deployment.chainId });
       if (switched.id !== deployment.chainId) {
-        throw new CurveballSdkError("Switch your wallet to RISE Testnet to continue.");
+        throw new CurveballSdkError("Switch your wallet to the configured Curveball network.");
+      }
+    }
+    if (deployment.chainId === RISE_MAINNET_CHAIN_ID) {
+      try {
+        await Promise.all(["owner", "publicLaunchOpen", "totalReservedQuote"].map((functionName) =>
+          actions.readContract(config, {
+            address: deployment.launchpad,
+            abi: launchpadAbi,
+            functionName: functionName as "owner" | "publicLaunchOpen" | "totalReservedQuote",
+            chainId: deployment.chainId,
+          }),
+        ));
+      } catch {
+        throw new CurveballSdkError("Mainnet launchpad is not the rescue-enabled v2 contract.");
       }
     }
     return getAddress(account.address);

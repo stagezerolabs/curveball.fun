@@ -19,3 +19,5 @@ contracts/crytic-export/
 .worktrees/
 .neon
 .vercel
+# Local backup of verified deployment artifacts; canonical copies live in deployments/
+deployments.local-backup/

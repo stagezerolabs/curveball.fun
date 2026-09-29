@@ -1,9 +1,23 @@
 import { ArrowIcon } from "../components/ArrowIcon";
 import { useStore } from "../app/useStore.js";
-import { useAccount } from "wagmi";
+import { useAccount, useReadContract } from "wagmi";
+import { launchpadAbi } from "../sdk/contracts";
+import { RISE_TESTNET_CHAIN_ID } from "../sdk/curveballSdk";
+import { activeChainId, launchpadAddress } from "../lib/web3";
 
 export function LaunchPage() {
   const { address } = useAccount();
+  const { data: publicOpen } = useReadContract({
+    address: launchpadAddress ?? undefined, abi: launchpadAbi,
+    functionName: "publicLaunchOpen", chainId: activeChainId,
+    query: { enabled: Boolean(launchpadAddress) && activeChainId !== RISE_TESTNET_CHAIN_ID },
+  });
+  const { data: invited } = useReadContract({
+    address: launchpadAddress ?? undefined, abi: launchpadAbi,
+    functionName: "invited", args: [address!], chainId: activeChainId,
+    query: { enabled: Boolean(address && launchpadAddress) && activeChainId !== RISE_TESTNET_CHAIN_ID },
+  });
+  const canCreate = activeChainId === RISE_TESTNET_CHAIN_ID || publicOpen === true || invited === true;
   const { createToken: create, isPending, actionError: error } = useStore();
 
   return (
@@ -44,6 +58,7 @@ export function LaunchPage() {
               {error}
             </p>
           )}
+          {!canCreate && address && <p className="notice" role="status">Limited beta: this wallet needs an invitation to create a token.</p>}
           <label>
             Token name
             <input
@@ -72,13 +87,13 @@ export function LaunchPage() {
           <button
             className="launch-button"
             type="submit"
-            disabled={!address || isPending}
+            disabled={!address || isPending || !canCreate}
           >
             {isPending ? "Confirm in wallet…" : "Create token"} <ArrowIcon />
           </button>
           <p className="form-note">
             {address
-              ? "Your wallet is ready."
+              ? canCreate ? "Your wallet is ready." : "Ask the beta owner for an invitation."
               : "Connect your wallet to launch."}
           </p>
         </form>

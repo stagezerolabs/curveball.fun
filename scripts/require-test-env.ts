@@ -13,7 +13,9 @@ const command = args.slice(separator + 1);
 const missing = required.filter((name) => !Bun.env[name]?.trim());
 
 if (missing.length > 0) {
-  console.error(`Missing required integration-test environment: ${missing.join(", ")}`);
+  console.error(
+    `Missing required integration-test environment: ${missing.join(", ")}`,
+  );
   process.exit(2);
 }
 
@@ -26,3 +28,4 @@ const child = Bun.spawn(command, {
 });
 
 process.exit(await child.exited);
+export {};

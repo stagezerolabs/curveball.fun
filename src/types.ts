@@ -8,6 +8,7 @@ export type Token = {
   symbol: string;
   creator: Address;
   graduated: boolean;
+  pending?: boolean;
   createdAt: string;
   price?: number | null;
   marketCap?: number | null;
@@ -65,6 +66,8 @@ export type Position = {
 };
 
 export type LaunchpadConfig = {
+  chainId?: number;
+  launchpadAddress?: string | null;
   quoteSymbol: string | null;
   quoteToken: string | null;
   targetPrice: number | null;

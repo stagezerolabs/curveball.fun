@@ -11,6 +11,20 @@ const quote = getAddress("0x4200000000000000000000000000000000000006");
 const token = getAddress("0x3333333333333333333333333333333333333333");
 
 describe("Curveball SDK buy funding boundary", () => {
+  test("refuses a mainnet write when v2 rescue and beta methods are missing", async () => {
+    let simulated = false;
+    const sdk = createWagmiCurveballSdk(
+      {} as Config,
+      defineCurveballDeployment({ chainId: 4153, launchpad }),
+      {
+        getAccount: () => ({ address: account, chainId: 4153 }),
+        readContract: async () => { throw new Error("method missing"); },
+        simulateContract: async () => { simulated = true; throw new Error("unexpected simulation"); },
+      } as unknown as WagmiActions,
+    );
+    await expect(sdk.createToken({ name: "Curveball", symbol: "CURVE", uri: "" })).rejects.toThrow("rescue-enabled v2");
+    expect(simulated).toBe(false);
+  });
   test("wraps only the missing WETH before approving and buying", async () => {
     const writes: Array<{
       address: Address;

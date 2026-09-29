@@ -20,7 +20,7 @@ import {
   discoverAllTokens,
   type CreatorTokenClient,
 } from "../creatorTokens";
-import { RISE_TESTNET_CHAIN_ID } from "../sdk/curveballSdk";
+import { activeChainId } from "../lib/web3";
 import {
   applyTheme,
   readStoredTheme,
@@ -32,7 +32,7 @@ export function App() {
   const [theme, setTheme] = useState<Theme>(readStoredTheme);
   const { address } = useAccount();
   const { connect, connectors } = useConnect();
-  const publicClient = usePublicClient({ chainId: RISE_TESTNET_CHAIN_ID });
+  const publicClient = usePublicClient({ chainId: activeChainId });
   const connectWallet = () => connect({ connector: connectors[0] });
   const { tokens, loading, fetchTokens, mergeTokens } = useStore() as {
     tokens: Token[];

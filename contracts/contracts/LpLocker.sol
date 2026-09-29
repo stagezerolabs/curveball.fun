@@ -3,13 +3,14 @@ pragma solidity ^0.8.24;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {IIcarusPool} from "./interfaces/IIcarus.sol";
 
-contract LpLocker is ReentrancyGuard {
+contract LpLocker is ReentrancyGuard, Ownable2Step {
     using SafeERC20 for IERC20;
 
     address public launchpad;
-    address public immutable owner;
     address public treasury;
     uint16 public immutable creatorShareBps;
     mapping(address => address) public creatorOf;
@@ -17,20 +18,32 @@ contract LpLocker is ReentrancyGuard {
     event PoolRegistered(address indexed pool, address indexed creator);
     event TreasuryUpdated(address indexed previousTreasury, address indexed newTreasury);
     event FeesClaimed(address indexed pool, uint256 creator0, uint256 creator1, uint256 treasury0, uint256 treasury1);
+    event TokensRescued(address indexed token, uint256 amount, address indexed recipient);
+    event NativeRescued(uint256 amount, address indexed recipient);
 
-    constructor(address t, uint16 share) {
+    constructor(address t, uint16 share) Ownable(msg.sender) {
         require(share <= 10_000, "bad share");
         require(t != address(0), "bad treasury");
-        owner = msg.sender;
         treasury = t;
         creatorShareBps = share;
     }
 
-    function setLaunchpad(address l) external {
-        require(msg.sender == owner, "owner only");
+    function setLaunchpad(address l) external onlyOwner {
         require(launchpad == address(0) && l != address(0), "already set");
         launchpad = l;
         emit LaunchpadSet(l);
+    }
+
+    function rescueTokens(address token, uint256 amount) external onlyOwner nonReentrant {
+        require(creatorOf[token] == address(0), "locked LP");
+        IERC20(token).safeTransfer(owner(), amount);
+        emit TokensRescued(token, amount, owner());
+    }
+
+    function rescueNative(uint256 amount) external onlyOwner nonReentrant {
+        (bool success,) = payable(owner()).call{value: amount}("");
+        require(success, "native rescue failed");
+        emit NativeRescued(amount, owner());
     }
 
     /// @notice Hands fee custody to a replacement treasury such as a multisig.

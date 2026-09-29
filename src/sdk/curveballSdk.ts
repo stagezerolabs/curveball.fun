@@ -8,6 +8,9 @@ import { launchpadAbi } from "./contracts";
 
 export const RISE_TESTNET_CHAIN_ID = 11_155_931 as const;
 export const RISE_TESTNET_RPC_URL = "https://testnet.riselabs.xyz";
+export const RISE_MAINNET_CHAIN_ID = 4_153 as const;
+export const RISE_MAINNET_RPC_URL = "https://rpc.risechain.com";
+export const RISE_MAINNET_EXPLORER_URL = "https://explorer.risechain.com";
 export const RISE_TESTNET_EXPLORER_URL =
   "https://explorer.testnet.riselabs.xyz";
 export const CURVEBALL_LAUNCHPAD_ADDRESS: Address =
@@ -21,7 +24,7 @@ export function walletNeedsChainSwitch(
 }
 
 export type CurveballDeployment = Readonly<{
-  chainId: typeof RISE_TESTNET_CHAIN_ID;
+  chainId: number;
   launchpad: Address;
   slippageBps: number;
   deadlineSeconds: number;
@@ -36,10 +39,13 @@ export function defineCurveballDeployment(input: {
   const slippageBps = input.slippageBps ?? 300;
   const deadlineSeconds = input.deadlineSeconds ?? 300;
 
-  if (input.chainId !== RISE_TESTNET_CHAIN_ID) {
+  if (![RISE_TESTNET_CHAIN_ID, RISE_MAINNET_CHAIN_ID, 31_337].includes(input.chainId)) {
     throw new Error(
-      `Curveball production requires RISE Testnet (${RISE_TESTNET_CHAIN_ID}).`,
+      "Curveball requires RISE Testnet, RISE mainnet, or a local Anvil chain.",
     );
+  }
+  if (input.chainId === RISE_MAINNET_CHAIN_ID && input.launchpad.toLowerCase() === CURVEBALL_LAUNCHPAD_ADDRESS.toLowerCase()) {
+    throw new Error("The archived mainnet launchpad cannot be used for v2.");
   }
   if (!Number.isInteger(slippageBps) || slippageBps < 0 || slippageBps >= 10_000) {
     throw new Error("Curveball slippage must be an integer from 0 to 9,999 bps.");
@@ -49,7 +55,7 @@ export function defineCurveballDeployment(input: {
   }
 
   return Object.freeze({
-    chainId: RISE_TESTNET_CHAIN_ID,
+    chainId: input.chainId,
     launchpad: getAddress(input.launchpad),
     slippageBps,
     deadlineSeconds,

@@ -1,6 +1,6 @@
 import { getAddress, zeroAddress, type Address } from "viem";
 import { launchpadAbi } from "./sdk/contracts";
-import { CURVEBALL_LAUNCHPAD_ADDRESS } from "./sdk/curveballSdk";
+import { activeDeploymentBlock, launchpadAddress } from "./lib/web3";
 import type { Token } from "./types";
 
 export const CURVEBALL_TESTNET_DEPLOYMENT_BLOCK = 55_002_177n;
@@ -60,8 +60,9 @@ async function discoverTokens(
   client: CreatorTokenClient,
   args?: { creator: Address } | { token: Address },
 ): Promise<Token[]> {
+  if (!launchpadAddress) return [];
   const eventQuery = {
-    address: CURVEBALL_LAUNCHPAD_ADDRESS,
+    address: launchpadAddress,
     abi: launchpadAbi,
     eventName: "TokenCreated",
     ...(args ? { args } : {}),
@@ -74,13 +75,13 @@ async function discoverTokens(
     logs.push(
       ...(await client.getContractEvents({
         ...eventQuery,
-        fromBlock: CURVEBALL_TESTNET_DEPLOYMENT_BLOCK,
+        fromBlock: activeDeploymentBlock,
         toBlock: "latest",
       })),
     );
   } else {
     for (
-      let fromBlock = CURVEBALL_TESTNET_DEPLOYMENT_BLOCK;
+      let fromBlock = activeDeploymentBlock;
       fromBlock <= latestBlock;
       fromBlock += MAX_EVENT_QUERY_BLOCKS
     ) {
@@ -100,7 +101,7 @@ async function discoverTokens(
   if (!logs.length) return [];
 
   const curveSupply = (await client.readContract({
-    address: CURVEBALL_LAUNCHPAD_ADDRESS,
+    address: launchpadAddress,
     abi: launchpadAbi,
     functionName: "curveSupply",
   })) as bigint;
@@ -114,14 +115,14 @@ async function discoverTokens(
 
       const [market, block] = await Promise.all([
         client.readContract({
-          address: CURVEBALL_LAUNCHPAD_ADDRESS,
+          address: launchpadAddress,
           abi: launchpadAbi,
           functionName: "markets",
           args: [token],
         }) as Promise<Market>,
         client.getBlock({ blockNumber: log.blockNumber }),
       ]);
-      const [, , , , sold, graduated, , pool] = market;
+      const [, , , , sold, graduated, pending, pool] = market;
       const progress =
         curveSupply === 0n
           ? 0
@@ -133,6 +134,7 @@ async function discoverTokens(
         name,
         symbol,
         graduated,
+        pending,
         createdAt: new Date(Number(block.timestamp) * 1_000).toISOString(),
         progress,
         pool: pool === zeroAddress ? null : getAddress(pool),

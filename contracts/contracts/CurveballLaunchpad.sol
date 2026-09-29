@@ -4,11 +4,13 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {MemeToken} from "./MemeToken.sol";
 import {LpLocker} from "./LpLocker.sol";
 import {IIcarusFactory, IIcarusPool} from "./interfaces/IIcarus.sol";
 
-contract CurveballLaunchpad is ReentrancyGuard {
+contract CurveballLaunchpad is ReentrancyGuard, Ownable2Step {
     using SafeERC20 for IERC20;
     using SafeCast for uint256;
 
@@ -28,6 +30,9 @@ contract CurveballLaunchpad is ReentrancyGuard {
     uint256 public immutable supply;
     uint256 public immutable curveSupply;
     uint256 public immutable initialVQ;
+    uint256 public totalReservedQuote;
+    bool public publicLaunchOpen;
+    mapping(address => bool) public invited;
     mapping(address => Market) public markets;
     mapping(address => uint256) public creatorNonce;
     event TokenCreated(address indexed token, address indexed creator, string name, string symbol, string uri);
@@ -45,8 +50,12 @@ contract CurveballLaunchpad is ReentrancyGuard {
     event Graduated(
         address indexed token, address indexed pool, uint256 tokenLiquidity, uint256 quoteLiquidity, uint256 liquidity
     );
+    event InvitationUpdated(address indexed account, bool allowed);
+    event PublicLaunchOpened();
+    event TokensRescued(address indexed token, uint256 amount, address indexed recipient);
+    event NativeRescued(uint256 amount, address indexed recipient);
 
-    constructor(address q, address f, address l, uint256 s, uint256 cs, uint256 vq) {
+    constructor(address q, address f, address l, uint256 s, uint256 cs, uint256 vq) Ownable(msg.sender) {
         require(s > cs && vq > 0 && s <= type(uint128).max && vq <= type(uint128).max, "bad curve");
         quote = IERC20(q);
         factory = IIcarusFactory(f);
@@ -56,7 +65,49 @@ contract CurveballLaunchpad is ReentrancyGuard {
         initialVQ = vq;
     }
 
-    function createToken(string calldata n, string calldata s, string calldata uri) external returns (address token) {
+    modifier invitedOrPublic() {
+        require(publicLaunchOpen || invited[msg.sender], "invitation required");
+        _;
+    }
+
+    function setInvited(address account, bool allowed) external onlyOwner {
+        require(account != address(0) && !publicLaunchOpen, "invitations closed");
+        invited[account] = allowed;
+        emit InvitationUpdated(account, allowed);
+    }
+
+    function openPublicLaunch() external onlyOwner {
+        require(!publicLaunchOpen, "already public");
+        publicLaunchOpen = true;
+        emit PublicLaunchOpened();
+    }
+
+    function rescueTokens(address token, uint256 amount) external onlyOwner nonReentrant {
+        uint256 protectedBalance = 0;
+        if (token == address(quote)) {
+            protectedBalance = totalReservedQuote;
+        } else {
+            Market storage m = markets[token];
+            if (m.creator != address(0) && !m.graduated) protectedBalance = supply - m.sold;
+        }
+        require(IERC20(token).balanceOf(address(this)) >= protectedBalance + amount, "reserved assets");
+        IERC20(token).safeTransfer(owner(), amount);
+        emit TokensRescued(token, amount, owner());
+    }
+
+    function rescueNative(uint256 amount) external onlyOwner nonReentrant {
+        (bool success,) = payable(owner()).call{value: amount}("");
+        require(success, "native rescue failed");
+        emit NativeRescued(amount, owner());
+    }
+
+    receive() external payable {}
+
+    function createToken(string calldata n, string calldata s, string calldata uri)
+        external
+        invitedOrPublic
+        returns (address token)
+    {
         bytes32 salt = keccak256(abi.encode(msg.sender, creatorNonce[msg.sender]++, block.chainid));
         token = address(new MemeToken{salt: salt}(n, s, uri, supply, address(this)));
         markets[token] = Market(msg.sender, supply.toUint128(), initialVQ.toUint128(), 0, 0, false, false, address(0));
@@ -81,6 +132,7 @@ contract CurveballLaunchpad is ReentrancyGuard {
     function buyTokens(address token, uint256 quoteIn, uint256 minOut, uint256 deadline)
         external
         nonReentrant
+        invitedOrPublic
         returns (uint256 out)
     {
         require(block.timestamp <= deadline, "expired");
@@ -106,6 +158,7 @@ contract CurveballLaunchpad is ReentrancyGuard {
         m.vt = newVt.toUint128();
         m.sold += out.toUint128();
         m.realQ += used.toUint128();
+        totalReservedQuote += used;
         IERC20(token).safeTransfer(msg.sender, out);
         emit Trade(token, msg.sender, true, used, out, m.vq, m.vt, m.sold);
         if (m.sold == curveSupply) {
@@ -138,6 +191,7 @@ contract CurveballLaunchpad is ReentrancyGuard {
         m.vq = newVq.toUint128();
         m.sold -= amount.toUint128();
         m.realQ -= out.toUint128();
+        totalReservedQuote -= out;
         // The curve is no longer full, so it is no longer awaiting graduation. Clearing this reopens
         // buying, and the next buy that refills the curve retries graduation on its own.
         if (m.pending && m.sold < curveSupply) m.pending = false;
@@ -164,7 +218,7 @@ contract CurveballLaunchpad is ReentrancyGuard {
         require(factory.isPool(pool) && IIcarusPool(pool).totalSupply() == 0, "bad pool");
         MemeToken(token).enableTrading();
         IIcarusPool(pool).skim(address(locker));
-        uint256 tokenL = IERC20(token).balanceOf(address(this));
+        uint256 tokenL = supply - curveSupply;
         uint256 quoteL = m.realQ;
         require(tokenL > 0 && quoteL > 1_000_000 / tokenL, "liquidity too small to graduate");
         IERC20(token).safeTransfer(pool, tokenL);
@@ -173,6 +227,7 @@ contract CurveballLaunchpad is ReentrancyGuard {
         require(liq > 0, "no liquidity");
         locker.register(pool, m.creator);
         m.realQ = 0;
+        totalReservedQuote -= quoteL;
         m.graduated = true;
         m.pool = pool;
         emit Graduated(token, pool, tokenL, quoteL, liq);

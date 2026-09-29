@@ -9,9 +9,9 @@ import {
 } from "../lib/format.js";
 import type { Address } from "viem";
 import type { Holder, Position, Token, Trade, TradePage } from "../types";
-import { RISE_TESTNET_EXPLORER_URL } from "../sdk/curveballSdk";
+import { activeExplorerUrl } from "../lib/web3";
 
-const EXPLORER_ADDRESS = `${RISE_TESTNET_EXPLORER_URL}/address/`;
+const EXPLORER_ADDRESS = `${activeExplorerUrl}/address/`;
 const PAGE_SIZE = 30;
 const TABS = ["trades", "holders", "about", "account"] as const;
 type Tab = (typeof TABS)[number];

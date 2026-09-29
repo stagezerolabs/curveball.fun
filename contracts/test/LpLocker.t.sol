@@ -7,6 +7,7 @@ import {MemeToken} from "../contracts/MemeToken.sol";
 import {PoCFactory, PoCFeePool} from "../contracts/test/PoCIcarus.sol";
 import {MockWETH} from "../contracts/mocks/MockWETH.sol";
 import {TestBase} from "./TestBase.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract LpLockerTest is TestBase {
     address private constant TREASURY = address(0xB0B);
@@ -48,6 +49,15 @@ contract LpLockerTest is TestBase {
         assertEq(PoCFeePool(victimPool).balanceOf(ATTACKER), 0, "attacker stole LP");
         assertEq(PoCFeePool(victimPool).balanceOf(TREASURY), 0, "treasury received LP");
         assertEq(PoCFeePool(victimPool).balanceOf(address(locker)), lockedLp, "victim LP changed");
+    }
+
+    function testOwnerCannotRescueRegisteredLp() external {
+        (MockWETH quote, LpLocker locker, CurveballLaunchpad launchpad) = _deploy();
+        (, address pool) = _launch(quote, launchpad, VICTIM, "VICTIM");
+        uint256 locked = IERC20(pool).balanceOf(address(locker));
+        vm.expectRevert();
+        locker.rescueTokens(pool, 1);
+        assertEq(IERC20(pool).balanceOf(address(locker)), locked, "LP custody changed");
     }
 
     function testRejectsUnregisteredPool() external {
@@ -98,6 +108,8 @@ contract LpLockerTest is TestBase {
             address(quote), address(factory), address(locker), 1_000_000 ether, 800_000 ether, 10 ether
         );
         locker.setLaunchpad(address(launchpad));
+        launchpad.setInvited(VICTIM, true);
+        launchpad.setInvited(ATTACKER, true);
     }
 
     function _launch(MockWETH quote, CurveballLaunchpad launchpad, address creator, string memory name)

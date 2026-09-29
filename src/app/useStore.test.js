@@ -7,6 +7,8 @@ const createToken = mock(async () => ({
 
 mock.module("../lib/web3", () => ({
   apiUrl: "/api",
+  activeChainId: 11155931,
+  launchpadAddress: "0x1111111111111111111111111111111111111111",
   requireCurveballSdk: () => ({ createToken }),
 }));
 
@@ -23,8 +25,11 @@ globalThis.FormData = class {
   }
 };
 
-globalThis.fetch = mock(async () =>
-  new Response(JSON.stringify([]), {
+globalThis.fetch = mock(async (url) =>
+  new Response(JSON.stringify(url.endsWith("/health") ? {
+    chainId: 11155931,
+    launchpadAddress: "0x1111111111111111111111111111111111111111",
+  } : []), {
     status: 200,
     headers: { "content-type": "application/json" },
   }),
@@ -84,6 +89,17 @@ describe("token creation form lifecycle", () => {
       name: "API name",
       marketCapUsd: 42,
     });
+  });
+
+  test("rejects indexed markets from another deployment", async () => {
+    globalThis.fetch = mock(async () => new Response(JSON.stringify({
+      chainId: 4153,
+      launchpadAddress: "0x2222222222222222222222222222222222222222",
+    }), { status: 200 }));
+    await useStore.getState().fetchTokens();
+    expect(useStore.getState().tokens).toEqual([]);
+    expect(useStore.getState().marketError).toContain("API");
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -3,13 +3,13 @@ import { RISE_TESTNET_RPC_URL } from "../sdk/curveballSdk";
 import { resolveRiseTestnetRpcUrl } from "./clientRuntime";
 
 describe("browser chain runtime", () => {
-  test("ignores a stale mainnet RPC override when the configured chain is not RISE Testnet", () => {
+  test("accepts an explicitly configured mainnet RPC", () => {
     expect(
       resolveRiseTestnetRpcUrl({
         VITE_CHAIN_ID: "4153",
         VITE_RPC_URL: "https://rpc.risechain.com/",
       }),
-    ).toBe(RISE_TESTNET_RPC_URL);
+    ).toBe("https://rpc.risechain.com/");
   });
 
   test("accepts a custom RPC only for the RISE Testnet chain", () => {

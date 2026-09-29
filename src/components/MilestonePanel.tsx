@@ -31,7 +31,7 @@ export function MilestonePanel({
       <header className="panel-head">
         <h2>Milestone</h2>
         <span className={token.graduated ? "milestone-tag done" : "milestone-tag"}>
-          {token.graduated ? "Graduated" : "On the curve"}
+          {token.graduated ? "Graduated" : token.pending ? "Graduation pending" : "On the curve"}
         </span>
       </header>
 

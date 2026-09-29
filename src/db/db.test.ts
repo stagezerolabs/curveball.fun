@@ -5,6 +5,7 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 
 const databaseUrl = Bun.env.TEST_DATABASE_URL;
 const TEST_TOKEN = "0x000000000000000000000000000000000000c0de";
+const TEST_CURSOR = "last_block:31337:0x0000000000000000000000000000000000000001";
 
 test.skipIf(!databaseUrl)(
   "the schema and concurrent indexer work with Postgres",
@@ -49,7 +50,7 @@ test.skipIf(!databaseUrl)(
           updatedAt: indexerState.updatedAt,
         })
         .from(indexerState)
-        .where(eq(indexerState.key, "last_block"));
+        .where(eq(indexerState.key, TEST_CURSOR));
       const start = BigInt(state?.value || "0");
       const rpc = Bun.serve({
         port: 0,
@@ -77,12 +78,12 @@ test.skipIf(!databaseUrl)(
         const [next] = await db
           .select({ value: indexerState.value })
           .from(indexerState)
-          .where(eq(indexerState.key, "last_block"));
+          .where(eq(indexerState.key, TEST_CURSOR));
         expect(next.value).toBe((start + 1n).toString());
       } finally {
         rpc.stop(true);
         const whereTestCursor = and(
-          eq(indexerState.key, "last_block"),
+          eq(indexerState.key, TEST_CURSOR),
           eq(indexerState.value, (start + 1n).toString()),
         );
         if (state) {

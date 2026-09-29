@@ -86,6 +86,8 @@ contract GraduationPendingTest is TestBase {
         locker.setLaunchpad(address(launchpad));
         address firstHolder = address(0xA);
         address secondHolder = address(0xB);
+        launchpad.setInvited(firstHolder, true);
+        launchpad.setInvited(secondHolder, true);
         address first = _open(quote, launchpad, firstHolder, "AAA", 1_000 ether);
         address second = _open(quote, launchpad, secondHolder, "BBB", 5 ether);
         (,,, uint128 firstQuote, uint128 firstSold,, bool firstPending,) = launchpad.markets(first);
@@ -118,6 +120,7 @@ contract GraduationPendingTest is TestBase {
             address(market.quote), address(market.factory), address(locker), 1_000_000 ether, 800_000 ether, 10 ether
         );
         locker.setLaunchpad(address(market.launchpad));
+        market.launchpad.setInvited(HOLDER, true);
         vm.prank(HOLDER);
         market.token = market.launchpad.createToken("T", "T", "u");
         market.quote.mint(HOLDER, 1_000 ether);

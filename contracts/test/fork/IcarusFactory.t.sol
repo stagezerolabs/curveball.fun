@@ -72,6 +72,8 @@ contract IcarusFactoryForkTest is TestBase {
         CurveballLaunchpad launchpad =
             new CurveballLaunchpad(WETH, FACTORY, address(locker), 1_000_000 ether, 800_000 ether, 10 ether);
         locker.setLaunchpad(address(launchpad));
+        launchpad.setInvited(address(this), true);
+        launchpad.setInvited(TRADER, true);
         address token = launchpad.createToken("Fork Token", "FORK", "");
 
         vm.deal(TRADER, 50 ether);

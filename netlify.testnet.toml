@@ -1,0 +1,19 @@
+[build]
+  publish = "dist"
+  command = "bun run build"
+
+[build.environment]
+  VITE_CHAIN_ID = "11155931"
+  VITE_RPC_URL = "https://testnet.riselabs.xyz"
+  VITE_LAUNCHPAD_ADDRESS = "0x1A34768eAb2F6b925D25ca1d6daC03C1a25Ad39E"
+
+[[redirects]]
+  from = "/api/*"
+  to = "https://curveball-kamicash-7a463851.koyeb.app/api/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

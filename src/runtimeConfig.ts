@@ -1,4 +1,5 @@
 import { getAddress, isAddress, type Address } from "viem";
+import { expectedChainId as parseExpectedChainId } from "./expectedChainId";
 
 export type ChainRuntime = Readonly<{
   production: boolean;
@@ -25,16 +26,17 @@ export function readChainRuntime(
     throw new Error("RPC_URL must use HTTPS in production.");
   }
 
-  const expectedChainId = Number(
-    env.EXPECTED_CHAIN_ID || (production ? "11155931" : "31337"),
-  );
-  if (!Number.isSafeInteger(expectedChainId) || expectedChainId <= 0) {
-    throw new Error("EXPECTED_CHAIN_ID must be a positive integer.");
-  }
-  if (production && expectedChainId !== 11_155_931) {
+  const expectedChainId = parseExpectedChainId(env.EXPECTED_CHAIN_ID, production ? 11_155_931 : 31_337);
+  if (production && ![11_155_931, 4_153].includes(expectedChainId)) {
     throw new Error(
-      "Production EXPECTED_CHAIN_ID must be RISE Testnet (11155931).",
+      "Production EXPECTED_CHAIN_ID must be RISE Testnet or RISE mainnet.",
     );
+  }
+  if (expectedChainId === 4_153 && !env.MAINNET_DATABASE_URL?.trim()) {
+    throw new Error("MAINNET_DATABASE_URL is required for RISE mainnet isolation.");
+  }
+  if (expectedChainId === 4_153 && rawAddress.toLowerCase() === "0x1a34768eab2f6b925d25ca1d6dac03c1a25ad39e") {
+    throw new Error("The archived mainnet launchpad cannot be used for v2.");
   }
 
   const start = env.INDEXER_START_BLOCK ?? (production ? "" : "0");

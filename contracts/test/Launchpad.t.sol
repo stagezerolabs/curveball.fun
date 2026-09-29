@@ -23,6 +23,8 @@ contract LaunchpadTest is TestBase {
         CurveballLaunchpad launchpad =
             new CurveballLaunchpad(address(quote), address(factory), address(locker), 1_000_000, 800_000, 10);
         locker.setLaunchpad(address(launchpad));
+        launchpad.setInvited(address(this), true);
+        launchpad.setInvited(TRADER, true);
         quote.mint(TRADER, 100);
 
         address token = launchpad.createToken("Test", "T", "ipfs://t");
@@ -138,5 +140,7 @@ contract LaunchpadTest is TestBase {
         launchpad =
             new CurveballLaunchpad(address(quote), address(factory), address(locker), supply, curveSupply, initialVQ);
         locker.setLaunchpad(address(launchpad));
+        launchpad.setInvited(address(this), true);
+        launchpad.setInvited(TRADER, true);
     }
 }

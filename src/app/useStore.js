@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { formatEther, parseEther } from "viem";
-import { apiUrl, requireCurveballSdk } from "../lib/web3";
+import { activeChainId, apiUrl, launchpadAddress, requireCurveballSdk } from "../lib/web3";
 
 export const useStore = create((set, get) => ({
   tokens: [],
@@ -32,6 +32,12 @@ export const useStore = create((set, get) => ({
   fetchTokens: async () => {
     set({ loading: true, marketError: "" });
     try {
+      const healthResponse = await fetch(`${apiUrl}/health`);
+      if (!healthResponse.ok) throw new Error("API health failure");
+      const health = await healthResponse.json();
+      if (health.chainId !== activeChainId || health.launchpadAddress?.toLowerCase() !== launchpadAddress?.toLowerCase()) {
+        throw new Error("API deployment does not match the wallet network");
+      }
       const response = await fetch(`${apiUrl}/tokens`);
       if (!response.ok) throw new Error("API failure");
       const tokens = await response.json();

@@ -6,7 +6,7 @@ import { NavSearch } from "./NavSearch";
 import { routeHref } from "../app/routeTree";
 import { formatEthAmount } from "../lib/format.js";
 import type { Navigate } from "../types";
-import { RISE_TESTNET_EXPLORER_URL } from "../sdk/curveballSdk";
+import { activeExplorerUrl } from "../lib/web3";
 import type { Theme } from "../lib/theme";
 
 type AppLinkProps = AnchorHTMLAttributes<HTMLAnchorElement> & {
@@ -271,7 +271,7 @@ export function Footer({ navigate }: { navigate: Navigate }) {
             Launch
           </AppLink>
           <a
-            href={RISE_TESTNET_EXPLORER_URL}
+            href={activeExplorerUrl}
             target="_blank"
             rel="noreferrer"
           >

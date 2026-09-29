@@ -1,5 +1,7 @@
 # curveball.fun
 
+The replacement mainnet launch is being prepared locally. See [local-first mainnet preparation](docs/local-first-mainnet.md). The existing public app remains on RISE Testnet; the archived mainnet receipt is not the new deployment.
+
 Curveball is a token-launch application for RISE. Anyone can create a fixed-supply ERC-20, trade it through a constant-product bonding curve, and graduate it into a volatile Icarus pool once the curve sells out. The accompanying web app lists markets, lets connected wallets create and trade tokens, and shows indexed trade history.
 
 Curveball is deployed on RISE Testnet with a typed browser SDK and no production mock-data path. The dependency, fork, runtime, and build gates pass. It has not received an independent third-party audit.

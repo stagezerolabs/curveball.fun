@@ -42,6 +42,13 @@ describe("Curveball SDK deployment boundary", () => {
     expect(applySlippage(10_000n, deployment.slippageBps)).toBe(9_700n);
   });
 
+  test("rejects the archived no-rescue mainnet launchpad", () => {
+    expect(() => defineCurveballDeployment({
+      chainId: 4153,
+      launchpad: CURVEBALL_LAUNCHPAD_ADDRESS,
+    })).toThrow("archived mainnet");
+  });
+
   test("rejects a non-RISE chain or unsafe transaction bounds", () => {
     const launchpad = "0x1111111111111111111111111111111111111111";
 

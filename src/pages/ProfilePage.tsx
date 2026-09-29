@@ -8,10 +8,7 @@ import {
   type CreatorTokenClient,
 } from "../creatorTokens";
 import { formatAddress } from "../lib/format.js";
-import {
-  RISE_TESTNET_CHAIN_ID,
-  RISE_TESTNET_EXPLORER_URL,
-} from "../sdk/curveballSdk";
+import { activeChainId, activeDeploymentBlock, activeExplorerUrl } from "../lib/web3";
 import type { Navigate, Token } from "../types";
 
 export function ProfilePage({
@@ -22,7 +19,7 @@ export function ProfilePage({
   connectWallet: () => void;
 }) {
   const { address } = useAccount();
-  const publicClient = usePublicClient({ chainId: RISE_TESTNET_CHAIN_ID });
+  const publicClient = usePublicClient({ chainId: activeChainId });
   const [tokens, setTokens] = useState<Token[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -45,7 +42,7 @@ export function ProfilePage({
       setError(
         cause instanceof Error
           ? cause.message
-          : "Could not read this wallet's launches from RISE Testnet.",
+          : "Could not read this wallet's launches from the configured network.",
       );
     } finally {
       setLoading(false);
@@ -67,7 +64,7 @@ export function ProfilePage({
         <section className="profile-connect">
           <div className="eyebrow"><span /> Your launches</div>
           <h1>Connect to see what you built.</h1>
-          <p>Your dashboard is derived directly from RISE Testnet events.</p>
+          <p>Your dashboard is derived directly from launchpad events.</p>
           <button className="primary-button" onClick={connectWallet}>
             Connect wallet
           </button>
@@ -82,13 +79,13 @@ export function ProfilePage({
         <div>
           <div className="eyebrow"><span /> Creator dashboard</div>
           <h1>Your launches</h1>
-          <p>Every token created by this wallet on RISE Testnet.</p>
+          <p>Every token created by this wallet on this launchpad.</p>
         </div>
         <div className="profile-identity">
           <span className="wallet-dot connected" aria-hidden="true" />
           <strong>{formatAddress(address)}</strong>
           <a
-            href={`${RISE_TESTNET_EXPLORER_URL}/address/${address}`}
+            href={`${activeExplorerUrl}/address/${address}`}
             target="_blank"
             rel="noreferrer"
           >
@@ -107,7 +104,7 @@ export function ProfilePage({
         <div className="profile-section-head">
           <div>
             <span>Deployed tokens</span>
-            <small>Read directly from block 55,002,177</small>
+            <small>Read directly from block {activeDeploymentBlock.toString()}</small>
           </div>
           <button type="button" onClick={() => void load()} disabled={loading}>
             {loading ? "Refreshing…" : "Refresh"}
@@ -116,7 +113,7 @@ export function ProfilePage({
 
         {error && <p className="notice" role="alert">{error}</p>}
         {loading && !tokens.length ? (
-          <p className="profile-loading">Reading your launches from RISE Testnet…</p>
+          <p className="profile-loading">Reading your launches from chain…</p>
         ) : !tokens.length ? (
           <div className="profile-empty">
             <strong>No launches from this wallet yet.</strong>

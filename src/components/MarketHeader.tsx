@@ -9,9 +9,9 @@ import {
   formatUsdCompact,
 } from "../lib/format.js";
 import type { Token } from "../types";
-import { RISE_TESTNET_EXPLORER_URL } from "../sdk/curveballSdk";
+import { activeExplorerUrl } from "../lib/web3";
 
-const EXPLORER = `${RISE_TESTNET_EXPLORER_URL}/address/`;
+const EXPLORER = `${activeExplorerUrl}/address/`;
 
 function CopyButton({ value, label }: { value: string; label: string }) {
   const [copied, setCopied] = useState(false);
@@ -117,7 +117,7 @@ export function MarketHeader({ token }: { token: Token }) {
               className={`market-status ${token.graduated ? "graduated" : "live"}`}
             >
               <i aria-hidden="true" />
-              {token.graduated ? "Graduated" : "On the curve"}
+              {token.graduated ? "Graduated" : token.pending ? "Graduation pending" : "On the curve"}
             </span>
             <Socials token={token} />
           </div>

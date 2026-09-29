@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { formatEther } from "viem";
-import { useBalance } from "wagmi";
+import { useBalance, useReadContract } from "wagmi";
+import { launchpadAbi } from "../sdk/contracts";
+import { RISE_TESTNET_CHAIN_ID } from "../sdk/curveballSdk";
+import { activeChainId, activeExplorerUrl, launchpadAddress } from "../lib/web3";
 import { useStore } from "../app/useStore.js";
 import { useTokenBalance } from "../sdk/react";
 import { formatEthAmount, formatPercent, formatUsd } from "../lib/format.js";
@@ -56,6 +59,17 @@ export function TradePanel({
     fetchQuote,
   } = useStore();
   const [explain, setExplain] = useState(false);
+  const { data: publicOpen } = useReadContract({
+    address: launchpadAddress ?? undefined, abi: launchpadAbi,
+    functionName: "publicLaunchOpen", chainId: activeChainId,
+    query: { enabled: Boolean(launchpadAddress) && activeChainId !== RISE_TESTNET_CHAIN_ID },
+  });
+  const { data: invited } = useReadContract({
+    address: launchpadAddress ?? undefined, abi: launchpadAbi,
+    functionName: "invited", args: [address!], chainId: activeChainId,
+    query: { enabled: Boolean(address && launchpadAddress) && activeChainId !== RISE_TESTNET_CHAIN_ID },
+  });
+  const canBuy = activeChainId === RISE_TESTNET_CHAIN_ID || publicOpen === true || invited === true;
 
   const quoteSymbol = token.quoteSymbol ?? config?.quoteSymbol ?? "ETH";
   const payingWith = side === "buy" ? quoteSymbol : token.symbol;
@@ -113,16 +127,16 @@ export function TradePanel({
     return (
       <section className="trade-panel">
         <p className="trade-graduated">
-          <strong>This curve is complete.</strong> Liquidity has moved to Icarus —
-          trade it there.
+          <strong>This curve is complete.</strong> A basic volatile {token.symbol}/WETH pool was created on Icarus. Pool creation does not grant a gauge or IRS emissions.
         </p>
+        {token.pool && <a href={`${activeExplorerUrl}/address/${token.pool}`} target="_blank" rel="noreferrer">View Icarus pool {token.pool}</a>}
         <a
           className="primary-button trade-submit"
-          href={`https://icarus.finance/${token.address}`}
+          href="https://icarus.finance/"
           target="_blank"
           rel="noreferrer"
         >
-          Trade on Icarus
+          Open Icarus to swap
         </a>
       </section>
     );
@@ -146,6 +160,9 @@ export function TradePanel({
           Sell
         </button>
       </div>
+
+      {token.pending && <p className="notice" role="status">Graduation is pending. Selling remains available; buying resumes if a sale reopens the curve. Anyone can retry graduation when Icarus is available.</p>}
+      {!canBuy && side === "buy" && <p className="notice" role="status">Limited beta: this wallet needs an invitation to buy. Selling remains open.</p>}
 
       <div className="amount-head">
         <label htmlFor="trade-amount">Amount</label>
@@ -214,7 +231,7 @@ export function TradePanel({
       {address ? (
         <button
           className={`trade-submit ${side}`}
-          disabled={isPending || !(input > 0) || buyFunding?.canFund === false}
+          disabled={isPending || !(input > 0) || buyFunding?.canFund === false || (side === "buy" && (!canBuy || token.pending))}
           onClick={() => trade(side, token)}
         >
           {isPending ? "Pending…" : side === "buy" ? "Buy" : "Sell"}

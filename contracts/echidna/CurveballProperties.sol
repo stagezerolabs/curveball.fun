@@ -23,10 +23,10 @@ contract CurveballProperties {
         quote = new MockWETH();
         MockIcarusFactory factory = new MockIcarusFactory();
         locker = new LpLocker(address(this), 5_000);
-        launchpad = new CurveballLaunchpad(
-            address(quote), address(factory), address(locker), SUPPLY, CURVE_SUPPLY, INITIAL_VQ
-        );
+        launchpad =
+            new CurveballLaunchpad(address(quote), address(factory), address(locker), SUPPLY, CURVE_SUPPLY, INITIAL_VQ);
         locker.setLaunchpad(address(launchpad));
+        launchpad.setInvited(address(this), true);
         token = MemeToken(launchpad.createToken("Invariant", "INV", ""));
         quote.approve(address(launchpad), type(uint256).max);
         token.approve(address(launchpad), type(uint256).max);
@@ -53,6 +53,12 @@ contract CurveballProperties {
     function echidna_each_active_market_is_quote_backed() external view returns (bool) {
         (,,, uint128 realQ,, bool graduated,,) = launchpad.markets(address(token));
         return graduated || quote.balanceOf(address(launchpad)) == realQ;
+    }
+
+    function echidna_total_reserve_tracks_seller_claims() external view returns (bool) {
+        (,,, uint128 realQ,, bool graduated,,) = launchpad.markets(address(token));
+        return launchpad.totalReservedQuote() == (graduated ? 0 : realQ)
+            && quote.balanceOf(address(launchpad)) >= launchpad.totalReservedQuote();
     }
 
     function echidna_virtual_and_real_quote_accounting_match() external view returns (bool) {

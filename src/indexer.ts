@@ -6,6 +6,7 @@ import { readChainRuntime } from "./runtimeConfig";
 
 const runtime = readChainRuntime(Bun.env);
 const address = runtime.launchpadAddress ?? undefined;
+const cursorKey = `last_block:${runtime.expectedChainId}:${address?.toLowerCase() ?? "none"}`;
 if (!address) {
   if (import.meta.main) {
     console.log("Indexer disabled: LAUNCHPAD_ADDRESS is not configured");
@@ -47,10 +48,17 @@ export async function indexToHead() {
       `Indexer RPC chain mismatch: expected ${runtime.expectedChainId}, received ${chainId}.`,
     );
   }
+  if (runtime.expectedChainId === 4_153) {
+    await Promise.all([
+      client.readContract({ address: address!, abi: [parseAbiItem("function owner() view returns (address)")], functionName: "owner" }),
+      client.readContract({ address: address!, abi: [parseAbiItem("function publicLaunchOpen() view returns (bool)")], functionName: "publicLaunchOpen" }),
+      client.readContract({ address: address!, abi: [parseAbiItem("function totalReservedQuote() view returns (uint256)")], functionName: "totalReservedQuote" }),
+    ]);
+  }
   const [state] = await db
     .select({ value: indexerState.value })
     .from(indexerState)
-    .where(eq(indexerState.key, "last_block"))
+    .where(eq(indexerState.key, cursorKey))
     .limit(1);
   let from = BigInt(state?.value || runtime.indexerStartBlock);
   const to = await client.getBlockNumber();
@@ -81,14 +89,14 @@ export async function indexToHead() {
       await tx
         .insert(indexerState)
         .values({
-          key: "last_block",
+          key: cursorKey,
           value: runtime.indexerStartBlock.toString(),
         })
         .onConflictDoNothing({ target: indexerState.key });
       const [current] = await tx
         .select({ value: indexerState.value })
         .from(indexerState)
-        .where(eq(indexerState.key, "last_block"))
+        .where(eq(indexerState.key, cursorKey))
         .for("update");
       if (BigInt(current.value) !== from) return false;
 
@@ -140,7 +148,7 @@ export async function indexToHead() {
       await tx
         .update(indexerState)
         .set({ value: (end + 1n).toString(), updatedAt: new Date() })
-        .where(eq(indexerState.key, "last_block"));
+        .where(eq(indexerState.key, cursorKey));
       return true;
     });
     if (!applied) return; // Another worker advanced the cursor; reread it next tick.

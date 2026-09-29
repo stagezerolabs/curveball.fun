@@ -7,6 +7,12 @@ export const launchpadAbi = parseAbi([
   "function supply() view returns (uint256)",
   "function curveSupply() view returns (uint256)",
   "function initialVQ() view returns (uint256)",
+  "function publicLaunchOpen() view returns (bool)",
+  "function invited(address) view returns (bool)",
+  "function owner() view returns (address)",
+  "function pendingOwner() view returns (address)",
+  "function totalReservedQuote() view returns (uint256)",
+  "function graduate(address token)",
   "function markets(address) view returns (address creator, uint128 vt, uint128 vq, uint128 realQ, uint128 sold, bool graduated, bool pending, address pool)",
   "function createToken(string name, string symbol, string uri) returns (address token)",
   "function quoteBuy(address token, uint256 quoteIn) view returns (uint256 out)",
@@ -25,6 +31,8 @@ export const lockerAbi = parseAbi([
   "function creatorShareBps() view returns (uint16)",
   "function creatorOf(address pool) view returns (address)",
   "function claim(address pool)",
+  "function owner() view returns (address)",
+  "function pendingOwner() view returns (address)",
 ]);
 
 export const erc20Abi = parseAbi([

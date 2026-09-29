@@ -20,6 +20,9 @@ const runtime = readChainRuntime(Bun.env);
 const launchpadAddress = runtime.launchpadAddress ?? undefined;
 const hasLaunchpad = Boolean(launchpadAddress);
 const launchpadAbi = [
+  parseAbiItem("function owner() view returns (address)"),
+  parseAbiItem("function publicLaunchOpen() view returns (bool)"),
+  parseAbiItem("function totalReservedQuote() view returns (uint256)"),
   parseAbiItem("function supply() view returns (uint256)"),
   parseAbiItem("function curveSupply() view returns (uint256)"),
   parseAbiItem("function quote() view returns (address)"),
@@ -52,6 +55,11 @@ async function assertChainDeployment() {
   }
   if (!bytecode || bytecode === "0x") {
     throw new Error("No launchpad bytecode exists at LAUNCHPAD_ADDRESS.");
+  }
+  if (runtime.expectedChainId === 4_153) {
+    await Promise.all(["owner", "publicLaunchOpen", "totalReservedQuote"].map((functionName) =>
+      publicClient.readContract({ address: launchpadAddress, abi: launchpadAbi, functionName: functionName as "owner" | "publicLaunchOpen" | "totalReservedQuote" }),
+    ));
   }
 }
 
@@ -127,6 +135,8 @@ async function getCurveConstants() {
 
 // Launchpad-wide settings the UI needs once, not per token.
 let launchpadConfig: {
+  chainId: number;
+  launchpadAddress: string | null;
   quoteSymbol: string | null;
   quoteToken: string | null;
   targetPrice: number | null;
@@ -138,6 +148,8 @@ async function getLaunchpadConfig() {
   if (launchpadConfig) return launchpadConfig;
   const constants = await getCurveConstants().catch(() => null);
   const config = {
+    chainId: runtime.expectedChainId,
+    launchpadAddress: launchpadAddress ?? null,
     quoteSymbol: await getQuoteSymbol(),
     quoteToken,
     targetPrice: constants?.targetPrice ?? null,
@@ -245,7 +257,7 @@ async function enrichWithMarketData<
     if (!result || result.status !== "fulfilled" || supplyHuman === null)
       return addUsdValuation(merged, ethUsdRate);
 
-    const [, vt, vq, , sold, onChainGraduated] = result.value;
+    const [, vt, vq, , sold, onChainGraduated, pending] = result.value;
     const soldNum = Number(sold);
     // Spot price is vq / vt, the marginal price the next trade pays. The old
     // realQ / sold was an average cost basis, which lags the market and is
@@ -255,6 +267,7 @@ async function enrichWithMarketData<
     return addUsdValuation({
       ...merged,
       graduated: merged.graduated || onChainGraduated,
+      pending,
       price,
       marketCap: price === null ? null : price * supplyHuman,
       progress:
@@ -269,7 +282,7 @@ const api = new Hono();
 
 api.get("/health", async (c) => {
   await Promise.all([db.execute(sql`SELECT 1`), assertChainDeployment()]);
-  return c.json({ ok: true, chainId: runtime.expectedChainId });
+  return c.json({ ok: true, chainId: runtime.expectedChainId, launchpadAddress: launchpadAddress ?? null });
 });
 
 api.get("/metadata/nominatebear", (c) => {

@@ -36,4 +36,26 @@ describe("production chain runtime", () => {
       readChainRuntime({ INDEXER_START_BLOCK: "-1" }),
     ).toThrow("INDEXER_START_BLOCK");
   });
+
+  test("requires a separate database for a mainnet runtime", () => {
+    const mainnet = {
+      NODE_ENV: "production",
+      RPC_URL: "https://rpc.risechain.com/",
+      LAUNCHPAD_ADDRESS: "0x1111111111111111111111111111111111111111",
+      EXPECTED_CHAIN_ID: "4153",
+      INDEXER_START_BLOCK: "123456",
+    };
+    expect(() => readChainRuntime(mainnet)).toThrow("MAINNET_DATABASE_URL");
+    expect(readChainRuntime({ ...mainnet, MAINNET_DATABASE_URL: "postgresql://example/mainnet" }).expectedChainId).toBe(4153);
+    expect(() => readChainRuntime({ ...mainnet,
+      MAINNET_DATABASE_URL: "postgresql://example/mainnet",
+      LAUNCHPAD_ADDRESS: "0x1A34768eAb2F6b925D25ca1d6daC03C1a25Ad39E",
+    })).toThrow("archived mainnet");
+  });
+
+  test("rejects noncanonical mainnet chain IDs before database selection", () => {
+    for (const value of [" 4153 ", "04153", "+4153", "4153.0"]) {
+      expect(() => readChainRuntime({ EXPECTED_CHAIN_ID: value, MAINNET_DATABASE_URL: "postgresql://example/mainnet" })).toThrow("EXPECTED_CHAIN_ID");
+    }
+  });
 });
