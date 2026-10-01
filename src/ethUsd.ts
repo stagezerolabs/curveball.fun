@@ -11,6 +11,9 @@ type EthUsdSource = Readonly<{
   }>;
 }>;
 
+// Worker requests create separate source instances but share the same fetch implementation.
+const forbiddenCoinGeckoFetchers = new WeakSet<Function>();
+
 export function createCoinGeckoEthUsdSource({
   apiKey,
   fetchFn = fetch,
@@ -18,8 +21,26 @@ export function createCoinGeckoEthUsdSource({
   apiKey?: string;
   fetchFn?: (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 } = {}): EthUsdSource {
+  async function getCoinbaseEthUsd() {
+    const response = await fetchFn("https://api.exchange.coinbase.com/products/ETH-USD/ticker", {
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!response.ok) {
+      throw new Error(`Coinbase ETH/USD request failed with ${response.status}.`);
+    }
+    const payload = (await response.json()) as { price?: unknown; time?: unknown };
+    const usd = typeof payload.price === "string" ? Number(payload.price) : NaN;
+    const lastUpdatedAt =
+      typeof payload.time === "string" ? Math.floor(Date.parse(payload.time) / 1_000) : NaN;
+    if (!Number.isFinite(usd) || usd <= 0 || !Number.isSafeInteger(lastUpdatedAt) || lastUpdatedAt <= 0) {
+      throw new Error("Coinbase returned an invalid ETH/USD payload.");
+    }
+    return { usd, lastUpdatedAt };
+  }
+
   return Object.freeze({
     async getEthUsd() {
+      if (forbiddenCoinGeckoFetchers.has(fetchFn)) return getCoinbaseEthUsd();
       const response = await fetchFn(
         "https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd&include_last_updated_at=true",
         {
@@ -27,6 +48,10 @@ export function createCoinGeckoEthUsdSource({
           signal: AbortSignal.timeout(5_000),
         },
       );
+      if (response.status === 403) {
+        forbiddenCoinGeckoFetchers.add(fetchFn);
+        return getCoinbaseEthUsd();
+      }
       if (!response.ok) {
         throw new Error(`CoinGecko ETH/USD request failed with ${response.status}.`);
       }

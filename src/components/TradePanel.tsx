@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { formatEther } from "viem";
 import { useBalance, useReadContract } from "wagmi";
 import { launchpadAbi } from "../sdk/contracts";
+import { v2FactoryAbi } from "../sdk/v2Contracts";
 import { RISE_TESTNET_CHAIN_ID } from "../sdk/curveballSdk";
-import { activeChainId, activeExplorerUrl, launchpadAddress } from "../lib/web3";
+import { activeChainId, activeContractVersion, activeExplorerUrl, launchpadAddress } from "../lib/web3";
 import { useStore } from "../app/useStore.js";
 import { useTokenBalance } from "../sdk/react";
 import { formatEthAmount, formatPercent, formatUsd } from "../lib/format.js";
@@ -60,16 +61,16 @@ export function TradePanel({
   } = useStore();
   const [explain, setExplain] = useState(false);
   const { data: publicOpen } = useReadContract({
-    address: launchpadAddress ?? undefined, abi: launchpadAbi,
+    address: launchpadAddress ?? undefined, abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi,
     functionName: "publicLaunchOpen", chainId: activeChainId,
-    query: { enabled: Boolean(launchpadAddress) && activeChainId !== RISE_TESTNET_CHAIN_ID },
+    query: { enabled: Boolean(launchpadAddress) && (activeContractVersion === "v2" || activeChainId !== RISE_TESTNET_CHAIN_ID) },
   });
   const { data: invited } = useReadContract({
-    address: launchpadAddress ?? undefined, abi: launchpadAbi,
+    address: launchpadAddress ?? undefined, abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi,
     functionName: "invited", args: [address!], chainId: activeChainId,
-    query: { enabled: Boolean(address && launchpadAddress) && activeChainId !== RISE_TESTNET_CHAIN_ID },
+    query: { enabled: Boolean(address && launchpadAddress) && (activeContractVersion === "v2" || activeChainId !== RISE_TESTNET_CHAIN_ID) },
   });
-  const canBuy = activeChainId === RISE_TESTNET_CHAIN_ID || publicOpen === true || invited === true;
+  const canBuy = (activeContractVersion === "v1" && activeChainId === RISE_TESTNET_CHAIN_ID) || publicOpen === true || invited === true;
 
   const quoteSymbol = token.quoteSymbol ?? config?.quoteSymbol ?? "ETH";
   const payingWith = side === "buy" ? quoteSymbol : token.symbol;
@@ -161,7 +162,7 @@ export function TradePanel({
         </button>
       </div>
 
-      {token.pending && <p className="notice" role="status">Graduation is pending. Selling remains available; buying resumes if a sale reopens the curve. Anyone can retry graduation when Icarus is available.</p>}
+      {token.pending && <p className="notice" role="status">Graduation is ready. Anyone can create the Icarus pool. Selling remains available until then.</p>}
       {!canBuy && side === "buy" && <p className="notice" role="status">Limited beta: this wallet needs an invitation to buy. Selling remains open.</p>}
 
       <div className="amount-head">
@@ -221,6 +222,7 @@ export function TradePanel({
         />
         <Row label="Price" value={formatUsd(token.priceUsd)} />
         <Row label="Slippage limit" value={`${SLIPPAGE_BPS / 100}%`} />
+        {activeContractVersion === "v2" && <Row label="Curve fee + creator tax" value={token.feeBps == null ? "—" : `${((token.feeBps + (token.creatorTaxBps ?? 0)) / 100).toFixed(2)}%`} />}
         <Row
           label="Price impact"
           value={priceImpact === null ? "—" : formatPercent(priceImpact)}
@@ -231,7 +233,7 @@ export function TradePanel({
       {address ? (
         <button
           className={`trade-submit ${side}`}
-          disabled={isPending || !(input > 0) || buyFunding?.canFund === false || (side === "buy" && (!canBuy || token.pending))}
+          disabled={isPending || !(input > 0) || buyFunding?.canFund === false || (side === "buy" && (!canBuy || token.pending || (activeContractVersion === "v2" && (token.progress ?? 0) >= 100)))}
           onClick={() => trade(side, token)}
         >
           {isPending ? "Pending…" : side === "buy" ? "Buy" : "Sell"}

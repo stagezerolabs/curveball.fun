@@ -3,6 +3,7 @@ import { expectedChainId as parseExpectedChainId } from "./expectedChainId";
 
 export type ChainRuntime = Readonly<{
   production: boolean;
+  contractVersion: "v1" | "v2";
   rpcUrl: string;
   launchpadAddress: Address | null;
   expectedChainId: number;
@@ -13,9 +14,13 @@ export function readChainRuntime(
   env: Record<string, string | undefined>,
 ): ChainRuntime {
   const production = env.NODE_ENV === "production";
+  const contractVersion = env.CONTRACT_VERSION?.trim() || "v1";
+  if (contractVersion !== "v1" && contractVersion !== "v2") {
+    throw new Error("CONTRACT_VERSION must be v1 or v2.");
+  }
   const rawAddress = env.LAUNCHPAD_ADDRESS?.trim() ?? "";
-  if (production && !rawAddress) {
-    throw new Error("LAUNCHPAD_ADDRESS is required in production.");
+  if ((production || contractVersion === "v2") && !rawAddress) {
+    throw new Error("LAUNCHPAD_ADDRESS is required for production and V2.");
   }
   if (rawAddress && !isAddress(rawAddress)) {
     throw new Error("LAUNCHPAD_ADDRESS must be a valid contract address.");
@@ -46,6 +51,7 @@ export function readChainRuntime(
 
   return Object.freeze({
     production,
+    contractVersion,
     rpcUrl,
     launchpadAddress: rawAddress ? getAddress(rawAddress) : null,
     expectedChainId,

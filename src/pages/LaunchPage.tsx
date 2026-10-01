@@ -2,22 +2,23 @@ import { ArrowIcon } from "../components/ArrowIcon";
 import { useStore } from "../app/useStore.js";
 import { useAccount, useReadContract } from "wagmi";
 import { launchpadAbi } from "../sdk/contracts";
+import { v2FactoryAbi } from "../sdk/v2Contracts";
 import { RISE_TESTNET_CHAIN_ID } from "../sdk/curveballSdk";
-import { activeChainId, launchpadAddress } from "../lib/web3";
+import { activeChainId, activeContractVersion, launchpadAddress } from "../lib/web3";
 
 export function LaunchPage() {
   const { address } = useAccount();
   const { data: publicOpen } = useReadContract({
-    address: launchpadAddress ?? undefined, abi: launchpadAbi,
+    address: launchpadAddress ?? undefined, abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi,
     functionName: "publicLaunchOpen", chainId: activeChainId,
-    query: { enabled: Boolean(launchpadAddress) && activeChainId !== RISE_TESTNET_CHAIN_ID },
+    query: { enabled: Boolean(launchpadAddress) && (activeContractVersion === "v2" || activeChainId !== RISE_TESTNET_CHAIN_ID) },
   });
   const { data: invited } = useReadContract({
-    address: launchpadAddress ?? undefined, abi: launchpadAbi,
+    address: launchpadAddress ?? undefined, abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi,
     functionName: "invited", args: [address!], chainId: activeChainId,
-    query: { enabled: Boolean(address && launchpadAddress) && activeChainId !== RISE_TESTNET_CHAIN_ID },
+    query: { enabled: Boolean(address && launchpadAddress) && (activeContractVersion === "v2" || activeChainId !== RISE_TESTNET_CHAIN_ID) },
   });
-  const canCreate = activeChainId === RISE_TESTNET_CHAIN_ID || publicOpen === true || invited === true;
+  const canCreate = (activeContractVersion === "v1" && activeChainId === RISE_TESTNET_CHAIN_ID) || publicOpen === true || invited === true;
   const { createToken: create, isPending, actionError: error } = useStore();
 
   return (
@@ -84,6 +85,19 @@ export function LaunchPage() {
             Metadata URI <small>Optional</small>
             <input name="uri" type="url" placeholder="https://…" />
           </label>
+          {activeContractVersion === "v2" && <label>
+            Creator tax <small>Optional, percent of quote trades</small>
+            <select name="creatorTaxBps" defaultValue="0">
+              <option value="0">None</option>
+              <option value="10">0.1%</option>
+              <option value="25">0.25%</option>
+              <option value="50">0.5% maximum</option>
+            </select>
+          </label>}
+          {activeContractVersion === "v2" && <label>
+            Initial buy <small>Optional, WETH budget including fees</small>
+            <input name="initialBuy" type="number" min="0" step="any" inputMode="decimal" placeholder="0" />
+          </label>}
           <button
             className="launch-button"
             type="submit"

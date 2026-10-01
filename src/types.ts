@@ -9,6 +9,11 @@ export type Token = {
   creator: Address;
   graduated: boolean;
   pending?: boolean;
+  curve?: Address | null;
+  feeBps?: number | null;
+  creatorTaxBps?: number | null;
+  creatorShareBps?: number | null;
+  buybackShareBps?: number | null;
   createdAt: string;
   price?: number | null;
   marketCap?: number | null;
@@ -66,6 +71,7 @@ export type Position = {
 };
 
 export type LaunchpadConfig = {
+  contractVersion?: "v1" | "v2";
   chainId?: number;
   launchpadAddress?: string | null;
   quoteSymbol: string | null;
@@ -74,6 +80,8 @@ export type LaunchpadConfig = {
   creatorShareBps: number | null;
   treasury: string | null;
   locker: string | null;
+  escrow?: string | null;
+  vault?: string | null;
 };
 
 export type CandleRange = "5min" | "1h" | "6h" | "1D" | "all";

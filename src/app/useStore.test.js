@@ -8,6 +8,7 @@ const createToken = mock(async () => ({
 mock.module("../lib/web3", () => ({
   apiUrl: "/api",
   activeChainId: 11155931,
+  activeContractVersion: "v1",
   launchpadAddress: "0x1111111111111111111111111111111111111111",
   requireCurveballSdk: () => ({ createToken }),
 }));
@@ -28,6 +29,7 @@ globalThis.FormData = class {
 globalThis.fetch = mock(async (url) =>
   new Response(JSON.stringify(url.endsWith("/health") ? {
     chainId: 11155931,
+    contractVersion: "v1",
     launchpadAddress: "0x1111111111111111111111111111111111111111",
   } : []), {
     status: 200,

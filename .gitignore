@@ -7,8 +7,10 @@ broadcast
 typechain-types
 *.sqlite
 .env
+.env.v2.local
 coverage
 contracts/echidna-corpus/
+contracts/echidna-v2-corpus/
 .trash/
 contracts/crytic-export/
 

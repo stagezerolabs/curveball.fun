@@ -1,7 +1,7 @@
 # Curveball handoff — wrapping complete, USD conversion in progress
 
-Paused: 2026-09-19 23:11 WAT  
-Branch: `main`  
+Paused: 2026-09-19 23:11 WAT
+Branch: `main`
 State: dirty working tree; nothing committed or deployed
 
 ## Resume here
@@ -187,4 +187,3 @@ Start with the rendered MarketTabs price seam:
 1. Add a failing test proving a known trade price renders in USD while its WETH amount remains WETH.
 2. Implement only that conversion.
 3. Then add the dynamic-refresh seam for `/api/tokens` and implement polling without overlapping requests.
-

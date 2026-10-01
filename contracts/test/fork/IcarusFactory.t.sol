@@ -7,6 +7,9 @@ import {LpLocker} from "../../contracts/LpLocker.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {TestBase} from "../TestBase.sol";
 import {DeployTestnet} from "../../scripts/DeployTestnet.s.sol";
+import {CurveLaunchFactory} from "../../contracts/CurveLaunchFactory.sol";
+import {CurveV2Deployment} from "../../contracts/CurveV2Deployment.sol";
+import {CurveBondingCurve} from "../../contracts/CurveBondingCurve.sol";
 
 interface IIcarusFactoryFork {
     function createPool(address tokenA, address tokenB, bool stable) external returns (address);
@@ -31,6 +34,47 @@ contract IcarusFactoryForkTest is TestBase {
     address private constant WETH = 0x4200000000000000000000000000000000000006;
     address private constant TRADER = address(0xA11CE);
     address private constant DOT = 0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3;
+
+    function testV2LaunchTradeGraduateSwapAndClaim() external {
+        string memory rpcUrl = vm.envOr("RISE_TESTNET_RPC_URL", "");
+        if (bytes(rpcUrl).length == 0) return;
+        vm.createSelectFork(rpcUrl);
+        CurveLaunchFactory v2 = CurveV2Deployment.deploy(WETH, FACTORY, DOT, 1_000_000 ether, 800_000 ether, 10 ether);
+        v2.setInvited(address(this), true);
+        v2.setInvited(TRADER, true);
+        (address token, address curveAddress) = v2.createToken("V2 Fork", "V2F", "", 0);
+        CurveBondingCurve curve = CurveBondingCurve(curveAddress);
+        vm.deal(TRADER, 50 ether);
+        vm.prank(TRADER);
+        IWETH(WETH).deposit{value: 42 ether}();
+        vm.prank(TRADER);
+        IWETH(WETH).approve(curveAddress, 42 ether);
+        vm.prank(TRADER);
+        curve.buyTokens(42 ether, 800_000 ether, DEADLINE);
+        v2.graduate(token);
+        address pool = v2.createGraduatedPool(token);
+        assertTrue(curve.graduated() && IERC20(pool).balanceOf(address(v2.locker())) > 0, "V2 pool not locked");
+        uint256 out = IIcarusPoolFork(pool).getAmountOut(1 ether, WETH);
+        vm.prank(TRADER);
+        IWETH(WETH).transfer(pool, 1 ether);
+        vm.prank(TRADER);
+        if (IIcarusPoolFork(pool).token0() == WETH) IIcarusPoolFork(pool).swap(0, out, TRADER, "");
+        else IIcarusPoolFork(pool).swap(out, 0, TRADER, "");
+        v2.locker().claim(pool);
+        assertTrue(v2.escrow().claimable(token, WETH, address(this)) > 0, "V2 creator fees missing");
+        vm.warp(block.timestamp + 31 minutes);
+        vm.deal(TRADER, 2 ether);
+        vm.prank(TRADER);
+        IWETH(WETH).deposit{value: 1 ether}();
+        uint256 secondOut = IIcarusPoolFork(pool).getAmountOut(0.1 ether, WETH);
+        vm.prank(TRADER);
+        IWETH(WETH).transfer(pool, 0.1 ether);
+        vm.prank(TRADER);
+        if (IIcarusPoolFork(pool).token0() == WETH) IIcarusPoolFork(pool).swap(0, secondOut, TRADER, "");
+        else IIcarusPoolFork(pool).swap(secondOut, 0, TRADER, "");
+        uint256 swept = v2.vault().sweepPool(token, v2.vault().quoteBalance(token), 1, DEADLINE);
+        assertTrue(swept > 0 && v2.vault().memeBalance(token) >= swept, "pool sweep did not vest tokens");
+    }
 
     function testTestnetDeploymentScriptWiresCanonicalContracts() external {
         string memory rpcUrl = vm.envOr("RISE_TESTNET_RPC_URL", "");

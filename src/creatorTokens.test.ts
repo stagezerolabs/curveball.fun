@@ -10,6 +10,30 @@ const creator = getAddress("0x18B99327e596d422a242F60b51979bF9d76841c2");
 const token = getAddress("0x1111111111111111111111111111111111111111");
 
 describe("creator token discovery", () => {
+  test("V2 discovery reads LaunchCreated and the per-token curve phase", async () => {
+    const curve = getAddress("0x3333333333333333333333333333333333333333");
+    const requests: string[] = [];
+    const client = {
+      getContractEvents: async (p: { eventName: string }) => {
+        expect(p.eventName).toBe("LaunchCreated");
+        return [{ args: { token, curve, creator, name: "NICO", symbol: "NICO" }, blockNumber: 55_002_180n }];
+      },
+      readContract: async (p: { functionName: string }) => {
+        requests.push(p.functionName);
+        if (p.functionName === "curveSupply") return 800_000n * 10n ** 18n;
+        if (p.functionName === "market") return [curve, creator, 50, 5000, 2500, 0, creator];
+        if (p.functionName === "sold") return 400_000n * 10n ** 18n;
+        if (p.functionName === "ready") return true;
+        if (p.functionName === "graduated") return false;
+        if (p.functionName === "pool") return zeroAddress;
+        throw Error(`Unexpected ${p.functionName}`);
+      },
+      getBlock: async () => ({ timestamp: 1_790_000_000n }),
+    };
+    expect(await discoverAllTokens(client, "v2")).toMatchObject([{ address: token, progress: 50, pending: true, pool: null }]);
+    expect(requests).toContain("market");
+    expect(requests).toContain("sold");
+  });
   test("turns indexed TokenCreated logs into dashboard tokens", async () => {
     const client = {
       getContractEvents: async () => [

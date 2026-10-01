@@ -11,9 +11,11 @@ import {
   defineCurveballDeployment,
 } from "../sdk/curveballSdk";
 import { createWagmiCurveballSdk } from "../sdk/wagmiSdk";
-import { resolveRiseTestnetRpcUrl } from "./clientRuntime";
+import { createV2Sdk } from "../sdk/v2Sdk";
+import { resolveContractVersion, resolveRiseTestnetRpcUrl } from "./clientRuntime";
 
 const riseTestnetRpcUrl = resolveRiseTestnetRpcUrl(import.meta.env);
+export const activeContractVersion = resolveContractVersion(import.meta.env);
 export const activeChainId = Number(import.meta.env.VITE_CHAIN_ID || RISE_TESTNET_CHAIN_ID);
 export const activeExplorerUrl = activeChainId === RISE_MAINNET_CHAIN_ID
   ? RISE_MAINNET_EXPLORER_URL
@@ -65,16 +67,16 @@ export const launchpadAddress: Address | null =
     ? getAddress(configuredLaunchpad)
     : null;
 
-export const curveballSdk = launchpadAddress
-  ? createWagmiCurveballSdk(
-      wagmiConfig,
-      defineCurveballDeployment({
-        chainId: activeChainId,
-        launchpad: launchpadAddress,
-        slippageBps: 300,
-        deadlineSeconds: 300,
-      }),
-    )
+const deployment = launchpadAddress ? defineCurveballDeployment({
+  chainId: activeChainId,
+  launchpad: launchpadAddress,
+  slippageBps: 300,
+  deadlineSeconds: 300,
+}) : null;
+export const curveballSdk = deployment
+  ? activeContractVersion === "v2"
+    ? createV2Sdk(wagmiConfig, deployment)
+    : createWagmiCurveballSdk(wagmiConfig, deployment)
   : null;
 
 export function requireCurveballSdk() {

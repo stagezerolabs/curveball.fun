@@ -984,7 +984,8 @@ not as "disabled" — use a flat surface instead. */
   font-size: 8px;
   margin-left: 4px;
 }
-.launch-form input {
+.launch-form input,
+.launch-form select {
   background: #191915;
   border: 1px solid transparent;
   border-radius: 12px;
@@ -996,7 +997,8 @@ not as "disabled" — use a flat surface instead. */
     border-color 120ms ease-out,
     background-color 120ms ease-out;
 }
-.launch-form input:focus {
+.launch-form input:focus,
+.launch-form select:focus {
   background: var(--raise);
   border-color: #a6aaa7;
 }
@@ -2499,6 +2501,9 @@ not as "disabled" — use a flat surface instead. */
 }
 .split-treasury {
   background: var(--orange);
+}
+.split-buyback {
+  background: #8f82e8;
 }
 .milestone-figures {
   display: grid;

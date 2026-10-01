@@ -64,3 +64,22 @@ test("reads a timestamped Ethereum price from CoinGecko", async () => {
     lastUpdatedAt: 1_789_829_910,
   });
 });
+
+test("uses Coinbase after a CoinGecko 403 and avoids retrying the forbidden endpoint", async () => {
+  const requests: string[] = [];
+  const fetchFn = async (input: string | URL | Request) => {
+    const url = String(input);
+    requests.push(url);
+    if (url.includes("coingecko")) return new Response(null, { status: 403 });
+    return Response.json({ price: "2637.67", time: "2026-09-19T14:58:30.000Z" });
+  };
+  const source = createCoinGeckoEthUsdSource({ fetchFn });
+
+  expect(await createCoinGeckoEthUsdSource({ fetchFn }).getEthUsd()).toEqual({
+    usd: 2_637.67,
+    lastUpdatedAt: 1_789_829_910,
+  });
+  expect(await source.getEthUsd()).toEqual({ usd: 2_637.67, lastUpdatedAt: 1_789_829_910 });
+  expect(requests.filter((url) => url.includes("coingecko"))).toHaveLength(1);
+  expect(requests.filter((url) => url.includes("coinbase"))).toHaveLength(2);
+});

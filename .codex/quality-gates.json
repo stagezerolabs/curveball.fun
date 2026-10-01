@@ -100,11 +100,6 @@
       "id": "sdk-rise-integration",
       "patterns": ["src/sdk/**"],
       "command": ["bun", "run", "test:integration:sdk"],
-      "required_env": [
-        "SDK_TESTNET_FORK_RPC_URL",
-        "SDK_TESTNET_FORK_LAUNCHPAD",
-        "SDK_TESTNET_FORK_ACCOUNT"
-      ],
       "timeout": 300
     }
   ]

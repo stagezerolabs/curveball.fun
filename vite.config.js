@@ -10,4 +10,8 @@ export default defineConfig({
   server: {
     proxy: { "/api": { target: apiTarget, changeOrigin: true } },
   },
+  build: {
+    outDir: "dist",
+    sourcemap: true,
+  },
 });

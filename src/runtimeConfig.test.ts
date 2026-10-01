@@ -23,7 +23,14 @@ describe("production chain runtime", () => {
       launchpadAddress: "0x1111111111111111111111111111111111111111",
       expectedChainId: 11155931,
       indexerStartBlock: 123456n,
+      contractVersion: "v1",
     });
+  });
+
+  test("V2 runtime requires an explicit factory deployment and isolated cursor", () => {
+    expect(() => readChainRuntime({ CONTRACT_VERSION: "v2" })).toThrow("LAUNCHPAD_ADDRESS");
+    expect(readChainRuntime({ CONTRACT_VERSION: "v2", LAUNCHPAD_ADDRESS: "0x1111111111111111111111111111111111111111" }).contractVersion).toBe("v2");
+    expect(() => readChainRuntime({ CONTRACT_VERSION: "v3" })).toThrow("CONTRACT_VERSION");
   });
 
   test("keeps local development explicit and rejects malformed blocks", () => {

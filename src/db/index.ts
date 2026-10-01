@@ -17,3 +17,6 @@ const client = postgres(databaseUrl, {
 
 export const db = drizzle(client, { schema });
 export const closeDatabase = () => client.end();
+
+// Export type for Cloudflare Workers compatibility
+export type DrizzleDB = ReturnType<typeof drizzle<typeof schema>>;
