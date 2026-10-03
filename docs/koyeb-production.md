@@ -44,6 +44,8 @@ Koyeb Free Instances cannot run Worker Services and automatically scale web serv
 
 ## Frontend build
 
+The hosted site's `/api/*` redirect and SPA fallback live in `netlify.testnet.toml`; the default `netlify.toml` has no API redirect.
+
 Set these Netlify build variables and rebuild as part of the V2 cutover:
 
 ```dotenv
