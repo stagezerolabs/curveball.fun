@@ -6,7 +6,7 @@ The V2 factory was deployed at `0x36628AbAC7B2cdcde1A8fa21868AfeCB74660ECf` in b
 
 1. Run `make -C contracts test`, `make -C contracts test-fork-strict RISE_TESTNET_RPC_URL=https://testnet.riselabs.xyz`, `bun run test:integration:sdk`, `bun run typecheck`, `bun run build`, and the PostgreSQL integration gate against an isolated database.
 2. Run `make -C contracts verify-icarus-testnet` and `make -C contracts simulate-v2-testnet RISE_TESTNET_RPC_URL=https://testnet.riselabs.xyz TREASURY=0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3`. The latter is a simulation; its returned factory address is **not** a deployment record.
-3. Inspect the final diff and obtain the exact production action approval required by `AGENTS.md` before any broadcast. The guarded target requires an interactive terminal, the encrypted `dot` keystore, `CONFIRM_V2_TESTNET=DEPLOY_CURVEBALL_V2_RISE_TESTNET_11155931`, `TREASURY`, `BLOCKSCOUT_API`, and the testnet RPC. No private key belongs in a command or file.
+3. Inspect the final diff and obtain approval for the exact broadcast command below before any broadcast. The guarded target requires an interactive terminal, the encrypted `dot` keystore, `CONFIRM_V2_TESTNET=DEPLOY_CURVEBALL_V2_RISE_TESTNET_11155931`, `TREASURY`, `BLOCKSCOUT_API`, and the testnet RPC. No private key belongs in a command or file.
 
 ## Broadcast and record
 
