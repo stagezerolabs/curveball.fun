@@ -5,6 +5,7 @@ import type { Address } from "viem";
 import { NavSearch } from "./NavSearch";
 import { routeHref } from "../app/routeTree";
 import { formatEthAmount } from "../lib/format.js";
+import { useRiseIdentity } from "../lib/useRiseIdentity";
 import type { Navigate } from "../types";
 import { activeExplorerUrl } from "../lib/web3";
 import type { Theme } from "../lib/theme";
@@ -106,6 +107,7 @@ export function Header({
 }) {
   const { data: balance } = useBalance({ address });
   const [menuOpen, setMenuOpen] = useState(false);
+  const riseName = useRiseIdentity(address);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -171,7 +173,7 @@ export function Header({
             <span className={address ? "wallet-dot connected" : "wallet-dot"} />
             <span className="wallet-label">
               {address
-                ? `${address.slice(0, 5)}…${address.slice(-4)}`
+                ? riseName ?? `${address.slice(0, 5)}…${address.slice(-4)}`
                 : "Connect wallet"}
             </span>
           </button>
@@ -222,6 +224,7 @@ export function LandingHeader({
   theme: Theme;
   onThemeToggle: () => void;
 }) {
+  const riseName = useRiseIdentity(address);
   return (
     <header className="landing-nav wrap">
       <Brand navigate={navigate} />
@@ -243,7 +246,7 @@ export function LandingHeader({
           <span className={address ? "wallet-dot connected" : "wallet-dot"} />
           <span className="wallet-label">
             {address
-              ? `${address.slice(0, 5)}…${address.slice(-4)}`
+              ? riseName ?? `${address.slice(0, 5)}…${address.slice(-4)}`
               : "Connect wallet"}
           </span>
         </button>
