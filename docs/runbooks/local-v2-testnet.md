@@ -4,7 +4,7 @@ The API, indexer, web app, and PostgreSQL run on localhost. Contract reads and w
 
 1. Start local PostgreSQL: `docker compose -f compose.yaml -f compose.dev.yaml up -d postgres`.
 2. Copy `.env.example` to `.env.v2.local`. Set `DATABASE_URL` to the local Postgres database on port `5433`. This file is ignored by Git.
-3. Apply the existing Drizzle migrations to this **local** database with `make migrate-v2-local`. Its guard checks the chain, factory, start block, and local Compose database target before invoking Drizzle. Database migrations still require the exact approval described in `AGENTS.md`.
+3. Apply the existing Drizzle migrations to this **local** database with `make migrate-v2-local`. Its guard checks the chain, factory, start block, and local Compose database target before invoking Drizzle. Obtain approval for the guarded `make migrate-v2-local` command before running the migration.
 4. In separate terminals, run `make dev-v2-api`, `make dev-v2-indexer`, and `make dev-v2-web`. The API normally uses port `3001`; Vite prints its local web URL and proxies `/api` to the local API. If port `3001` already hosts V1, run `PORT=3002 make dev-v2-api` and `API_URL=http://127.0.0.1:3002 make dev-v2-web` instead.
 5. Confirm `/api/health` reports chain `11155931`, version `v2`, and factory `0x36628AbAC7B2cdcde1A8fa21868AfeCB74660ECf`. Confirm `/api/config` lists the V2 services, then exercise launch, buy, sell, graduation, pool fee claim, and buyback indexing with a testnet wallet.
 

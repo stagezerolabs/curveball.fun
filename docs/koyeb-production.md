@@ -1,6 +1,6 @@
 # Koyeb production runtime
 
-The frontend remains a static Netlify build. Koyeb runs the API from the repository image and should run one always-on indexer from that same image. Both use the isolated RISE Testnet database and deployment; neither has a demo-data fallback.
+The frontend remains a static Netlify build. Koyeb runs the API from the repository image and should run one always-on indexer from that same image. Both use the isolated RISE Testnet database; neither has a demo-data fallback. The hosted API and site still use V1. The V2 values below are for the pending Koyeb/Netlify cutover, not the current hosted configuration.
 
 Production API: `https://curveball-kamicash-7a463851.koyeb.app`
 
@@ -11,7 +11,7 @@ Production API: `https://curveball-kamicash-7a463851.koyeb.app`
 - Keep the image default command: `bun run db:migrate && bun run start`.
 - Health check: `GET /api/health`. It fails unless Postgres responds, the RPC reports chain `11155931`, and bytecode exists at `LAUNCHPAD_ADDRESS`.
 
-Set these secrets/environment values after deployment:
+Set these secrets/environment values on the API and indexer during the coordinated V2 cutover:
 
 ```dotenv
 NODE_ENV=production
@@ -20,8 +20,9 @@ DATABASE_URL={{ secret.curveball_testnet_database_url }}
 DATABASE_SSL=true
 RPC_URL={{ secret.curveball_testnet_rpc_url }}
 EXPECTED_CHAIN_ID=11155931
-LAUNCHPAD_ADDRESS=0x1A34768eAb2F6b925D25ca1d6daC03C1a25Ad39E
-INDEXER_START_BLOCK=55002177
+CONTRACT_VERSION=v2
+LAUNCHPAD_ADDRESS=0x36628AbAC7B2cdcde1A8fa21868AfeCB74660ECf
+INDEXER_START_BLOCK=55636468
 # Optional but recommended: raises CoinGecko rate limits for the ETH/USD
 # valuation source. Server-side only; never add a VITE_ key to the frontend.
 COINGECKO_API_KEY={{ secret.coingecko_api_key }}
@@ -43,12 +44,14 @@ Koyeb Free Instances cannot run Worker Services and automatically scale web serv
 
 ## Frontend build
 
-Set these Netlify build variables and rebuild after the launchpad is verified:
+Set these Netlify build variables and rebuild as part of the V2 cutover:
 
 ```dotenv
 VITE_CHAIN_ID=11155931
 VITE_RPC_URL=https://testnet.riselabs.xyz
-VITE_LAUNCHPAD_ADDRESS=0x1A34768eAb2F6b925D25ca1d6daC03C1a25Ad39E
+VITE_CONTRACT_VERSION=v2
+VITE_LAUNCHPAD_ADDRESS=0x36628AbAC7B2cdcde1A8fa21868AfeCB74660ECf
+VITE_DEPLOYMENT_BLOCK=55636468
 ```
 
 The existing `/api/*` redirect points to the Koyeb API. Confirm the configured hostname is the service you deploy, then require `/api/health` to report chain `11155931` and smoke-test token creation, indexing, quotes, approvals, and a small buy/sell before announcing the deployment.
