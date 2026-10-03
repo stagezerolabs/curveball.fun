@@ -118,10 +118,6 @@ function KingOfTheHill({
           <small>24h volume</small>
           <strong>{formatCompact(token.volume24h)} ETH</strong>
         </span>
-        <span>
-          <small>Holders</small>
-          <strong>{formatCount(token.holders)}</strong>
-        </span>
       </span>
     </AppLink>
   );
@@ -196,7 +192,7 @@ function TopByMarketCap({
                 <small>
                   {token.liquidity != null
                     ? `${formatCompact(token.liquidity)} ETH liq`
-                    : `${formatCount(token.holders)} holders`}
+                    : "Curve live"}
                 </small>
               </span>
             </AppLink>

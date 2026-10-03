@@ -60,16 +60,6 @@ export type TradePage = {
 
 export type Candle = { t: string; price: number };
 
-export type Holder = { address: string; balance: number };
-
-export type Position = {
-  balance: number;
-  invested: number;
-  proceeds: number;
-  avgCost: number | null;
-  trades: number;
-};
-
 export type LaunchpadConfig = {
   contractVersion?: "v1" | "v2";
   chainId?: number;

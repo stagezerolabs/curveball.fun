@@ -33,7 +33,11 @@ async function indexV2ToHead() {
   const v2CursorKey = `last_block:v2:${runtime.expectedChainId}:${address.toLowerCase()}`;
   const [state] = await db.select({ value: indexerState.value }).from(indexerState).where(eq(indexerState.key, v2CursorKey)).limit(1);
   let from = BigInt(state?.value || runtime.indexerStartBlock);
-  const to = await client.getBlockNumber();
+  // Only persist canonical finalized blocks. A latest-head cursor would retain
+  // orphaned launches and trades forever after a reorg.
+  const finalized = await client.getBlock({ blockTag: "finalized" });
+  if (finalized.number === null) throw new Error("Indexer RPC returned a finalized block without a number.");
+  const to = finalized.number;
   while (from <= to) {
     const end = from + 999n < to ? from + 999n : to;
     const known = await db.select({ curve: tokens.curve, token: tokens.address }).from(tokens).where(eq(tokens.deployment, address));

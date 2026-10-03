@@ -70,21 +70,23 @@ test.skipIf(!databaseUrl)("V2 indexer persists launch, same-block trade, and acc
       logIndex: "0x6",
     },
   ].map((log) => ({ ...log, blockHash, blockNumber: "0x1", transactionHash: tx, transactionIndex: "0x0", removed: false }));
+  const unfinalizedTrade = { ...logs[1], blockNumber: "0x2", transactionHash: `0x${"3".repeat(64)}` };
+  logs.push(unfinalizedTrade);
   const services: Record<string, string> = { escrow, vault, locker, hook, launchAndBuy: wrapper };
   const rpc = Bun.serve({ port: 0, async fetch(request) {
     const input = await request.json();
     const reply = (call: { id: number; method: string; params: any[] }) => {
       let result: unknown;
       if (call.method === "eth_chainId") result = "0x7a69";
-      else if (call.method === "eth_blockNumber") result = "0x1";
+      else if (call.method === "eth_blockNumber") result = "0x2";
       else if (call.method === "eth_getLogs") {
         const filter = call.params[0];
-        result = logs.filter((log) => log.address.toLowerCase() === filter.address?.toLowerCase() && log.topics[0].toLowerCase() === filter.topics?.[0]?.toLowerCase());
+        result = logs.filter((log) => log.address.toLowerCase() === filter.address?.toLowerCase() && log.topics[0].toLowerCase() === filter.topics?.[0]?.toLowerCase() && Number(log.blockNumber) >= Number(filter.fromBlock) && Number(log.blockNumber) <= Number(filter.toBlock));
       } else if (call.method === "eth_call") {
         const functionName = Object.keys(services).find((name) => call.params[0].data.startsWith(toFunctionSelector(`${name}()`)));
         if (!functionName) throw Error("Unexpected eth_call");
         result = encodeFunctionResult({ abi: v2FactoryAbi, functionName: functionName as "escrow" | "vault" | "locker" | "hook" | "launchAndBuy", result: services[functionName] as `0x${string}` });
-      } else if (call.method === "eth_getBlockByNumber") result = { number: "0x1", timestamp: "0x6aa00000", hash: blockHash, transactions: [] };
+      } else if (call.method === "eth_getBlockByNumber") result = { number: call.params[0] === "finalized" ? "0x1" : call.params[0], timestamp: "0x6aa00000", hash: blockHash, transactions: [] };
       else throw Error(`Unexpected RPC ${call.method}`);
       return { jsonrpc: "2.0", id: call.id, result };
     };
@@ -103,6 +105,8 @@ test.skipIf(!databaseUrl)("V2 indexer persists launch, same-block trade, and acc
     const [savedFee] = await db.select().from(schema.protocolEvents).where(eq(schema.protocolEvents.eventKey, `${tx}:2`));
     expect(savedToken).toMatchObject({ curve, name: "NICO" });
     expect(savedTrade).toMatchObject({ quote: "1000", grossCurveQuote: "995", feeQuote: "5", creatorTaxQuote: "0" });
+    const [prematureTrade] = await db.select().from(schema.trades).where(eq(schema.trades.eventKey, `${unfinalizedTrade.transactionHash}:1`));
+    expect(prematureTrade).toBeUndefined();
     expect(savedFee).toMatchObject({ launch: token, kind: "FeeAccrued", amount: "2" });
     const lifecycle = await db.select().from(schema.protocolEvents).where(eq(schema.protocolEvents.deployment, factory));
     expect(lifecycle.map((event) => [event.kind, event.launch, event.amount]).sort()).toEqual([

@@ -43,6 +43,7 @@ export const v2CurveAbi = parseAbi([
   "function virtualQuote() view returns (uint128)",
   "function realQuote() view returns (uint128)",
   "function sold() view returns (uint128)",
+  "function curveSupply() view returns (uint256)",
   "function ready() view returns (bool)",
   "function graduated() view returns (bool)",
   "function pool() view returns (address)",

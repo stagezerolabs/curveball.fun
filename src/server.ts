@@ -12,10 +12,8 @@ import { validateV2Deployment, type V2DeploymentClient } from "./v2Deployment";
 import { addUsdValuation } from "./usdValuation";
 import {
   candles,
-  holders,
   isCandleRange,
   marketStats,
-  position,
   type TokenStats,
 } from "./marketStats";
 
@@ -289,7 +287,7 @@ async function enrichWithMarketData<
       quoteSymbol: symbol,
       liquidity: quoteLiquidity == null ? null : Number(quoteLiquidity) / 1e18,
       volume24h: stat?.volume24h ?? null,
-      holders: stat?.holders ?? null,
+      holders: null,
       change24h: stat?.change24h ?? null,
       priceHistory: stat?.priceHistory ?? null,
       peakMarketCap:
@@ -379,15 +377,8 @@ api.get("/tokens/:address/candles", async (c) => {
   return c.json(await candles(db, c.req.param("address"), range));
 });
 
-api.get("/tokens/:address/holders", async (c) =>
-  c.json(await holders(db, c.req.param("address"))),
-);
-
-api.get("/tokens/:address/position/:wallet", async (c) =>
-  c.json(
-    await position(db, c.req.param("address"), c.req.param("wallet")),
-  ),
-);
+api.get("/tokens/:address/holders", (c) => c.json({ error: "Wallet holdings are not indexed yet." }, 501));
+api.get("/tokens/:address/position/:wallet", (c) => c.json({ error: "Wallet holdings are not indexed yet." }, 501));
 
 const PAGE_SIZE = 30;
 const MAX_PAGE_SIZE = 100;

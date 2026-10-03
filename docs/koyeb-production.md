@@ -22,7 +22,12 @@ RPC_URL={{ secret.curveball_testnet_rpc_url }}
 EXPECTED_CHAIN_ID=11155931
 LAUNCHPAD_ADDRESS=0x1A34768eAb2F6b925D25ca1d6daC03C1a25Ad39E
 INDEXER_START_BLOCK=55002177
+# Optional but recommended: raises CoinGecko rate limits for the ETH/USD
+# valuation source. Server-side only; never add a VITE_ key to the frontend.
+COINGECKO_API_KEY={{ secret.coingecko_api_key }}
 ```
+
+Without the key the ETH/USD provider still works through CoinGecko's public endpoint; under sustained rate limiting the API serves the last known rate with `usdStale: true` instead of failing `/api/tokens`.
 
 ## Indexer service
 
@@ -49,3 +54,7 @@ VITE_LAUNCHPAD_ADDRESS=0x1A34768eAb2F6b925D25ca1d6daC03C1a25Ad39E
 The existing `/api/*` redirect points to the Koyeb API. Confirm the configured hostname is the service you deploy, then require `/api/health` to report chain `11155931` and smoke-test token creation, indexing, quotes, approvals, and a small buy/sell before announcing the deployment.
 
 Do not provide Koyeb or Netlify with the `dot` keystore, password, private key, or treasury signing material. `.dockerignore` excludes local environment files and Foundry broadcast artifacts from the image build context.
+
+## Cloudflare Worker boundary
+
+The alternative Cloudflare deployment path (`src/worker.ts`, `wrangler.toml`) serves the V1 API and intentionally refuses any V2 configuration at startup. Pointing it at V2 requires its own API/indexer parity migration — V2 ABI reads, V2 event decoding, and the finalized-block indexer cursor — with tests mirroring `src/server.ts` and `src/indexer.ts`. Until that migration exists, hosted V2 traffic belongs to the Koyeb/Netlify stack above.

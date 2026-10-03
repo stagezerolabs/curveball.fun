@@ -8,10 +8,8 @@ import { createCoinGeckoEthUsdSource, createEthUsdProvider } from "./ethUsd";
 import { addUsdValuation } from "./usdValuation";
 import {
   candles,
-  holders,
   isCandleRange,
   marketStats,
-  position,
   type TokenStats,
 } from "./marketStats";
 
@@ -261,7 +259,7 @@ function createApp(env: Env) {
         quoteSymbol: symbol,
         liquidity: quoteLiquidity == null ? null : Number(quoteLiquidity) / 1e18,
         volume24h: stat?.volume24h ?? null,
-        holders: stat?.holders ?? null,
+        holders: null,
         change24h: stat?.change24h ?? null,
         priceHistory: stat?.priceHistory ?? null,
         peakMarketCap:
@@ -359,25 +357,8 @@ function createApp(env: Env) {
     }
   });
 
-  api.get("/tokens/:address/holders", async (c) => {
-    await client.connect();
-    try {
-      return c.json(await holders(marketDb, c.req.param("address")));
-    } finally {
-      await client.end();
-    }
-  });
-
-  api.get("/tokens/:address/position/:wallet", async (c) => {
-    await client.connect();
-    try {
-      return c.json(
-        await position(marketDb, c.req.param("address"), c.req.param("wallet")),
-      );
-    } finally {
-      await client.end();
-    }
-  });
+  api.get("/tokens/:address/holders", (c) => c.json({ error: "Wallet holdings are not indexed yet." }, 501));
+  api.get("/tokens/:address/position/:wallet", (c) => c.json({ error: "Wallet holdings are not indexed yet." }, 501));
 
   const PAGE_SIZE = 30;
   const MAX_PAGE_SIZE = 100;
@@ -432,13 +413,13 @@ function createApp(env: Env) {
 
     try {
       // Try to serve from Workers Static Assets
-      const asset = await env.ASSETS.fetch(new Request(assetPath));
+      const asset = await env.ASSETS.fetch(new Request(new URL(assetPath, url)));
       if (asset && asset.status === 200) {
         return asset;
       }
 
       // Fallback to index.html for SPA routing
-      const indexAsset = await env.ASSETS.fetch(new Request("/index.html"));
+      const indexAsset = await env.ASSETS.fetch(new Request(new URL("/index.html", url)));
       return indexAsset || c.text("Not found", 404);
     } catch (error) {
       // If assets binding fails, return error

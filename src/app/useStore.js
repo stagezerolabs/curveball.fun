@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { formatEther, parseEther } from "viem";
 import { activeChainId, activeContractVersion, apiUrl, launchpadAddress, requireCurveballSdk } from "../lib/web3";
-import { advanceGraduationMessage } from "./advanceGraduation";
 
 export const useStore = create((set, get) => ({
   tokens: [],
@@ -43,12 +42,14 @@ export const useStore = create((set, get) => ({
       if (!response.ok) throw new Error("API failure");
       const tokens = await response.json();
       set({ tokens, loading: false });
+      return true;
     } catch (error) {
       set({
         marketError:
           "Markets are taking a breather. Check the API and try again.",
         loading: false,
       });
+      return false;
     }
   },
 
@@ -96,10 +97,10 @@ export const useStore = create((set, get) => ({
 
       set({
         tradeMessage: `Token created at ${result.token}.`,
-        lastCreatedToken: result.token,
       });
       submittedForm.reset();
       await get().fetchTokens();
+      set({ lastCreatedToken: result.token });
     } catch (error) {
       handleActionError(error);
     } finally {
@@ -173,8 +174,17 @@ export const useStore = create((set, get) => ({
     try {
       if (activeContractVersion !== "v2") throw Error("This market uses the previous graduation flow.");
       const sdk = requireCurveballSdk();
-      if (!sdk || !("createGraduatedPool" in sdk)) throw Error("V2 factory is unavailable.");
-      set({ tradeMessage: await advanceGraduationMessage(sdk, token) });
+      if (!sdk || !("graduateToIcarus" in sdk)) throw Error("V2 factory is unavailable.");
+      const result = await sdk.graduateToIcarus(token.address);
+      const poolSuffix = result.pool ? ` — Icarus pool ${result.pool}` : ".";
+      const tradeMessage = result.status === "deferred"
+        ? result.deferredReason
+          ? `Graduation deferred: ${result.deferredReason}. Trading remains open; try again later.`
+          : "Graduation deferred. Trading remains open; try again later."
+        : result.already
+          ? `This market already graduated${poolSuffix}`
+          : `Graduated to Icarus${poolSuffix}`;
+      set({ tradeMessage });
       await get().fetchTokens();
     } catch (error) {
       handleActionError(error);

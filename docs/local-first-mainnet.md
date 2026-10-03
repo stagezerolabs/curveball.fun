@@ -14,7 +14,7 @@ Use a separate local Postgres database per chain. `DATABASE_URL` belongs to test
 
 The Compose `mainnet` profile starts a second Postgres service and volume. For a localhost fork stack, start it with `docker compose -f compose.yaml -f compose.dev.yaml --profile mainnet up -d postgres_mainnet`; port `5434` exposes this isolated database. The default Postgres service remains on port `5433`. Set `DOCKER_EXPECTED_CHAIN_ID=4153` only with the new v2 launchpad address and the mainnet profile running. The Vite development proxy targets the local Hono API at `127.0.0.1:3001`; an explicit `API_URL` override is needed to use another API. The browser checks the API chain and launchpad identity before accepting indexed markets.
 
-The default `netlify.toml` and `vercel.json` contain no API redirect. The previous testnet site's settings are preserved separately in `netlify.testnet.toml`; no automated workflow publishes either configuration during this milestone.
+The default `netlify.toml` contains no API redirect, and the Vercel configuration was removed. The previous testnet site stays on its currently deployed revision; no automated workflow publishes any configuration during this milestone.
 
 Deployment records are chain-specific. Keep the testnet receipt at `deployments/11155931/curveball.json`; write the new mainnet receipt only to `deployments/4153/curveball-v2.json` after the later release approval. Do not overwrite the archived `deployments/4153/curveball.json`.
 

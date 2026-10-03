@@ -2125,6 +2125,12 @@ not as "disabled" — use a flat surface instead. */
   gap: 2px;
   margin: 0;
 }
+.market-meta dd .usd-stale {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+  margin-left: 6px;
+}
 .market-meta code {
   font-family: ui-monospace, "SF Mono", monospace;
   font-size: 13px;

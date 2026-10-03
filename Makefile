@@ -50,17 +50,17 @@ deploy-v2-testnet:
 	@$(MAKE) -C contracts deploy-v2-testnet-interactive
 
 migrate-v2-local:
-	@test -f .env.v2.local || { echo "Create .env.v2.local from .env.v2.local.example first."; exit 1; }
+	@test -f .env.v2.local || { echo "Create .env.v2.local from .env.example first."; exit 1; }
 	bun --env-file=.env.v2.local scripts/localV2Migration.ts
 
 dev-v2-api:
-	@test -f .env.v2.local || { echo "Create .env.v2.local from .env.v2.local.example first."; exit 1; }
+	@test -f .env.v2.local || { echo "Create .env.v2.local from .env.example first."; exit 1; }
 	bun --env-file=.env.v2.local run dev:api
 
 dev-v2-web:
-	@test -f .env.v2.local || { echo "Create .env.v2.local from .env.v2.local.example first."; exit 1; }
+	@test -f .env.v2.local || { echo "Create .env.v2.local from .env.example first."; exit 1; }
 	bun --env-file=.env.v2.local run dev:web
 
 dev-v2-indexer:
-	@test -f .env.v2.local || { echo "Create .env.v2.local from .env.v2.local.example first."; exit 1; }
+	@test -f .env.v2.local || { echo "Create .env.v2.local from .env.example first."; exit 1; }
 	bun --env-file=.env.v2.local run indexer

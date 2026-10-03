@@ -4,22 +4,18 @@ import {
   formatAddress,
   formatCompact,
   formatEthAmount,
-  formatPercent,
   formatRelativeTime,
 } from "../lib/format.js";
-import type { Address } from "viem";
-import type { Holder, Position, Token, Trade, TradePage } from "../types";
+import type { Token, Trade, TradePage } from "../types";
 import { activeExplorerUrl } from "../lib/web3";
 
 const EXPLORER_ADDRESS = `${activeExplorerUrl}/address/`;
 const PAGE_SIZE = 30;
-const TABS = ["trades", "holders", "about", "account"] as const;
+const TABS = ["trades", "about"] as const;
 type Tab = (typeof TABS)[number];
 const LABELS: Record<Tab, string> = {
   trades: "Trades",
-  holders: "Holders",
   about: "About",
-  account: "Account",
 };
 
 const toEth = (wei: string) => Number(wei) / 1e18;
@@ -167,68 +163,6 @@ function TradesTab({ token }: { token: Token }) {
   );
 }
 
-function HoldersTab({ token }: { token: Token }) {
-  const { data, loading, error } = useFetch<Holder[]>(
-    `/api/tokens/${token.address}/holders`,
-    [],
-  );
-  const holders = data;
-  const supply = useMemo(
-    () => holders.reduce((total, holder) => total + holder.balance, 0),
-    [holders],
-  );
-
-  if (loading && !holders.length) return <div className="tab-panel skeleton" />;
-  if (error && !holders.length) return <p className="tab-empty">{error}</p>;
-  if (!holders.length) return <p className="tab-empty">No holders yet.</p>;
-
-  return (
-    <div className="tab-panel">
-      <table className="trade-table">
-        <thead>
-          <tr>
-            <th scope="col">#</th>
-            <th scope="col">Account</th>
-            <th scope="col" className="num">
-              Balance
-            </th>
-            <th scope="col" className="num">
-              Share
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {holders.map((holder, index) => (
-            <tr key={holder.address}>
-              <td className="muted">{index + 1}</td>
-              <td>
-                <a
-                  href={`${EXPLORER_ADDRESS}${holder.address}`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {formatAddress(holder.address)}
-                </a>
-                {holder.address.toLowerCase() === token.creator.toLowerCase() && (
-                  <span className="holder-tag">Creator</span>
-                )}
-              </td>
-              <td className="num">{formatCompact(holder.balance)}</td>
-              <td className="num">
-                {supply > 0 ? formatPercent((holder.balance / supply) * 100) : "—"}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="tab-note">
-        Derived from trades on the curve. Tokens moved wallet-to-wallet are not
-        reflected here.
-      </p>
-    </div>
-  );
-}
-
 function AboutTab({ token }: { token: Token }) {
   const links = [
     token.website && { label: "Website", href: token.website },
@@ -291,10 +225,6 @@ function AboutTab({ token }: { token: Token }) {
           <dd>{formatRelativeTime(token.createdAt)}</dd>
         </div>
         <div>
-          <dt>Holders</dt>
-          <dd>{token.holders ?? "—"}</dd>
-        </div>
-        <div>
           <dt>24h volume</dt>
           <dd>{formatCompact(token.volume24h)} ETH</dd>
         </div>
@@ -312,100 +242,7 @@ function AboutTab({ token }: { token: Token }) {
   );
 }
 
-function AccountTab({
-  token,
-  address,
-  connectWallet,
-}: {
-  token: Token;
-  address?: Address;
-  connectWallet: () => void;
-}) {
-  const { data, loading } = useFetch<Position | null>(
-    address ? `/api/tokens/${token.address}/position/${address}` : null,
-    null,
-  );
-  const position = address ? data : null;
-
-  if (!address)
-    return (
-      <div className="tab-panel tab-connect">
-        <p>Connect your wallet to see your position in ${token.symbol}.</p>
-        <button className="primary-button" onClick={connectWallet}>
-          Connect wallet
-        </button>
-      </div>
-    );
-
-  if (loading && !position) return <div className="tab-panel skeleton" />;
-  if (!position || position.trades === 0)
-    return <p className="tab-empty">You have not traded ${token.symbol} yet.</p>;
-
-  const value = token.price ? position.balance * token.price : null;
-  const costBasis =
-    position.avgCost === null ? null : position.balance * position.avgCost;
-  const unrealised =
-    value !== null && costBasis !== null ? value - costBasis : null;
-
-  return (
-    <div className="tab-panel">
-      <dl className="account-figures">
-        <div>
-          <dt>Balance</dt>
-          <dd>
-            {formatCompact(position.balance)} {token.symbol}
-          </dd>
-        </div>
-        <div>
-          <dt>Value</dt>
-          <dd>{value === null ? "—" : `${formatEthAmount(value)} ETH`}</dd>
-        </div>
-        <div>
-          <dt>Average cost</dt>
-          <dd>
-            {position.avgCost === null
-              ? "—"
-              : `${formatEthAmount(position.avgCost)} ETH`}
-          </dd>
-        </div>
-        <div>
-          <dt>Unrealised</dt>
-          <dd
-            className={
-              unrealised === null ? "" : unrealised >= 0 ? "up" : "down"
-            }
-          >
-            {unrealised === null
-              ? "—"
-              : `${unrealised >= 0 ? "+" : "−"}${formatEthAmount(Math.abs(unrealised))} ETH`}
-          </dd>
-        </div>
-        <div>
-          <dt>Total spent</dt>
-          <dd>{formatEthAmount(position.invested)} ETH</dd>
-        </div>
-        <div>
-          <dt>Total received</dt>
-          <dd>{formatEthAmount(position.proceeds)} ETH</dd>
-        </div>
-      </dl>
-      <p className="tab-note">
-        Your {position.trades} trade{position.trades === 1 ? "" : "s"} on this
-        curve. Unrealised value uses the current spot price.
-      </p>
-    </div>
-  );
-}
-
-export function MarketTabs({
-  token,
-  address,
-  connectWallet,
-}: {
-  token: Token;
-  address?: Address;
-  connectWallet: () => void;
-}) {
+export function MarketTabs({ token }: { token: Token }) {
   const [tab, setTab] = useState<Tab>("trades");
 
   return (
@@ -431,15 +268,7 @@ export function MarketTabs({
         aria-labelledby={`market-tab-${tab}`}
       >
         {tab === "trades" && <TradesTab token={token} />}
-        {tab === "holders" && <HoldersTab token={token} />}
         {tab === "about" && <AboutTab token={token} />}
-        {tab === "account" && (
-          <AccountTab
-            token={token}
-            address={address}
-            connectWallet={connectWallet}
-          />
-        )}
       </div>
     </section>
   );

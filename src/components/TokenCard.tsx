@@ -78,7 +78,6 @@ export function TokenCard({
               <i aria-hidden="true" />
               {token.graduated ? "Graduated" : "Curve live"}
             </span>
-            <span>{formatCount(token.holders)} holders</span>
             <span>Vol {formatCompact(token.volume24h)} ETH</span>
           </span>
         </span>

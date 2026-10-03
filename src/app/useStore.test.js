@@ -38,12 +38,14 @@ globalThis.fetch = mock(async (url) =>
 );
 
 const { useStore } = await import("./useStore.js");
+const originalFetchTokens = useStore.getState().fetchTokens;
 const testForm = { reset };
 
 describe("token creation form lifecycle", () => {
   beforeEach(() => {
     reset.mockClear();
     createToken.mockClear();
+    useStore.setState({ fetchTokens: originalFetchTokens });
     useStore.setState({
       actionError: "",
       isPending: false,
@@ -52,6 +54,18 @@ describe("token creation form lifecycle", () => {
       tokens: [],
       tradeMessage: "",
     });
+  });
+
+  test("publishes the created token for targeted discovery after the API refresh", async () => {
+    let release;
+    useStore.setState({ fetchTokens: () => new Promise((resolve) => { release = resolve; }) });
+    const event = { preventDefault() {}, currentTarget: testForm };
+    const submission = useStore.getState().createToken(event);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(useStore.getState().lastCreatedToken).toBeNull();
+    release(true);
+    await submission;
+    expect(useStore.getState().lastCreatedToken).toBe("0x1111111111111111111111111111111111111111");
   });
 
   test("resets the submitted form after an asynchronous wallet transaction", async () => {
@@ -98,10 +112,15 @@ describe("token creation form lifecycle", () => {
       chainId: 4153,
       launchpadAddress: "0x2222222222222222222222222222222222222222",
     }), { status: 200 }));
-    await useStore.getState().fetchTokens();
+    expect(await useStore.getState().fetchTokens()).toBe(false);
     expect(useStore.getState().tokens).toEqual([]);
     expect(useStore.getState().marketError).toContain("API");
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  test("reports an API failure so the app can use on-chain discovery only then", async () => {
+    globalThis.fetch = mock(async () => new Response("unavailable", { status: 503 }));
+    expect(await useStore.getState().fetchTokens()).toBe(false);
   });
 });
 

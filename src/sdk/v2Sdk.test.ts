@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import type { Config } from "@wagmi/core";
-import { encodeAbiParameters, encodeEventTopics, getAddress, parseEther, type Hash } from "viem";
+import { encodeAbiParameters, encodeEventTopics, getAddress, parseEther, zeroAddress, type Hash } from "viem";
 import { defineCurveballDeployment } from "./curveballSdk";
 import { createV2Sdk } from "./v2Sdk";
 import { v2FactoryAbi } from "./v2Contracts";
@@ -11,6 +11,7 @@ const curve = getAddress("0x3333333333333333333333333333333333333333");
 const token = getAddress("0x4444444444444444444444444444444444444444");
 const quote = getAddress("0x4200000000000000000000000000000000000006");
 const account = getAddress("0x1111111111111111111111111111111111111111");
+const icarusPool = getAddress("0x6666666666666666666666666666666666666666");
 
 test("V2 buy resolves the token's own curve, wraps the shortfall, and approves that curve", async () => {
   const writes: { address: string; functionName: string; args?: readonly unknown[] }[] = [];
@@ -103,4 +104,109 @@ test("graduation reports a confirmed deferral instead of successful preparation"
   } as unknown as WagmiActions;
   const sdk = createV2Sdk({} as Config, defineCurveballDeployment({ chainId: 11155931, launchpad: factory }), actions);
   expect((await sdk.graduate(token)).deferred).toBe(true);
+});
+
+function graduationActions(
+  state: { sold: bigint; ready: boolean; graduated: boolean; pool?: `0x${string}` },
+  receipts: object[][],
+  writes: { functionName: string }[],
+): WagmiActions {
+  let confirmed = 0;
+  return {
+    getAccount: () => ({ address: account, chainId: 11155931 }),
+    readContract: async (_: Config, p: { functionName: string }) => {
+      if (p.functionName === "market") return [curve, account, 50, 5000, 2500, 0, account];
+      if (p.functionName === "sold") return state.sold;
+      if (p.functionName === "curveSupply") return parseEther("800000");
+      if (p.functionName === "ready") return state.ready;
+      if (p.functionName === "graduated") return state.graduated;
+      if (p.functionName === "pool") return state.pool ?? zeroAddress;
+      throw Error(`Unexpected ${p.functionName}`);
+    },
+    simulateContract: async (_: Config, p: object) => ({ request: p }),
+    writeContract: async (_: Config, p: { functionName: string }) => {
+      writes.push(p);
+      return `0x${"2".repeat(64)}` as Hash;
+    },
+    waitForTransactionReceipt: async () => {
+      confirmed += 1;
+      return { status: "success", logs: receipts[confirmed - 1] ?? [] };
+    },
+  } as unknown as WagmiActions;
+}
+
+test("graduateToIcarus walks prepare then pool creation and reports the Icarus pool", async () => {
+  const writes: { functionName: string }[] = [];
+  const startedLog = {
+    address: factory,
+    topics: encodeEventTopics({ abi: v2FactoryAbi, eventName: "GraduationStarted", args: { token, curve } }),
+    data: "0x",
+  };
+  const graduatedLog = {
+    address: factory,
+    topics: encodeEventTopics({ abi: v2FactoryAbi, eventName: "Graduated", args: { token, pool: icarusPool } }),
+    data: encodeAbiParameters(
+      [{ type: "uint256" }, { type: "uint256" }, { type: "uint256" }],
+      [parseEther("200000"), parseEther("1"), parseEther("200000")],
+    ),
+  };
+  const actions = graduationActions({ sold: parseEther("800000"), ready: false, graduated: false }, [[startedLog], [graduatedLog]], writes);
+  const sdk = createV2Sdk({} as Config, defineCurveballDeployment({ chainId: 11155931, launchpad: factory }), actions);
+  const result = await sdk.graduateToIcarus(token);
+  expect(writes.map((p) => p.functionName)).toEqual(["graduate", "createGraduatedPool"]);
+  expect(result).toMatchObject({ status: "graduated", already: false, pool: icarusPool, deferredReason: null });
+  expect(result.transactions).toHaveLength(2);
+  expect(result.tokenLiquidity).toBe(parseEther("200000"));
+  expect(result.quoteLiquidity).toBe(parseEther("1"));
+});
+
+test("graduateToIcarus reports a deferred preparation with the guard's decoded reason", async () => {
+  const writes: { functionName: string }[] = [];
+  const reason = `0x08c379a0${encodeAbiParameters([{ type: "string" }], ["Icarus unavailable"]).slice(2)}` as `0x${string}`;
+  const deferredLog = {
+    address: factory,
+    topics: encodeEventTopics({ abi: v2FactoryAbi, eventName: "GraduationDeferred", args: { token } }),
+    data: encodeAbiParameters([{ type: "bytes" }], [reason]),
+  };
+  const actions = graduationActions({ sold: parseEther("800000"), ready: false, graduated: false }, [[deferredLog]], writes);
+  const sdk = createV2Sdk({} as Config, defineCurveballDeployment({ chainId: 11155931, launchpad: factory }), actions);
+  const result = await sdk.graduateToIcarus(token);
+  expect(writes.map((p) => p.functionName)).toEqual(["graduate"]);
+  expect(result).toMatchObject({ status: "deferred", already: false, pool: null, deferredReason: "Icarus unavailable" });
+  expect(result.transactions).toHaveLength(1);
+});
+
+test("graduateToIcarus sends nothing for an already graduated market", async () => {
+  const writes: { functionName: string }[] = [];
+  const actions = graduationActions({ sold: parseEther("800000"), ready: false, graduated: true, pool: icarusPool }, [], writes);
+  const sdk = createV2Sdk({} as Config, defineCurveballDeployment({ chainId: 11155931, launchpad: factory }), actions);
+  const result = await sdk.graduateToIcarus(token);
+  expect(writes).toEqual([]);
+  expect(result).toMatchObject({ status: "graduated", already: true, pool: icarusPool, transactions: [] });
+});
+
+test("graduateToIcarus refuses an unsold curve before writing", async () => {
+  const writes: { functionName: string }[] = [];
+  const actions = graduationActions({ sold: parseEther("400000"), ready: false, graduated: false }, [], writes);
+  const sdk = createV2Sdk({} as Config, defineCurveballDeployment({ chainId: 11155931, launchpad: factory }), actions);
+  await expect(sdk.graduateToIcarus(token)).rejects.toThrow("50% sold");
+  expect(writes).toEqual([]);
+});
+
+test("graduateToIcarus skips preparation when the curve is already ready", async () => {
+  const writes: { functionName: string }[] = [];
+  const graduatedLog = {
+    address: factory,
+    topics: encodeEventTopics({ abi: v2FactoryAbi, eventName: "Graduated", args: { token, pool: icarusPool } }),
+    data: encodeAbiParameters(
+      [{ type: "uint256" }, { type: "uint256" }, { type: "uint256" }],
+      [parseEther("200000"), parseEther("1"), parseEther("200000")],
+    ),
+  };
+  const actions = graduationActions({ sold: parseEther("800000"), ready: true, graduated: false }, [[graduatedLog]], writes);
+  const sdk = createV2Sdk({} as Config, defineCurveballDeployment({ chainId: 11155931, launchpad: factory }), actions);
+  const result = await sdk.graduateToIcarus(token);
+  expect(writes.map((p) => p.functionName)).toEqual(["createGraduatedPool"]);
+  expect(result).toMatchObject({ status: "graduated", already: false, pool: icarusPool });
+  expect(result.transactions).toHaveLength(1);
 });

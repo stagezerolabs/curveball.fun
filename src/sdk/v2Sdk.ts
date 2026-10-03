@@ -2,7 +2,7 @@ import {
   getAccount, getBalance, getBytecode, readContract, simulateContract, switchChain,
   waitForTransactionReceipt, writeContract, type Config,
 } from "@wagmi/core";
-import { decodeEventLog, getAddress, zeroAddress, type Address, type Hash } from "viem";
+import { decodeAbiParameters, decodeEventLog, getAddress, zeroAddress, type Address, type Hash } from "viem";
 import { applySlippage, createDeadline, validateTokenInput, type CurveballDeployment, type TokenInput } from "./curveballSdk";
 import { erc20Abi } from "./contracts";
 import { v2CurveAbi, v2EscrowAbi, v2FactoryAbi, v2LaunchAndBuyAbi, v2LockerAbi, v2VaultAbi } from "./v2Contracts";
@@ -21,6 +21,33 @@ async function simulateAfterApproval<T>(simulate: () => Promise<T>, approved: bo
     }
   }
 }
+
+// GraduationDeferred carries the graduation guard's raw revert data; surface the human part when it is an Error(string).
+function decodeDeferredReason(reason: string): string | null {
+  if (reason.startsWith("0x08c379a0")) {
+    try {
+      const [message] = decodeAbiParameters([{ type: "string" }], `0x${reason.slice(10)}` as `0x${string}`);
+      if (message) return message;
+    } catch { /* Fall through to the raw bytes. */ }
+  }
+  return reason === "" || reason === "0x" ? null : reason;
+}
+
+export type GraduationResult = {
+  status: "graduated" | "deferred";
+  /** True when the curve had already graduated and no transaction was sent. */
+  already: boolean;
+  pool: Address | null;
+  tokenLiquidity: bigint | null;
+  quoteLiquidity: bigint | null;
+  liquidity: bigint | null;
+  deferredReason: string | null;
+  /** Confirmed transaction hashes sent by this call, in order. */
+  transactions: Hash[];
+};
+
+type GraduationPreparation = ConfirmedWrite & { deferred: boolean; deferredReason: string | null };
+type GraduationExecution = ConfirmedWrite & { pool: Address; tokenLiquidity: bigint; quoteLiquidity: bigint; liquidity: bigint };
 
 export function createV2Sdk(config: Config, deployment: CurveballDeployment, actions: WagmiActions = defaultActions) {
   const factory = deployment.launchpad;
@@ -145,26 +172,67 @@ export function createV2Sdk(config: Config, deployment: CurveballDeployment, act
     return { ...confirmed, side, input, quotedOutput, minimumOutput, wrappedAmount };
   }
 
-  async function writeFactory(functionName: "graduate" | "createGraduatedPool", token: Address) {
+  async function writeFactory(functionName: "graduate", token: Address): Promise<GraduationPreparation>;
+  async function writeFactory(functionName: "createGraduatedPool", token: Address): Promise<GraduationExecution>;
+  async function writeFactory(functionName: "graduate" | "createGraduatedPool", token: Address): Promise<GraduationPreparation | GraduationExecution> {
     const account = await ensureWallet();
     await readMarket(token);
     const simulation = await actions.simulateContract(config, { account, address: factory, abi: v2FactoryAbi, functionName, args: [token], chainId: deployment.chainId });
     const confirmed = await confirm(await actions.writeContract(config, simulation.request));
-    if (functionName !== "graduate") return { ...confirmed, deferred: false };
-    let prepared = false;
     for (const log of confirmed.receipt.logs) {
       if (log.address.toLowerCase() !== factory.toLowerCase()) continue;
+      if (functionName === "graduate") {
+        try {
+          const deferred = decodeEventLog({ abi: v2FactoryAbi, eventName: "GraduationDeferred", data: log.data, topics: log.topics, strict: true });
+          if (getAddress(deferred.args.token) === getAddress(token)) return { ...confirmed, deferred: true, deferredReason: decodeDeferredReason(deferred.args.reason) };
+        } catch { /* A different factory event. */ }
+        try {
+          const started = decodeEventLog({ abi: v2FactoryAbi, eventName: "GraduationStarted", data: log.data, topics: log.topics, strict: true });
+          if (getAddress(started.args.token) === getAddress(token)) return { ...confirmed, deferred: false, deferredReason: null };
+        } catch { /* A different factory event. */ }
+        continue;
+      }
       try {
-        const deferred = decodeEventLog({ abi: v2FactoryAbi, eventName: "GraduationDeferred", data: log.data, topics: log.topics, strict: true });
-        if (getAddress(deferred.args.token) === getAddress(token)) return { ...confirmed, deferred: true };
-      } catch { /* A different factory event. */ }
-      try {
-        const started = decodeEventLog({ abi: v2FactoryAbi, eventName: "GraduationStarted", data: log.data, topics: log.topics, strict: true });
-        if (getAddress(started.args.token) === getAddress(token)) prepared = true;
+        const graduated = decodeEventLog({ abi: v2FactoryAbi, eventName: "Graduated", data: log.data, topics: log.topics, strict: true });
+        if (getAddress(graduated.args.token) === getAddress(token)) {
+          return { ...confirmed, pool: getAddress(graduated.args.pool), tokenLiquidity: graduated.args.tokenLiquidity, quoteLiquidity: graduated.args.quoteLiquidity, liquidity: graduated.args.liquidity };
+        }
       } catch { /* A different factory event. */ }
     }
-    if (!prepared) throw new CurveballSdkError("Confirmed graduation emitted neither GraduationStarted nor GraduationDeferred.");
-    return { ...confirmed, deferred: false };
+    throw functionName === "graduate"
+      ? new CurveballSdkError("Confirmed graduation emitted neither GraduationStarted nor GraduationDeferred.")
+      : new CurveballSdkError("Confirmed pool creation did not emit Graduated.");
+  }
+
+  async function graduateToIcarus(token: Address): Promise<GraduationResult> {
+    await ensureWallet();
+    const market = await readMarket(token);
+    const [sold, curveSupply, ready, graduated, pool] = await Promise.all([
+      actions.readContract(config, { address: market.curve, abi: v2CurveAbi, functionName: "sold", chainId: deployment.chainId }) as Promise<bigint>,
+      actions.readContract(config, { address: market.curve, abi: v2CurveAbi, functionName: "curveSupply", chainId: deployment.chainId }) as Promise<bigint>,
+      actions.readContract(config, { address: market.curve, abi: v2CurveAbi, functionName: "ready", chainId: deployment.chainId }) as Promise<boolean>,
+      actions.readContract(config, { address: market.curve, abi: v2CurveAbi, functionName: "graduated", chainId: deployment.chainId }) as Promise<boolean>,
+      actions.readContract(config, { address: market.curve, abi: v2CurveAbi, functionName: "pool", chainId: deployment.chainId }) as Promise<Address>,
+    ]);
+    const resolvedPool = pool === zeroAddress ? null : getAddress(pool);
+    if (graduated) {
+      return { status: "graduated", already: true, pool: resolvedPool, tokenLiquidity: null, quoteLiquidity: null, liquidity: null, deferredReason: null, transactions: [] };
+    }
+    if (sold < curveSupply) {
+      const progress = curveSupply === 0n ? 0 : Number((sold * 10_000n) / curveSupply) / 100;
+      throw new CurveballSdkError(`This curve is ${progress}% sold — graduation unlocks at 100%.`);
+    }
+    const transactions: Hash[] = [];
+    if (!ready) {
+      const prepared = await writeFactory("graduate", token);
+      transactions.push(prepared.hash);
+      if (prepared.deferred) {
+        return { status: "deferred", already: false, pool: null, tokenLiquidity: null, quoteLiquidity: null, liquidity: null, deferredReason: prepared.deferredReason, transactions };
+      }
+    }
+    const executed = await writeFactory("createGraduatedPool", token);
+    transactions.push(executed.hash);
+    return { status: "graduated", already: false, pool: executed.pool, tokenLiquidity: executed.tokenLiquidity, quoteLiquidity: executed.quoteLiquidity, liquidity: executed.liquidity, deferredReason: null, transactions };
   }
 
   async function claimPoolFees(locker: Address, pool: Address) {
@@ -199,5 +267,5 @@ export function createV2Sdk(config: Config, deployment: CurveballDeployment, act
     readContract: ({ address, abi, functionName }) => actions.readContract(config, { address, abi: abi as typeof v2FactoryAbi, functionName: functionName as "quote", chainId: deployment.chainId }),
   }, factory, expectedQuote);
 
-  return Object.freeze({ deployment, validateDeployment, readMarket, quoteTrade, createToken, launchAndBuy, trade, graduate: (token: Address) => writeFactory("graduate", token), createGraduatedPool: (token: Address) => writeFactory("createGraduatedPool", token), claimPoolFees, claimEscrow, sweepBuyback });
+  return Object.freeze({ deployment, validateDeployment, readMarket, quoteTrade, createToken, launchAndBuy, trade, graduate: (token: Address) => writeFactory("graduate", token), createGraduatedPool: (token: Address) => writeFactory("createGraduatedPool", token), graduateToIcarus, claimPoolFees, claimEscrow, sweepBuyback });
 }

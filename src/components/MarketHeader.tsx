@@ -158,7 +158,17 @@ export function MarketHeader({ token }: { token: Token }) {
         </div>
         <div>
           <dt>Price</dt>
-          <dd>{formatUsd(token.priceUsd)}</dd>
+          <dd>
+            {formatUsd(token.priceUsd)}
+            {token.usdStale && (
+              <small
+                className="usd-stale"
+                title="Using the last known ETH/USD rate"
+              >
+                stale rate
+              </small>
+            )}
+          </dd>
         </div>
       </dl>
     </header>

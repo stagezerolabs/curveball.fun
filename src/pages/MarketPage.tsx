@@ -116,11 +116,7 @@ export function MarketPage({
         config={config}
         connectWallet={connectWallet}
       />
-      <MarketTabs
-        token={resolvedToken}
-        address={address}
-        connectWallet={connectWallet}
-      />
+      <MarketTabs token={resolvedToken} />
 
       <p className="disclaimer">
         Market data may be delayed. Nothing here is financial advice.

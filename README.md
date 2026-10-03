@@ -54,15 +54,19 @@ compose.yaml               App, indexer, and Postgres local stack
 
 ### Application
 
-Install Bun dependencies, create a local environment file, and start the API and Vite client in separate processes:
+The app runs against the V2 RISE Testnet contracts from a local Postgres. Create the local V2 environment file and use the guarded Make targets (each one checks the chain, factory, and local database target before starting):
 
 ```sh
 bun install
-cp .env.example .env
-# Set DATABASE_URL. Local development may omit LAUNCHPAD_ADDRESS; production fails closed.
-bun run dev:api
-bun run dev:web
+docker compose -f compose.yaml -f compose.dev.yaml up -d postgres
+cp .env.example .env.v2.local
+make migrate-v2-local
+make dev-v2-api
+make dev-v2-indexer
+make dev-v2-web
 ```
+
+See [`docs/runbooks/local-v2-testnet.md`](docs/runbooks/local-v2-testnet.md) for the full walk-through, including port conflicts and V2 indexer finality behavior. The root `.env` file is shared with the contract commands and holds verification and guarded deployment inputs.
 
 For a containerized stack:
 
@@ -160,4 +164,4 @@ The release is not complete until the API health check reports testnet chain `11
 
 ## Environment
 
-Root [`.env.example`](.env.example) defines application, database, frontend, verification, and guarded deployment inputs. Copy it once to `.env`; contract commands load that shared file. Addresses are deliberately absent from the template.
+[`.env.example`](.env.example) is the local V2 profile template; copy it to `.env.v2.local` for the Make targets above. The root `.env` (not committed) is shared with contract commands and holds verification and guarded deployment inputs; addresses used by the deployed V2 profile are recorded in [`deployments/11155931/curveball-v2.json`](deployments/11155931/curveball-v2.json).

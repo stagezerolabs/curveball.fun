@@ -18,6 +18,7 @@ import { useStore } from "./useStore.js";
 import type { Token } from "../types";
 import {
   discoverAllTokens,
+  discoverToken,
   type CreatorTokenClient,
 } from "../creatorTokens";
 import { activeChainId } from "../lib/web3";
@@ -34,11 +35,12 @@ export function App() {
   const { connect, connectors } = useConnect();
   const publicClient = usePublicClient({ chainId: activeChainId });
   const connectWallet = () => connect({ connector: connectors[0] });
-  const { tokens, loading, fetchTokens, mergeTokens } = useStore() as {
+  const { tokens, loading, fetchTokens, mergeTokens, lastCreatedToken } = useStore() as {
     tokens: Token[];
     loading: boolean;
-    fetchTokens: () => Promise<void>;
+    fetchTokens: () => Promise<boolean>;
     mergeTokens: (tokens: Token[]) => void;
+    lastCreatedToken: `0x${string}` | null;
   };
 
   useEffect(() => applyTheme(theme), [theme]);
@@ -46,8 +48,8 @@ export function App() {
   useEffect(() => {
     let active = true;
     void (async () => {
-      await fetchTokens();
-      if (!active || !publicClient) return;
+      const indexed = await fetchTokens();
+      if (indexed || !active || !publicClient) return;
       try {
         const discovered = await discoverAllTokens(
           publicClient as unknown as CreatorTokenClient,
@@ -61,6 +63,45 @@ export function App() {
       active = false;
     };
   }, [fetchTokens, mergeTokens, publicClient]);
+
+  useEffect(() => {
+    if (!lastCreatedToken || !publicClient) return;
+    let active = true;
+    void discoverToken(publicClient as unknown as CreatorTokenClient, lastCreatedToken)
+      .then((created) => {
+        if (active && created) mergeTokens([created]);
+      })
+      .catch(() => {
+        // The confirmed receipt remains visible in the launch message while
+        // the finalized indexer catches up.
+      });
+    return () => { active = false; };
+  }, [lastCreatedToken, mergeTokens, publicClient]);
+
+  // Keep indexed market data fresh without overlapping requests. Store actions
+  // refresh immediately after create, trade, and graduation; this only covers
+  // trades other wallets make while the tab stays open.
+  useEffect(() => {
+    let inFlight = false;
+    const refresh = async () => {
+      if (inFlight || document.hidden) return;
+      inFlight = true;
+      try {
+        await fetchTokens();
+      } finally {
+        inFlight = false;
+      }
+    };
+    const interval = window.setInterval(() => void refresh(), 15000);
+    const onVisibility = () => {
+      if (!document.hidden) void refresh();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [fetchTokens]);
 
   const token: Token | undefined =
     route.id === "market"

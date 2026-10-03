@@ -90,7 +90,7 @@ export function MilestonePanel({
       {activeContractVersion === "v2" && !token.graduated && progress >= 100 && <div className="claim-block">
         <p className="panel-note">{token.pending ? "Curve reserves are ready for an Icarus pool." : "The curve is sold out and ready to prepare graduation."}</p>
         <button className="primary-button claim-button" disabled={!address || isPending} onClick={() => advanceGraduation(token)}>
-          {token.pending ? "Create Icarus pool" : "Prepare graduation"}
+          Graduate to Icarus
         </button>
       </div>}
 
