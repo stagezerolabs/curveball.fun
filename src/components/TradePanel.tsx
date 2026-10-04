@@ -3,8 +3,8 @@ import { formatEther } from "viem";
 import { useBalance, useReadContract } from "wagmi";
 import { launchpadAbi } from "../sdk/contracts";
 import { v2FactoryAbi } from "../sdk/v2Contracts";
-import { RISE_TESTNET_CHAIN_ID } from "../sdk/curveballSdk";
 import { activeChainId, activeContractVersion, activeExplorerUrl, launchpadAddress } from "../lib/web3";
+import { getBetaReadEnabled, selectMarketState } from "../lib/marketState";
 import { useStore } from "../app/useStore.js";
 import { useTokenBalance } from "../sdk/react";
 import { formatEthAmount, formatPercent, formatUsd } from "../lib/format.js";
@@ -60,17 +60,32 @@ export function TradePanel({
     fetchQuote,
   } = useStore();
   const [explain, setExplain] = useState(false);
+  const betaReadEnabled = getBetaReadEnabled({
+    contractVersion: activeContractVersion,
+    chainId: activeChainId,
+    walletConnected: Boolean(address),
+    hasLaunchpadAddress: Boolean(launchpadAddress),
+  });
   const { data: publicOpen } = useReadContract({
     address: launchpadAddress ?? undefined, abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi,
     functionName: "publicLaunchOpen", chainId: activeChainId,
-    query: { enabled: Boolean(launchpadAddress) && (activeContractVersion === "v2" || activeChainId !== RISE_TESTNET_CHAIN_ID) },
+    query: { enabled: betaReadEnabled.publicLaunchOpen },
   });
   const { data: invited } = useReadContract({
     address: launchpadAddress ?? undefined, abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi,
     functionName: "invited", args: [address!], chainId: activeChainId,
-    query: { enabled: Boolean(address && launchpadAddress) && (activeContractVersion === "v2" || activeChainId !== RISE_TESTNET_CHAIN_ID) },
+    query: { enabled: betaReadEnabled.invited },
   });
-  const canBuy = (activeContractVersion === "v1" && activeChainId === RISE_TESTNET_CHAIN_ID) || publicOpen === true || invited === true;
+  const { state, hasBetaAccess, canBuy } = selectMarketState({
+    contractVersion: activeContractVersion,
+    chainId: activeChainId,
+    walletConnected: Boolean(address),
+    publicLaunchOpen: publicOpen,
+    invited,
+    graduated: token.graduated,
+    pending: token.pending,
+    progress: token.progress,
+  });
 
   const quoteSymbol = token.quoteSymbol ?? config?.quoteSymbol ?? "ETH";
   const payingWith = side === "buy" ? quoteSymbol : token.symbol;
@@ -124,7 +139,7 @@ export function TradePanel({
     setAmount(formatEther(portion));
   }
 
-  if (token.graduated) {
+  if (state === "graduated") {
     return (
       <section className="trade-panel">
         <p className="trade-graduated">
@@ -163,7 +178,7 @@ export function TradePanel({
       </div>
 
       {token.pending && <p className="notice" role="status">Graduation is ready. Anyone can create the Icarus pool. Selling remains available until then.</p>}
-      {!canBuy && side === "buy" && <p className="notice" role="status">Limited beta: this wallet needs an invitation to buy. Selling remains open.</p>}
+      {!hasBetaAccess && side === "buy" && <p className="notice" role="status">Limited beta: this wallet needs an invitation to buy. Selling remains open.</p>}
 
       <div className="amount-head">
         <label htmlFor="trade-amount">Amount</label>
@@ -233,7 +248,7 @@ export function TradePanel({
       {address ? (
         <button
           className={`trade-submit ${side}`}
-          disabled={isPending || !(input > 0) || buyFunding?.canFund === false || (side === "buy" && (!canBuy || token.pending || (activeContractVersion === "v2" && (token.progress ?? 0) >= 100)))}
+          disabled={isPending || !(input > 0) || buyFunding?.canFund === false || (side === "buy" && !canBuy)}
           onClick={() => trade(side, token)}
         >
           {isPending ? "Pending…" : side === "buy" ? "Buy" : "Sell"}
