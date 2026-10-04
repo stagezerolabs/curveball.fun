@@ -3,22 +3,34 @@ import { useStore } from "../app/useStore.js";
 import { useAccount, useReadContract } from "wagmi";
 import { launchpadAbi } from "../sdk/contracts";
 import { v2FactoryAbi } from "../sdk/v2Contracts";
-import { RISE_TESTNET_CHAIN_ID } from "../sdk/curveballSdk";
 import { activeChainId, activeContractVersion, launchpadAddress } from "../lib/web3";
+import { getBetaReadEnabled, selectMarketState } from "../lib/marketState";
 
 export function LaunchPage() {
   const { address } = useAccount();
+  const betaReadEnabled = getBetaReadEnabled({
+    contractVersion: activeContractVersion,
+    chainId: activeChainId,
+    walletConnected: Boolean(address),
+    hasLaunchpadAddress: Boolean(launchpadAddress),
+  });
   const { data: publicOpen } = useReadContract({
     address: launchpadAddress ?? undefined, abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi,
     functionName: "publicLaunchOpen", chainId: activeChainId,
-    query: { enabled: Boolean(launchpadAddress) && (activeContractVersion === "v2" || activeChainId !== RISE_TESTNET_CHAIN_ID) },
+    query: { enabled: betaReadEnabled.publicLaunchOpen },
   });
   const { data: invited } = useReadContract({
     address: launchpadAddress ?? undefined, abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi,
     functionName: "invited", args: [address!], chainId: activeChainId,
-    query: { enabled: Boolean(address && launchpadAddress) && (activeContractVersion === "v2" || activeChainId !== RISE_TESTNET_CHAIN_ID) },
+    query: { enabled: betaReadEnabled.invited },
   });
-  const canCreate = (activeContractVersion === "v1" && activeChainId === RISE_TESTNET_CHAIN_ID) || publicOpen === true || invited === true;
+  const { canCreate } = selectMarketState({
+    contractVersion: activeContractVersion,
+    chainId: activeChainId,
+    walletConnected: Boolean(address),
+    publicLaunchOpen: publicOpen,
+    invited,
+  });
   const { createToken: create, isPending, actionError: error } = useStore();
 
   return (

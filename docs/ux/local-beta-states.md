@@ -1,6 +1,6 @@
-# Local beta market states (prototype)
+# Beta and market states
 
-This is the UI prototype for the local milestone. It uses the existing layout and adds state-specific copy and actions.
+The shipped interface uses these states to select launch and trade availability. The pure selector in `src/lib/marketState.ts` supplies the beta and market decisions used by `src/pages/LaunchPage.tsx` and `src/components/TradePanel.tsx`. `src/components/MarketHeader.tsx` and `src/components/MilestonePanel.tsx` display the corresponding curve and graduation status labels.
 
 | State | Launch form | Trade panel | Market header / milestone |
 | --- | --- | --- | --- |
