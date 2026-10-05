@@ -1,5 +1,7 @@
 # Mainnet SDK and launch specification
 
+> Historical record: Curveball's active deployment target moved to RISE Testnet on 2026-09-22. Do not use the addresses or release commands below for the active application.
+
 ## Objective
 
 Ship a typed frontend SDK as the only browser-side interface to Curveball's RISE contracts, remove all demo/mock data paths, verify and deploy the production contracts on RISE mainnet, then create the first live token.

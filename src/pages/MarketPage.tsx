@@ -1,4 +1,6 @@
-import { useAccount } from "wagmi";
+import { useEffect, useState } from "react";
+import { useAccount, usePublicClient } from "wagmi";
+import { getAddress, isAddress } from "viem";
 import { useStore } from "../app/useStore.js";
 import { AppLink } from "../components/Navigation";
 import { MarketHeader } from "../components/MarketHeader";
@@ -7,14 +9,21 @@ import { MilestonePanel } from "../components/MilestonePanel";
 import { PriceChart } from "../components/PriceChart";
 import { TradePanel } from "../components/TradePanel";
 import { useFetch } from "../lib/useFetch";
+import {
+  discoverToken,
+  type CreatorTokenClient,
+} from "../creatorTokens";
+import { activeChainId, launchpadAddress } from "../lib/web3";
 import type { LaunchpadConfig, Navigate, Token } from "../types";
 
 export function MarketPage({
   token,
+  tokenAddress,
   navigate,
   connectWallet,
 }: {
   token?: Token;
+  tokenAddress: string;
   navigate: Navigate;
   connectWallet: () => void;
 }) {
@@ -24,12 +33,58 @@ export function MarketPage({
     actionError: string;
   };
   const { address } = useAccount();
+  const publicClient = usePublicClient({ chainId: activeChainId });
+  const [onchainToken, setOnchainToken] = useState<Token | null>();
+  const [discoveryError, setDiscoveryError] = useState("");
   const { data } = useFetch<LaunchpadConfig | null>("/api/config", null);
-  const config = data;
-  const error = actionError || marketError;
+  const config = data?.chainId === activeChainId && data.launchpadAddress?.toLowerCase() === launchpadAddress?.toLowerCase()
+    ? data : null;
+  const error = actionError || marketError || discoveryError;
+  const resolvedToken = token ?? onchainToken;
 
-  if (loading) return <main className="page-status wrap">Loading market…</main>;
-  if (!token)
+  useEffect(() => {
+    if (token) {
+      setOnchainToken(token);
+      setDiscoveryError("");
+      return;
+    }
+    if (!isAddress(tokenAddress)) {
+      setOnchainToken(null);
+      return;
+    }
+    if (!publicClient) {
+      setOnchainToken(undefined);
+      return;
+    }
+
+    let active = true;
+    setOnchainToken(undefined);
+    setDiscoveryError("");
+    void discoverToken(
+      publicClient as unknown as CreatorTokenClient,
+      getAddress(tokenAddress),
+    )
+      .then((result) => {
+        if (active) setOnchainToken(result);
+      })
+      .catch((cause) => {
+        if (!active) return;
+        setOnchainToken(null);
+        setDiscoveryError(
+          cause instanceof Error
+            ? cause.message
+            : "Could not read this market from the configured network.",
+        );
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [publicClient, token, tokenAddress]);
+
+  if (!resolvedToken && (loading || onchainToken === undefined))
+    return <main className="page-status wrap">Loading market…</main>;
+  if (!resolvedToken)
     return (
       <main className="page-status wrap">
         <span className="empty-orbit" />
@@ -47,25 +102,21 @@ export function MarketPage({
         ← All markets
       </AppLink>
 
-      <MarketHeader token={token} />
-      <PriceChart token={token} />
+      <MarketHeader token={resolvedToken} />
+      <PriceChart token={resolvedToken} />
       <TradePanel
-        token={token}
+        token={resolvedToken}
         address={address}
         config={config}
         connectWallet={connectWallet}
       />
       <MilestonePanel
-        token={token}
+        token={resolvedToken}
         address={address}
         config={config}
         connectWallet={connectWallet}
       />
-      <MarketTabs
-        token={token}
-        address={address}
-        connectWallet={connectWallet}
-      />
+      <MarketTabs token={resolvedToken} />
 
       <p className="disclaimer">
         Market data may be delayed. Nothing here is financial advice.

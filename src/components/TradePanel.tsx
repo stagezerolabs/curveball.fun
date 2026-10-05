@@ -1,8 +1,18 @@
 import { useEffect, useState } from "react";
 import { formatEther } from "viem";
+import { useBalance, useReadContract } from "wagmi";
+import { launchpadAbi } from "../sdk/contracts";
+import { v2FactoryAbi } from "../sdk/v2Contracts";
+import { activeChainId, activeContractVersion, activeExplorerUrl, launchpadAddress } from "../lib/web3";
+import { getBetaReadEnabled, selectMarketState } from "../lib/marketState";
 import { useStore } from "../app/useStore.js";
 import { useTokenBalance } from "../sdk/react";
-import { formatEthAmount, formatPercent } from "../lib/format.js";
+import { formatEthAmount, formatPercent, formatUsd } from "../lib/format.js";
+import {
+  getBuyFundingState,
+  TradeFundingStatus,
+} from "./TradeFundingStatus";
+import { NATIVE_GAS_RESERVE } from "../sdk/wagmiSdk";
 import type { Address } from "viem";
 import type { LaunchpadConfig, Token } from "../types";
 
@@ -50,6 +60,32 @@ export function TradePanel({
     fetchQuote,
   } = useStore();
   const [explain, setExplain] = useState(false);
+  const betaReadEnabled = getBetaReadEnabled({
+    contractVersion: activeContractVersion,
+    chainId: activeChainId,
+    walletConnected: Boolean(address),
+    hasLaunchpadAddress: Boolean(launchpadAddress),
+  });
+  const { data: publicOpen } = useReadContract({
+    address: launchpadAddress ?? undefined, abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi,
+    functionName: "publicLaunchOpen", chainId: activeChainId,
+    query: { enabled: betaReadEnabled.publicLaunchOpen },
+  });
+  const { data: invited } = useReadContract({
+    address: launchpadAddress ?? undefined, abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi,
+    functionName: "invited", args: [address!], chainId: activeChainId,
+    query: { enabled: betaReadEnabled.invited },
+  });
+  const { state, hasBetaAccess, canBuy } = selectMarketState({
+    contractVersion: activeContractVersion,
+    chainId: activeChainId,
+    walletConnected: Boolean(address),
+    publicLaunchOpen: publicOpen,
+    invited,
+    graduated: token.graduated,
+    pending: token.pending,
+    progress: token.progress,
+  });
 
   const quoteSymbol = token.quoteSymbol ?? config?.quoteSymbol ?? "ETH";
   const payingWith = side === "buy" ? quoteSymbol : token.symbol;
@@ -57,10 +93,11 @@ export function TradePanel({
 
   // Buying spends the quote token, selling spends the token itself.
   const balanceOf = side === "buy" ? config?.quoteToken : token.address;
-  const { data: balance } = useTokenBalance(
+  const { data: assetBalance } = useTokenBalance(
     (balanceOf ?? undefined) as Address | undefined,
     address,
   );
+  const { data: nativeBalance } = useBalance({ address });
 
   useEffect(() => {
     if (token.graduated) return undefined;
@@ -74,6 +111,17 @@ export function TradePanel({
 
   // Execution price vs the current spot price: how far this size moves the curve.
   const input = Number(amount);
+  const buyFunding =
+    side === "buy"
+      ? getBuyFundingState(amount, assetBalance, nativeBalance?.value)
+      : null;
+  const presetBalance =
+    side === "buy" && assetBalance !== undefined && nativeBalance
+      ? assetBalance +
+        (nativeBalance.value > NATIVE_GAS_RESERVE
+          ? nativeBalance.value - NATIVE_GAS_RESERVE
+          : 0n)
+      : assetBalance;
   const executionPrice =
     received && input > 0
       ? side === "buy"
@@ -86,25 +134,25 @@ export function TradePanel({
       : null;
 
   function applyPreset(percent: number) {
-    if (balance === undefined) return;
-    const portion = (balance as bigint) * BigInt(percent) / 100n;
+    if (presetBalance === undefined) return;
+    const portion = presetBalance * BigInt(percent) / 100n;
     setAmount(formatEther(portion));
   }
 
-  if (token.graduated) {
+  if (state === "graduated") {
     return (
       <section className="trade-panel">
         <p className="trade-graduated">
-          <strong>This curve is complete.</strong> Liquidity has moved to Icarus —
-          trade it there.
+          <strong>This curve is complete.</strong> A basic volatile {token.symbol}/WETH pool was created on Icarus. Pool creation does not grant a gauge or IRS emissions.
         </p>
+        {token.pool && <a href={`${activeExplorerUrl}/address/${token.pool}`} target="_blank" rel="noreferrer">View Icarus pool {token.pool}</a>}
         <a
           className="primary-button trade-submit"
-          href={`https://icarus.finance/${token.address}`}
+          href="https://icarus.finance/"
           target="_blank"
           rel="noreferrer"
         >
-          Trade on Icarus
+          Open Icarus to swap
         </a>
       </section>
     );
@@ -129,6 +177,9 @@ export function TradePanel({
         </button>
       </div>
 
+      {token.pending && <p className="notice" role="status">Graduation is ready. Anyone can create the Icarus pool. Selling remains available until then.</p>}
+      {!hasBetaAccess && side === "buy" && <p className="notice" role="status">Limited beta: this wallet needs an invitation to buy. Selling remains open.</p>}
+
       <div className="amount-head">
         <label htmlFor="trade-amount">Amount</label>
         <div className="amount-presets">
@@ -136,7 +187,7 @@ export function TradePanel({
             <button
               key={percent}
               type="button"
-              disabled={balance === undefined}
+              disabled={presetBalance === undefined}
               onClick={() => applyPreset(percent)}
             >
               {percent === 100 ? "Max" : `${percent}%`}
@@ -159,6 +210,14 @@ export function TradePanel({
         <span className="amount-unit">{payingWith}</span>
       </div>
 
+      {side === "buy" && (
+        <TradeFundingStatus
+          amount={amount}
+          wethBalance={assetBalance}
+          nativeBalance={nativeBalance?.value}
+        />
+      )}
+
       <div className="trade-summary" aria-live="polite">
         <Row
           label="You receive"
@@ -176,8 +235,9 @@ export function TradePanel({
             atLeast === null ? "—" : `${formatEthAmount(atLeast)} ${receiving}`
           }
         />
-        <Row label="Price" value={`${formatEthAmount(token.price)} ${quoteSymbol}`} />
+        <Row label="Price" value={formatUsd(token.priceUsd)} />
         <Row label="Slippage limit" value={`${SLIPPAGE_BPS / 100}%`} />
+        {activeContractVersion === "v2" && <Row label="Curve fee + creator tax" value={token.feeBps == null ? "—" : `${((token.feeBps + (token.creatorTaxBps ?? 0)) / 100).toFixed(2)}%`} />}
         <Row
           label="Price impact"
           value={priceImpact === null ? "—" : formatPercent(priceImpact)}
@@ -188,7 +248,7 @@ export function TradePanel({
       {address ? (
         <button
           className={`trade-submit ${side}`}
-          disabled={isPending || !(input > 0)}
+          disabled={isPending || !(input > 0) || buyFunding?.canFund === false || (side === "buy" && !canBuy)}
           onClick={() => trade(side, token)}
         >
           {isPending ? "Pending…" : side === "buy" ? "Buy" : "Sell"}

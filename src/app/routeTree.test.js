@@ -3,6 +3,16 @@ import test from "node:test";
 import { resolveRoute, routeHref } from "./routeTree.ts";
 
 test("resolves static and dynamic routes", () => {
+  assert.deepEqual(resolveRoute("/"), {
+    id: "landing",
+    params: {},
+    title: "Curveball — Fair token launches",
+  });
+  assert.deepEqual(resolveRoute("/app"), {
+    id: "home",
+    params: {},
+    title: "Explore — Curveball",
+  });
   assert.deepEqual(resolveRoute("/markets"), {
     id: "markets",
     params: {},
@@ -13,10 +23,17 @@ test("resolves static and dynamic routes", () => {
     params: { address: "0xabc" },
     title: "Market — Curveball",
   });
+  assert.deepEqual(resolveRoute("/profile"), {
+    id: "profile",
+    params: {},
+    title: "Your launches — Curveball",
+  });
 });
 
 test("generates encoded route URLs", () => {
-  assert.equal(routeHref("home"), "/");
+  assert.equal(routeHref("landing"), "/");
+  assert.equal(routeHref("home"), "/app");
+  assert.equal(routeHref("profile"), "/profile");
   assert.equal(
     routeHref("market", { address: "token/one" }),
     "/markets/token%2Fone",

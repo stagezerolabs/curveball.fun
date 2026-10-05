@@ -8,6 +8,17 @@
       name="description"
       content="Launch a token on a transparent bonding curve on RISE. No presale, no private allocation. Graduate into Icarus liquidity when the market is ready."
     />
+    <script>
+      (() => {
+        let theme = "light";
+        try {
+          const stored = localStorage.getItem("curveball-theme");
+          if (stored === "light" || stored === "dark") theme = stored;
+        } catch {}
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme;
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

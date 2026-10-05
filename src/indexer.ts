@@ -1,11 +1,15 @@
 import { eq } from "drizzle-orm";
 import { createPublicClient, http, parseAbiItem } from "viem";
 import { db } from "./db";
-import { indexerState, tokens, trades } from "./db/schema";
+import { indexerState, protocolEvents, tokens, trades } from "./db/schema";
 import { readChainRuntime } from "./runtimeConfig";
+import { v2FactoryAbi } from "./sdk/v2Contracts";
+import { zeroAddress } from "viem";
+import { collectV2Logs } from "./v2IndexerQueries";
 
 const runtime = readChainRuntime(Bun.env);
 const address = runtime.launchpadAddress ?? undefined;
+const cursorKey = `last_block:${runtime.expectedChainId}:${address?.toLowerCase() ?? "none"}`;
 if (!address) {
   if (import.meta.main) {
     console.log("Indexer disabled: LAUNCHPAD_ADDRESS is not configured");
@@ -16,6 +20,73 @@ if (!address) {
 const client = createPublicClient({
   transport: http(runtime.rpcUrl),
 });
+
+async function indexV2ToHead() {
+  if (!address) throw new Error("V2 factory address is required");
+  const [escrow, vault, locker, hook, wrapper] = await Promise.all([
+    client.readContract({ address, abi: v2FactoryAbi, functionName: "escrow" }),
+    client.readContract({ address, abi: v2FactoryAbi, functionName: "vault" }),
+    client.readContract({ address, abi: v2FactoryAbi, functionName: "locker" }),
+    client.readContract({ address, abi: v2FactoryAbi, functionName: "hook" }),
+    client.readContract({ address, abi: v2FactoryAbi, functionName: "launchAndBuy" }),
+  ]);
+  const v2CursorKey = `last_block:v2:${runtime.expectedChainId}:${address.toLowerCase()}`;
+  const [state] = await db.select({ value: indexerState.value }).from(indexerState).where(eq(indexerState.key, v2CursorKey)).limit(1);
+  let from = BigInt(state?.value || runtime.indexerStartBlock);
+  // Only persist canonical finalized blocks. A latest-head cursor would retain
+  // orphaned launches and trades forever after a reorg.
+  const finalized = await client.getBlock({ blockTag: "finalized" });
+  if (finalized.number === null) throw new Error("Indexer RPC returned a finalized block without a number.");
+  const to = finalized.number;
+  while (from <= to) {
+    const end = from + 999n < to ? from + 999n : to;
+    const known = await db.select({ curve: tokens.curve, token: tokens.address }).from(tokens).where(eq(tokens.deployment, address));
+    const logs = await collectV2Logs(client as unknown as Parameters<typeof collectV2Logs>[0], {
+      factory: address, escrow, vault, locker, hook, wrapper,
+      curves: known.flatMap((row) => row.curve ? [row.curve as `0x${string}`] : []),
+    }, from, end);
+    const times = await blockTimes(new Set(logs.map((log) => log.blockNumber)));
+    const tokenByCurve = new Map(known.filter((row) => row.curve).map((row) => [row.curve!.toLowerCase(), row.token]));
+    for (const log of logs) if (log.event === "LaunchCreated") tokenByCurve.set(log.args.curve.toLowerCase(), log.args.token);
+    const applied = await db.transaction(async (tx) => {
+      await tx.insert(indexerState).values({ key: v2CursorKey, value: runtime.indexerStartBlock.toString() }).onConflictDoNothing({ target: indexerState.key });
+      const [current] = await tx.select({ value: indexerState.value }).from(indexerState).where(eq(indexerState.key, v2CursorKey)).for("update");
+      if (BigInt(current.value) !== from) return false;
+      for (const log of logs) {
+        const { event, args } = log;
+        const key = `${log.transactionHash}:${log.logIndex}`;
+        if (event === "LaunchCreated") {
+          await tx.insert(tokens).values({ address: args.token, deployment: address, curve: args.curve, name: args.name, symbol: args.symbol, creator: args.creator }).onConflictDoNothing({ target: tokens.address });
+        } else if (event === "Trade") {
+          await tx.insert(trades).values({
+            eventKey: key, token: args.token, trader: args.trader, side: args.isBuy ? "buy" : "sell",
+            quote: args.netTraderQuote.toString(), amount: args.tokenAmount.toString(),
+            grossCurveQuote: args.grossCurveQuote.toString(), feeQuote: args.feeQuote.toString(), creatorTaxQuote: args.creatorTaxQuote.toString(),
+            tx: log.transactionHash, blockNumber: log.blockNumber.toString(), blockTime: times.get(log.blockNumber)!,
+          }).onConflictDoNothing({ target: trades.eventKey });
+        } else if (event === "Graduated") {
+          await tx.update(tokens).set({ graduated: true, pool: args.pool, quoteLiquidity: args.quoteLiquidity.toString(), updatedAt: new Date() }).where(eq(tokens.address, args.token));
+        } else {
+          const launch = event === "GraduationStarted" || event === "GraduationDeferred" || event === "PoolFeesRouted" || event === "PoolRegistered"
+            ? args.token
+            : event === "TokensRescued" || event === "NativeRescued"
+              ? tokenByCurve.get(log.source.toLowerCase()) ?? zeroAddress
+              : args.launch;
+          await tx.insert(protocolEvents).values({
+            eventKey: key, deployment: address, launch, kind: event,
+            asset: args.asset ?? null, recipient: args.recipient ?? args.venue ?? args.pool ?? null,
+            amount: (args.amount ?? args.quoteSpent)?.toString() ?? null,
+            tx: log.transactionHash, blockNumber: log.blockNumber.toString(), blockTime: times.get(log.blockNumber)!,
+          }).onConflictDoNothing({ target: protocolEvents.eventKey });
+        }
+      }
+      await tx.update(indexerState).set({ value: (end + 1n).toString(), updatedAt: new Date() }).where(eq(indexerState.key, v2CursorKey));
+      return true;
+    });
+    if (!applied) return;
+    from = end + 1n;
+  }
+}
 const events = [
   parseAbiItem(
     "event TokenCreated(address indexed token,address indexed creator,string name,string symbol,string uri)",
@@ -47,10 +118,18 @@ export async function indexToHead() {
       `Indexer RPC chain mismatch: expected ${runtime.expectedChainId}, received ${chainId}.`,
     );
   }
+  if (runtime.contractVersion === "v2") return indexV2ToHead();
+  if (runtime.expectedChainId === 4_153) {
+    await Promise.all([
+      client.readContract({ address: address!, abi: [parseAbiItem("function owner() view returns (address)")], functionName: "owner" }),
+      client.readContract({ address: address!, abi: [parseAbiItem("function publicLaunchOpen() view returns (bool)")], functionName: "publicLaunchOpen" }),
+      client.readContract({ address: address!, abi: [parseAbiItem("function totalReservedQuote() view returns (uint256)")], functionName: "totalReservedQuote" }),
+    ]);
+  }
   const [state] = await db
     .select({ value: indexerState.value })
     .from(indexerState)
-    .where(eq(indexerState.key, "last_block"))
+    .where(eq(indexerState.key, cursorKey))
     .limit(1);
   let from = BigInt(state?.value || runtime.indexerStartBlock);
   const to = await client.getBlockNumber();
@@ -81,14 +160,14 @@ export async function indexToHead() {
       await tx
         .insert(indexerState)
         .values({
-          key: "last_block",
+          key: cursorKey,
           value: runtime.indexerStartBlock.toString(),
         })
         .onConflictDoNothing({ target: indexerState.key });
       const [current] = await tx
         .select({ value: indexerState.value })
         .from(indexerState)
-        .where(eq(indexerState.key, "last_block"))
+        .where(eq(indexerState.key, cursorKey))
         .for("update");
       if (BigInt(current.value) !== from) return false;
 
@@ -140,7 +219,7 @@ export async function indexToHead() {
       await tx
         .update(indexerState)
         .set({ value: (end + 1n).toString(), updatedAt: new Date() })
-        .where(eq(indexerState.key, "last_block"));
+        .where(eq(indexerState.key, cursorKey));
       return true;
     });
     if (!applied) return; // Another worker advanced the cursor; reread it next tick.

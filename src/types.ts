@@ -8,9 +8,20 @@ export type Token = {
   symbol: string;
   creator: Address;
   graduated: boolean;
+  pending?: boolean;
+  curve?: Address | null;
+  feeBps?: number | null;
+  creatorTaxBps?: number | null;
+  creatorShareBps?: number | null;
+  buybackShareBps?: number | null;
   createdAt: string;
   price?: number | null;
   marketCap?: number | null;
+  priceUsd?: number | null;
+  marketCapUsd?: number | null;
+  ethUsd?: number | null;
+  usdUpdatedAt?: string | null;
+  usdStale?: boolean;
   progress?: number | null;
   imageUrl?: string | null;
   pool?: Address | null;
@@ -21,6 +32,7 @@ export type Token = {
   holders?: number | null;
   liquidity?: number | null;
   peakMarketCap?: number | null;
+  peakMarketCapUsd?: number | null;
   quoteSymbol?: string | null;
   priceHistory?: number[] | null;
   description?: string | null;
@@ -48,23 +60,18 @@ export type TradePage = {
 
 export type Candle = { t: string; price: number };
 
-export type Holder = { address: string; balance: number };
-
-export type Position = {
-  balance: number;
-  invested: number;
-  proceeds: number;
-  avgCost: number | null;
-  trades: number;
-};
-
 export type LaunchpadConfig = {
+  contractVersion?: "v1" | "v2";
+  chainId?: number;
+  launchpadAddress?: string | null;
   quoteSymbol: string | null;
   quoteToken: string | null;
   targetPrice: number | null;
   creatorShareBps: number | null;
   treasury: string | null;
   locker: string | null;
+  escrow?: string | null;
+  vault?: string | null;
 };
 
 export type CandleRange = "5min" | "1h" | "6h" | "1D" | "all";

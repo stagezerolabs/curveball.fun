@@ -1,0 +1,29 @@
+{
+  "generatedAt": "2026-09-21T22:56:43Z",
+  "chainId": 11155931,
+  "source": {
+    "name": "Icarus public application configuration",
+    "url": "https://www.icarus.finance/swap"
+  },
+  "factory": {
+    "address": "0x8221dfB70c9A2dE60253dcfC58231FD529bbF4F9",
+    "implementation": "0x74309f2134DA3E920094A5B0d5DF5d5Dcd1942b1",
+    "codeHash": "0x6d5b94dc1289df2c94f520a07bd7412d423b09c1c832360898204dcecf039aa0",
+    "implementationCodeHash": "0x299e714a0a1901ee2c401d46f3a9cf3e4bf15cde6f258cab8d6174e5abce6ea7",
+    "blockscoutSourceVerified": false,
+    "implementationSourceVerified": false,
+    "paused": false,
+    "volatileFeeBps": 30,
+    "stableFeeBps": 5,
+    "unstakedFeeBps": 1000
+  },
+  "weth": {
+    "address": "0x4200000000000000000000000000000000000006",
+    "name": "Wrapped Ether",
+    "symbol": "WETH",
+    "decimals": 18,
+    "codeHash": "0x56cbe8c504010ebe7f2750c95c3b62624513908ccc7fae4f95cb73eecf312b68"
+  },
+  "forkLifecycleCheck": "PASSED: deployment wiring, pool creation, Curveball graduation, swap, and fee claim on a fresh RISE Testnet fork.",
+  "acceptedRisk": "The official Icarus testnet factory and implementation are not source-verified on Blockscout or Sourcify; integration is gated by address provenance, pinned live bytecode, ABI reads, and the fork lifecycle."
+}

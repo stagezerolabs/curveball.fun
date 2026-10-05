@@ -24,6 +24,8 @@ export const tokens = pgTable(
   {
     id: uuid().defaultRandom().primaryKey(),
     address: text().notNull(),
+    deployment: text(),
+    curve: text(),
     name: text().notNull(),
     symbol: text().notNull(),
     creator: text().notNull(),
@@ -56,6 +58,9 @@ export const trades = pgTable(
     trader: text().notNull(),
     side: text().notNull(),
     quote: text().notNull(),
+    grossCurveQuote: text("gross_curve_quote"),
+    feeQuote: text("fee_quote"),
+    creatorTaxQuote: text("creator_tax_quote"),
     amount: text().notNull(),
     tx: text().notNull(),
     // Chain time, not row-insert time. Every time-windowed metric (24h volume,
@@ -83,4 +88,26 @@ export const indexerState = pgTable(
     ...timestamps,
   },
   (table) => [uniqueIndex("indexer_state_key_unique").on(table.key)],
+);
+
+export const protocolEvents = pgTable(
+  "protocol_events",
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    eventKey: text("event_key").notNull(),
+    deployment: text().notNull(),
+    launch: text().notNull(),
+    kind: text().notNull(),
+    asset: text(),
+    recipient: text(),
+    amount: text(),
+    tx: text().notNull(),
+    blockNumber: text("block_number").notNull(),
+    blockTime: timestamp("block_time", { withTimezone: true }).notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("protocol_events_event_key_unique").on(table.eventKey),
+    index("protocol_events_launch_time_idx").on(table.launch, table.blockTime),
+  ],
 );

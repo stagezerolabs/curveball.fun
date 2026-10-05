@@ -32,7 +32,7 @@ function sortTokens(tokens: Token[], sort: Sort) {
   const list = [...tokens];
   if (sort === "oldest") return list.sort((a, b) => byNewest(b, a));
   if (sort === "cap")
-    return list.sort((a, b) => (b.marketCap ?? -1) - (a.marketCap ?? -1));
+    return list.sort((a, b) => (b.marketCapUsd ?? -1) - (a.marketCapUsd ?? -1));
   if (sort === "progress")
     return list.sort((a, b) => (b.progress ?? -1) - (a.progress ?? -1));
   if (sort === "volume")

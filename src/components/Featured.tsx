@@ -7,7 +7,8 @@ import {
   formatChange,
   formatCompact,
   formatCount,
-  formatEthAmount,
+  formatUsd,
+  formatUsdCompact,
 } from "../lib/format.js";
 import type { Navigate, Token } from "../types";
 
@@ -19,7 +20,7 @@ function byProgress(a: Token, b: Token) {
 }
 
 function byCap(a: Token, b: Token) {
-  return (b.marketCap ?? -1) - (a.marketCap ?? -1);
+  return (b.marketCapUsd ?? -1) - (a.marketCapUsd ?? -1);
 }
 
 function CrownIcon() {
@@ -95,10 +96,10 @@ function KingOfTheHill({
           <small>{token.name}</small>
         </span>
         <span className="king-value">
-          <strong>{formatCompact(token.marketCap)} ETH</strong>
+          <strong>{formatUsdCompact(token.marketCapUsd)}</strong>
           <Change value={token.change24h} suffix="24h" />
-          {token.peakMarketCap != null && (
-            <small>Peak {formatCompact(token.peakMarketCap)} ETH</small>
+          {token.peakMarketCapUsd != null && (
+            <small>Peak {formatUsdCompact(token.peakMarketCapUsd)}</small>
           )}
         </span>
       </span>
@@ -111,15 +112,11 @@ function KingOfTheHill({
       <span className="king-stats">
         <span>
           <small>Price</small>
-          <strong>{formatEthAmount(token.price)} ETH</strong>
+          <strong>{formatUsd(token.priceUsd)}</strong>
         </span>
         <span>
           <small>24h volume</small>
           <strong>{formatCompact(token.volume24h)} ETH</strong>
-        </span>
-        <span>
-          <small>Holders</small>
-          <strong>{formatCount(token.holders)}</strong>
         </span>
       </span>
     </AppLink>
@@ -152,7 +149,7 @@ function Contenders({
                 <TokenAvatar token={token} index={index} />
                 <span className="contender-symbol">{token.symbol}</span>
                 <span className="contender-value">
-                  <strong>{formatCompact(token.marketCap)} ETH</strong>
+                  <strong>{formatUsdCompact(token.marketCapUsd)}</strong>
                   <Change value={token.change24h} suffix="24h" />
                 </span>
                 <ArrowIcon />
@@ -188,14 +185,14 @@ function TopByMarketCap({
               <TokenAvatar token={token} index={index} />
               <span className="top-cap-id">
                 <strong>${token.symbol}</strong>
-                <small>{formatCompact(token.marketCap)} ETH</small>
+                <small>{formatUsdCompact(token.marketCapUsd)}</small>
               </span>
               <span className="top-cap-value">
                 <Change value={token.change24h} />
                 <small>
                   {token.liquidity != null
                     ? `${formatCompact(token.liquidity)} ETH liq`
-                    : `${formatCount(token.holders)} holders`}
+                    : "Curve live"}
                 </small>
               </span>
             </AppLink>

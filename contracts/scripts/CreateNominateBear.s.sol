@@ -21,7 +21,7 @@ contract CreateNominateBear {
             keccak256(bytes(vm.envString("CONFIRM_TOKEN"))) == keccak256("CREATE_NOMINATEBEAR_NBR"),
             "token confirmation missing"
         );
-        CurveballLaunchpad launchpad = CurveballLaunchpad(vm.envAddress("LAUNCHPAD_ADDRESS"));
+        CurveballLaunchpad launchpad = CurveballLaunchpad(payable(vm.envAddress("LAUNCHPAD_ADDRESS")));
         require(address(launchpad).code.length > 0, "missing launchpad code");
         require(
             address(launchpad.quote()) == RISE_WETH && address(launchpad.factory()) == ICARUS_POOL_FACTORY

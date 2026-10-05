@@ -4,13 +4,14 @@ import {
   changeTone,
   formatAddress,
   formatChange,
-  formatCompact,
-  formatEthAmount,
   formatRelativeTime,
+  formatUsd,
+  formatUsdCompact,
 } from "../lib/format.js";
 import type { Token } from "../types";
+import { activeExplorerUrl } from "../lib/web3";
 
-const EXPLORER = "https://explorer.risechain.com/address/";
+const EXPLORER = `${activeExplorerUrl}/address/`;
 
 function CopyButton({ value, label }: { value: string; label: string }) {
   const [copied, setCopied] = useState(false);
@@ -116,13 +117,13 @@ export function MarketHeader({ token }: { token: Token }) {
               className={`market-status ${token.graduated ? "graduated" : "live"}`}
             >
               <i aria-hidden="true" />
-              {token.graduated ? "Graduated" : "On the curve"}
+              {token.graduated ? "Graduated" : token.pending ? "Graduation pending" : "On the curve"}
             </span>
             <Socials token={token} />
           </div>
         </div>
         <div className="market-headline-value">
-          <strong>{formatCompact(token.marketCap)} ETH</strong>
+          <strong>{formatUsdCompact(token.marketCapUsd)}</strong>
           <span>
             <span className={`change ${changeTone(token.change24h)}`}>
               {formatChange(token.change24h)} <small>24h</small>
@@ -157,7 +158,17 @@ export function MarketHeader({ token }: { token: Token }) {
         </div>
         <div>
           <dt>Price</dt>
-          <dd>{formatEthAmount(token.price)} ETH</dd>
+          <dd>
+            {formatUsd(token.priceUsd)}
+            {token.usdStale && (
+              <small
+                className="usd-stale"
+                title="Using the last known ETH/USD rate"
+              >
+                stale rate
+              </small>
+            )}
+          </dd>
         </div>
       </dl>
     </header>

@@ -16,9 +16,12 @@ contract DeployMainnet {
     IMainnetDeployVm private constant vm = IMainnetDeployVm(address(uint160(uint256(keccak256("hevm cheat code")))));
 
     uint256 public constant RISE_CHAIN_ID = 4153;
-    address public constant INITIAL_TREASURY = 0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3;
     address public constant RISE_WETH = 0x4200000000000000000000000000000000000006;
     address public constant ICARUS_POOL_FACTORY = 0xEe10C6a0f158bFEeef3d48Dc0D26130Cf6115615;
+    address public constant ICARUS_POOL_IMPLEMENTATION = 0xA24Bdf8ee26658c822796a30770F23c2425de966;
+    bytes32 public constant FACTORY_CODE_HASH = 0x6c1342d984ac76dfe9ec5b20d4657e68390078c6747ccc0b6bbaafbe1379e628;
+    bytes32 public constant POOL_CODE_HASH = 0x86d3cb4be9f4f211f6df84b9cc262297750aaa84dcd26fa034e80010aad5055e;
+    bytes32 public constant WETH_CODE_HASH = 0xe354d52f6267708b1b69faf84795aaf6abfa01e623ca8f912023399888e58fdb;
     uint256 public constant TOKEN_SUPPLY = 1_000_000 ether;
     uint256 public constant CURVE_SUPPLY = 800_000 ether;
     uint256 public constant INITIAL_VIRTUAL_QUOTE = 10 ether;
@@ -30,9 +33,18 @@ contract DeployMainnet {
             keccak256(bytes(vm.envString("CONFIRM_MAINNET"))) == keccak256("DEPLOY_CURVEBALL_RISE_4153"),
             "mainnet confirmation missing"
         );
-        address treasury = vm.envAddress("TREASURY");
-        require(treasury == INITIAL_TREASURY, "treasury must be dot");
+        address treasury = vm.envAddress("MULTISIG");
+        require(treasury != address(0) && treasury.code.length > 0, "multisig required");
         require(RISE_WETH.code.length > 0 && ICARUS_POOL_FACTORY.code.length > 0, "missing dependency code");
+        require(ICARUS_POOL_FACTORY.codehash == FACTORY_CODE_HASH, "factory code changed");
+        require(ICARUS_POOL_IMPLEMENTATION.codehash == POOL_CODE_HASH, "pool code changed");
+        require(RISE_WETH.codehash == WETH_CODE_HASH, "WETH code changed");
+        require(
+            IMainnetFactoryState(ICARUS_POOL_FACTORY).implementation() == ICARUS_POOL_IMPLEMENTATION,
+            "implementation changed"
+        );
+        require(!IMainnetFactoryState(ICARUS_POOL_FACTORY).isPaused(), "factory paused");
+        require(IMainnetFactoryState(ICARUS_POOL_FACTORY).volatileFee() == 30, "volatile fee changed");
         require(
             IERC20Metadata(RISE_WETH).decimals() == 18
                 && keccak256(bytes(IERC20Metadata(RISE_WETH).symbol())) == keccak256("WETH")
@@ -48,4 +60,10 @@ contract DeployMainnet {
         locker.setLaunchpad(address(launchpad));
         vm.stopBroadcast();
     }
+}
+
+interface IMainnetFactoryState {
+    function implementation() external view returns (address);
+    function isPaused() external view returns (bool);
+    function volatileFee() external view returns (uint256);
 }

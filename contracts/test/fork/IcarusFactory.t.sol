@@ -4,11 +4,12 @@ pragma solidity ^0.8.24;
 import {ThrowawayERC20} from "../../contracts/test/ThrowawayERC20.sol";
 import {CurveballLaunchpad} from "../../contracts/CurveballLaunchpad.sol";
 import {LpLocker} from "../../contracts/LpLocker.sol";
-import {MemeToken} from "../../contracts/MemeToken.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {TestBase} from "../TestBase.sol";
-import {DeployMainnet} from "../../scripts/DeployMainnet.s.sol";
-import {CreateNominateBear} from "../../scripts/CreateNominateBear.s.sol";
+import {DeployTestnet} from "../../scripts/DeployTestnet.s.sol";
+import {CurveLaunchFactory} from "../../contracts/CurveLaunchFactory.sol";
+import {CurveV2Deployment} from "../../contracts/CurveV2Deployment.sol";
+import {CurveBondingCurve} from "../../contracts/CurveBondingCurve.sol";
 
 interface IIcarusFactoryFork {
     function createPool(address tokenA, address tokenB, bool stable) external returns (address);
@@ -29,19 +30,60 @@ interface IWETH {
 }
 
 contract IcarusFactoryForkTest is TestBase {
-    address private constant FACTORY = 0xEe10C6a0f158bFEeef3d48Dc0D26130Cf6115615;
+    address private constant FACTORY = 0x8221dfB70c9A2dE60253dcfC58231FD529bbF4F9;
     address private constant WETH = 0x4200000000000000000000000000000000000006;
     address private constant TRADER = address(0xA11CE);
     address private constant DOT = 0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3;
 
-    function testMainnetDeploymentScriptWiresVerifiedContracts() external {
-        string memory rpcUrl = vm.envOr("RISE_RPC_URL", "");
+    function testV2LaunchTradeGraduateSwapAndClaim() external {
+        string memory rpcUrl = vm.envOr("RISE_TESTNET_RPC_URL", "");
         if (bytes(rpcUrl).length == 0) return;
         vm.createSelectFork(rpcUrl);
-        vm.setEnv("CONFIRM_MAINNET", "DEPLOY_CURVEBALL_RISE_4153");
+        CurveLaunchFactory v2 = CurveV2Deployment.deploy(WETH, FACTORY, DOT, 1_000_000 ether, 800_000 ether, 10 ether);
+        v2.setInvited(address(this), true);
+        v2.setInvited(TRADER, true);
+        (address token, address curveAddress) = v2.createToken("V2 Fork", "V2F", "", 0);
+        CurveBondingCurve curve = CurveBondingCurve(curveAddress);
+        vm.deal(TRADER, 50 ether);
+        vm.prank(TRADER);
+        IWETH(WETH).deposit{value: 42 ether}();
+        vm.prank(TRADER);
+        IWETH(WETH).approve(curveAddress, 42 ether);
+        vm.prank(TRADER);
+        curve.buyTokens(42 ether, 800_000 ether, DEADLINE);
+        v2.graduate(token);
+        address pool = v2.createGraduatedPool(token);
+        assertTrue(curve.graduated() && IERC20(pool).balanceOf(address(v2.locker())) > 0, "V2 pool not locked");
+        uint256 out = IIcarusPoolFork(pool).getAmountOut(1 ether, WETH);
+        vm.prank(TRADER);
+        IWETH(WETH).transfer(pool, 1 ether);
+        vm.prank(TRADER);
+        if (IIcarusPoolFork(pool).token0() == WETH) IIcarusPoolFork(pool).swap(0, out, TRADER, "");
+        else IIcarusPoolFork(pool).swap(out, 0, TRADER, "");
+        v2.locker().claim(pool);
+        assertTrue(v2.escrow().claimable(token, WETH, address(this)) > 0, "V2 creator fees missing");
+        vm.warp(block.timestamp + 31 minutes);
+        vm.deal(TRADER, 2 ether);
+        vm.prank(TRADER);
+        IWETH(WETH).deposit{value: 1 ether}();
+        uint256 secondOut = IIcarusPoolFork(pool).getAmountOut(0.1 ether, WETH);
+        vm.prank(TRADER);
+        IWETH(WETH).transfer(pool, 0.1 ether);
+        vm.prank(TRADER);
+        if (IIcarusPoolFork(pool).token0() == WETH) IIcarusPoolFork(pool).swap(0, secondOut, TRADER, "");
+        else IIcarusPoolFork(pool).swap(secondOut, 0, TRADER, "");
+        uint256 swept = v2.vault().sweepPool(token, v2.vault().quoteBalance(token), 1, DEADLINE);
+        assertTrue(swept > 0 && v2.vault().memeBalance(token) >= swept, "pool sweep did not vest tokens");
+    }
+
+    function testTestnetDeploymentScriptWiresCanonicalContracts() external {
+        string memory rpcUrl = vm.envOr("RISE_TESTNET_RPC_URL", "");
+        if (bytes(rpcUrl).length == 0) return;
+        vm.createSelectFork(rpcUrl);
+        vm.setEnv("CONFIRM_TESTNET", "DEPLOY_CURVEBALL_RISE_TESTNET_11155931");
         vm.setEnv("TREASURY", vm.toString(DOT));
 
-        (LpLocker locker, CurveballLaunchpad launchpad) = new DeployMainnet().run();
+        (LpLocker locker, CurveballLaunchpad launchpad) = new DeployTestnet().run();
 
         assertEq(locker.treasury(), DOT, "wrong treasury");
         assertEq(locker.launchpad(), address(launchpad), "wrong launchpad binding");
@@ -53,30 +95,8 @@ contract IcarusFactoryForkTest is TestBase {
         assertEq(locker.creatorShareBps(), 5_000, "wrong fee split");
     }
 
-    function testNominateBearCreationScriptUsesProductionMetadata() external {
-        string memory rpcUrl = vm.envOr("RISE_RPC_URL", "");
-        if (bytes(rpcUrl).length == 0) return;
-        vm.createSelectFork(rpcUrl);
-        vm.setEnv("CONFIRM_MAINNET", "DEPLOY_CURVEBALL_RISE_4153");
-        vm.setEnv("TREASURY", vm.toString(DOT));
-        (, CurveballLaunchpad launchpad) = new DeployMainnet().run();
-        vm.setEnv("LAUNCHPAD_ADDRESS", vm.toString(address(launchpad)));
-        vm.setEnv("CONFIRM_TOKEN", "CREATE_NOMINATEBEAR_NBR");
-
-        address token = new CreateNominateBear().run();
-
-        assertTrue(token.code.length > 0, "token was not deployed");
-        assertTrue(keccak256(bytes(MemeToken(token).name())) == keccak256("NominateBear"), "wrong token name");
-        assertTrue(keccak256(bytes(MemeToken(token).symbol())) == keccak256("NBR"), "wrong token symbol");
-        assertTrue(
-            keccak256(bytes(MemeToken(token).metadataURI()))
-                == keccak256("https://curveball-fun.netlify.app/api/metadata/nominatebear"),
-            "wrong metadata URI"
-        );
-    }
-
     function testCreateVolatilePoolWithThrowawayTokens() external {
-        string memory rpcUrl = vm.envOr("RISE_RPC_URL", "");
+        string memory rpcUrl = vm.envOr("RISE_TESTNET_RPC_URL", "");
         if (bytes(rpcUrl).length == 0) return;
         vm.createSelectFork(rpcUrl);
         ThrowawayERC20 tokenA = new ThrowawayERC20("Throwaway A", "TA");
@@ -88,7 +108,7 @@ contract IcarusFactoryForkTest is TestBase {
     }
 
     function testLaunchpadGraduatesAndClaimsIcarusFees() external {
-        string memory rpcUrl = vm.envOr("RISE_RPC_URL", "");
+        string memory rpcUrl = vm.envOr("RISE_TESTNET_RPC_URL", "");
         if (bytes(rpcUrl).length == 0) return;
         vm.createSelectFork(rpcUrl);
 
@@ -96,6 +116,8 @@ contract IcarusFactoryForkTest is TestBase {
         CurveballLaunchpad launchpad =
             new CurveballLaunchpad(WETH, FACTORY, address(locker), 1_000_000 ether, 800_000 ether, 10 ether);
         locker.setLaunchpad(address(launchpad));
+        launchpad.setInvited(address(this), true);
+        launchpad.setInvited(TRADER, true);
         address token = launchpad.createToken("Fork Token", "FORK", "");
 
         vm.deal(TRADER, 50 ether);

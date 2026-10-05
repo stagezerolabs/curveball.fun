@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useFetch } from "../lib/useFetch";
-import { formatCompact, formatEthAmount } from "../lib/format.js";
+import { formatUsd, formatUsdCompact } from "../lib/format.js";
 import type { Candle, CandleRange, Token } from "../types";
 
 const RANGES: CandleRange[] = ["5min", "1h", "6h", "1D", "all"];
@@ -43,12 +43,16 @@ export function PriceChart({ token }: { token: Token }) {
 
   const scaled = useMemo(
     () =>
-      candles.map((candle) => ({
-        ...candle,
-        value:
-          metric === "cap" && supply ? candle.price * supply : candle.price,
-      })),
-    [candles, metric, supply],
+      token.ethUsd
+        ? candles.map((candle) => ({
+            ...candle,
+            value:
+              (metric === "cap" && supply
+                ? candle.price * supply
+                : candle.price) * token.ethUsd!,
+          }))
+        : [],
+    [candles, metric, supply, token.ethUsd],
   );
 
   const geometry = useMemo(() => {
@@ -68,11 +72,8 @@ export function PriceChart({ token }: { token: Token }) {
     return { path, low, high, last: values[values.length - 1] };
   }, [scaled]);
 
-  const unit = metric === "cap" ? " ETH" : " ETH";
   const label = (value: number) =>
-    metric === "cap"
-      ? `${formatCompact(value)}${unit}`
-      : `${formatEthAmount(value)}${unit}`;
+    metric === "cap" ? formatUsdCompact(value) : formatUsd(value);
 
   return (
     <section className="chart-card" aria-label="Price history">

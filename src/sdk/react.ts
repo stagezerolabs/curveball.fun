@@ -8,6 +8,10 @@ export function useTokenBalance(token?: Address, owner?: Address) {
     abi: erc20Abi,
     functionName: "balanceOf",
     args: owner ? [owner] : undefined,
-    query: { enabled: Boolean(token && owner) },
+    query: {
+      enabled: Boolean(token && owner),
+      refetchInterval: 5_000,
+      refetchOnWindowFocus: true,
+    },
   });
 }

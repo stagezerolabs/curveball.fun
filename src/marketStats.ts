@@ -1,5 +1,6 @@
-import { sql } from "drizzle-orm";
-import { db } from "./db";
+import { sql, type SQL } from "drizzle-orm";
+
+export type MarketReadDb = { execute(query: SQL): PromiseLike<unknown> };
 
 export type TokenStats = {
   volume24h: number | null;
@@ -27,10 +28,11 @@ const PRICED_TRADES = sql`
     trader,
     side,
     quote::numeric AS quote,
+    COALESCE(gross_curve_quote, quote)::numeric AS price_quote,
     amount::numeric AS amount,
     COALESCE(block_time, created_at) AS ts,
     CASE WHEN amount::numeric > 0
-         THEN quote::numeric / amount::numeric
+         THEN COALESCE(gross_curve_quote, quote)::numeric / amount::numeric
     END AS price
   FROM trades
   WHERE deleted_at IS NULL
@@ -41,7 +43,7 @@ const PRICED_TRADES = sql`
  * scalars, one for the hourly price series. Tokens with no trades are absent
  * from the map — callers leave those fields null rather than reporting zeros.
  */
-export async function marketStats(): Promise<Map<string, TokenStats>> {
+export async function marketStats(db: MarketReadDb): Promise<Map<string, TokenStats>> {
   const [aggregates, buckets] = await Promise.all([
     db.execute(sql`
       WITH priced AS (${PRICED_TRADES}),
@@ -99,7 +101,7 @@ export async function marketStats(): Promise<Map<string, TokenStats>> {
       SELECT
         token,
         date_trunc('hour', COALESCE(block_time, created_at)) AS bucket,
-        AVG(quote::numeric / amount::numeric) AS price
+        AVG(COALESCE(gross_curve_quote, quote)::numeric / amount::numeric) AS price
       FROM trades
       WHERE deleted_at IS NULL
         AND amount::numeric > 0
@@ -157,7 +159,7 @@ export function isCandleRange(value: string): value is CandleRange {
  * rather than the average — a price chart should show where the market actually
  * ended the interval, not a midpoint no trade happened at.
  */
-export async function candles(token: string, range: CandleRange) {
+export async function candles(db: MarketReadDb, token: string, range: CandleRange) {
   const { window, bucketSeconds } = RANGES[range];
   const since = window
     ? sql`AND COALESCE(block_time, created_at) >= now() - ${sql.raw(`interval '${window}'`)}`
@@ -169,7 +171,7 @@ export async function candles(token: string, range: CandleRange) {
         * ${bucketSeconds}
       ) AS t,
       (array_agg(
-        quote::numeric / amount::numeric
+        COALESCE(gross_curve_quote, quote)::numeric / amount::numeric
         ORDER BY COALESCE(block_time, created_at) DESC
       ))[1] AS price
     FROM trades
@@ -189,7 +191,7 @@ export async function candles(token: string, range: CandleRange) {
 // transfers never touch the launchpad, so a holder who received tokens off-curve
 // is invisible here. Index Transfer events into a balances table if this needs
 // to be exact.
-export async function holders(token: string, limit = 100) {
+export async function holders(db: MarketReadDb, token: string, limit = 100) {
   const rows = await db.execute(sql`
     WITH positions AS (
       SELECT
@@ -210,7 +212,7 @@ export async function holders(token: string, limit = 100) {
   );
 }
 
-export async function position(token: string, wallet: string) {
+export async function position(db: MarketReadDb, token: string, wallet: string) {
   const [row] = (await db.execute(sql`
     SELECT
       SUM(CASE WHEN side = 'buy' THEN amount::numeric ELSE -amount::numeric END) / ${WEI} AS balance,

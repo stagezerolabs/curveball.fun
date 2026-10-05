@@ -6,9 +6,10 @@ import {
   formatChange,
   formatCompact,
   formatCount,
-  formatEthAmount,
   formatPercent,
   formatRelativeTime,
+  formatUsd,
+  formatUsdCompact,
 } from "../lib/format.js";
 import type { Navigate, Token } from "../types";
 
@@ -64,11 +65,11 @@ export function TokenCard({
           <span className="tcard-figures">
             <span>
               <small>Market cap</small>
-              <strong>{formatCompact(token.marketCap)} ETH</strong>
+              <strong>{formatUsdCompact(token.marketCapUsd)}</strong>
             </span>
             <span className="tcard-figure-end">
               <small>Price</small>
-              <strong>{formatEthAmount(token.price)} ETH</strong>
+              <strong>{formatUsd(token.priceUsd)}</strong>
             </span>
           </span>
 
@@ -77,7 +78,6 @@ export function TokenCard({
               <i aria-hidden="true" />
               {token.graduated ? "Graduated" : "Curve live"}
             </span>
-            <span>{formatCount(token.holders)} holders</span>
             <span>Vol {formatCompact(token.volume24h)} ETH</span>
           </span>
         </span>

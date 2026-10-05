@@ -4,13 +4,16 @@ import { serveStatic } from "hono/bun";
 import { createPublicClient, http, parseAbiItem } from "viem";
 import { db } from "./db";
 import { tokens, trades } from "./db/schema";
+import { createCoinGeckoEthUsdSource, createEthUsdProvider } from "./ethUsd";
 import { readChainRuntime } from "./runtimeConfig";
+import { v2FactoryAbi } from "./sdk/v2Contracts";
+import { readV2Market, type V2MarketClient } from "./v2Market";
+import { validateV2Deployment, type V2DeploymentClient } from "./v2Deployment";
+import { addUsdValuation } from "./usdValuation";
 import {
   candles,
-  holders,
   isCandleRange,
   marketStats,
-  position,
   type TokenStats,
 } from "./marketStats";
 
@@ -18,6 +21,9 @@ const runtime = readChainRuntime(Bun.env);
 const launchpadAddress = runtime.launchpadAddress ?? undefined;
 const hasLaunchpad = Boolean(launchpadAddress);
 const launchpadAbi = [
+  parseAbiItem("function owner() view returns (address)"),
+  parseAbiItem("function publicLaunchOpen() view returns (bool)"),
+  parseAbiItem("function totalReservedQuote() view returns (uint256)"),
   parseAbiItem("function supply() view returns (uint256)"),
   parseAbiItem("function curveSupply() view returns (uint256)"),
   parseAbiItem("function quote() view returns (address)"),
@@ -30,6 +36,12 @@ const launchpadAbi = [
 const publicClient = hasLaunchpad
   ? createPublicClient({ transport: http(runtime.rpcUrl) })
   : null;
+const coinGecko = createCoinGeckoEthUsdSource({
+  apiKey: Bun.env.COINGECKO_API_KEY?.trim() || undefined,
+});
+const ethUsdProvider = createEthUsdProvider({
+  getEthUsd: coinGecko.getEthUsd,
+});
 
 async function assertChainDeployment() {
   if (!publicClient || !launchpadAddress) return;
@@ -44,6 +56,15 @@ async function assertChainDeployment() {
   }
   if (!bytecode || bytecode === "0x") {
     throw new Error("No launchpad bytecode exists at LAUNCHPAD_ADDRESS.");
+  }
+  if (runtime.contractVersion === "v2") {
+    await validateV2Deployment(publicClient as unknown as V2DeploymentClient, launchpadAddress);
+  }
+  if (runtime.expectedChainId === 4_153) {
+    const methods = runtime.contractVersion === "v2" ? ["owner", "publicLaunchOpen", "escrow"] as const : ["owner", "publicLaunchOpen", "totalReservedQuote"] as const;
+    await Promise.all(methods.map((functionName) =>
+      publicClient.readContract({ address: launchpadAddress, abi: runtime.contractVersion === "v2" ? v2FactoryAbi : launchpadAbi, functionName }),
+    ));
   }
 }
 
@@ -119,32 +140,57 @@ async function getCurveConstants() {
 
 // Launchpad-wide settings the UI needs once, not per token.
 let launchpadConfig: {
+  chainId: number;
+  launchpadAddress: string | null;
   quoteSymbol: string | null;
   quoteToken: string | null;
   targetPrice: number | null;
+  contractVersion: "v1" | "v2";
   creatorShareBps: number | null;
   treasury: string | null;
   locker: string | null;
+  escrow: string | null;
+  vault: string | null;
+  hook: string | null;
+  launchAndBuy: string | null;
+  feeBps: number | null;
+  buybackShareBps: number | null;
+  protocolShareBps: number | null;
+  creatorTaxCapBps: number | null;
 } | null = null;
 async function getLaunchpadConfig() {
   if (launchpadConfig) return launchpadConfig;
   const constants = await getCurveConstants().catch(() => null);
   const config = {
+    chainId: runtime.expectedChainId,
+    contractVersion: runtime.contractVersion,
+    launchpadAddress: launchpadAddress ?? null,
     quoteSymbol: await getQuoteSymbol(),
     quoteToken,
     targetPrice: constants?.targetPrice ?? null,
     creatorShareBps: null as number | null,
     treasury: null as string | null,
     locker: null as string | null,
+    escrow: null as string | null,
+    vault: null as string | null,
+    hook: null as string | null,
+    launchAndBuy: null as string | null,
+    feeBps: null as number | null,
+    buybackShareBps: null as number | null,
+    protocolShareBps: null as number | null,
+    creatorTaxCapBps: null as number | null,
   };
   if (publicClient) {
     try {
       const locker = await publicClient.readContract({
         address: launchpadAddress as `0x${string}`,
-        abi: launchpadAbi,
+        abi: runtime.contractVersion === "v2" ? v2FactoryAbi : launchpadAbi,
         functionName: "locker",
       });
-      const [creatorShareBps, treasury] = await Promise.all([
+      const [creatorShareBps, treasury] = runtime.contractVersion === "v2" ? await Promise.all([
+        publicClient.readContract({ address: launchpadAddress as `0x${string}`, abi: v2FactoryAbi, functionName: "creatorShareBps" }),
+        publicClient.readContract({ address: launchpadAddress as `0x${string}`, abi: v2FactoryAbi, functionName: "treasury" }),
+      ]) : await Promise.all([
         publicClient.readContract({
           address: locker,
           abi: lockerAbi,
@@ -158,7 +204,26 @@ async function getLaunchpadConfig() {
       ]);
       config.locker = locker;
       config.creatorShareBps = Number(creatorShareBps);
-      config.treasury = treasury;
+      config.treasury = String(treasury);
+      if (runtime.contractVersion === "v2") {
+        const [escrow, vault, hook, launchAndBuy, feeBps, buybackShareBps, creatorTaxCapBps] = await Promise.all([
+          publicClient.readContract({ address: launchpadAddress as `0x${string}`, abi: v2FactoryAbi, functionName: "escrow" }),
+          publicClient.readContract({ address: launchpadAddress as `0x${string}`, abi: v2FactoryAbi, functionName: "vault" }),
+          publicClient.readContract({ address: launchpadAddress as `0x${string}`, abi: v2FactoryAbi, functionName: "hook" }),
+          publicClient.readContract({ address: launchpadAddress as `0x${string}`, abi: v2FactoryAbi, functionName: "launchAndBuy" }),
+          publicClient.readContract({ address: launchpadAddress as `0x${string}`, abi: v2FactoryAbi, functionName: "feeBps" }),
+          publicClient.readContract({ address: launchpadAddress as `0x${string}`, abi: v2FactoryAbi, functionName: "buybackShareBps" }),
+          publicClient.readContract({ address: launchpadAddress as `0x${string}`, abi: v2FactoryAbi, functionName: "creatorTaxCapBps" }),
+        ]);
+        config.escrow = escrow;
+        config.vault = vault;
+        config.hook = hook;
+        config.launchAndBuy = launchAndBuy;
+        config.feeBps = Number(feeBps);
+        config.buybackShareBps = Number(buybackShareBps);
+        config.protocolShareBps = 10_000 - Number(creatorShareBps) - Number(buybackShareBps);
+        config.creatorTaxCapBps = Number(creatorTaxCapBps);
+      }
     } catch (error) {
       console.error("launchpad config", error);
       return config; // Not cached: a transient RPC failure should be retried.
@@ -182,8 +247,8 @@ async function enrichWithMarketData<
 >(rows: T[]) {
   if (rows.length === 0) return [];
 
-  const [stats, symbol, constants] = await Promise.all([
-    marketStats().catch((error) => {
+  const [stats, symbol, constants, ethUsdRate] = await Promise.all([
+    marketStats(db).catch((error) => {
       console.error("market stats", error);
       return new Map<string, TokenStats>();
     }),
@@ -192,14 +257,19 @@ async function enrichWithMarketData<
       console.error("curve constants", error);
       return null;
     }),
+    ethUsdProvider.getRate().catch((error) => {
+      console.error("ETH/USD rate", error);
+      return null;
+    }),
   ]);
 
   const supplyHuman = constants ? Number(constants.supply) / 1e18 : null;
   const onChain =
     publicClient && constants
       ? await Promise.allSettled(
-          rows.map((row) =>
-            publicClient.readContract({
+          rows.map((row) => runtime.contractVersion === "v2"
+            ? readV2Market(publicClient as unknown as V2MarketClient, launchpadAddress as `0x${string}`, row.address as `0x${string}`)
+            : publicClient.readContract({
               address: launchpadAddress as `0x${string}`,
               abi: launchpadAbi,
               functionName: "markets",
@@ -217,7 +287,7 @@ async function enrichWithMarketData<
       quoteSymbol: symbol,
       liquidity: quoteLiquidity == null ? null : Number(quoteLiquidity) / 1e18,
       volume24h: stat?.volume24h ?? null,
-      holders: stat?.holders ?? null,
+      holders: null,
       change24h: stat?.change24h ?? null,
       priceHistory: stat?.priceHistory ?? null,
       peakMarketCap:
@@ -231,25 +301,31 @@ async function enrichWithMarketData<
 
     const result = onChain[index];
     if (!result || result.status !== "fulfilled" || supplyHuman === null)
-      return merged;
+      return addUsdValuation(merged, ethUsdRate);
 
-    const [, vt, vq, , sold, onChainGraduated] = result.value;
+    const state = result.value;
+    const v2 = runtime.contractVersion === "v2" ? state as Awaited<ReturnType<typeof readV2Market>> : null;
+    const [vt, vq, sold, onChainGraduated, pending] = v2
+      ? [v2.virtualToken, v2.virtualQuote, v2.sold, v2.graduated, v2.ready]
+      : [(state as readonly unknown[])[1] as bigint, (state as readonly unknown[])[2] as bigint, (state as readonly unknown[])[4] as bigint, (state as readonly unknown[])[5] as boolean, (state as readonly unknown[])[6] as boolean];
     const soldNum = Number(sold);
     // Spot price is vq / vt, the marginal price the next trade pays. The old
     // realQ / sold was an average cost basis, which lags the market and is
     // undefined before the first trade.
     const price =
       !onChainGraduated && Number(vt) > 0 ? Number(vq) / Number(vt) : null;
-    return {
+    return addUsdValuation({
       ...merged,
       graduated: merged.graduated || onChainGraduated,
+      pending,
+      ...(v2 ? { curve: v2.curve, feeBps: v2.feeBps, creatorTaxBps: v2.creatorTaxBps, creatorShareBps: v2.creatorShareBps, buybackShareBps: v2.buybackShareBps, pool: v2.pool ?? (merged as { pool?: string | null }).pool } : {}),
       price,
       marketCap: price === null ? null : price * supplyHuman,
       progress:
         constants && constants.curveSupply > 0n
           ? Math.min(100, (soldNum / Number(constants.curveSupply)) * 100)
           : 0,
-    };
+    }, ethUsdRate);
   });
 }
 
@@ -257,7 +333,7 @@ const api = new Hono();
 
 api.get("/health", async (c) => {
   await Promise.all([db.execute(sql`SELECT 1`), assertChainDeployment()]);
-  return c.json({ ok: true, chainId: runtime.expectedChainId });
+  return c.json({ ok: true, chainId: runtime.expectedChainId, contractVersion: runtime.contractVersion, launchpadAddress: launchpadAddress ?? null });
 });
 
 api.get("/metadata/nominatebear", (c) => {
@@ -288,7 +364,7 @@ api.get("/tokens", async (c) => {
       createdAt: tokens.createdAt,
     })
     .from(tokens)
-    .where(isNull(tokens.deletedAt))
+    .where(and(isNull(tokens.deletedAt), runtime.contractVersion === "v2" ? eq(tokens.deployment, launchpadAddress!) : isNull(tokens.deployment)))
     .orderBy(desc(tokens.graduated));
   return c.json(await enrichWithMarketData(rows));
 });
@@ -298,18 +374,11 @@ api.get("/tokens/:address/candles", async (c) => {
   const range = c.req.query("range") || "1D";
   if (!isCandleRange(range))
     return c.json({ error: "unknown range" }, 400);
-  return c.json(await candles(c.req.param("address"), range));
+  return c.json(await candles(db, c.req.param("address"), range));
 });
 
-api.get("/tokens/:address/holders", async (c) =>
-  c.json(await holders(c.req.param("address"))),
-);
-
-api.get("/tokens/:address/position/:wallet", async (c) =>
-  c.json(
-    await position(c.req.param("address"), c.req.param("wallet")),
-  ),
-);
+api.get("/tokens/:address/holders", (c) => c.json({ error: "Wallet holdings are not indexed yet." }, 501));
+api.get("/tokens/:address/position/:wallet", (c) => c.json({ error: "Wallet holdings are not indexed yet." }, 501));
 
 const PAGE_SIZE = 30;
 const MAX_PAGE_SIZE = 100;

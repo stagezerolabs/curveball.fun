@@ -4,6 +4,8 @@ import { and, eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 
 const databaseUrl = Bun.env.TEST_DATABASE_URL;
+const TEST_TOKEN = "0x000000000000000000000000000000000000c0de";
+const TEST_CURSOR = "last_block:31337:0x0000000000000000000000000000000000000001";
 
 test.skipIf(!databaseUrl)(
   "the schema and concurrent indexer work with Postgres",
@@ -24,7 +26,7 @@ test.skipIf(!databaseUrl)(
       await db
         .insert(tokens)
         .values({
-          address: "0x000000000000000000000000000000000000c0de",
+          address: TEST_TOKEN,
           name: "Curveball",
           symbol: "CURVE",
           creator: "test",
@@ -35,7 +37,7 @@ test.skipIf(!databaseUrl)(
         .select()
         .from(tokens)
         .where(
-          eq(tokens.address, "0x000000000000000000000000000000000000c0de"),
+          eq(tokens.address, TEST_TOKEN),
         );
 
       expect(token?.symbol).toBe("CURVE");
@@ -48,7 +50,7 @@ test.skipIf(!databaseUrl)(
           updatedAt: indexerState.updatedAt,
         })
         .from(indexerState)
-        .where(eq(indexerState.key, "last_block"));
+        .where(eq(indexerState.key, TEST_CURSOR));
       const start = BigInt(state?.value || "0");
       const rpc = Bun.serve({
         port: 0,
@@ -68,18 +70,20 @@ test.skipIf(!databaseUrl)(
       });
       Bun.env.LAUNCHPAD_ADDRESS = "0x0000000000000000000000000000000000000001";
       Bun.env.RPC_URL = rpc.url.toString();
+      Bun.env.EXPECTED_CHAIN_ID = "31337";
+      Bun.env.INDEXER_START_BLOCK = "0";
       try {
         const { indexToHead } = await import("../indexer");
         await Promise.all([indexToHead(), indexToHead()]);
         const [next] = await db
           .select({ value: indexerState.value })
           .from(indexerState)
-          .where(eq(indexerState.key, "last_block"));
+          .where(eq(indexerState.key, TEST_CURSOR));
         expect(next.value).toBe((start + 1n).toString());
       } finally {
         rpc.stop(true);
         const whereTestCursor = and(
-          eq(indexerState.key, "last_block"),
+          eq(indexerState.key, TEST_CURSOR),
           eq(indexerState.value, (start + 1n).toString()),
         );
         if (state) {
@@ -92,7 +96,9 @@ test.skipIf(!databaseUrl)(
         }
       }
     } finally {
+      await db.delete(tokens).where(eq(tokens.address, TEST_TOKEN));
       await closeDatabase();
     }
   },
+  30_000,
 );

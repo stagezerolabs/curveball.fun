@@ -1,13 +1,20 @@
 # curveball.fun
 
+The replacement mainnet launch is being prepared locally. See [local-first mainnet preparation](docs/local-first-mainnet.md). The existing public app remains on RISE Testnet; the archived mainnet receipt is not the new deployment.
+
 Curveball is a token-launch application for RISE. Anyone can create a fixed-supply ERC-20, trade it through a constant-product bonding curve, and graduate it into a volatile Icarus pool once the curve sells out. The accompanying web app lists markets, lets connected wallets create and trade tokens, and shows indexed trade history.
 
-Curveball is deployed on RISE mainnet with a typed browser SDK and no production mock-data path. Its automated contract, fork, property, SDK, runtime, and build gates pass. It has not received an independent third-party audit; read [`docs/security/mainnet-security-review.md`](docs/security/mainnet-security-review.md) before handling real value.
+The hosted API and site still use V1 on RISE Testnet. The app code and local V2 profile target the deployed, source-verified V2 contracts; the hosted Koyeb/Netlify cutover is pending. The dependency, fork, runtime, and build gates pass. It has not received an independent third-party audit.
 
-- Launchpad: [`0x1A34768eAb2F6b925D25ca1d6daC03C1a25Ad39E`](https://explorer.risechain.com/address/0x1a34768eab2f6b925d25ca1d6dac03c1a25ad39e)
-- LP locker: [`0xFC301f5349EB1ee9F12E8d6d446Ce5e526984782`](https://explorer.risechain.com/address/0xfc301f5349eb1ee9f12e8d6d446ce5e526984782)
-- Deployment block: `22216399`
-- Production API: [`curveball-kamicash-7a463851.koyeb.app`](https://curveball-kamicash-7a463851.koyeb.app/api/health)
+- Network: RISE Testnet (`11155931`)
+- Hosted V1 launchpad: [`0x1A34768eAb2F6b925D25ca1d6daC03C1a25Ad39E`](https://explorer.testnet.riselabs.xyz/address/0x1a34768eab2f6b925d25ca1d6dac03c1a25ad39e)
+- Hosted V1 LP locker: [`0xFC301f5349EB1ee9F12E8d6d446Ce5e526984782`](https://explorer.testnet.riselabs.xyz/address/0xfc301f5349eb1ee9f12e8d6d446ce5e526984782)
+- Hosted V1 deployment block: `55002177`
+- App code/local V2 factory: [`0x36628AbAC7B2cdcde1A8fa21868AfeCB74660ECf`](https://explorer.testnet.riselabs.xyz/address/0x36628abac7b2cdcde1a8fa21868afecb74660ecf)
+- V2 deployment block: `55636468` ([deployment record](deployments/11155931/curveball-v2.json))
+- Testnet API: [`curveball-kamicash-7a463851.koyeb.app`](https://curveball-kamicash-7a463851.koyeb.app/api/health)
+- Testnet UI: [`curveball-fun.netlify.app`](https://curveball-fun.netlify.app)
+- Migration runbook: [`docs/rise-testnet.md`](docs/rise-testnet.md)
 
 ## What is here
 
@@ -41,7 +48,7 @@ contracts/                 Solidity launchpad, locker, token, tests, and scripts
 src/                       React client, Hono server, Drizzle schema, and indexer
   sdk/                     Sole browser-side contract integration layer
 drizzle/                   Generated Postgres migrations
-docs/                      Mainnet spec, Koyeb runbook, and security evidence
+docs/                      Testnet runbook, historical mainnet spec, and security evidence
 compose.yaml               App, indexer, and Postgres local stack
 ```
 
@@ -49,15 +56,19 @@ compose.yaml               App, indexer, and Postgres local stack
 
 ### Application
 
-Install Bun dependencies, create a local environment file, and start the API and Vite client in separate processes:
+The app runs against the V2 RISE Testnet contracts from a local Postgres. Create the local V2 environment file and use the guarded Make targets (each one checks the chain, factory, and local database target before starting):
 
 ```sh
 bun install
-cp .env.example .env
-# Set DATABASE_URL. Local development may omit LAUNCHPAD_ADDRESS; production fails closed.
-bun run dev:api
-bun run dev:web
+docker compose -f compose.yaml -f compose.dev.yaml up -d postgres
+cp .env.example .env.v2.local
+make migrate-v2-local
+make dev-v2-api
+make dev-v2-indexer
+make dev-v2-web
 ```
+
+See [`docs/runbooks/local-v2-testnet.md`](docs/runbooks/local-v2-testnet.md) for the full walk-through, including port conflicts and V2 indexer finality behavior. The root `.env` file is shared with the contract commands and holds verification and guarded deployment inputs.
 
 For a containerized stack:
 
@@ -124,36 +135,35 @@ The browser wallet must also be connected to the local Anvil chain. The local de
 
 The indexer owns all market data returned by the API. Creator-editable off-chain metadata is intentionally disabled until it has wallet-signature ownership verification.
 
-## RISE mainnet release gate
+Connected creators can open `/profile` from the wallet button to see every token they deployed. This dashboard reads launch events directly from RISE Testnet beginning at the build's `VITE_DEPLOYMENT_BLOCK` (`55636468` in the local V2 profile); when unset on testnet, the client uses the V1 deployment block. Creator discovery does not depend on the hosted indexer being awake.
 
-The verification script reads the official Icarus factory and implementation, fetches their Blockscout-verified sources, checks the required ABI surface, validates RISE WETH, runs the fork lifecycle, and produces a source diff against Aerodrome reference contracts. It only performs reads and writes evidence files; it never sends a transaction or stores the RPC URL.
+## V1 RISE Testnet release gate
+
+The testnet verification script pins the Icarus factory and implementation bytecode, checks the required ABI/state surface, validates RISE WETH, and runs the complete Curveball lifecycle on a fresh fork. The Icarus testnet contracts are not source-verified on Blockscout or Sourcify, so this is an explicitly accepted testnet risk. The gate only performs reads and writes evidence files; it never sends a transaction or stores the RPC URL.
 
 ```sh
-# Set an HTTPS RISE_RPC_URL in .env, review the archived diff, then acknowledge it.
-HUMAN_REVIEW_ACK=ICARUS_DIFF_REVIEWED_2026_09_19 make -C contracts verify-icarus
+RISE_TESTNET_RPC_URL=https://testnet.riselabs.xyz make -C contracts verify-icarus-testnet
 ```
 
-Evidence is written to `deployments/4153/icarus-verification.json` with verified sources and `icarus-vs-aerodrome.diff` beside it. The factory is `0xEe10C6a0f158bFEeef3d48Dc0D26130Cf6115615`, its verified implementation is `0xA24Bdf8ee26658c822796a30770F23c2425de966`, and the only supported quote asset is verified RISE WETH `0x4200000000000000000000000000000000000006`.
+Evidence is written to [`deployments/11155931/icarus-verification.json`](deployments/11155931/icarus-verification.json). The factory is `0x8221dfB70c9A2dE60253dcfC58231FD529bbF4F9`, its implementation is `0x74309f2134DA3E920094A5B0d5DF5d5Dcd1942b1`, and the only supported quote asset is RISE Testnet WETH `0x4200000000000000000000000000000000000006`.
 
 ```sh
 cd contracts
 forge test --match-path 'test/fork/*'
 ```
 
-The canonical deployment is recorded in [`deployments/4153/curveball.json`](deployments/4153/curveball.json). First-token creation remains interactive because Foundry must unlock the encrypted `dot` keystore locally:
+The hosted V1 deployment is recorded in [`deployments/11155931/curveball.json`](deployments/11155931/curveball.json). Deployment remains interactive because Foundry must unlock the encrypted `dot` keystore locally. Follow [`docs/rise-testnet.md`](docs/rise-testnet.md); never place the keystore password on the command line.
 
-```sh
-CONFIRM_TOKEN=CREATE_NOMINATEBEAR_NBR LAUNCHPAD_ADDRESS=0x1A34768eAb2F6b925D25ca1d6daC03C1a25Ad39E make -C contracts create-nominatebear
-```
+The testnet launchpad and the archived mainnet launchpad share the same hexadecimal address because the same deployer nonce produced both. Always validate chain ID `11155931`; an address alone does not identify the deployment.
 
-Never place the keystore password on the command line. Follow [`docs/koyeb-production.md`](docs/koyeb-production.md), verify the metadata endpoint is live, and only then create NominateBear.
+The release is not complete until the API health check reports testnet chain `11155931`, one always-on indexer is running from the deployment block, Netlify has the testnet launchpad address, and the documented `CBT` buy/sell smoke test succeeds.
 
 ## Security notes
 
 - `LpLocker` validates that a pool was registered by the launchpad, derives payout tokens from that pool, and distributes only the balance delta received from `claimFees()`. Regression tests cover the historical cross-pool theft path. The current treasury can hand its role to a non-zero multisig without an upgrade or redeployment.
 - The launchpad uses `SafeERC20`, `ReentrancyGuard`, checked packed-state casts, deterministic per-creator token salts, deadlines, and slippage limits. Its quote token must be verified RISE WETH; fee-on-transfer and rebasing assets are unsupported.
-- The current review, residual risks, static-analysis triage, and evidence map are in [`docs/security/mainnet-security-review.md`](docs/security/mainnet-security-review.md).
+- The archived mainnet review, residual risks, static-analysis triage, and evidence map remain in [`docs/security/mainnet-security-review.md`](docs/security/mainnet-security-review.md); they do not constitute an independent audit of the new testnet deployment.
 
 ## Environment
 
-Root [`.env.example`](.env.example) defines application, database, frontend, verification, and guarded deployment inputs. Copy it once to `.env`; contract commands load that shared file. Addresses are deliberately absent from the template.
+[`.env.example`](.env.example) is the local V2 profile template; copy it to `.env.v2.local` for the Make targets above. The root `.env` (not committed) is shared with contract commands and holds verification and guarded deployment inputs; addresses used by the deployed V2 profile are recorded in [`deployments/11155931/curveball-v2.json`](deployments/11155931/curveball-v2.json).

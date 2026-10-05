@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { formatEther, parseEther } from "viem";
-import { apiUrl, requireCurveballSdk } from "../lib/web3";
+import { activeChainId, activeContractVersion, apiUrl, launchpadAddress, requireCurveballSdk } from "../lib/web3";
 
 export const useStore = create((set, get) => ({
   tokens: [],
@@ -18,20 +18,38 @@ export const useStore = create((set, get) => ({
   setAmount: (amount) => set({ amount, quotePreview: null }),
   setSide: (side) => set({ side, quotePreview: null }),
   setActionError: (actionError) => set({ actionError }),
+  mergeTokens: (discovered) =>
+    set((state) => {
+      const merged = new Map(
+        discovered.map((token) => [token.address.toLowerCase(), token]),
+      );
+      for (const token of state.tokens) {
+        merged.set(token.address.toLowerCase(), token);
+      }
+      return { tokens: [...merged.values()], marketError: "" };
+    }),
 
   fetchTokens: async () => {
     set({ loading: true, marketError: "" });
     try {
+      const healthResponse = await fetch(`${apiUrl}/health`);
+      if (!healthResponse.ok) throw new Error("API health failure");
+      const health = await healthResponse.json();
+      if (health.chainId !== activeChainId || health.contractVersion !== activeContractVersion || health.launchpadAddress?.toLowerCase() !== launchpadAddress?.toLowerCase()) {
+        throw new Error("API deployment does not match the wallet network");
+      }
       const response = await fetch(`${apiUrl}/tokens`);
       if (!response.ok) throw new Error("API failure");
       const tokens = await response.json();
       set({ tokens, loading: false });
+      return true;
     } catch (error) {
       set({
         marketError:
           "Markets are taking a breather. Check the API and try again.",
         loading: false,
       });
+      return false;
     }
   },
 
@@ -59,23 +77,30 @@ export const useStore = create((set, get) => ({
 
   createToken: async (event) => {
     event.preventDefault();
+    const submittedForm = event.currentTarget;
     const { startAction, endAction, handleActionError } = get();
     startAction();
 
     try {
-      const form = new FormData(event.currentTarget);
-      const result = await requireCurveballSdk().createToken({
+      const form = new FormData(submittedForm);
+      const input = {
         name: String(form.get("name") ?? ""),
         symbol: String(form.get("symbol") ?? ""),
         uri: String(form.get("uri") ?? ""),
-      });
+        creatorTaxBps: Number(form.get("creatorTaxBps") ?? 0),
+      };
+      const initialBuy = String(form.get("initialBuy") ?? "").trim();
+      const sdk = requireCurveballSdk();
+      const result = activeContractVersion === "v2" && initialBuy && Number(initialBuy) > 0 && "launchAndBuy" in sdk
+        ? await sdk.launchAndBuy(input, parseEther(initialBuy))
+        : await sdk.createToken(input);
 
       set({
         tradeMessage: `Token created at ${result.token}.`,
-        lastCreatedToken: result.token,
       });
-      event.currentTarget.reset();
+      submittedForm.reset();
       await get().fetchTokens();
+      set({ lastCreatedToken: result.token });
     } catch (error) {
       handleActionError(error);
     } finally {
@@ -123,7 +148,44 @@ export const useStore = create((set, get) => ({
       if (!locker || !pool) throw Error("This market has no pool yet.");
       set({ tradeMessage: "Claiming pool fees…" });
       await requireCurveballSdk().claimPoolFees(locker, pool);
-      set({ tradeMessage: "Pool fees sent to the creator and treasury." });
+      set({ tradeMessage: activeContractVersion === "v2" ? "Pool fees credited to creator, treasury, and buyback vault." : "Pool fees sent to the creator and treasury." });
+    } catch (error) {
+      handleActionError(error);
+    } finally {
+      endAction();
+    }
+  },
+
+  claimEscrow: async (token, asset, recipient) => {
+    const { startAction, endAction, handleActionError } = get();
+    startAction();
+    try {
+      const sdk = requireCurveballSdk();
+      if (!("claimEscrow" in sdk)) throw Error("V2 fee escrow is unavailable.");
+      await sdk.claimEscrow(token, asset, recipient);
+      set({ tradeMessage: "Accrued fees sent to the registered recipient." });
+    } catch (error) { handleActionError(error); }
+    finally { endAction(); }
+  },
+
+  advanceGraduation: async (token) => {
+    const { startAction, endAction, handleActionError } = get();
+    startAction();
+    try {
+      if (activeContractVersion !== "v2") throw Error("This market uses the previous graduation flow.");
+      const sdk = requireCurveballSdk();
+      if (!sdk || !("graduateToIcarus" in sdk)) throw Error("V2 factory is unavailable.");
+      const result = await sdk.graduateToIcarus(token.address);
+      const poolSuffix = result.pool ? ` — Icarus pool ${result.pool}` : ".";
+      const tradeMessage = result.status === "deferred"
+        ? result.deferredReason
+          ? `Graduation deferred: ${result.deferredReason}. Trading remains open; try again later.`
+          : "Graduation deferred. Trading remains open; try again later."
+        : result.already
+          ? `This market already graduated${poolSuffix}`
+          : `Graduated to Icarus${poolSuffix}`;
+      set({ tradeMessage });
+      await get().fetchTokens();
     } catch (error) {
       handleActionError(error);
     } finally {

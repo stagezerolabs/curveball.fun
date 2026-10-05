@@ -7,8 +7,10 @@ broadcast
 typechain-types
 *.sqlite
 .env
+.env.v2.local
 coverage
 contracts/echidna-corpus/
+contracts/echidna-v2-corpus/
 .trash/
 contracts/crytic-export/
 
@@ -18,3 +20,6 @@ contracts/crytic-export/
 
 .worktrees/
 .neon
+.vercel
+# Local backup of verified deployment artifacts; canonical copies live in deployments/
+deployments.local-backup/

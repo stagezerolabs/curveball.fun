@@ -1,0 +1,13 @@
+testMode: property
+testLimit: 20000
+seqLen: 100
+coverage: true
+corpusDir: echidna-v2-corpus
+filterBlacklist: false
+filterFunctions:
+  - "V2Properties.buy(uint96)"
+  - "V2Properties.sell(uint96)"
+  - "V2Properties.prepare()"
+  - "V2Properties.finish()"
+  - "V2Properties.donateAndRescue(uint96)"
+  - "V2Properties.attemptCreatorAuthority()"
