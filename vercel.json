@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "VITE_CHAIN_ID=11155931 VITE_RPC_URL=https://testnet.riselabs.xyz VITE_CONTRACT_VERSION=v2 VITE_LAUNCHPAD_ADDRESS=0x36628AbAC7B2cdcde1A8fa21868AfeCB74660ECf VITE_DEPLOYMENT_BLOCK=55636468 bun run build",
   "rewrites": [
     {
       "source": "/api/:path*",
