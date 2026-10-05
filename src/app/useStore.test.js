@@ -122,6 +122,20 @@ describe("token creation form lifecycle", () => {
     globalThis.fetch = mock(async () => new Response("unavailable", { status: 503 }));
     expect(await useStore.getState().fetchTokens()).toBe(false);
   });
+
+  test("keeps discovered markets and asks for chain discovery when the indexer is empty", async () => {
+    const discovered = { address: "0x2222222222222222222222222222222222222222", name: "Chain market" };
+    useStore.setState({ tokens: [discovered] });
+    globalThis.fetch = mock(async (url) => new Response(JSON.stringify(url.endsWith("/health") ? {
+      chainId: 11155931,
+      contractVersion: "v1",
+      launchpadAddress: "0x1111111111111111111111111111111111111111",
+    } : []), { status: 200 }));
+
+    expect(await useStore.getState().fetchTokens()).toBe(false);
+    expect(useStore.getState().tokens).toEqual([discovered]);
+    expect(useStore.getState().marketError).toBe("");
+  });
 });
 
 afterAll(() => {

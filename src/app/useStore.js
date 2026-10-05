@@ -41,8 +41,8 @@ export const useStore = create((set, get) => ({
       const response = await fetch(`${apiUrl}/tokens`);
       if (!response.ok) throw new Error("API failure");
       const tokens = await response.json();
-      set({ tokens, loading: false });
-      return true;
+      set((state) => ({ tokens: tokens.length ? tokens : state.tokens, loading: false }));
+      return tokens.length > 0;
     } catch (error) {
       set({
         marketError:
