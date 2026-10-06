@@ -26,7 +26,7 @@ The form stays centered and uses one column at every width. Required fields have
 
 ## Transaction dialog
 
-The dialog opens on a valid submit. It shows the current real stage: preparing, optional WETH wrap, optional WETH approval, wallet confirmation, transaction submitted with explorer link, on-chain confirmation, and market discovery. The user can close a failure and retry without losing form entries. After confirmation, Markets opens automatically with the new token highlighted, even if the indexer is catching up.
+The dialog opens on a valid submit. It shows the current real stage: preparing, optional WETH wrap, optional WETH approval, wallet confirmation, transaction submitted with explorer link, on-chain confirmation, and RPC discovery. The user can close a failure and retry without losing form entries. After confirmation, Markets opens automatically with the new token highlighted.
 
 ## Market and trade page
 

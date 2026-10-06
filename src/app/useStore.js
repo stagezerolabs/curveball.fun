@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { formatEther, parseEther } from "viem";
-import { activeChainId, activeContractVersion, apiUrl, launchpadAddress, requireCurveballSdk } from "../lib/web3";
+import { activeContractVersion, requireCurveballSdk } from "../lib/web3";
+import { readableError } from "../lib/errors";
 
 export const useStore = create((set, get) => ({
   tokens: [],
@@ -26,38 +27,10 @@ export const useStore = create((set, get) => ({
         discovered.map((token) => [token.address.toLowerCase(), token]),
       );
       for (const token of state.tokens) {
-        if (!merged.has(token.address.toLowerCase()) || !token.indexing) merged.set(token.address.toLowerCase(), token);
+        if (!merged.has(token.address.toLowerCase())) merged.set(token.address.toLowerCase(), token);
       }
       return { tokens: [...merged.values()], marketError: "" };
     }),
-
-  fetchTokens: async () => {
-    set({ loading: true, marketError: "" });
-    try {
-      const healthResponse = await fetch(`${apiUrl}/health`);
-      if (!healthResponse.ok) throw new Error("API health failure");
-      const health = await healthResponse.json();
-      if (health.chainId !== activeChainId || health.contractVersion !== activeContractVersion || health.launchpadAddress?.toLowerCase() !== launchpadAddress?.toLowerCase()) {
-        throw new Error("API deployment does not match the wallet network");
-      }
-      const response = await fetch(`${apiUrl}/tokens`);
-      if (!response.ok) throw new Error("API failure");
-      const tokens = await response.json();
-      set((state) => {
-        const created = state.lastCreatedToken && state.tokens.find((token) => token.address.toLowerCase() === state.lastCreatedToken.toLowerCase());
-        const includesCreated = created && tokens.some((token) => token.address.toLowerCase() === created.address.toLowerCase());
-        return { tokens: tokens.length ? [...tokens, ...(created && !includesCreated ? [created] : [])] : state.tokens, loading: false };
-      });
-      return tokens.length > 0;
-    } catch (error) {
-      set({
-        marketError:
-          "Markets are taking a breather. Check the API and try again.",
-        loading: false,
-      });
-      return false;
-    }
-  },
 
   fetchQuote: async (token) => {
     const { amount, side } = get();
@@ -106,7 +79,6 @@ export const useStore = create((set, get) => ({
       set({
         tradeMessage: `Token created at ${result.token}.`,
         lastCreatedToken: result.token,
-        launchProgress: { phase: "indexing", hash: result.hash ?? null, error: "" },
       });
       set((state) => ({ tokens: [
         { address: result.token, name: input.name.trim(), symbol: input.symbol.trim(), creator: result.creator, graduated: false, createdAt: new Date().toISOString(), indexing: true },
@@ -114,10 +86,9 @@ export const useStore = create((set, get) => ({
       ] }));
       submittedForm.reset();
       set({ launchProgress: { phase: "success", hash: result.hash ?? null, error: "" } });
-      void get().fetchTokens();
     } catch (error) {
       handleActionError(error);
-      set((state) => ({ launchProgress: { phase: "error", hash: state.launchProgress?.hash ?? null, error: error.message || "Transaction failed" } }));
+      set((state) => ({ launchProgress: { phase: "error", hash: state.launchProgress?.hash ?? null, error: readableError(error, "Token launch failed. Please try again.") } }));
     } finally {
       endAction();
     }
@@ -146,7 +117,6 @@ export const useStore = create((set, get) => ({
         tradeMessage: `${side === "buy" ? "Bought" : "Sold"} ~${received}.`,
         quotePreview: null,
       });
-      await get().fetchTokens();
     } catch (error) {
       handleActionError(error);
     } finally {
@@ -200,7 +170,6 @@ export const useStore = create((set, get) => ({
           ? `This market already graduated${poolSuffix}`
           : `Graduated to Icarus${poolSuffix}`;
       set({ tradeMessage });
-      await get().fetchTokens();
     } catch (error) {
       handleActionError(error);
     } finally {
@@ -213,7 +182,7 @@ export const useStore = create((set, get) => ({
   endAction: () => set({ isPending: false }),
   handleActionError: (error) =>
     set({
-      actionError: error.message || "Transaction failed",
+      actionError: readableError(error, "Transaction failed. Please try again."),
       isPending: false,
       tradeMessage: "",
     }),

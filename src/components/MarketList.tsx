@@ -1,7 +1,7 @@
 import { AppLink } from "./Navigation";
 import { ArrowIcon } from "./ArrowIcon";
 import { TokenAvatar } from "./TokenAvatar";
-import { formatAddress, formatPercent, formatUsd, formatUsdCompact } from "../lib/format.js";
+import { formatAddress, formatEthAmount, formatPercent } from "../lib/format.js";
 import type { Navigate, Token } from "../types";
 
 export function MarketList({
@@ -35,6 +35,7 @@ export function MarketList({
       )}
       {tokens.map((token, index) => (
         <button
+          type="button"
           className={`market-row ${highlightedToken?.toLowerCase() === token.address.toLowerCase() ? "market-row-created" : ""}`}
           key={token.address}
           onClick={() => navigate("market", { address: token.address })}
@@ -60,8 +61,8 @@ export function MarketList({
             </span>
           ) : (
             <span className="market-cell">
-              <strong>{formatUsd(token.priceUsd)}</strong>
-              <small>{formatUsdCompact(token.marketCapUsd)} cap</small>
+              <strong>{token.price == null ? "—" : `${formatEthAmount(token.price)} WETH`}</strong>
+              <small>{token.marketCap == null ? "—" : `${formatEthAmount(token.marketCap)} WETH cap`}</small>
             </span>
           )}
           {!token.graduated && (

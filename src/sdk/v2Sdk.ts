@@ -68,15 +68,22 @@ export function createV2Sdk(config: Config, deployment: CurveballDeployment, act
     return { hash, receipt };
   }
 
-  async function waitForAllowance(asset: Address, owner: Address, spender: Address, minimum: bigint, blockNumber?: bigint) {
+  async function waitForAllowance(asset: Address, owner: Address, spender: Address, minimum: bigint) {
+    let lastReadError: unknown;
     for (let attempt = 0; attempt < 6; attempt++) {
-      const allowance = await actions.readContract(config, {
-        address: asset, abi: erc20Abi, functionName: "allowance", args: [owner, spender],
-        chainId: deployment.chainId, ...(blockNumber === undefined ? {} : { blockNumber }),
-      });
-      if (allowance >= minimum) return;
+      try {
+        const allowance = await actions.readContract(config, {
+          address: asset, abi: erc20Abi, functionName: "allowance", args: [owner, spender],
+          chainId: deployment.chainId,
+        });
+        if (allowance >= minimum) return;
+        lastReadError = undefined;
+      } catch (error) {
+        lastReadError = error;
+      }
       if (attempt < 5) await new Promise((resolve) => setTimeout(resolve, 200 * (attempt + 1)));
     }
+    if (lastReadError) throw lastReadError;
     throw new CurveballSdkError("Approval confirmed, but the token allowance is still unavailable. Check the approval in your wallet before retrying.");
   }
 
@@ -157,8 +164,8 @@ export function createV2Sdk(config: Config, deployment: CurveballDeployment, act
       onProgress?.("approveWallet");
       const approvalHash = await actions.writeContract(config, approval.request);
       onProgress?.("approveConfirming", approvalHash);
-      const confirmedApproval = await confirm(approvalHash);
-      await waitForAllowance(quote, account, wrapper, maxSpend, confirmedApproval.receipt.blockNumber);
+      await confirm(approvalHash);
+      await waitForAllowance(quote, account, wrapper, maxSpend);
     }
     const request = { name: token.name, symbol: token.symbol, uri: token.uri, creatorTaxBps: tax, maxSpend, minOut, deadline: createDeadline(Date.now(), deployment.deadlineSeconds) };
     const simulation = await simulateAfterApproval(() => actions.simulateContract(config, { account, address: wrapper, abi: v2LaunchAndBuyAbi, functionName: "launchAndBuy", args: [request], chainId: deployment.chainId }), approved);
@@ -189,8 +196,8 @@ export function createV2Sdk(config: Config, deployment: CurveballDeployment, act
     const approved = allowance < input;
     if (approved) {
       const approval = await actions.simulateContract(config, { account, address: asset, abi: erc20Abi, functionName: "approve", args: [market.curve, input], chainId: deployment.chainId });
-      const confirmedApproval = await confirm(await actions.writeContract(config, approval.request));
-      await waitForAllowance(asset, account, market.curve, input, confirmedApproval.receipt.blockNumber);
+      await confirm(await actions.writeContract(config, approval.request));
+      await waitForAllowance(asset, account, market.curve, input);
     }
     const quotedOutput = await quoteTrade(side, token, input);
     const minimumOutput = applySlippage(quotedOutput, deployment.slippageBps);

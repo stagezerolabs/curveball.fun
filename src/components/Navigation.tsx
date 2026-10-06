@@ -6,7 +6,6 @@ import type { Address } from "viem";
 import { NavSearch } from "./NavSearch";
 import { routeHref } from "../app/routeTree";
 import { formatEthAmount } from "../lib/format.js";
-import { useRiseIdentity } from "../lib/useRiseIdentity";
 import type { Navigate } from "../types";
 import { activeExplorerUrl } from "../lib/web3";
 import type { Theme } from "../lib/theme";
@@ -59,7 +58,7 @@ export function Brand({ navigate }: { navigate: Navigate }) {
       <span className="brand-mark" aria-hidden="true">
         <i />
       </span>
-      curveball<span>.fun</span>
+      curveball
     </AppLink>
   );
 }
@@ -131,7 +130,6 @@ export function Header({
 }) {
   const { data: balance } = useBalance({ address });
   const [menuOpen, setMenuOpen] = useState(false);
-  const riseName = useRiseIdentity(address);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -189,7 +187,7 @@ export function Header({
               {formatEthAmount(Number(balance.formatted))} ETH
             </span>
           )}
-          <WalletNavButton address={address} displayName={riseName ?? (address ? `${address.slice(0, 5)}…${address.slice(-4)}` : null)} />
+          <WalletNavButton address={address} displayName={address ? `${address.slice(0, 5)}…${address.slice(-4)}` : null} />
         </div>
         <button
           className="nav-menu"
@@ -228,7 +226,6 @@ export function LandingHeader({
   theme: Theme;
   onThemeToggle: () => void;
 }) {
-  const riseName = useRiseIdentity(address);
   return (
     <header className="landing-nav wrap">
       <Brand navigate={navigate} />
@@ -243,7 +240,7 @@ export function LandingHeader({
       </nav>
       <div className="landing-nav-actions">
         <ThemeToggle theme={theme} onToggle={onThemeToggle} />
-        <WalletNavButton address={address} displayName={riseName ?? (address ? `${address.slice(0, 5)}…${address.slice(-4)}` : null)} />
+        <WalletNavButton address={address} displayName={address ? `${address.slice(0, 5)}…${address.slice(-4)}` : null} />
       </div>
     </header>
   );

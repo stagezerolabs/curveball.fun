@@ -22,6 +22,7 @@ import {
   type CreatorTokenClient,
 } from "../creatorTokens";
 import { activeChainId } from "../lib/web3";
+import { readableError } from "../lib/errors";
 import {
   applyTheme,
   readStoredTheme,
@@ -33,10 +34,9 @@ export function App() {
   const [theme, setTheme] = useState<Theme>(readStoredTheme);
   const { address } = useAccount();
   const publicClient = usePublicClient({ chainId: activeChainId });
-  const { tokens, loading, fetchTokens, mergeTokens, lastCreatedToken } = useStore() as {
+  const { tokens, loading, mergeTokens, lastCreatedToken } = useStore() as {
     tokens: Token[];
     loading: boolean;
-    fetchTokens: () => Promise<boolean>;
     mergeTokens: (tokens: Token[]) => void;
     lastCreatedToken: `0x${string}` | null;
   };
@@ -45,22 +45,31 @@ export function App() {
 
   useEffect(() => {
     let active = true;
+    useStore.setState({ loading: true, marketError: "" });
     void (async () => {
-      const indexed = await fetchTokens();
-      if (indexed || !active || !publicClient) return;
+      if (!publicClient) {
+        if (active) useStore.setState({ loading: false });
+        return;
+      }
       try {
         const discovered = await discoverAllTokens(
           publicClient as unknown as CreatorTokenClient,
         );
-        if (active) mergeTokens(discovered);
-      } catch {
-        // The indexed API remains usable if the public RPC is temporarily unavailable.
+        if (active) {
+          mergeTokens(discovered);
+          useStore.setState({ loading: false });
+        }
+      } catch (cause) {
+        if (active) useStore.setState({
+          loading: false,
+          marketError: readableError(cause, "Could not read markets from the configured network."),
+        });
       }
     })();
     return () => {
       active = false;
     };
-  }, [fetchTokens, mergeTokens, publicClient]);
+  }, [mergeTokens, publicClient]);
 
   useEffect(() => {
     if (!lastCreatedToken || !publicClient) return;
@@ -70,22 +79,24 @@ export function App() {
         if (active && created) mergeTokens([created]);
       })
       .catch(() => {
-        // The confirmed receipt remains visible in the launch message while
-        // the finalized indexer catches up.
+        // The confirmed receipt remains visible until the RPC exposes the log.
       });
     return () => { active = false; };
   }, [lastCreatedToken, mergeTokens, publicClient]);
 
-  // Keep indexed market data fresh without overlapping requests. Store actions
-  // refresh immediately after create, trade, and graduation; this only covers
-  // trades other wallets make while the tab stays open.
+  // Refresh contract state for trades made by other wallets while this tab is open.
   useEffect(() => {
     let inFlight = false;
     const refresh = async () => {
       if (inFlight || document.hidden) return;
       inFlight = true;
       try {
-        await fetchTokens();
+        if (!publicClient) return;
+        mergeTokens(await discoverAllTokens(publicClient as unknown as CreatorTokenClient));
+      } catch (cause) {
+        if (!tokens.length) useStore.setState({
+          marketError: readableError(cause, "Could not refresh markets from the configured network."),
+        });
       } finally {
         inFlight = false;
       }
@@ -99,7 +110,7 @@ export function App() {
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [fetchTokens]);
+  }, [mergeTokens, publicClient, tokens.length]);
 
   const token: Token | undefined =
     route.id === "market"

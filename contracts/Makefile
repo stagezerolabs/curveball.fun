@@ -7,7 +7,7 @@ TESTNET_RPC_URL ?= $(RISE_TESTNET_RPC_URL)
 
 export RPC_URL EXPECTED_CHAIN_ID QUOTE_TOKEN ICARUS_FACTORY TREASURY MULTISIG CONFIRM_MAINNET CONFIRM_TESTNET CONFIRM_TOKEN BLOCKSCOUT_API LAUNCHPAD_ADDRESS RISE_TESTNET_RPC_URL RISE_RPC_URL
 
-.PHONY: test test-fork-strict verify-icarus verify-icarus-testnet deploy-devnet simulate-testnet deploy-testnet record-testnet simulate-v2-testnet deploy-v2-testnet deploy-v2-testnet-interactive simulate-mainnet deploy-mainnet create-nominatebear
+.PHONY: test test-fork-strict verify-icarus verify-icarus-testnet deploy-devnet simulate-testnet deploy-testnet record-testnet simulate-v2-testnet deploy-v2-testnet deploy-v2-testnet-interactive simulate-mainnet deploy-mainnet
 
 test:
 	forge test --threads 1
@@ -97,11 +97,3 @@ deploy-mainnet:
 	@test "$$CONFIRM_MAINNET" = "DEPLOY_CURVEBALL_RISE_4153" || { echo "Set CONFIRM_MAINNET=DEPLOY_CURVEBALL_RISE_4153."; exit 1; }
 	@test "$$(cast chain-id --rpc-url "$(MAINNET_RPC_URL)")" = "4153" || { echo "RPC is not RISE mainnet."; exit 1; }
 	@forge script scripts/DeployMainnet.s.sol:DeployMainnet --rpc-url "$(MAINNET_RPC_URL)" --broadcast --account dot --verify --verifier blockscout --verifier-url "$(BLOCKSCOUT_API)"
-
-create-nominatebear:
-	@test -t 0 || { echo "Run this target in an interactive terminal."; exit 1; }
-	@test -n "$(MAINNET_RPC_URL)" && test -n "$$LAUNCHPAD_ADDRESS" || { echo "Set RISE_RPC_URL and LAUNCHPAD_ADDRESS."; exit 1; }
-	@test "$$LAUNCHPAD_ADDRESS" = "0x1A34768eAb2F6b925D25ca1d6daC03C1a25Ad39E" || { echo "LAUNCHPAD_ADDRESS is not the canonical RISE deployment."; exit 1; }
-	@test "$$CONFIRM_TOKEN" = "CREATE_NOMINATEBEAR_NBR" || { echo "Set CONFIRM_TOKEN=CREATE_NOMINATEBEAR_NBR."; exit 1; }
-	@test "$$(cast chain-id --rpc-url "$(MAINNET_RPC_URL)")" = "4153" || { echo "RPC is not RISE mainnet."; exit 1; }
-	@forge script scripts/CreateNominateBear.s.sol:CreateNominateBear --rpc-url "$(MAINNET_RPC_URL)" --broadcast --account dot

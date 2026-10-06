@@ -6,20 +6,18 @@ import { useStore } from "../app/useStore.js";
 import type { Navigate, Token } from "../types";
 
 type Tab = "trending" | "new" | "graduated";
-type Sort = "volume" | "newest" | "oldest" | "cap" | "progress";
+type Sort = "newest" | "oldest" | "progress";
 type View = "grid" | "list";
 
 const TABS: { id: Tab; label: string; sort: Sort }[] = [
-  { id: "trending", label: "Trending", sort: "volume" },
+  { id: "trending", label: "Trending", sort: "progress" },
   { id: "new", label: "New", sort: "newest" },
-  { id: "graduated", label: "Graduated", sort: "cap" },
+  { id: "graduated", label: "Graduated", sort: "newest" },
 ];
 
 const SORTS: { id: Sort; label: string }[] = [
-  { id: "volume", label: "24h volume" },
   { id: "newest", label: "Newest" },
   { id: "oldest", label: "Oldest" },
-  { id: "cap", label: "Market cap" },
   { id: "progress", label: "Progress" },
 ];
 
@@ -31,12 +29,8 @@ const byNewest = (a: Token, b: Token) =>
 function sortTokens(tokens: Token[], sort: Sort) {
   const list = [...tokens];
   if (sort === "oldest") return list.sort((a, b) => byNewest(b, a));
-  if (sort === "cap")
-    return list.sort((a, b) => (b.marketCapUsd ?? -1) - (a.marketCapUsd ?? -1));
   if (sort === "progress")
     return list.sort((a, b) => (b.progress ?? -1) - (a.progress ?? -1));
-  if (sort === "volume")
-    return list.sort((a, b) => (b.volume24h ?? -1) - (a.volume24h ?? -1));
   return list.sort(byNewest);
 }
 
@@ -78,7 +72,7 @@ export function HomePage({ navigate }: { navigate: Navigate }) {
     marketError: string;
   };
   const [tab, setTab] = useState<Tab>("trending");
-  const [sort, setSort] = useState<Sort>("volume");
+  const [sort, setSort] = useState<Sort>("progress");
   const [view, setView] = useState<View>("grid");
 
   const listed = useMemo(() => {
@@ -110,6 +104,7 @@ export function HomePage({ navigate }: { navigate: Navigate }) {
             {TABS.map((item) => (
               <button
                 key={item.id}
+                type="button"
                 role="tab"
                 id={`tab-${item.id}`}
                 aria-selected={tab === item.id}
@@ -142,6 +137,7 @@ export function HomePage({ navigate }: { navigate: Navigate }) {
               {(["grid", "list"] as View[]).map((item) => (
                 <button
                   key={item}
+                  type="button"
                   className={view === item ? "active" : ""}
                   aria-pressed={view === item}
                   aria-label={`${item === "grid" ? "Grid" : "List"} view`}

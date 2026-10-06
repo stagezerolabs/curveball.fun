@@ -1,15 +1,10 @@
 import { AppLink } from "./Navigation";
 import { TokenAvatar } from "./TokenAvatar";
 import {
-  changeTone,
   formatAddress,
-  formatChange,
-  formatCompact,
-  formatCount,
+  formatEthAmount,
   formatPercent,
   formatRelativeTime,
-  formatUsd,
-  formatUsdCompact,
 } from "../lib/format.js";
 import type { Navigate, Token } from "../types";
 
@@ -32,9 +27,6 @@ export function TokenCard({
       >
         <span className="tcard-media">
           <TokenAvatar token={token} index={index} className="tcard-image" />
-          <span className={`tcard-change change ${changeTone(token.change24h)}`}>
-            {formatChange(token.change24h)} <small>24h</small>
-          </span>
           <span className="tcard-milestone">
             {token.graduated
               ? "Graduated"
@@ -65,11 +57,11 @@ export function TokenCard({
           <span className="tcard-figures">
             <span>
               <small>Market cap</small>
-              <strong>{formatUsdCompact(token.marketCapUsd)}</strong>
+              <strong>{token.marketCap == null ? "—" : `${formatEthAmount(token.marketCap)} WETH`}</strong>
             </span>
             <span className="tcard-figure-end">
               <small>Price</small>
-              <strong>{formatUsd(token.priceUsd)}</strong>
+              <strong>{token.price == null ? "—" : `${formatEthAmount(token.price)} WETH`}</strong>
             </span>
           </span>
 
@@ -78,7 +70,7 @@ export function TokenCard({
               <i aria-hidden="true" />
               {token.graduated ? "Graduated" : "Curve live"}
             </span>
-            <span>Vol {formatCompact(token.volume24h)} ETH</span>
+            <span>{formatPercent(token.progress)} sold</span>
           </span>
         </span>
       </AppLink>

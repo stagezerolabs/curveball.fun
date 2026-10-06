@@ -41,8 +41,6 @@ export const riseTestnet = defineChain({
   },
 });
 
-export const apiUrl = "/api";
-
 export const wagmiConfig = createWalletConfig(riseTestnet, import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || "");
 
 const configuredLaunchpad =
