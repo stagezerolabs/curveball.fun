@@ -1,8 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { usePublicClient } from "wagmi";
 import { Featured } from "../components/Featured";
 import { MarketList } from "../components/MarketList";
 import { TokenCard } from "../components/TokenCard";
 import { useStore } from "../app/useStore.js";
+import type { CreatorTokenClient } from "../creatorTokens";
+import { activeChainId } from "../lib/web3";
 import type { Navigate, Token } from "../types";
 
 type Tab = "trending" | "new" | "graduated";
@@ -66,14 +69,23 @@ function ViewIcon({ view }: { view: View }) {
 }
 
 export function HomePage({ navigate }: { navigate: Navigate }) {
-  const { tokens, loading, marketError } = useStore() as {
+  const publicClient = usePublicClient({ chainId: activeChainId });
+  const { tokens, marketsFetchedAt, marketError, loadMarkets } = useStore() as {
     tokens: Token[];
-    loading: boolean;
+    marketsFetchedAt: number;
     marketError: string;
+    loadMarkets: (client?: CreatorTokenClient) => Promise<Token[]>;
   };
   const [tab, setTab] = useState<Tab>("trending");
   const [sort, setSort] = useState<Sort>("progress");
   const [view, setView] = useState<View>("grid");
+  const initialLoading = !marketsFetchedAt && !marketError;
+
+  useEffect(() => {
+    void loadMarkets(
+      publicClient as unknown as CreatorTokenClient | undefined,
+    ).catch(() => undefined);
+  }, [loadMarkets, publicClient]);
 
   const listed = useMemo(() => {
     const set =
@@ -96,7 +108,7 @@ export function HomePage({ navigate }: { navigate: Navigate }) {
         </p>
       )}
 
-      <Featured tokens={tokens} loading={loading} navigate={navigate} />
+      <Featured tokens={tokens} loading={initialLoading} navigate={navigate} />
 
       <section className="board" aria-label="All markets">
         <header className="board-head">
@@ -151,7 +163,7 @@ export function HomePage({ navigate }: { navigate: Navigate }) {
         </header>
 
         <div id="board-panel" role="tabpanel" aria-labelledby={`tab-${tab}`}>
-          {loading && !tokens.length ? (
+          {initialLoading ? (
             <ul className="tcard-grid" aria-busy="true">
               {Array.from({ length: SKELETON_CARDS }, (_, index) => (
                 <li key={index} className="tcard skeleton" />

@@ -1301,12 +1301,110 @@ not as "disabled" — use a flat surface instead. */
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 24px;
+}
+.tcard.skeleton,
+.king.skeleton {
   min-height: 240px;
+}
+.skeleton-line {
+  border: 0;
+  border-radius: 999px;
+  display: block;
+  height: 12px;
+  min-height: 0;
 }
 @keyframes skeleton-pulse {
   50% {
     opacity: 0.55;
   }
+}
+
+.market-list-skeleton .market-row {
+  pointer-events: none;
+}
+.market-list-skeleton .skeleton {
+  border: 0;
+  border-radius: 999px;
+  min-height: 0;
+}
+.skeleton-token {
+  height: 46px;
+  width: min(210px, 75%);
+}
+.skeleton-pill {
+  height: 22px;
+  width: 88px;
+}
+.skeleton-value {
+  height: 34px;
+  justify-self: end;
+  width: 96px;
+}
+.skeleton-progress {
+  grid-column: 1 / -1;
+  height: 4px;
+  width: 100%;
+}
+
+.profile-stats-skeleton .skeleton-line {
+  height: 10px;
+  width: 42%;
+}
+.profile-stats-skeleton .skeleton-number {
+  border: 0;
+  border-radius: 10px;
+  display: block;
+  height: 44px;
+  margin-top: 18px;
+  min-height: 0;
+  width: 72px;
+}
+.profile-card-skeletons {
+  padding: 16px 8px 0;
+}
+
+.market-page-skeleton .skeleton {
+  min-height: 0;
+}
+.market-header-skeleton {
+  align-items: center;
+  display: grid;
+  gap: 16px;
+  grid-column: 1 / -1;
+  grid-template-columns: 58px minmax(120px, 1fr) minmax(100px, 220px);
+}
+.skeleton-circle {
+  border-radius: 50%;
+  height: 58px;
+  width: 58px;
+}
+.market-header-skeleton .skeleton-title {
+  height: 34px;
+  width: min(330px, 72%);
+}
+.market-header-skeleton .skeleton-price {
+  height: 34px;
+  justify-self: end;
+  width: min(190px, 100%);
+}
+.market-panel-skeleton {
+  height: 340px;
+}
+.market-tabs-skeleton {
+  grid-column: 1 / -1;
+  height: 220px;
+}
+
+.nav-results-skeleton {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+.nav-results-skeleton .skeleton {
+  border: 0;
+  border-radius: 12px;
+  height: 48px;
+  min-height: 0;
 }
 
 /* ---------- Featured ---------- */
