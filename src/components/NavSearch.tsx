@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { TokenAvatar } from "./TokenAvatar";
+import { UsdAmount } from "./UsdAmount";
 import { useStore } from "../app/useStore.js";
-import { formatEthAmount } from "../lib/format.js";
 import type { KeyboardEvent } from "react";
 import type { Navigate, Token } from "../types";
 
@@ -159,7 +159,7 @@ export function NavSearch({ navigate }: { navigate: Navigate }) {
                     <span className="nav-result-name">{token.name}</span>
                     <span className="nav-result-symbol">${token.symbol}</span>
                     <span className="nav-result-cap">
-                      {token.marketCap == null ? "—" : `${formatEthAmount(token.marketCap)} WETH`}
+                      <UsdAmount weth={token.marketCap} />
                     </span>
                   </button>
                 </li>

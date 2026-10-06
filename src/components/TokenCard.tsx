@@ -1,8 +1,8 @@
 import { AppLink } from "./Navigation";
 import { TokenAvatar } from "./TokenAvatar";
+import { UsdAmount } from "./UsdAmount";
 import {
   formatAddress,
-  formatEthAmount,
   formatPercent,
   formatRelativeTime,
 } from "../lib/format.js";
@@ -57,11 +57,11 @@ export function TokenCard({
           <span className="tcard-figures">
             <span>
               <small>Market cap</small>
-              <strong>{token.marketCap == null ? "—" : `${formatEthAmount(token.marketCap)} WETH`}</strong>
+              <strong><UsdAmount weth={token.marketCap} /></strong>
             </span>
             <span className="tcard-figure-end">
               <small>Price</small>
-              <strong>{token.price == null ? "—" : `${formatEthAmount(token.price)} WETH`}</strong>
+              <strong><UsdAmount weth={token.price} /></strong>
             </span>
           </span>
 

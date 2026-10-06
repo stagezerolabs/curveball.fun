@@ -2,7 +2,8 @@ import { useMemo } from "react";
 import { AppLink } from "./Navigation";
 import { ArrowIcon } from "./ArrowIcon";
 import { TokenAvatar } from "./TokenAvatar";
-import { formatEthAmount, formatPercent } from "../lib/format.js";
+import { UsdAmount } from "./UsdAmount";
+import { formatPercent } from "../lib/format.js";
 import type { Navigate, Token } from "../types";
 
 export function Featured({ tokens, loading, navigate }: { tokens: Token[]; loading: boolean; navigate: Navigate }) {
@@ -24,8 +25,8 @@ export function Featured({ tokens, loading, navigate }: { tokens: Token[]; loadi
             <span className="king-value"><strong>{formatPercent(leader.progress)}</strong><small>curve sold</small></span>
           </span>
           <span className="king-stats">
-            <span><small>On-chain price</small><strong>{leader.price == null ? "—" : `${formatEthAmount(leader.price)} WETH`}</strong></span>
-            <span><small>On-chain market cap</small><strong>{leader.marketCap == null ? "—" : `${formatEthAmount(leader.marketCap)} WETH`}</strong></span>
+            <span><small>Price</small><strong><UsdAmount weth={leader.price} /></strong></span>
+            <span><small>Market cap</small><strong><UsdAmount weth={leader.marketCap} /></strong></span>
           </span>
         </AppLink>
         {contenders.length > 0 && <aside className="contenders"><ol>{contenders.map((token, index) => <li key={token.address}>

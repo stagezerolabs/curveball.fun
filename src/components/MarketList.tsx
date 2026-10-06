@@ -1,7 +1,8 @@
 import { AppLink } from "./Navigation";
 import { ArrowIcon } from "./ArrowIcon";
 import { TokenAvatar } from "./TokenAvatar";
-import { formatAddress, formatEthAmount, formatPercent } from "../lib/format.js";
+import { UsdAmount } from "./UsdAmount";
+import { formatAddress, formatPercent } from "../lib/format.js";
 import type { Navigate, Token } from "../types";
 
 export function MarketList({
@@ -61,8 +62,8 @@ export function MarketList({
             </span>
           ) : (
             <span className="market-cell">
-              <strong>{token.price == null ? "—" : `${formatEthAmount(token.price)} WETH`}</strong>
-              <small>{token.marketCap == null ? "—" : `${formatEthAmount(token.marketCap)} WETH cap`}</small>
+              <strong><UsdAmount weth={token.price} /></strong>
+              <small><UsdAmount weth={token.marketCap} suffix=" cap" /></small>
             </span>
           )}
           {!token.graduated && (
