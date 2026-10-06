@@ -5,6 +5,7 @@ import {
   discoverCreatorTokens,
   discoverToken,
 } from "./creatorTokens";
+import { activeDeploymentBlock } from "./lib/web3";
 
 const creator = getAddress("0x18B99327e596d422a242F60b51979bF9d76841c2");
 const token = getAddress("0x1111111111111111111111111111111111111111");
@@ -14,6 +15,7 @@ describe("creator token discovery", () => {
     const curve = getAddress("0x3333333333333333333333333333333333333333");
     const requests: string[] = [];
     const client = {
+      getBlockNumber: async () => activeDeploymentBlock,
       getContractEvents: async (p: { eventName: string }) => {
         expect(p.eventName).toBe("LaunchCreated");
         return [{ args: { token, curve, creator, name: "NICO", symbol: "NICO" }, blockNumber: 55_002_180n }];
@@ -36,6 +38,7 @@ describe("creator token discovery", () => {
   });
   test("turns indexed TokenCreated logs into dashboard tokens", async () => {
     const client = {
+      getBlockNumber: async () => activeDeploymentBlock,
       getContractEvents: async () => [
         {
           args: { token, creator, name: "LONGNICO", symbol: "NICO", uri: "" },
@@ -77,6 +80,7 @@ describe("creator token discovery", () => {
 
   test("returns an empty dashboard for a wallet with no launches", async () => {
     const client = {
+      getBlockNumber: async () => activeDeploymentBlock,
       getContractEvents: async () => [],
       readContract: async () => 800_000n * 10n ** 18n,
       getBlock: async () => ({ timestamp: 0n }),
@@ -88,6 +92,7 @@ describe("creator token discovery", () => {
   test("loads a market directly by token address when the indexer has no row", async () => {
     let eventFilter: object | undefined;
     const client = {
+      getBlockNumber: async () => activeDeploymentBlock,
       getContractEvents: async (parameters: object) => {
         eventFilter = parameters;
         return [
@@ -115,6 +120,7 @@ describe("creator token discovery", () => {
   test("discovers every launch for the public market feed", async () => {
     let eventFilter: Record<string, unknown> | undefined;
     const client = {
+      getBlockNumber: async () => activeDeploymentBlock,
       getContractEvents: async (parameters: Record<string, unknown>) => {
         eventFilter = parameters;
         return [
@@ -153,5 +159,19 @@ describe("creator token discovery", () => {
       expect.objectContaining({ fromBlock: 55_007_177n, toBlock: 55_012_176n }),
       expect.objectContaining({ fromBlock: 55_012_177n, toBlock: 55_012_178n }),
     ]);
+  });
+
+  test("never sends an unbounded RPC query when the client lacks getBlockNumber", async () => {
+    let queried = false;
+    const client = {
+      getContractEvents: async () => {
+        queried = true;
+        return [];
+      },
+      readContract: async () => 0n,
+      getBlock: async () => ({ timestamp: 0n }),
+    };
+    await expect(discoverAllTokens(client)).rejects.toThrow("latest block");
+    expect(queried).toBe(false);
   });
 });

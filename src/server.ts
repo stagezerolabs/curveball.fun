@@ -342,7 +342,7 @@ api.get("/metadata/nominatebear", (c) => {
     name: "NominateBear",
     symbol: "NBR",
     description: "The first token launched on Curveball.",
-    website: "https://curveball-fun.netlify.app/markets",
+    website: "https://curveball-fun.vercel.app/markets",
   });
 });
 

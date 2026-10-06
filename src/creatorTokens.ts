@@ -74,35 +74,28 @@ async function discoverTokens(
     ...(args ? { args } : {}),
     strict: true,
   };
-  const latestBlock = await client.getBlockNumber?.();
+  if (!client.getBlockNumber) {
+    throw new Error("RPC client cannot report the latest block for bounded event queries.");
+  }
+  const latestBlock = await client.getBlockNumber();
   const logs: CreatedLog[] = [];
 
-  if (latestBlock === undefined) {
+  for (
+    let fromBlock = activeDeploymentBlock;
+    fromBlock <= latestBlock;
+    fromBlock += MAX_EVENT_QUERY_BLOCKS
+  ) {
+    const toBlock =
+      fromBlock + MAX_EVENT_QUERY_BLOCKS - 1n < latestBlock
+        ? fromBlock + MAX_EVENT_QUERY_BLOCKS - 1n
+        : latestBlock;
     logs.push(
       ...(await client.getContractEvents({
         ...eventQuery,
-        fromBlock: activeDeploymentBlock,
-        toBlock: "latest",
+        fromBlock,
+        toBlock,
       })),
     );
-  } else {
-    for (
-      let fromBlock = activeDeploymentBlock;
-      fromBlock <= latestBlock;
-      fromBlock += MAX_EVENT_QUERY_BLOCKS
-    ) {
-      const toBlock =
-        fromBlock + MAX_EVENT_QUERY_BLOCKS - 1n < latestBlock
-          ? fromBlock + MAX_EVENT_QUERY_BLOCKS - 1n
-          : latestBlock;
-      logs.push(
-        ...(await client.getContractEvents({
-          ...eventQuery,
-          fromBlock,
-          toBlock,
-        })),
-      );
-    }
   }
   if (!logs.length) return [];
 

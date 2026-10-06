@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useBalance } from "wagmi";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
 import type { AnchorHTMLAttributes, MouseEvent, ReactNode } from "react";
 import type { Address } from "viem";
 import { NavSearch } from "./NavSearch";
@@ -90,16 +91,39 @@ export function ThemeToggle({
   );
 }
 
+function WalletNavButton({ address, displayName }: { address?: Address; displayName?: string | null }) {
+  return <ConnectButton.Custom>
+    {({ account, chain, mounted, openConnectModal, openAccountModal, openChainModal }) => {
+      const connected = mounted && Boolean(account && chain);
+      const wrongNetwork = connected && Boolean(chain?.unsupported);
+      return <button
+        className="wallet-button"
+        type="button"
+        disabled={!mounted}
+        onClick={() => {
+          if (wrongNetwork) openChainModal?.();
+          else if (connected) openAccountModal?.();
+          else openConnectModal?.();
+        }}
+        aria-label={wrongNetwork ? "Switch wallet network" : connected ? `Manage wallet ${address ?? account?.address}` : "Connect wallet"}
+      >
+        <span className={connected ? "wallet-dot connected" : "wallet-dot"} />
+        <span className="wallet-label">
+          {wrongNetwork ? "Wrong network" : connected ? displayName ?? account?.displayName : "Connect wallet"}
+        </span>
+      </button>;
+    }}
+  </ConnectButton.Custom>;
+}
+
 export function Header({
   address,
-  connectWallet,
   navigate,
   routeId,
   theme,
   onThemeToggle,
 }: {
   address?: Address;
-  connectWallet: () => void;
   navigate: Navigate;
   routeId: string;
   theme: Theme;
@@ -141,6 +165,7 @@ export function Header({
       >
         Markets
       </AppLink>
+      {address && <AppLink className={`nav-link ${routeId === "profile" ? "active" : ""}`} route="profile" navigate={go}>Profile</AppLink>}
       <AppLink
         className="primary-button nav-create"
         route="launch"
@@ -164,19 +189,7 @@ export function Header({
               {formatEthAmount(Number(balance.formatted))} ETH
             </span>
           )}
-          <button
-            className={`wallet-button ${routeId === "profile" ? "active" : ""}`}
-            onClick={() => (address ? go("profile") : connectWallet())}
-            aria-label={address ? `Connected wallet ${address}` : "Connect wallet"}
-            aria-current={routeId === "profile" ? "page" : undefined}
-          >
-            <span className={address ? "wallet-dot connected" : "wallet-dot"} />
-            <span className="wallet-label">
-              {address
-                ? riseName ?? `${address.slice(0, 5)}…${address.slice(-4)}`
-                : "Connect wallet"}
-            </span>
-          </button>
+          <WalletNavButton address={address} displayName={riseName ?? (address ? `${address.slice(0, 5)}…${address.slice(-4)}` : null)} />
         </div>
         <button
           className="nav-menu"
@@ -198,13 +211,6 @@ export function Header({
       {menuOpen && (
         <nav id="nav-sheet" className="nav-sheet wrap" aria-label="Main navigation">
           {links}
-          {address && (
-            <AppLink
-              className={`nav-link ${routeId === "profile" ? "active" : ""}`}
-              route="profile"
-              navigate={go}
-            >Profile</AppLink>
-          )}
         </nav>
       )}
     </>
@@ -213,13 +219,11 @@ export function Header({
 
 export function LandingHeader({
   address,
-  connectWallet,
   navigate,
   theme,
   onThemeToggle,
 }: {
   address?: Address;
-  connectWallet: () => void;
   navigate: Navigate;
   theme: Theme;
   onThemeToggle: () => void;
@@ -235,21 +239,11 @@ export function LandingHeader({
         <AppLink route="launch" navigate={navigate}>
           Launch
         </AppLink>
+        {address && <AppLink route="profile" navigate={navigate}>Profile</AppLink>}
       </nav>
       <div className="landing-nav-actions">
         <ThemeToggle theme={theme} onToggle={onThemeToggle} />
-        <button
-          className="wallet-button"
-          onClick={() => (address ? navigate("profile") : connectWallet())}
-          aria-label={address ? `Connected wallet ${address}` : "Connect wallet"}
-        >
-          <span className={address ? "wallet-dot connected" : "wallet-dot"} />
-          <span className="wallet-label">
-            {address
-              ? riseName ?? `${address.slice(0, 5)}…${address.slice(-4)}`
-              : "Connect wallet"}
-          </span>
-        </button>
+        <WalletNavButton address={address} displayName={riseName ?? (address ? `${address.slice(0, 5)}…${address.slice(-4)}` : null)} />
       </div>
     </header>
   );

@@ -40,12 +40,10 @@ export function TradePanel({
   token,
   address,
   config,
-  connectWallet,
 }: {
   token: Token;
   address?: Address;
   config: LaunchpadConfig | null;
-  connectWallet: () => void;
 }) {
   const {
     amount,
@@ -255,11 +253,11 @@ export function TradePanel({
           {isPending ? "Pending…" : side === "buy" ? "Buy" : "Sell"}
         </button>
       ) : (
-        <button className="trade-submit connect" onClick={connectWallet}>
-          Connect wallet
+        <button className={`trade-submit ${side}`} type="button" disabled>
+          {side === "buy" ? "Buy" : "Sell"}
         </button>
       )}
-      {!address && <p className="trade-hint">Connect wallet to trade.</p>}
+      {!address && <p className="trade-hint">Connect from the navigation to trade.</p>}
       {tradeMessage && !isPending && (
         <p className="trade-hint success" role="status">
           {tradeMessage}

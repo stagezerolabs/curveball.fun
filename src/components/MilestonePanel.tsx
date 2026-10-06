@@ -12,12 +12,10 @@ export function MilestonePanel({
   token,
   address,
   config,
-  connectWallet,
 }: {
   token: Token;
   address?: Address;
   config: LaunchpadConfig | null;
-  connectWallet: () => void;
 }) {
   const { isPending, claimPoolFees, claimEscrow, advanceGraduation } = useStore() as {
     isPending: boolean;
@@ -140,11 +138,7 @@ export function MilestonePanel({
             >
               {isPending ? "Claiming…" : "Claim pool fees"}
             </button>
-          ) : (
-            <button className="primary-button claim-button" onClick={connectWallet}>
-              Connect a wallet to claim
-            </button>
-          )}
+          ) : <p className="panel-note">Connect from the navigation to claim pool fees.</p>}
         </div>
       )}
 

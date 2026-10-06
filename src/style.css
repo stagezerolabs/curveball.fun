@@ -66,6 +66,7 @@ svg {
   grid-template-columns: auto minmax(0, 1fr) auto;
   height: 76px;
   position: relative;
+  z-index: 20;
 }
 .brand {
   align-items: center;
@@ -2992,6 +2993,8 @@ not as "disabled" — use a flat surface instead. */
   gap: 24px;
   grid-template-columns: 1fr auto 1fr;
   min-height: 82px;
+  position: relative;
+  z-index: 20;
 }
 .landing-nav nav {
   display: flex;

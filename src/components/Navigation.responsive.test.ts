@@ -18,8 +18,9 @@ describe("responsive navigation", () => {
   });
 
   test("offers connected wallets a profile link in the hamburger sheet", () => {
-    expect(navigation).toContain("{address && (");
+    expect(navigation).toContain("{address && <AppLink");
     expect(navigation).toContain('route="profile"');
     expect(navigation).toContain(">Profile</AppLink>");
+    expect(navigation).toContain("{links}");
   });
 });

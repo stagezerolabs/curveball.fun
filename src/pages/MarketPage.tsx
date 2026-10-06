@@ -20,12 +20,10 @@ export function MarketPage({
   token,
   tokenAddress,
   navigate,
-  connectWallet,
 }: {
   token?: Token;
   tokenAddress: string;
   navigate: Navigate;
-  connectWallet: () => void;
 }) {
   const { loading, marketError, actionError } = useStore() as {
     loading: boolean;
@@ -108,13 +106,11 @@ export function MarketPage({
         token={resolvedToken}
         address={address}
         config={config}
-        connectWallet={connectWallet}
       />
       <MilestonePanel
         token={resolvedToken}
         address={address}
         config={config}
-        connectWallet={connectWallet}
       />
       <MarketTabs token={resolvedToken} />
 

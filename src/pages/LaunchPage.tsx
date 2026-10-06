@@ -23,7 +23,7 @@ const phaseCopy: Record<Exclude<LaunchPhase, "error">, { title: string; detail: 
   success: { title: "Launch complete", detail: "Your token is in Markets. Taking you there now…" },
 };
 
-export function LaunchPage({ navigate, connectWallet }: { navigate: Navigate; connectWallet: () => void }) {
+export function LaunchPage({ navigate }: { navigate: Navigate }) {
   const dialogHeading = useRef<HTMLHeadingElement>(null);
   const { address } = useAccount();
   const betaReadEnabled = getBetaReadEnabled({
@@ -135,20 +135,20 @@ export function LaunchPage({ navigate, connectWallet }: { navigate: Navigate; co
             </label>
           </div>}
           {address && !canCreate && <p className="notice" role="status">{publicOpen === false && invited === false ? "This deployed factory is still invite-only. Use a public factory to launch without an invitation." : "Checking launch access for this factory…"}</p>}
-          {!address ? <button className="launch-button" type="button" onClick={connectWallet}>Connect wallet <ArrowIcon /></button> : <button
+          <button
             className="launch-button"
             type="submit"
-            disabled={isPending || !canCreate}
+            disabled={!address || isPending || !canCreate}
           >
             {isPending ? "Launching token…" : "Review and create token"} <ArrowIcon />
-          </button>}
+          </button>
           <p className="form-note">
             {publicOpen === true
               ? "Creation is open to every connected wallet. No invitation needed."
               : !launchpadAddress ? "Configure a factory to launch."
                 : address && invited === true ? "Your wallet has access to this factory."
                   : address && publicOpen === false && invited === false ? "This factory currently requires an invitation."
-                    : address ? "Checking this factory’s launch access…" : "Connect your wallet to check this factory’s launch access."}
+                    : address ? "Checking this factory’s launch access…" : "Connect from the navigation to check launch access."}
           </p>
         </form>
       </section>
