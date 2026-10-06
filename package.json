@@ -10,6 +10,7 @@
     "dev:api": "bun --watch src/server.ts",
     "dev:web": "vite",
     "build": "vite build",
+    "build:vercel": "VITE_CHAIN_ID=11155931 VITE_RPC_URL=https://testnet.riselabs.xyz VITE_CONTRACT_VERSION=v2 VITE_LAUNCHPAD_ADDRESS=0x36628AbAC7B2cdcde1A8fa21868AfeCB74660ECf VITE_DEPLOYMENT_BLOCK=55636468 VITE_WALLETCONNECT_PROJECT_ID=831c879216653941caef04cfd3bbc0f0 bun run build",
     "start": "bun src/server.ts",
     "indexer": "bun src/indexer.ts",
     "seed": "bun src/seed.ts",

@@ -29,8 +29,13 @@ test("Vercel builds the browser for the recorded V2 testnet deployment", async (
   const config = await Bun.file(new URL("../vercel.json", import.meta.url)).json() as {
     buildCommand?: string;
   };
+  const packageJson = await Bun.file(new URL("../package.json", import.meta.url)).json() as {
+    scripts: Record<string, string>;
+  };
   const deployment = await Bun.file(new URL("../deployments/11155931/curveball-v2.json", import.meta.url)).json();
-  const command = config.buildCommand ?? "";
+  expect(config.buildCommand).toBe("bun run build:vercel");
+  expect((config.buildCommand ?? "").length).toBeLessThanOrEqual(256);
+  const command = packageJson.scripts["build:vercel"] ?? "";
   const variables = Object.fromEntries(
     [...command.matchAll(/\b(VITE_[A-Z_]+)=([^\s]+)/g)].map(([, key, value]) => [key, value]),
   );
