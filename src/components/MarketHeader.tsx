@@ -7,6 +7,7 @@ import {
 } from "../lib/format.js";
 import type { Token } from "../types";
 import { activeExplorerUrl } from "../lib/web3";
+import { UsdAmount } from "./UsdAmount";
 
 const EXPLORER = `${activeExplorerUrl}/address/`;
 
@@ -120,11 +121,9 @@ export function MarketHeader({ token }: { token: Token }) {
           </div>
         </div>
         <div className="market-headline-value">
-          <strong>{token.marketCap == null ? "—" : `${formatEthAmount(token.marketCap)} WETH`}</strong>
+          <strong><UsdAmount weth={token.marketCap} /></strong>
           <span>
-            {token.quoteSymbol && (
-              <span className="market-quote-chip">{token.quoteSymbol}</span>
-            )}
+            <span className="market-quote-chip">USD</span>
           </span>
         </div>
       </div>
@@ -153,7 +152,7 @@ export function MarketHeader({ token }: { token: Token }) {
         <div>
           <dt>Price</dt>
           <dd>
-            {token.price == null ? "—" : `${formatEthAmount(token.price)} WETH`}
+            <UsdAmount weth={token.price} />
           </dd>
         </div>
       </dl>

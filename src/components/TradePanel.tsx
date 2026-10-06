@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { formatEther } from "viem";
 import { useBalance, useReadContract } from "wagmi";
 import { launchpadAbi } from "../sdk/contracts";
@@ -15,6 +16,7 @@ import {
 import { NATIVE_GAS_RESERVE } from "../sdk/wagmiSdk";
 import type { Address } from "viem";
 import type { Token } from "../types";
+import { UsdAmount } from "./UsdAmount";
 
 const SLIPPAGE_BPS = 300; // useStore sends minOut at 97% of the quote.
 const PRESETS = [25, 50, 100];
@@ -25,7 +27,7 @@ function Row({
   tone,
 }: {
   label: string;
-  value: string;
+  value: ReactNode;
   tone?: string;
 }) {
   return (
@@ -241,7 +243,7 @@ export function TradePanel({
             atLeast === null ? "—" : `${formatEthAmount(atLeast)} ${receiving}`
           }
         />
-        <Row label="Price" value={token.price == null ? "—" : `${formatEthAmount(token.price)} WETH`} />
+        <Row label="Price" value={<UsdAmount weth={token.price} />} />
         <Row label="Slippage limit" value={`${SLIPPAGE_BPS / 100}%`} />
         {activeContractVersion === "v2" && <Row label="Curve fee + creator tax" value={token.feeBps == null ? "—" : `${((token.feeBps + (token.creatorTaxBps ?? 0)) / 100).toFixed(2)}%`} />}
         <Row

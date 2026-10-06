@@ -1,5 +1,5 @@
 import { useStore } from "../app/useStore.js";
-import { formatEthAmount, formatPercent } from "../lib/format.js";
+import { formatPercent } from "../lib/format.js";
 import type { Address } from "viem";
 import { formatEther } from "viem";
 import { useReadContract } from "wagmi";
@@ -7,6 +7,7 @@ import { launchpadAbi, lockerAbi } from "../sdk/contracts";
 import { v2EscrowAbi, v2FactoryAbi } from "../sdk/v2Contracts";
 import { activeChainId, activeContractVersion, launchpadAddress } from "../lib/web3";
 import type { Token } from "../types";
+import { UsdAmount } from "./UsdAmount";
 
 export function MilestonePanel({
   token,
@@ -71,11 +72,11 @@ export function MilestonePanel({
       <dl className="milestone-figures">
         <div>
           <dt>Target price</dt>
-          <dd>{token.targetPrice == null ? "—" : `${formatEthAmount(token.targetPrice)} WETH`}</dd>
+          <dd><UsdAmount weth={token.targetPrice} /></dd>
         </div>
         <div>
           <dt>Now trading at</dt>
-          <dd>{token.price == null ? "—" : `${formatEthAmount(token.price)} WETH`}</dd>
+          <dd><UsdAmount weth={token.price} /></dd>
         </div>
       </dl>
 
