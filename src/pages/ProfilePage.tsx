@@ -1,15 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { useAccount, usePublicClient } from "wagmi";
 import type { Address } from "viem";
+import { useStore } from "../app/useStore.js";
 import { AppLink } from "../components/Navigation";
 import { TokenCard } from "../components/TokenCard";
-import {
-  discoverCreatorTokens,
-  type CreatorTokenClient,
-} from "../creatorTokens";
+import type { CreatorTokenClient } from "../creatorTokens";
 import { activeChainId } from "../lib/web3";
-import { readableError } from "../lib/errors";
 import type { Navigate, Token } from "../types";
+
+const PROFILE_SKELETON_CARDS = 3;
 
 export function ProfilePage({
   navigate,
@@ -18,34 +17,27 @@ export function ProfilePage({
 }) {
   const { address } = useAccount();
   const publicClient = usePublicClient({ chainId: activeChainId });
-  const [tokens, setTokens] = useState<Token[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const load = useCallback(async () => {
-    if (!address || !publicClient) {
-      setTokens([]);
-      return;
-    }
-    setLoading(true);
-    setError("");
-    try {
-      setTokens(
-        await discoverCreatorTokens(
-          publicClient as unknown as CreatorTokenClient,
-          address as Address,
-        ),
-      );
-    } catch (cause) {
-      setError(readableError(cause, "Could not read this wallet's launches from the configured network."));
-    } finally {
-      setLoading(false);
-    }
-  }, [address, publicClient]);
+  const key = address?.toLowerCase() ?? "";
+  const { creatorTokens, creatorErrors, loadCreatorTokens } = useStore() as {
+    creatorTokens: Record<string, Token[]>;
+    creatorErrors: Record<string, string>;
+    loadCreatorTokens: (
+      client: CreatorTokenClient | undefined,
+      creator: Address,
+    ) => Promise<Token[]>;
+  };
+  const hasCachedResult = Object.prototype.hasOwnProperty.call(creatorTokens, key);
+  const tokens = creatorTokens[key] ?? [];
+  const error = creatorErrors[key];
+  const initialLoading = Boolean(address) && !hasCachedResult && !error;
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (!address) return;
+    void loadCreatorTokens(
+      publicClient as unknown as CreatorTokenClient | undefined,
+      address,
+    ).catch(() => undefined);
+  }, [address, loadCreatorTokens, publicClient]);
 
   useEffect(() => {
     if (!address) navigate("home");
@@ -68,16 +60,28 @@ export function ProfilePage({
         </div>
       </header>
 
-      <section className="profile-stats" aria-label="Launch summary">
-        <div><small>Tokens launched</small><strong>{tokens.length}</strong></div>
-        <div><small>Curves live</small><strong>{tokens.length - graduated}</strong></div>
-        <div><small>Graduated</small><strong>{graduated}</strong></div>
-      </section>
+      {initialLoading ? (
+        <section className="profile-stats profile-stats-skeleton" aria-busy="true" aria-label="Loading launch summary">
+          {Array.from({ length: 3 }, (_, index) => (
+            <div key={index}><span className="skeleton skeleton-line" /><span className="skeleton skeleton-number" /></div>
+          ))}
+        </section>
+      ) : (
+        <section className="profile-stats" aria-label="Launch summary">
+          <div><small>Tokens launched</small><strong>{tokens.length}</strong></div>
+          <div><small>Curves live</small><strong>{tokens.length - graduated}</strong></div>
+          <div><small>Graduated</small><strong>{graduated}</strong></div>
+        </section>
+      )}
 
       <section className="profile-markets" aria-live="polite">
         {error && <p className="notice" role="alert">{error}</p>}
-        {loading && !tokens.length ? (
-          <p className="profile-loading">Loading…</p>
+        {initialLoading ? (
+          <ul className="tcard-grid profile-card-skeletons" aria-busy="true" aria-label="Loading launches">
+            {Array.from({ length: PROFILE_SKELETON_CARDS }, (_, index) => (
+              <li key={index} className="tcard skeleton" />
+            ))}
+          </ul>
         ) : !tokens.length ? (
           <div className="profile-empty">
             <strong>No launches from this wallet yet.</strong>

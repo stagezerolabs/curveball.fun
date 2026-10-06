@@ -1,7 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePublicClient } from "wagmi";
 import { TokenAvatar } from "./TokenAvatar";
 import { UsdAmount } from "./UsdAmount";
 import { useStore } from "../app/useStore.js";
+import type { CreatorTokenClient } from "../creatorTokens";
+import { activeChainId } from "../lib/web3";
 import type { KeyboardEvent } from "react";
 import type { Navigate, Token } from "../types";
 
@@ -17,9 +20,12 @@ function SearchIcon() {
 }
 
 export function NavSearch({ navigate }: { navigate: Navigate }) {
-  const { tokens, loading } = useStore() as {
+  const publicClient = usePublicClient({ chainId: activeChainId });
+  const { tokens, loading, marketsFetchedAt, loadMarkets } = useStore() as {
     tokens: Token[];
     loading: boolean;
+    marketsFetchedAt: number;
+    loadMarkets: (client?: CreatorTokenClient) => Promise<Token[]>;
   };
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -28,6 +34,11 @@ export function NavSearch({ navigate }: { navigate: Navigate }) {
   const [expanded, setExpanded] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const warmMarkets = useCallback(() => {
+    void loadMarkets(
+      publicClient as unknown as CreatorTokenClient | undefined,
+    ).catch(() => undefined);
+  }, [loadMarkets, publicClient]);
 
   const results = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -53,11 +64,12 @@ export function NavSearch({ navigate }: { navigate: Navigate }) {
       if (event.key !== "k" || !(event.metaKey || event.ctrlKey)) return;
       event.preventDefault();
       setExpanded(true);
+      warmMarkets();
       inputRef.current?.focus();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [warmMarkets]);
 
   useEffect(() => {
     if (!open && !expanded) return;
@@ -109,7 +121,10 @@ export function NavSearch({ navigate }: { navigate: Navigate }) {
         type="button"
         aria-label="Search tokens"
         aria-expanded={expanded}
-        onClick={() => setExpanded(true)}
+        onClick={() => {
+          setExpanded(true);
+          warmMarkets();
+        }}
       >
         <SearchIcon />
       </button>
@@ -133,15 +148,22 @@ export function NavSearch({ navigate }: { navigate: Navigate }) {
             setQuery(event.target.value);
             setOpen(true);
           }}
-          onFocus={() => setOpen(true)}
+          onFocus={() => {
+            setOpen(true);
+            warmMarkets();
+          }}
           onKeyDown={onKeyDown}
         />
       </div>
 
       {showPanel && (
         <div className="nav-results" id="nav-search-results">
-          {loading && !tokens.length ? (
-            <p className="nav-empty">Loading markets…</p>
+          {loading && !marketsFetchedAt ? (
+            <div className="nav-results-skeleton" aria-busy="true" aria-label="Loading search results">
+              {Array.from({ length: 3 }, (_, index) => (
+                <span key={index} className="skeleton" />
+              ))}
+            </div>
           ) : results.length ? (
             <ul role="listbox" aria-label="Token results">
               {results.map((token, index) => (

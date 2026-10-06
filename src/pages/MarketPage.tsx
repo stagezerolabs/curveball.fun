@@ -1,90 +1,80 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useAccount, usePublicClient } from "wagmi";
-import { getAddress, isAddress } from "viem";
+import { getAddress, isAddress, type Address } from "viem";
 import { useStore } from "../app/useStore.js";
 import { AppLink } from "../components/Navigation";
 import { MarketHeader } from "../components/MarketHeader";
 import { MarketTabs } from "../components/MarketTabs";
 import { MilestonePanel } from "../components/MilestonePanel";
 import { TradePanel } from "../components/TradePanel";
-import {
-  discoverToken,
-  type CreatorTokenClient,
-} from "../creatorTokens";
+import type { CreatorTokenClient } from "../creatorTokens";
 import { activeChainId } from "../lib/web3";
-import { readableError } from "../lib/errors";
 import type { Navigate, Token } from "../types";
 
+function MarketPageSkeleton({ navigate }: { navigate: Navigate }) {
+  return (
+    <main className="market-page market-page-skeleton wrap" aria-busy="true" aria-label="Loading market">
+      <AppLink className="back-link" route="markets" navigate={navigate}>← All markets</AppLink>
+      <div className="market-header-skeleton">
+        <span className="skeleton skeleton-circle" />
+        <span className="skeleton skeleton-line skeleton-title" />
+        <span className="skeleton skeleton-line skeleton-price" />
+      </div>
+      <div className="skeleton market-panel-skeleton" />
+      <div className="skeleton market-panel-skeleton" />
+      <div className="skeleton market-tabs-skeleton" />
+    </main>
+  );
+}
+
 export function MarketPage({
-  token,
   tokenAddress,
   navigate,
 }: {
-  token?: Token;
   tokenAddress: string;
   navigate: Navigate;
 }) {
-  const { loading, marketError, actionError } = useStore() as {
-    loading: boolean;
-    marketError: string;
-    actionError: string;
-  };
-  const { address } = useAccount();
   const publicClient = usePublicClient({ chainId: activeChainId });
-  const [onchainToken, setOnchainToken] = useState<Token | null>();
-  const [discoveryError, setDiscoveryError] = useState("");
-  const error = actionError || marketError || discoveryError;
-  const resolvedToken = token ?? onchainToken;
+  const validAddress = isAddress(tokenAddress);
+  const address = validAddress ? getAddress(tokenAddress) : undefined;
+  const key = tokenAddress.toLowerCase();
+  const { tokenCache, tokenFetchedAt, tokenErrors, actionError, loadToken } = useStore() as {
+    tokenCache: Record<string, Token | null>;
+    tokenFetchedAt: Record<string, number>;
+    tokenErrors: Record<string, string>;
+    actionError: string;
+    loadToken: (client: CreatorTokenClient | undefined, address: Address) => Promise<Token | null>;
+  };
+  const { address: walletAddress } = useAccount();
+  const hasCachedResult = Object.prototype.hasOwnProperty.call(tokenCache, key);
+  const resolvedToken = tokenCache[key];
+  const fetchedAt = tokenFetchedAt[key];
+  const discoveryError = tokenErrors[key];
+  const error = actionError || discoveryError;
 
   useEffect(() => {
-    if (token) {
-      setOnchainToken(token);
-      setDiscoveryError("");
-      return;
-    }
-    if (!isAddress(tokenAddress)) {
-      setOnchainToken(null);
-      return;
-    }
-    if (!publicClient) {
-      setOnchainToken(undefined);
-      return;
-    }
+    if (!address) return;
+    void loadToken(
+      publicClient as unknown as CreatorTokenClient | undefined,
+      address,
+    ).catch(() => undefined);
+  }, [address, fetchedAt, loadToken, publicClient]);
 
-    let active = true;
-    setOnchainToken(undefined);
-    setDiscoveryError("");
-    void discoverToken(
-      publicClient as unknown as CreatorTokenClient,
-      getAddress(tokenAddress),
-    )
-      .then((result) => {
-        if (active) setOnchainToken(result);
-      })
-      .catch((cause) => {
-        if (!active) return;
-        setOnchainToken(null);
-        setDiscoveryError(readableError(cause, "Could not read this market from the configured network."));
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [publicClient, token, tokenAddress]);
-
-  if (!resolvedToken && (loading || onchainToken === undefined))
-    return <main className="page-status wrap">Loading market…</main>;
-  if (!resolvedToken)
+  if (validAddress && !hasCachedResult && !discoveryError) {
+    return <MarketPageSkeleton navigate={navigate} />;
+  }
+  if (!resolvedToken) {
     return (
       <main className="page-status wrap">
         <span className="empty-orbit" />
         <h1>Market not found</h1>
-        <p>This curve does not exist on the configured network.</p>
+        <p>{error || "This curve does not exist on the configured network."}</p>
         <AppLink className="primary-button" route="markets" navigate={navigate}>
           Back to markets
         </AppLink>
       </main>
     );
+  }
 
   return (
     <main className="market-page wrap">
@@ -95,11 +85,11 @@ export function MarketPage({
       <MarketHeader token={resolvedToken} />
       <TradePanel
         token={resolvedToken}
-        address={address}
+        address={walletAddress}
       />
       <MilestonePanel
         token={resolvedToken}
-        address={address}
+        address={walletAddress}
       />
       <MarketTabs token={resolvedToken} />
 

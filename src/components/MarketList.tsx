@@ -23,7 +23,18 @@ export function MarketList({
         <span>Status</span>
         <span>Market</span>
       </div>
-      {loading && <div className="empty-state">Loading the latest curves…</div>}
+      {loading && (
+        <div className="market-list-skeleton" aria-busy="true" aria-label="Loading markets">
+          {Array.from({ length: 5 }, (_, index) => (
+            <div className="market-row" key={index}>
+              <span className="skeleton skeleton-token" />
+              <span className="skeleton skeleton-pill" />
+              <span className="skeleton skeleton-value" />
+              <span className="skeleton skeleton-progress" />
+            </div>
+          ))}
+        </div>
+      )}
       {!loading && !tokens.length && (
         <div className="empty-state">
           <span className="empty-orbit" aria-hidden="true" />
@@ -34,7 +45,7 @@ export function MarketList({
           </AppLink>
         </div>
       )}
-      {tokens.map((token, index) => (
+      {!loading && tokens.map((token, index) => (
         <button
           type="button"
           className={`market-row ${highlightedToken?.toLowerCase() === token.address.toLowerCase() ? "market-row-created" : ""}`}

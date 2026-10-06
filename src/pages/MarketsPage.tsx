@@ -1,6 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { usePublicClient } from "wagmi";
 import { MarketList } from "../components/MarketList";
 import { useStore } from "../app/useStore.js";
+import type { CreatorTokenClient } from "../creatorTokens";
+import { activeChainId } from "../lib/web3";
 import type { Navigate, Token } from "../types";
 
 const TABS: { id: Tab; label: string }[] = [
@@ -25,19 +28,29 @@ function selectTokens(tokens: Token[], tab: Tab) {
 }
 
 export function MarketsPage({ navigate }: { navigate: Navigate }) {
+  const publicClient = usePublicClient({ chainId: activeChainId });
   const {
     tokens,
-    loading,
+    marketsFetchedAt,
     marketError: error,
     lastCreatedToken,
+    loadMarkets,
   } = useStore() as {
     tokens: Token[];
-    loading: boolean;
+    marketsFetchedAt: number;
     marketError: string;
     lastCreatedToken: string | null;
+    loadMarkets: (client?: CreatorTokenClient) => Promise<Token[]>;
   };
   const [tab, setTab] = useState<Tab>(lastCreatedToken ? "new" : "trending");
   const visible = useMemo(() => selectTokens(tokens, tab), [tokens, tab]);
+  const initialLoading = !marketsFetchedAt && !error;
+
+  useEffect(() => {
+    void loadMarkets(
+      publicClient as unknown as CreatorTokenClient | undefined,
+    ).catch(() => undefined);
+  }, [loadMarkets, publicClient]);
 
   return (
     <main className="page-main">
@@ -72,7 +85,7 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
             </button>
           ))}
         </div>
-        <MarketList tokens={visible} loading={loading} navigate={navigate} highlightedToken={lastCreatedToken} />
+        <MarketList tokens={visible} loading={initialLoading} navigate={navigate} highlightedToken={lastCreatedToken} />
       </section>
     </main>
   );
