@@ -9,7 +9,6 @@ import {CurveFeeEscrow} from "./CurveFeeEscrow.sol";
 import {CurveBuybackVault} from "./CurveBuybackVault.sol";
 
 interface ICurveFactoryAccess {
-    function canBuy(address account) external view returns (bool);
     function launchAndBuy() external view returns (address);
     function owner() external view returns (address);
 }
@@ -180,7 +179,7 @@ contract CurveBondingCurve is ReentrancyGuard {
     function _buy(address payer, address recipient, uint256 maxSpend, uint256 minOut, uint256 deadline)
         private returns (uint256 out)
     {
-        require(block.timestamp <= deadline && ICurveFactoryAccess(factory).canBuy(recipient), "buy unavailable");
+        require(block.timestamp <= deadline, "expired");
         uint256 spent;
         uint256 curveQuote;
         uint256 fee;

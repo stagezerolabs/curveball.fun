@@ -109,6 +109,8 @@ describe("Curveball SDK write boundary", () => {
         uri: "ipfs://not-a-content-identifier",
       }),
     ).toThrow("URI");
+    expect(() => validateTokenInput({ name: "🚀".repeat(17), symbol: "NBR", uri: "" })).toThrow("name");
+    expect(() => validateTokenInput({ name: "NBR", symbol: "NBR", uri: `https://example.com/${"🚀".repeat(510)}` })).toThrow("URI");
   });
 });
 

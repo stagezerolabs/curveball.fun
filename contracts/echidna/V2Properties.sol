@@ -38,8 +38,6 @@ contract V2Properties {
         quote = new MockWETH();
         factory = CurveV2Deployment.deploy(address(quote), address(new MockIcarusFactory()), address(this), SUPPLY, CURVE_SUPPLY, INITIAL_VQ);
         creator = new V2CreatorActor();
-        factory.setInvited(address(this), true);
-        factory.setInvited(address(creator), true);
         (address token_, address curve_) = creator.create(factory);
         token = CurveLauncherToken(token_);
         curve = CurveBondingCurve(curve_);

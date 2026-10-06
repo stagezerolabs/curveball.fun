@@ -40,12 +40,10 @@ export function TradePanel({
   token,
   address,
   config,
-  connectWallet,
 }: {
   token: Token;
   address?: Address;
   config: LaunchpadConfig | null;
-  connectWallet: () => void;
 }) {
   const {
     amount,
@@ -178,7 +176,8 @@ export function TradePanel({
       </div>
 
       {token.pending && <p className="notice" role="status">Graduation is ready. Anyone can create the Icarus pool. Selling remains available until then.</p>}
-      {!hasBetaAccess && side === "buy" && <p className="notice" role="status">Limited beta: this wallet needs an invitation to buy. Selling remains open.</p>}
+      {activeContractVersion === "v2" && !token.pending && (token.progress ?? 0) >= 100 && side === "buy" && <p className="notice" role="status">This curve is sold out. Buying will resume in the graduated pool; selling remains available for now.</p>}
+      {!hasBetaAccess && side === "buy" && publicOpen === false && invited === false && <p className="notice" role="status">This deployed factory is still invite-only. Selling remains open.</p>}
 
       <div className="amount-head">
         <label htmlFor="trade-amount">Amount</label>
@@ -254,11 +253,11 @@ export function TradePanel({
           {isPending ? "Pending…" : side === "buy" ? "Buy" : "Sell"}
         </button>
       ) : (
-        <button className="trade-submit connect" onClick={connectWallet}>
-          Connect wallet
+        <button className={`trade-submit ${side}`} type="button" disabled>
+          {side === "buy" ? "Buy" : "Sell"}
         </button>
       )}
-      {!address && <p className="trade-hint">Connect wallet to trade.</p>}
+      {!address && <p className="trade-hint">Connect from the navigation to trade.</p>}
       {tradeMessage && !isPending && (
         <p className="trade-hint success" role="status">
           {tradeMessage}

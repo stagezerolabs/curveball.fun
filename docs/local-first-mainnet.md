@@ -1,5 +1,7 @@
 # CURVE local-first launch preparation
 
+> Historical plan for the earlier gated deployment. The current permissionless replacement and fresh Markets cutover are documented in [permissionless V2](runbooks/permissionless-v2.md). The invitation and `openPublicLaunch()` steps below do not apply to the replacement source.
+
 This milestone prepares replacement contracts. The earlier RISE mainnet deployment under `deployments/4153/curveball.json` is archived and must never be reused for the new app. The public site continues to use the recorded RISE Testnet deployment. No new public chain transaction or hosted deployment is part of this milestone.
 
 ## New contract behavior

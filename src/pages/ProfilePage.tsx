@@ -13,10 +13,8 @@ import type { Navigate, Token } from "../types";
 
 export function ProfilePage({
   navigate,
-  connectWallet,
 }: {
   navigate: Navigate;
-  connectWallet: () => void;
 }) {
   const { address } = useAccount();
   const publicClient = usePublicClient({ chainId: activeChainId });
@@ -53,25 +51,16 @@ export function ProfilePage({
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (!address) navigate("home");
+  }, [address, navigate]);
+
   const graduated = useMemo(
     () => tokens.filter((token) => token.graduated).length,
     [tokens],
   );
 
-  if (!address) {
-    return (
-      <main className="page-main profile-page wrap">
-        <section className="profile-connect">
-          <div className="eyebrow"><span /> Your launches</div>
-          <h1>Connect to see what you built.</h1>
-          <p>Your dashboard is derived directly from launchpad events.</p>
-          <button className="primary-button" onClick={connectWallet}>
-            Connect wallet
-          </button>
-        </section>
-      </main>
-    );
-  }
+  if (!address) return null;
 
   return (
     <main className="page-main profile-page wrap">

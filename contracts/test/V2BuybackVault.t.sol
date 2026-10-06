@@ -51,7 +51,6 @@ contract V2BuybackVaultTest is TestBase {
         CurveLaunchFactory factory = CurveV2Deployment.deploy(
             address(quote), address(new MockIcarusFactory()), address(this), 1_000_000 ether, 800_000 ether, 10 ether
         );
-        factory.setInvited(address(this), true);
         (address token, address curveAddress) = factory.createToken("Sweep", "SWP", "", 0);
         CurveBondingCurve curve = CurveBondingCurve(curveAddress);
         quote.mint(address(this), 2 ether);
@@ -74,7 +73,6 @@ contract V2BuybackVaultTest is TestBase {
         CurveLaunchFactory factory = CurveV2Deployment.deploy(
             address(quote), address(new MockIcarusFactory()), address(this), 1_000_000 ether, 800_000 ether, 10 ether
         );
-        factory.setInvited(address(this), true);
         (address token, address curveAddress) = factory.createToken("Sweep", "SWP", "", 0);
         quote.mint(address(this), 2 ether);
         quote.approve(curveAddress, 2 ether);

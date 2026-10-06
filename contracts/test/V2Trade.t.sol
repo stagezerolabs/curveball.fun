@@ -164,8 +164,6 @@ contract V2TradeTest is TestBase {
     function testQuoteTransferCallbackCannotReenterBuy() external {
         ReenteringQuote quote = new ReenteringQuote();
         CurveLaunchFactory factory = CurveV2Deployment.deploy(address(quote), address(new MockIcarusFactory()), address(this), 1_000_000 ether, 800_000 ether, 10 ether);
-        factory.setInvited(CREATOR, true);
-        factory.setInvited(TRADER, true);
         vm.prank(CREATOR);
         (, address curveAddress) = factory.createToken("V2", "V2", "", 0);
         CurveBondingCurve curve = CurveBondingCurve(curveAddress);
@@ -184,8 +182,6 @@ contract V2TradeTest is TestBase {
     {
         quote = new MockWETH();
         factory = CurveV2Deployment.deploy(address(quote), address(new MockIcarusFactory()), address(this), 1_000_000 ether, 800_000 ether, 10 ether);
-        factory.setInvited(CREATOR, true);
-        factory.setInvited(TRADER, true);
         vm.prank(CREATOR);
         (address tokenAddress, address curveAddress) = factory.createToken("V2", "V2", "", tax);
         token = CurveLauncherToken(tokenAddress);

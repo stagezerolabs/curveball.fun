@@ -29,12 +29,14 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
     tokens,
     loading,
     marketError: error,
+    lastCreatedToken,
   } = useStore() as {
     tokens: Token[];
     loading: boolean;
     marketError: string;
+    lastCreatedToken: string | null;
   };
-  const [tab, setTab] = useState<Tab>("trending");
+  const [tab, setTab] = useState<Tab>(lastCreatedToken ? "new" : "trending");
   const visible = useMemo(() => selectTokens(tokens, tab), [tokens, tab]);
 
   return (
@@ -50,6 +52,7 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
         </p>
       </section>
       <section className="markets-page wrap">
+        {lastCreatedToken && <p className="market-created-note" role="status">Your new token is listed below. Market data may take a moment to appear.</p>}
         {error && (
           <p className="notice" role="alert">
             {error}
@@ -69,7 +72,7 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
             </button>
           ))}
         </div>
-        <MarketList tokens={visible} loading={loading} navigate={navigate} />
+        <MarketList tokens={visible} loading={loading} navigate={navigate} highlightedToken={lastCreatedToken} />
       </section>
     </main>
   );

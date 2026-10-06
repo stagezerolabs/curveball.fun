@@ -21,7 +21,6 @@ export const v2FactoryAbi = parseAbi([
   "function creatorTaxCapBps() view returns (uint16)",
   "function publicLaunchOpen() view returns (bool)",
   "function invited(address) view returns (bool)",
-  "function openPublicLaunch()",
   "function initialize((address deployer,address escrow,address vault,address guard,address executor,address locker,address hook,address launchAndBuy) services)",
   "function owner() view returns (address)",
   "function market(address) view returns (address curve,address creator,uint16 feeBps,uint16 creatorShareBps,uint16 buybackShareBps,uint16 creatorTaxBps,address treasury)",

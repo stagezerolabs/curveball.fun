@@ -17,8 +17,6 @@ contract V2PropertiesTest is TestBase {
     function testFuzzTradeSequencePreservesFundsAndMarketAuthority(uint64[8] memory decisions) external {
         MockWETH quote = new MockWETH();
         CurveLaunchFactory factory = CurveV2Deployment.deploy(address(quote), address(new MockIcarusFactory()), address(this), SUPPLY, 800_000 ether, 10 ether);
-        factory.setInvited(address(this), true);
-        factory.setInvited(TRADER, true);
         (address tokenAddress, address curveAddress) = factory.createToken("Property", "PROP", "", 25);
         CurveLauncherToken token = CurveLauncherToken(tokenAddress);
         CurveBondingCurve curve = CurveBondingCurve(curveAddress);

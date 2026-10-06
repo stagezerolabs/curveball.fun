@@ -42,5 +42,6 @@ test("Vercel builds the browser for the recorded V2 testnet deployment", async (
     VITE_CONTRACT_VERSION: deployment.version,
     VITE_LAUNCHPAD_ADDRESS: deployment.factory,
     VITE_DEPLOYMENT_BLOCK: deployment.deploymentBlock,
+    VITE_WALLETCONNECT_PROJECT_ID: "831c879216653941caef04cfd3bbc0f0",
   });
 });

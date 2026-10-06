@@ -1,6 +1,6 @@
 # curveball.fun
 
-The replacement mainnet launch is being prepared locally. See [local-first mainnet preparation](docs/local-first-mainnet.md). The existing public app remains on RISE Testnet; the archived mainnet receipt is not the new deployment.
+The permissionless V2 replacement is being prepared locally. See the [permissionless V2 release runbook](docs/runbooks/permissionless-v2.md). The existing public app remains on RISE Testnet; the archived mainnet receipt is not the new deployment.
 
 Curveball is a token-launch application for RISE. Anyone can create a fixed-supply ERC-20, trade it through a constant-product bonding curve, and graduate it into a volatile Icarus pool once the curve sells out. The accompanying web app lists markets, lets connected wallets create and trade tokens, and shows indexed trade history.
 
@@ -114,7 +114,7 @@ The browser wallet must also be connected to the local Anvil chain. The local de
 
 | Command | Purpose |
 | --- | --- |
-| `bun run dev` | Start the Bun API watcher and Vite client |
+| `bun run dev` | Start the guarded local V2 API and Vite client using `.env.v2.local` (after `make migrate-v2-local`) |
 | `bun run build` | Build the web client |
 | `bun run typecheck` | Type-check the application |
 | `bun test` | Run Bun tests; database coverage runs when `TEST_DATABASE_URL` is set |
@@ -136,6 +136,8 @@ The browser wallet must also be connected to the local Anvil chain. The local de
 The indexer owns all market data returned by the API. Creator-editable off-chain metadata is intentionally disabled until it has wallet-signature ownership verification.
 
 Connected creators can open `/profile` from the wallet button to see every token they deployed. This dashboard reads launch events directly from RISE Testnet beginning at the build's `VITE_DEPLOYMENT_BLOCK` (`55636468` in the local V2 profile); when unset on testnet, the client uses the V1 deployment block. Creator discovery does not depend on the hosted indexer being awake.
+
+The wallet picker uses RainbowKit. Set `VITE_WALLETCONNECT_PROJECT_ID` to a public WalletConnect Cloud project ID in the browser build environment to enable QR and mobile wallets. Without it, browser extension wallets remain available. The configured RISE chain is the only supported trading network.
 
 ## V1 RISE Testnet release gate
 

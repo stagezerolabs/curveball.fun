@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useAccount, useConnect, usePublicClient } from "wagmi";
+import { useAccount, usePublicClient } from "wagmi";
 import {
   Footer,
   Header,
@@ -32,9 +32,7 @@ export function App() {
   const { navigate, route } = useRouter();
   const [theme, setTheme] = useState<Theme>(readStoredTheme);
   const { address } = useAccount();
-  const { connect, connectors } = useConnect();
   const publicClient = usePublicClient({ chainId: activeChainId });
-  const connectWallet = () => connect({ connector: connectors[0] });
   const { tokens, loading, fetchTokens, mergeTokens, lastCreatedToken } = useStore() as {
     tokens: Token[];
     loading: boolean;
@@ -129,16 +127,15 @@ export function App() {
           navigate={navigate}
           token={token}
           tokenAddress={(route.params as { address: string }).address}
-          connectWallet={connectWallet}
         />
       );
       break;
     case "launch":
-      page = <LaunchPage />;
+      page = <LaunchPage navigate={navigate} />;
       break;
     case "profile":
       page = (
-        <ProfilePage navigate={navigate} connectWallet={connectWallet} />
+        <ProfilePage navigate={navigate} />
       );
       break;
     default:
@@ -154,7 +151,6 @@ export function App() {
       {isLanding ? (
         <LandingHeader
           address={address}
-          connectWallet={connectWallet}
           navigate={navigate}
           theme={theme}
           onThemeToggle={toggleTheme}
@@ -162,7 +158,6 @@ export function App() {
       ) : (
         <Header
           address={address}
-          connectWallet={connectWallet}
           navigate={navigate}
           routeId={route.id}
           theme={theme}
