@@ -40,8 +40,6 @@ contract IcarusFactoryForkTest is TestBase {
         if (bytes(rpcUrl).length == 0) return;
         vm.createSelectFork(rpcUrl);
         CurveLaunchFactory v2 = CurveV2Deployment.deploy(WETH, FACTORY, DOT, 1_000_000 ether, 800_000 ether, 10 ether);
-        v2.setInvited(address(this), true);
-        v2.setInvited(TRADER, true);
         (address token, address curveAddress) = v2.createToken("V2 Fork", "V2F", "", 0);
         CurveBondingCurve curve = CurveBondingCurve(curveAddress);
         vm.deal(TRADER, 50 ether);

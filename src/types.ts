@@ -9,6 +9,7 @@ export type Token = {
   creator: Address;
   graduated: boolean;
   pending?: boolean;
+  indexing?: boolean;
   curve?: Address | null;
   feeBps?: number | null;
   creatorTaxBps?: number | null;

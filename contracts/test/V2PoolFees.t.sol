@@ -19,8 +19,6 @@ contract V2PoolFeesTest is TestBase {
         CurveLaunchFactory factory = CurveV2Deployment.deploy(
             address(quote), address(new PoCFactory()), address(this), 1_000_000 ether, 800_000 ether, 10 ether
         );
-        factory.setInvited(CREATOR, true);
-        factory.setInvited(TRADER, true);
         vm.prank(CREATOR);
         (address tokenAddress, address curveAddress) = factory.createToken("V2", "V2", "", 0);
         CurveLauncherToken token = CurveLauncherToken(tokenAddress);

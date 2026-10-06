@@ -16,6 +16,7 @@ const icarusPool = getAddress("0x6666666666666666666666666666666666666666");
 test("V2 buy resolves the token's own curve, wraps the shortfall, and approves that curve", async () => {
   const writes: { address: string; functionName: string; args?: readonly unknown[] }[] = [];
   let buySimulations = 0;
+  let allowance = 0n;
   const actions = {
     getAccount: () => ({ address: account, chainId: 11155931 }),
     getBalance: async () => ({ value: parseEther("2") }),
@@ -24,17 +25,18 @@ test("V2 buy resolves the token's own curve, wraps the shortfall, and approves t
         case "market": return [curve, account, 50, 5000, 2500, 0, account];
         case "quote": return quote;
         case "balanceOf": return parseEther("0.4");
-        case "allowance": return 0n;
+        case "allowance": return allowance;
         case "quoteBuy": return [parseEther("100"), parseEther("1"), parseEther("0.995"), parseEther("0.005"), 0n];
         default: throw Error(`Unexpected ${p.functionName}`);
       }
     },
     simulateContract: async (_: Config, p: { functionName: string }) => {
-      if (p.functionName === "buyTokens" && ++buySimulations === 1) throw Error("ERC20InsufficientAllowance 0xfb8f41b2 from a stale RPC block");
+      if (p.functionName === "buyTokens" && ++buySimulations <= 4) throw Error("ERC20InsufficientAllowance 0xfb8f41b2 from a stale RPC block");
       return { request: p };
     },
     writeContract: async (_: Config, p: { address: string; functionName: string; args?: readonly unknown[] }) => {
       writes.push(p);
+      if (p.functionName === "approve") allowance = p.args?.[1] as bigint;
       return `0x${String(writes.length).repeat(64)}` as Hash;
     },
     waitForTransactionReceipt: async () => ({ status: "success", logs: [] }),
@@ -47,7 +49,7 @@ test("V2 buy resolves the token's own curve, wraps the shortfall, and approves t
   expect(writes.map((p) => p.functionName)).toEqual(["deposit", "approve", "buyTokens"]);
   expect(writes[1]).toMatchObject({ address: quote, args: [curve, parseEther("1")] });
   expect(writes[2]).toMatchObject({ address: curve, args: [parseEther("1"), parseEther("97"), expect.any(BigInt)] });
-  expect(buySimulations).toBe(2);
+  expect(buySimulations).toBe(5);
 });
 
 test("V2 rejects unregistered markets before quoting or writing", async () => {
@@ -59,9 +61,37 @@ test("V2 rejects unregistered markets before quoting or writing", async () => {
   await expect(sdk.quoteTrade("buy", token, 1n)).rejects.toThrow("Unknown Curveball market");
 });
 
+test("V2 does not send a buy when confirmed approval is still unavailable", async () => {
+  const writes: string[] = [];
+  const actions = {
+    getAccount: () => ({ address: account, chainId: 11155931 }),
+    getBalance: async () => ({ value: parseEther("2") }),
+    readContract: async (_: Config, p: { functionName: string }) => {
+      switch (p.functionName) {
+        case "market": return [curve, account, 50, 5000, 2500, 0, account];
+        case "quote": return quote;
+        case "balanceOf": return parseEther("2");
+        case "allowance": return 0n;
+        default: throw Error(`Unexpected ${p.functionName}`);
+      }
+    },
+    simulateContract: async (_: Config, p: object) => ({ request: p }),
+    writeContract: async (_: Config, p: { functionName: string }) => {
+      writes.push(p.functionName);
+      return `0x${"1".repeat(64)}` as Hash;
+    },
+    waitForTransactionReceipt: async () => ({ status: "success", blockNumber: 10n, logs: [] }),
+  } as unknown as WagmiActions;
+  const sdk = createV2Sdk({} as Config, defineCurveballDeployment({ chainId: 11155931, launchpad: factory }), actions);
+  await expect(sdk.trade("buy", token, parseEther("1"))).rejects.toThrow("allowance is still unavailable");
+  expect(writes).toEqual(["approve"]);
+});
+
 test("atomic launch and buy uses a slippage bound from the factory's opening curve", async () => {
   const wrapper = getAddress("0x5555555555555555555555555555555555555555");
   const writes: { address: string; functionName: string; args?: readonly unknown[] }[] = [];
+  const progress: string[] = [];
+  let allowance = 0n;
   const actions = {
     getAccount: () => ({ address: account, chainId: 11155931 }),
     getBalance: async () => ({ value: parseEther("20") }),
@@ -69,19 +99,21 @@ test("atomic launch and buy uses a slippage bound from the factory's opening cur
       const values: Record<string, unknown> = {
         quote, launchAndBuy: wrapper, supply: parseEther("1000000"), curveSupply: parseEther("800000"),
         initialVQ: parseEther("10"), feeBps: 50, creatorTaxCapBps: 50,
-        balanceOf: parseEther("10"), allowance: 0n,
+        balanceOf: parseEther("10"), allowance,
       };
       return values[p.functionName];
     },
     simulateContract: async (_: Config, p: object) => ({ request: p }),
     writeContract: async (_: Config, p: { address: string; functionName: string; args?: readonly unknown[] }) => {
       writes.push(p);
+      if (p.functionName === "approve") allowance = p.args?.[1] as bigint;
       return `0x${String(writes.length).repeat(64)}` as Hash;
     },
     waitForTransactionReceipt: async () => ({ status: "success", logs: [] }),
   } as unknown as WagmiActions;
   const sdk = createV2Sdk({} as Config, defineCurveballDeployment({ chainId: 11155931, launchpad: factory }), actions);
-  await expect(sdk.launchAndBuy({ name: "Nico", symbol: "NICO", uri: "", creatorTaxBps: 25 }, parseEther("1"))).rejects.toThrow("LaunchCreated");
+  await expect(sdk.launchAndBuy({ name: "Nico", symbol: "NICO", uri: "", creatorTaxBps: 25 }, parseEther("1"), (phase) => progress.push(phase))).rejects.toThrow("LaunchCreated");
+  expect(progress).toEqual(["preparing", "approveWallet", "approveConfirming", "wallet", "confirming"]);
   expect(writes.map((p) => p.functionName)).toEqual(["approve", "launchAndBuy"]);
   expect(writes[0]).toMatchObject({ address: quote, args: [wrapper, parseEther("1")] });
   const request = writes[1].args?.[0] as { maxSpend: bigint; minOut: bigint; creatorTaxBps: number };

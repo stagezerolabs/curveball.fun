@@ -1,17 +1,19 @@
 import { AppLink } from "./Navigation";
 import { ArrowIcon } from "./ArrowIcon";
 import { TokenAvatar } from "./TokenAvatar";
-import { formatPercent, formatUsd, formatUsdCompact } from "../lib/format.js";
+import { formatAddress, formatPercent, formatUsd, formatUsdCompact } from "../lib/format.js";
 import type { Navigate, Token } from "../types";
 
 export function MarketList({
   tokens,
   loading,
   navigate,
+  highlightedToken,
 }: {
   tokens: Token[];
   loading: boolean;
   navigate: Navigate;
+  highlightedToken?: string | null;
 }) {
   return (
     <div className="market-list" aria-live="polite">
@@ -33,7 +35,7 @@ export function MarketList({
       )}
       {tokens.map((token, index) => (
         <button
-          className="market-row"
+          className={`market-row ${highlightedToken?.toLowerCase() === token.address.toLowerCase() ? "market-row-created" : ""}`}
           key={token.address}
           onClick={() => navigate("market", { address: token.address })}
         >
@@ -42,6 +44,8 @@ export function MarketList({
             <span>
               <strong>{token.name}</strong>
               <small>${token.symbol}</small>
+              <small className="market-token-address">{formatAddress(token.address)}</small>
+              {highlightedToken?.toLowerCase() === token.address.toLowerCase() && <small className="market-new-tag">Just launched</small>}
             </span>
           </span>
           <span

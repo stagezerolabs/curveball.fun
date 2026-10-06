@@ -32,6 +32,12 @@ describe("beta and market state selection", () => {
     });
   });
 
+  test("a closed deployed factory stays gated even when the wallet is connected", () => {
+    expect(selectMarketState({ ...v2Market, publicLaunchOpen: false, invited: false })).toMatchObject({
+      state: "uninvited-beta", canCreate: false, canBuy: false,
+    });
+  });
+
   test("v1 on RISE Testnet opens both gates regardless of invite state", () => {
     expect(selectMarketState({ ...v2Market, contractVersion: "v1", invited: false, publicLaunchOpen: false })).toEqual({
       state: "public", hasBetaAccess: true, canCreate: true, canBuy: true,

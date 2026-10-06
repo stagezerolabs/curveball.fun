@@ -50,22 +50,22 @@ describe("token creation form lifecycle", () => {
       actionError: "",
       isPending: false,
       lastCreatedToken: null,
+      launchProgress: null,
       loading: false,
       tokens: [],
       tradeMessage: "",
     });
   });
 
-  test("publishes the created token for targeted discovery after the API refresh", async () => {
+  test("publishes the confirmed token without waiting for the indexer", async () => {
     let release;
     useStore.setState({ fetchTokens: () => new Promise((resolve) => { release = resolve; }) });
     const event = { preventDefault() {}, currentTarget: testForm };
-    const submission = useStore.getState().createToken(event);
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(useStore.getState().lastCreatedToken).toBeNull();
-    release(true);
-    await submission;
+    await useStore.getState().createToken(event);
     expect(useStore.getState().lastCreatedToken).toBe("0x1111111111111111111111111111111111111111");
+    expect(useStore.getState().launchProgress.phase).toBe("success");
+    expect(useStore.getState().tokens[0].address).toBe("0x1111111111111111111111111111111111111111");
+    release(true);
   });
 
   test("resets the submitted form after an asynchronous wallet transaction", async () => {
@@ -83,6 +83,31 @@ describe("token creation form lifecycle", () => {
 
     expect(useStore.getState().actionError).toBe("");
     expect(reset).toHaveBeenCalledTimes(1);
+  });
+
+  test("reports wallet, transaction, and discovery progress and keeps a confirmed launch visible", async () => {
+    createToken.mockImplementationOnce(async (_input, onProgress) => {
+      onProgress("wallet");
+      onProgress("confirming", "0xabc");
+      return { token: "0x1111111111111111111111111111111111111111", hash: "0xabc" };
+    });
+    const states = [];
+    const unsubscribe = useStore.subscribe((state) => states.push(state.launchProgress));
+    await useStore.getState().createToken({ preventDefault() {}, currentTarget: testForm });
+    unsubscribe();
+    expect(states.map((state) => state?.phase)).toContain("wallet");
+    expect(states.map((state) => state?.phase)).toContain("confirming");
+    expect(states.map((state) => state?.phase)).toContain("indexing");
+    expect(useStore.getState().launchProgress.phase).toBe("success");
+    expect(useStore.getState().tokens[0]).toMatchObject({ name: "LONGNICO", symbol: "NICO" });
+  });
+
+  test("keeps a failed launch open with its error and leaves the form intact", async () => {
+    createToken.mockImplementationOnce(async () => { throw new Error("User rejected the request"); });
+    await useStore.getState().createToken({ preventDefault() {}, currentTarget: testForm });
+    expect(useStore.getState().launchProgress.phase).toBe("error");
+    expect(useStore.getState().launchProgress.error).toContain("User rejected");
+    expect(reset).not.toHaveBeenCalled();
   });
 
   test("merges on-chain launches without replacing richer API market data", () => {
@@ -105,6 +130,14 @@ describe("token creation form lifecycle", () => {
       name: "API name",
       marketCapUsd: 42,
     });
+  });
+
+  test("replaces a temporary confirmed launch when chain discovery returns full market data", () => {
+    const address = "0x1111111111111111111111111111111111111111";
+    useStore.setState({ tokens: [{ address, name: "Nico", indexing: true }] });
+    useStore.getState().mergeTokens([{ address, name: "Nico", creator: "0x2222222222222222222222222222222222222222", curve: "0x3333333333333333333333333333333333333333" }]);
+    expect(useStore.getState().tokens[0]).toMatchObject({ curve: "0x3333333333333333333333333333333333333333" });
+    expect(useStore.getState().tokens[0].indexing).toBeUndefined();
   });
 
   test("rejects indexed markets from another deployment", async () => {

@@ -17,7 +17,6 @@ contract V2LaunchTest is TestBase {
 
     function testLaunchMintsFixedSupplyToBoundCurveAndSnapshotsPolicy() external {
         (CurveLaunchFactory factory, CurveLaunchDeployer deployer) = _setup();
-        factory.setInvited(CREATOR, true);
         vm.prank(CREATOR);
         (address token, address curve) = factory.createToken("V2 Token", "V2", "ipfs://v2", 25);
 
@@ -36,21 +35,42 @@ contract V2LaunchTest is TestBase {
         assertEq(treasury, address(this), "wrong treasury snapshot");
     }
 
-    function testInvitationAndCreatorTaxCap() external {
+    function testAnyoneCanLaunchFromGenesisAndCreatorTaxCapStillApplies() external {
         (CurveLaunchFactory factory,) = _setup();
+        assertTrue(factory.publicLaunchOpen(), "factory is not public at genesis");
+        assertTrue(!factory.invited(CREATOR), "legacy invite read should be false");
         vm.prank(CREATOR);
-        vm.expectRevert();
-        factory.createToken("No invite", "NO", "", 0);
-        factory.setInvited(CREATOR, true);
+        (address token, address curve) = factory.createToken("No invite", "NO", "", 0);
+        assertEq(CurveBondingCurve(curve).creator(), CREATOR, "caller is not creator");
+        assertEq(CurveLauncherToken(token).balanceOf(curve), SUPPLY, "missing curve supply");
+        assertTrue(factory.canBuy(CREATOR), "creator cannot buy");
+        assertTrue(factory.canBuy(address(0xBEEF)), "public buyer blocked");
         vm.prank(CREATOR);
         vm.expectRevert();
         factory.createToken("High tax", "HIGH", "", 51);
     }
 
+    function testPermissionlessLaunchBoundsUntrustedMetadata() external {
+        (CurveLaunchFactory factory,) = _setup();
+        string memory longName = string.concat(
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "A"
+        );
+        assertEq(bytes(longName).length, 65, "bad test name");
+        vm.prank(CREATOR);
+        vm.expectRevert();
+        factory.createToken(longName, "LONG", "", 0);
+        vm.prank(CREATOR);
+        vm.expectRevert();
+        factory.createToken("Valid", string(new bytes(13)), "", 0);
+        vm.prank(CREATOR);
+        vm.expectRevert();
+        factory.createToken("Valid", "VALID", string(new bytes(2049)), 0);
+    }
+
     function testFactoryCannotLaunchUninitializedOrReplaceBoundServices() external {
         MockWETH quote = new MockWETH();
         CurveLaunchFactory raw = new CurveLaunchFactory(address(quote), address(new MockIcarusFactory()), address(this), SUPPLY, CURVE_SUPPLY, 10 ether);
-        raw.setInvited(address(this), true);
+        assertTrue(!raw.publicLaunchOpen(), "uninitialized factory reports public access");
         vm.expectRevert();
         raw.createToken("Uninitialized", "NO", "", 0);
 
@@ -69,7 +89,6 @@ contract V2LaunchTest is TestBase {
 
     function testPolicyChangesOnlyAffectFutureLaunches() external {
         (CurveLaunchFactory factory,) = _setup();
-        factory.setInvited(CREATOR, true);
         vm.prank(CREATOR);
         (address first,) = factory.createToken("First", "ONE", "", 0);
         factory.setFeeDefaults(75, 4_000, 3_000, 50, address(0xBEEF));

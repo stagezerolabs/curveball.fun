@@ -31,6 +31,7 @@ import {
 } from "./curveballSdk";
 
 export type TradeSide = "buy" | "sell";
+export type LaunchProgress = (phase: "preparing" | "wrapWallet" | "wrapConfirming" | "approveWallet" | "approveConfirming" | "wallet" | "confirming", hash?: Hash) => void;
 
 export type CurveballRuntime = Readonly<{
   quote: Address;
@@ -314,8 +315,9 @@ export function createWagmiCurveballSdk(
     }
   }
 
-  async function createToken(input: TokenInput) {
+  async function createToken(input: TokenInput, onProgress?: LaunchProgress) {
     try {
+      onProgress?.("preparing");
       const account = await ensureWallet();
       const token = validateTokenInput(input);
       const simulation = await actions.simulateContract(config, {
@@ -326,7 +328,10 @@ export function createWagmiCurveballSdk(
         args: [token.name, token.symbol, token.uri],
         chainId: deployment.chainId,
       });
-      const confirmed = await confirm(await actions.writeContract(config, simulation.request));
+      onProgress?.("wallet");
+      const hash = await actions.writeContract(config, simulation.request);
+      onProgress?.("confirming", hash);
+      const confirmed = await confirm(hash);
       return { ...confirmed, ...findCreatedToken(confirmed.receipt) };
     } catch (error) {
       throw explainError(error);

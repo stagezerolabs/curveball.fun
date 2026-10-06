@@ -81,13 +81,13 @@ export function validateTokenInput(input: TokenInput): TokenInput {
   const symbol = input.symbol.trim().toUpperCase();
   const uri = input.uri.trim();
 
-  if (name.length < 1 || name.length > 64) {
-    throw new Error("Token name must contain 1–64 characters.");
+  if (name.length < 1 || new TextEncoder().encode(name).length > 64) {
+    throw new Error("Token name must contain 1–64 UTF-8 bytes.");
   }
   if (!/^[A-Z0-9]{1,12}$/.test(symbol)) {
     throw new Error("Token symbol must contain 1–12 uppercase letters or numbers.");
   }
-  if (uri.length > 2_048) throw new Error("Token metadata URI is too long.");
+  if (new TextEncoder().encode(uri).length > 2_048) throw new Error("Token metadata URI is too long.");
   if (uri) {
     const isHttps = /^https:\/\/[^\s]+$/i.test(uri);
     const isIpfs = /^ipfs:\/\/(Qm[1-9A-HJ-NP-Za-km-z]{44}|bafy[a-z2-7]{20,})(\/[^\s]*)?$/i.test(uri);

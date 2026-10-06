@@ -2,6 +2,8 @@
 
 Status: V2 deployed on RISE Testnet and source-verified, 2026-09-30. Database and app cutover are pending.
 
+> This review describes the earlier gated V2 deployment. The current replacement source removes invitations and permits launch and buying immediately after initialization. See the [permissionless V2 runbook](../runbooks/permissionless-v2.md) for the new deployment path. The verification evidence below does not constitute a review of the replacement bytecode.
+
 ## Deployment and authority
 
 ```mermaid

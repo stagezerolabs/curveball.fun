@@ -14,17 +14,19 @@ export const useStore = create((set, get) => ({
   quotePreview: null,
   quoting: false,
   lastCreatedToken: null,
+  launchProgress: null,
 
   setAmount: (amount) => set({ amount, quotePreview: null }),
   setSide: (side) => set({ side, quotePreview: null }),
   setActionError: (actionError) => set({ actionError }),
+  clearLaunchProgress: () => set({ launchProgress: null }),
   mergeTokens: (discovered) =>
     set((state) => {
       const merged = new Map(
         discovered.map((token) => [token.address.toLowerCase(), token]),
       );
       for (const token of state.tokens) {
-        merged.set(token.address.toLowerCase(), token);
+        if (!merged.has(token.address.toLowerCase()) || !token.indexing) merged.set(token.address.toLowerCase(), token);
       }
       return { tokens: [...merged.values()], marketError: "" };
     }),
@@ -41,7 +43,11 @@ export const useStore = create((set, get) => ({
       const response = await fetch(`${apiUrl}/tokens`);
       if (!response.ok) throw new Error("API failure");
       const tokens = await response.json();
-      set((state) => ({ tokens: tokens.length ? tokens : state.tokens, loading: false }));
+      set((state) => {
+        const created = state.lastCreatedToken && state.tokens.find((token) => token.address.toLowerCase() === state.lastCreatedToken.toLowerCase());
+        const includesCreated = created && tokens.some((token) => token.address.toLowerCase() === created.address.toLowerCase());
+        return { tokens: tokens.length ? [...tokens, ...(created && !includesCreated ? [created] : [])] : state.tokens, loading: false };
+      });
       return tokens.length > 0;
     } catch (error) {
       set({
@@ -80,6 +86,7 @@ export const useStore = create((set, get) => ({
     const submittedForm = event.currentTarget;
     const { startAction, endAction, handleActionError } = get();
     startAction();
+    set({ launchProgress: { phase: "preparing", hash: null, error: "" } });
 
     try {
       const form = new FormData(submittedForm);
@@ -91,18 +98,26 @@ export const useStore = create((set, get) => ({
       };
       const initialBuy = String(form.get("initialBuy") ?? "").trim();
       const sdk = requireCurveballSdk();
+      const onProgress = (phase, hash = null) => set({ launchProgress: { phase, hash, error: "" } });
       const result = activeContractVersion === "v2" && initialBuy && Number(initialBuy) > 0 && "launchAndBuy" in sdk
-        ? await sdk.launchAndBuy(input, parseEther(initialBuy))
-        : await sdk.createToken(input);
+        ? await sdk.launchAndBuy(input, parseEther(initialBuy), onProgress)
+        : await sdk.createToken(input, onProgress);
 
       set({
         tradeMessage: `Token created at ${result.token}.`,
+        lastCreatedToken: result.token,
+        launchProgress: { phase: "indexing", hash: result.hash ?? null, error: "" },
       });
+      set((state) => ({ tokens: [
+        { address: result.token, name: input.name.trim(), symbol: input.symbol.trim(), creator: result.creator, graduated: false, createdAt: new Date().toISOString(), indexing: true },
+        ...state.tokens.filter((token) => token.address.toLowerCase() !== result.token.toLowerCase()),
+      ] }));
       submittedForm.reset();
-      await get().fetchTokens();
-      set({ lastCreatedToken: result.token });
+      set({ launchProgress: { phase: "success", hash: result.hash ?? null, error: "" } });
+      void get().fetchTokens();
     } catch (error) {
       handleActionError(error);
+      set((state) => ({ launchProgress: { phase: "error", hash: state.launchProgress?.hash ?? null, error: error.message || "Transaction failed" } }));
     } finally {
       endAction();
     }

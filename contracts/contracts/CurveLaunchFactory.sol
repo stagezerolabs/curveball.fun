@@ -59,14 +59,10 @@ contract CurveLaunchFactory is Ownable2Step, ReentrancyGuard {
     uint16 public buybackShareBps = 2_500;
     uint16 public creatorTaxCapBps = 50;
     address public treasury;
-    bool public publicLaunchOpen;
-    mapping(address => bool) public invited;
     mapping(address => uint256) public creatorNonce;
     mapping(address => Market) public market;
 
     event LaunchCreated(address indexed token, address indexed curve, address indexed creator, string name, string symbol, string uri);
-    event InvitationUpdated(address indexed account, bool allowed);
-    event PublicLaunchOpened();
     event FeeDefaultsUpdated(uint16 feeBps, uint16 creatorShareBps, uint16 buybackShareBps, uint16 creatorTaxCapBps, address treasury);
     event GraduationStarted(address indexed token, address indexed curve);
     event Graduated(address indexed token, address indexed pool, uint256 tokenLiquidity, uint256 quoteLiquidity, uint256 liquidity);
@@ -132,17 +128,9 @@ contract CurveLaunchFactory is Ownable2Step, ReentrancyGuard {
         emit ServicesInitialized(s.deployer, s.escrow, s.vault);
     }
 
-    function setInvited(address account, bool allowed) external onlyOwner {
-        require(account != address(0) && !publicLaunchOpen, "invitations closed");
-        invited[account] = allowed;
-        emit InvitationUpdated(account, allowed);
-    }
-
-    function openPublicLaunch() external onlyOwner {
-        require(!publicLaunchOpen, "already public");
-        publicLaunchOpen = true;
-        emit PublicLaunchOpened();
-    }
+    /// @notice Compatibility reads for clients of the invited-beta factory.
+    function publicLaunchOpen() external view returns (bool) { return address(deployer) != address(0); }
+    function invited(address) external pure returns (bool) { return false; }
 
     function setFeeDefaults(uint16 newFee, uint16 newCreatorShare, uint16 newBuybackShare, uint16 newTaxCap, address newTreasury)
         external onlyOwner
@@ -174,8 +162,12 @@ contract CurveLaunchFactory is Ownable2Step, ReentrancyGuard {
         private returns (address token, address curve)
     {
         require(address(deployer) != address(0), "factory not initialized");
-        require(creator != address(0) && (publicLaunchOpen || invited[creator]), "invitation required");
+        require(creator != address(0), "bad creator");
         require(bytes(name_).length > 0 && bytes(symbol_).length > 0, "missing metadata");
+        require(
+            bytes(name_).length <= 64 && bytes(symbol_).length <= 12 && bytes(uri_).length <= 2048,
+            "metadata too long"
+        );
         require(creatorTaxBps <= creatorTaxCapBps, "creator tax too high");
         bytes32 salt = keccak256(abi.encode(creator, creatorNonce[creator]++, block.chainid));
         CurveLaunchDeployer.LaunchParams memory p = CurveLaunchDeployer.LaunchParams({
@@ -195,8 +187,8 @@ contract CurveLaunchFactory is Ownable2Step, ReentrancyGuard {
         emit LaunchCreated(token, curve, creator, name_, symbol_, uri_);
     }
 
-    function canBuy(address account) external view returns (bool) {
-        return account == address(vault) || publicLaunchOpen || invited[account];
+    function canBuy(address) external pure returns (bool) {
+        return true;
     }
 
     function graduate(address token) external nonReentrant {

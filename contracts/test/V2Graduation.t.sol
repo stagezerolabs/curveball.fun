@@ -99,7 +99,6 @@ contract V2GraduationTest is TestBase {
     {
         quote = new MockWETH();
         factory = CurveV2Deployment.deploy(address(quote), icarus, address(this), 1_000_000 ether, 800_000 ether, 10 ether);
-        factory.setInvited(TRADER, true);
         vm.prank(TRADER);
         (address t, address c) = factory.createToken("V2", "V2", "", 0);
         token = CurveLauncherToken(t);

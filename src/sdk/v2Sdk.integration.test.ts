@@ -53,14 +53,21 @@ test.skipIf(Bun.env.RUN_LOCAL_CHAIN_INTEGRATION !== "1")("wallet SDK launches, t
     const hook = await deploy("CurveMemeHook", [factory, locker, quote, escrow, vault]);
     const launchAndBuy = await deploy("CurveLaunchAndBuy", [factory, quote]);
     await publicClient.waitForTransactionReceipt({ hash: await wallet.writeContract({ address: factory, abi: v2FactoryAbi, functionName: "initialize", args: [{ deployer, escrow, vault, guard, executor, locker, hook, launchAndBuy }] }) });
-    await publicClient.waitForTransactionReceipt({ hash: await wallet.writeContract({ address: factory, abi: v2FactoryAbi, functionName: "openPublicLaunch" }) });
+    expect(await publicClient.readContract({ address: factory, abi: v2FactoryAbi, functionName: "publicLaunchOpen" })).toBe(true);
     const config = createConfig({ chains: [chain], connectors: [mock({ accounts: [account] })], transports: { [chain.id]: http(rpcUrl) }, pollingInterval: 100 });
     await connect(config, { connector: config.connectors[0] });
     const sdk = createV2Sdk(config, defineCurveballDeployment({ chainId: 31337, launchpad: factory, deadlineSeconds: 3_600 }));
 
     const launched = await sdk.createToken({ name: "SDK V2", symbol: "SDKV2", uri: "", creatorTaxBps: 25 });
     expect(launched.curve).not.toBe(factory);
-    const buy = await sdk.trade("buy", launched.token, parseEther("1"));
+    let buy;
+    try { buy = await sdk.trade("buy", launched.token, parseEther("1")); }
+    catch (error) {
+      const quoteContract = (await artifact("MockWETH")).abi;
+      const allowance = await publicClient.readContract({ address: quote, abi: quoteContract, functionName: "allowance", args: [account, launched.curve] });
+      const balance = await publicClient.readContract({ address: quote, abi: quoteContract, functionName: "balanceOf", args: [account] });
+      throw Error(`First buy failed with allowance ${allowance}, balance ${balance}: ${(error as Error).message.slice(0, 600)}`);
+    }
     expect(buy.receipt.status).toBe("success");
     expect(buy.wrappedAmount).toBe(parseEther("1"));
     const quoteBalance = await publicClient.readContract({ address: vault, abi: [{ type: "function", name: "quoteBalance", stateMutability: "view", inputs: [{ name: "", type: "address" }], outputs: [{ name: "", type: "uint256" }] }] as const, functionName: "quoteBalance", args: [launched.token] });

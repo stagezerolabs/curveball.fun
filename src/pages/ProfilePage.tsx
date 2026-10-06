@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAccount, usePublicClient } from "wagmi";
+import { useAccountModal } from "@rainbow-me/rainbowkit";
 import type { Address } from "viem";
 import { AppLink } from "../components/Navigation";
 import { TokenCard } from "../components/TokenCard";
@@ -19,6 +20,7 @@ export function ProfilePage({
   connectWallet: () => void;
 }) {
   const { address } = useAccount();
+  const { openAccountModal } = useAccountModal();
   const publicClient = usePublicClient({ chainId: activeChainId });
   const [tokens, setTokens] = useState<Token[]>([]);
   const [loading, setLoading] = useState(false);
@@ -84,6 +86,7 @@ export function ProfilePage({
         <div className="profile-identity">
           <span className="wallet-dot connected" aria-hidden="true" />
           <strong>{formatAddress(address)}</strong>
+          {openAccountModal && <button type="button" onClick={openAccountModal}>Manage wallet</button>}
           <a
             href={`${activeExplorerUrl}/address/${address}`}
             target="_blank"

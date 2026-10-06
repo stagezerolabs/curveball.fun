@@ -19,7 +19,6 @@ contract V2LaunchAndBuyTest is TestBase {
             address(quote), address(new MockIcarusFactory()), address(this), 1_000_000 ether, 800_000 ether, 10 ether
         );
         CurveLaunchAndBuy wrapper = factory.launchAndBuy();
-        factory.setInvited(CREATOR, true);
         quote.mint(CREATOR, 50 ether);
         vm.prank(CREATOR);
         quote.approve(address(wrapper), 50 ether);

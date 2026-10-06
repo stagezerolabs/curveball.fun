@@ -1,6 +1,4 @@
-import { createConfig } from "wagmi";
-import { injected } from "wagmi/connectors";
-import { defineChain, getAddress, http, isAddress, type Address } from "viem";
+import { defineChain, getAddress, isAddress, type Address } from "viem";
 import {
   CURVEBALL_LAUNCHPAD_ADDRESS,
   RISE_MAINNET_CHAIN_ID,
@@ -13,6 +11,7 @@ import {
 import { createWagmiCurveballSdk } from "../sdk/wagmiSdk";
 import { createV2Sdk } from "../sdk/v2Sdk";
 import { resolveContractVersion, resolveRiseTestnetRpcUrl } from "./clientRuntime";
+import { createWalletConfig } from "./walletConfig";
 
 const riseTestnetRpcUrl = resolveRiseTestnetRpcUrl(import.meta.env);
 export const activeContractVersion = resolveContractVersion(import.meta.env);
@@ -44,13 +43,7 @@ export const riseTestnet = defineChain({
 
 export const apiUrl = "/api";
 
-export const wagmiConfig = createConfig({
-  chains: [riseTestnet],
-  connectors: [injected()],
-  transports: {
-    [riseTestnet.id]: http(riseTestnet.rpcUrls.default.http[0]),
-  },
-});
+export const wagmiConfig = createWalletConfig(riseTestnet, import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || "");
 
 const configuredLaunchpad =
   import.meta.env.VITE_LAUNCHPAD_ADDRESS?.trim() ||

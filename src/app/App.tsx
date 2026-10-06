@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAccount, useConnect, usePublicClient } from "wagmi";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
 import {
   Footer,
   Header,
@@ -33,8 +34,12 @@ export function App() {
   const [theme, setTheme] = useState<Theme>(readStoredTheme);
   const { address } = useAccount();
   const { connect, connectors } = useConnect();
+  const { openConnectModal } = useConnectModal();
   const publicClient = usePublicClient({ chainId: activeChainId });
-  const connectWallet = () => connect({ connector: connectors[0] });
+  const connectWallet = () => {
+    if (openConnectModal) openConnectModal();
+    else if (connectors[0]) connect({ connector: connectors[0] });
+  };
   const { tokens, loading, fetchTokens, mergeTokens, lastCreatedToken } = useStore() as {
     tokens: Token[];
     loading: boolean;
@@ -134,7 +139,7 @@ export function App() {
       );
       break;
     case "launch":
-      page = <LaunchPage />;
+      page = <LaunchPage navigate={navigate} connectWallet={connectWallet} />;
       break;
     case "profile":
       page = (
