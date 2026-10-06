@@ -6,15 +6,14 @@ import { AppLink } from "../components/Navigation";
 import { MarketHeader } from "../components/MarketHeader";
 import { MarketTabs } from "../components/MarketTabs";
 import { MilestonePanel } from "../components/MilestonePanel";
-import { PriceChart } from "../components/PriceChart";
 import { TradePanel } from "../components/TradePanel";
-import { useFetch } from "../lib/useFetch";
 import {
   discoverToken,
   type CreatorTokenClient,
 } from "../creatorTokens";
-import { activeChainId, launchpadAddress } from "../lib/web3";
-import type { LaunchpadConfig, Navigate, Token } from "../types";
+import { activeChainId } from "../lib/web3";
+import { readableError } from "../lib/errors";
+import type { Navigate, Token } from "../types";
 
 export function MarketPage({
   token,
@@ -34,9 +33,6 @@ export function MarketPage({
   const publicClient = usePublicClient({ chainId: activeChainId });
   const [onchainToken, setOnchainToken] = useState<Token | null>();
   const [discoveryError, setDiscoveryError] = useState("");
-  const { data } = useFetch<LaunchpadConfig | null>("/api/config", null);
-  const config = data?.chainId === activeChainId && data.launchpadAddress?.toLowerCase() === launchpadAddress?.toLowerCase()
-    ? data : null;
   const error = actionError || marketError || discoveryError;
   const resolvedToken = token ?? onchainToken;
 
@@ -68,11 +64,7 @@ export function MarketPage({
       .catch((cause) => {
         if (!active) return;
         setOnchainToken(null);
-        setDiscoveryError(
-          cause instanceof Error
-            ? cause.message
-            : "Could not read this market from the configured network.",
-        );
+        setDiscoveryError(readableError(cause, "Could not read this market from the configured network."));
       });
 
     return () => {
@@ -87,7 +79,7 @@ export function MarketPage({
       <main className="page-status wrap">
         <span className="empty-orbit" />
         <h1>Market not found</h1>
-        <p>This curve may not exist, or the API is unavailable.</p>
+        <p>This curve does not exist on the configured network.</p>
         <AppLink className="primary-button" route="markets" navigate={navigate}>
           Back to markets
         </AppLink>
@@ -101,27 +93,27 @@ export function MarketPage({
       </AppLink>
 
       <MarketHeader token={resolvedToken} />
-      <PriceChart token={resolvedToken} />
       <TradePanel
         token={resolvedToken}
         address={address}
-        config={config}
       />
       <MilestonePanel
         token={resolvedToken}
         address={address}
-        config={config}
       />
       <MarketTabs token={resolvedToken} />
 
       <p className="disclaimer">
-        Market data may be delayed. Nothing here is financial advice.
+        Market state is read directly from the configured network. Nothing here is financial advice.
       </p>
 
       {error && (
-        <p className="notice floating-notice" role="alert">
-          {error}
-        </p>
+        <div className="notice notice-dismissible floating-notice" role="alert">
+          <span>{error}</span>
+          {actionError && (
+            <button type="button" onClick={() => useStore.getState().setActionError("")} aria-label="Dismiss error">×</button>
+          )}
+        </div>
       )}
     </main>
   );

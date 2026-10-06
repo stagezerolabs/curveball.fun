@@ -1,12 +1,9 @@
 import { useState } from "react";
 import { TokenAvatar } from "./TokenAvatar";
 import {
-  changeTone,
   formatAddress,
-  formatChange,
+  formatEthAmount,
   formatRelativeTime,
-  formatUsd,
-  formatUsdCompact,
 } from "../lib/format.js";
 import type { Token } from "../types";
 import { activeExplorerUrl } from "../lib/web3";
@@ -123,11 +120,8 @@ export function MarketHeader({ token }: { token: Token }) {
           </div>
         </div>
         <div className="market-headline-value">
-          <strong>{formatUsdCompact(token.marketCapUsd)}</strong>
+          <strong>{token.marketCap == null ? "—" : `${formatEthAmount(token.marketCap)} WETH`}</strong>
           <span>
-            <span className={`change ${changeTone(token.change24h)}`}>
-              {formatChange(token.change24h)} <small>24h</small>
-            </span>
             {token.quoteSymbol && (
               <span className="market-quote-chip">{token.quoteSymbol}</span>
             )}
@@ -159,15 +153,7 @@ export function MarketHeader({ token }: { token: Token }) {
         <div>
           <dt>Price</dt>
           <dd>
-            {formatUsd(token.priceUsd)}
-            {token.usdStale && (
-              <small
-                className="usd-stale"
-                title="Using the last known ETH/USD rate"
-              >
-                stale rate
-              </small>
-            )}
+            {token.price == null ? "—" : `${formatEthAmount(token.price)} WETH`}
           </dd>
         </div>
       </dl>

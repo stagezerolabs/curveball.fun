@@ -76,9 +76,6 @@ svg {
   letter-spacing: -0.04em;
   width: max-content;
 }
-.brand > span:last-child {
-  color: var(--orange);
-}
 .brand-mark {
   align-items: center;
   background: var(--raise);
@@ -133,7 +130,7 @@ button {
 .nav-create {
   font-size: 13px;
   gap: 6px;
-  min-height: 42px;
+  min-height: 44px;
   padding: 0 16px;
 }
 .wallet-button {
@@ -146,7 +143,7 @@ button {
   font-size: 13px;
   font-weight: 600;
   gap: 8px;
-  min-height: 42px;
+  min-height: 44px;
   padding: 0 17px;
   transition:
     background-color 120ms ease-out,
@@ -167,9 +164,9 @@ button {
   border-radius: 999px;
   color: var(--ink);
   display: none;
-  height: 42px;
+  height: 44px;
   justify-content: center;
-  width: 42px;
+  width: 44px;
 }
 .nav-menu svg {
   fill: none;
@@ -208,10 +205,10 @@ button {
   border: 0;
   border-radius: 999px;
   display: none;
-  height: 42px;
+  height: 44px;
   justify-content: center;
   padding: 0;
-  width: 42px;
+  width: 44px;
 }
 .nav-search-field {
   align-items: center;
@@ -248,17 +245,6 @@ button {
 }
 .nav-search input::placeholder {
   color: var(--muted);
-}
-.nav-search kbd {
-  background: var(--raise);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  color: var(--muted);
-  flex: 0 0 auto;
-  font:
-    600 11px/1 "DM Sans",
-    sans-serif;
-  padding: 6px 7px;
 }
 .nav-results {
   animation: nav-results-in 140ms ease-out;
@@ -450,7 +436,7 @@ button {
   color: #8d978f;
   font-size: 12px;
   font-weight: 700;
-  min-height: 38px;
+  min-height: 44px;
   padding: 0 18px;
   transition:
     background-color 120ms ease-out,
@@ -491,39 +477,6 @@ button {
   color: var(--muted);
   margin: 0;
 }
-.profile-identity {
-  align-items: center;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  display: flex;
-  flex: 0 0 auto;
-  gap: 10px;
-  min-height: 48px;
-  padding: 0 8px 0 16px;
-}
-.profile-identity strong {
-  font-size: 13px;
-}
-.profile-identity a,
-.profile-identity button {
-  background: var(--raise);
-  border: 0;
-  border-radius: 999px;
-  color: var(--muted);
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 12px;
-  padding: 9px 12px;
-  transition:
-    background-color 120ms ease-out,
-    color 120ms ease-out;
-}
-.profile-identity a:hover,
-.profile-identity button:hover {
-  background: var(--solid);
-  color: var(--on-solid);
-}
 .profile-stats {
   display: grid;
   gap: 1px;
@@ -542,8 +495,7 @@ button {
 .profile-stats > div:last-child {
   border-radius: 0 20px 20px 0;
 }
-.profile-stats small,
-.profile-section-head small {
+.profile-stats small {
   color: var(--muted);
   display: block;
   font-size: 11px;
@@ -563,41 +515,6 @@ button {
   border: 1px solid var(--line);
   border-radius: 24px;
   padding: 8px 8px 24px;
-}
-.profile-section-head {
-  align-items: center;
-  display: flex;
-  justify-content: space-between;
-  padding: 14px 12px 22px;
-}
-.profile-section-head span {
-  display: block;
-  font-size: 14px;
-  font-weight: 700;
-  margin-bottom: 5px;
-}
-.profile-section-head button {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  color: var(--ink);
-  font-size: 12px;
-  font-weight: 700;
-  min-height: 40px;
-  padding: 0 16px;
-  transition:
-    background-color 120ms ease-out,
-    scale 150ms ease-out;
-}
-.profile-section-head button:hover:not(:disabled) {
-  background: var(--raise);
-}
-.profile-section-head button:active:not(:disabled) {
-  scale: 0.96;
-}
-.profile-section-head button:disabled {
-  cursor: wait;
-  opacity: 0.55;
 }
 .profile-loading,
 .profile-empty {
@@ -648,6 +565,19 @@ button {
   min-height: calc(100vh - 194px);
   text-align: center;
 }
+
+.app-recovery {
+  align-content: center;
+  display: grid;
+  justify-items: start;
+  min-height: 70vh;
+  max-width: 640px;
+}
+
+.app-recovery p {
+  color: var(--muted);
+  max-width: 52ch;
+}
 .page-status h1 {
   font-size: 4rem;
   line-height: 1;
@@ -666,6 +596,25 @@ button {
   font-size: 13px;
   margin: 0 0 20px;
   padding: 12px 15px;
+}
+.notice-dismissible {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+}
+.notice-dismissible button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: currentColor;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 22px;
+  height: 44px;
+  justify-content: center;
+  width: 44px;
 }
 .market-list {
   background: var(--surface);
@@ -857,30 +806,8 @@ input:focus-visible {
   font-weight: 700;
   gap: 5px;
 }
-.input-shell {
-  align-items: center;
-  background: #191915;
-  border-radius: 14px;
-  display: flex;
-  min-height: 64px;
-  padding: 8px 15px;
-}
-.input-shell input {
-  background: transparent;
-  border: 0;
-  color: var(--ink);
-  font-size: 25px;
-  font-weight: 600;
-  min-width: 0;
-  outline: 0;
-  width: 100%;
-}
-.input-shell strong {
-  font-size: 12px;
-}
 /* Fading a saturated fill to 45% on a dark ground reads as a broken colour,
 not as "disabled" — use a flat surface instead. */
-.trade-actions button:disabled,
 .launch-button:disabled {
   background: var(--raise);
   color: var(--muted);
@@ -904,11 +831,10 @@ not as "disabled" — use a flat surface instead. */
   width: 700px;
 }
 .launch-layout {
-  align-items: stretch;
+  align-items: start;
   display: grid;
-  gap: 34px;
-  grid-template-columns: minmax(0, 680px);
-  justify-content: center;
+  gap: clamp(48px, 7vw, 96px);
+  grid-template-columns: minmax(280px, 0.72fr) minmax(520px, 1.28fr);
   padding-block: 76px 110px;
   position: relative;
   z-index: 1;
@@ -924,14 +850,18 @@ not as "disabled" — use a flat surface instead. */
   line-height: 1;
   margin: 16px 0 18px;
 }
-.launch-copy { text-align: center; }
+.launch-copy {
+  position: sticky;
+  text-align: left;
+  top: 110px;
+}
 :root[data-theme="light"] .launch-copy h1 { color: #f4f7ef; }
 :root[data-theme="light"] .launch-copy > p { color: rgba(244, 247, 239, 0.77); }
 .launch-copy > p {
   color: var(--muted);
   font-size: 15px;
   line-height: 1.7;
-  margin: 0 auto;
+  margin: 0;
   max-width: 590px;
 }
 .launch-copy ol {
@@ -962,6 +892,7 @@ not as "disabled" — use a flat surface instead. */
   display: grid;
   gap: 24px;
   padding: clamp(24px, 5vw, 44px);
+  width: 100%;
 }
 .launch-form-section {
   display: grid;
@@ -1081,7 +1012,7 @@ not as "disabled" — use a flat surface instead. */
   border-radius: 24px;
   box-shadow: 0 35px 100px rgba(0, 0, 0, 0.5);
   color: var(--ink);
-  max-height: min(90vh, 760px);
+  max-height: min(calc(100dvh - 40px), 760px);
   overflow-y: auto;
   padding: clamp(24px, 5vw, 38px);
   width: min(100%, 500px);
@@ -1179,9 +1110,16 @@ not as "disabled" — use a flat surface instead. */
   }
   .launch-layout {
     gap: 34px;
+    grid-template-columns: minmax(0, 680px);
+    justify-content: center;
   }
   .launch-copy {
     max-width: none;
+    position: static;
+    text-align: center;
+  }
+  .launch-copy > p {
+    margin-inline: auto;
   }
   .launch-form {
     width: 100%;
@@ -1220,7 +1158,7 @@ not as "disabled" — use a flat surface instead. */
     top: calc(100% - 8px);
   }
   .wallet-button {
-    min-height: 39px;
+    min-height: 44px;
     padding: 0 13px;
   }
   .page-heading {
@@ -1287,12 +1225,23 @@ not as "disabled" — use a flat surface instead. */
     border-radius: 22px;
     padding: 21px;
   }
+  .launch-modal-backdrop {
+    align-items: flex-end;
+    padding: 12px;
+  }
+  .launch-modal {
+    border-radius: 22px;
+    max-height: calc(100dvh - 24px);
+    overscroll-behavior: contain;
+  }
   .footer {
+    gap: 8px;
+    padding-block: 28px;
+  }
+  .footer-top,
+  .footer-bottom {
     align-items: flex-start;
     flex-direction: column;
-    gap: 8px;
-    justify-content: center;
-    padding-block: 28px;
   }
   .footer p {
     margin: 0;
@@ -1304,7 +1253,7 @@ not as "disabled" — use a flat surface instead. */
     gap: 6px;
   }
   .wallet-button {
-    inline-size: 42px;
+    inline-size: 44px;
     justify-content: center;
     padding-inline: 0;
   }
@@ -1347,26 +1296,6 @@ not as "disabled" — use a flat surface instead. */
   margin: 0;
   text-transform: uppercase;
 }
-.change {
-  font-size: 13px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-.change.up {
-  color: var(--lime);
-}
-.change.down {
-  color: var(--orange-ink);
-}
-.change.flat {
-  color: var(--muted);
-}
-.change small {
-  color: var(--muted);
-  font-size: inherit;
-  font-weight: 600;
-  margin-left: 4px;
-}
 .skeleton {
   animation: skeleton-pulse 1.6s ease-in-out infinite;
   background: var(--panel);
@@ -1391,13 +1320,6 @@ not as "disabled" — use a flat surface instead. */
   gap: 26px;
   grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
 }
-.featured-empty {
-  color: var(--muted);
-  font-size: 14px;
-  margin: 0;
-  padding: 18px 2px;
-}
-
 .king {
   border: 1px solid rgba(200, 241, 53, 0.22);
   border-radius: 24px;
@@ -1412,29 +1334,6 @@ not as "disabled" — use a flat surface instead. */
 .king:hover {
   border-color: rgba(200, 241, 53, 0.42);
   box-shadow: 0 0 60px -24px rgba(200, 241, 53, 0.7);
-}
-.king-head {
-  align-items: center;
-  display: flex;
-  gap: 12px;
-  justify-content: space-between;
-}
-.king-title {
-  align-items: center;
-  color: var(--lime);
-  display: flex;
-  font-size: 15px;
-  font-weight: 700;
-  gap: 8px;
-}
-.king-title svg {
-  fill: currentColor;
-  height: 17px;
-  width: 17px;
-}
-.king-note {
-  color: var(--muted);
-  font-size: 13px;
 }
 .king-headline {
   align-items: center;
@@ -1480,34 +1379,9 @@ not as "disabled" — use a flat surface instead. */
   color: var(--muted);
   font-size: 13px;
 }
-.king-chart {
-  display: grid;
-  gap: 10px;
-}
-.king-chart small {
-  color: var(--muted);
-  font-size: 13px;
-}
-.sparkline {
-  border-bottom: 1px solid var(--line);
-  border-top: 1px solid var(--line);
-  height: 92px;
-  width: 100%;
-}
-.sparkline-line {
-  fill: none;
-  stroke: var(--lime);
-  stroke-linejoin: round;
-  stroke-width: 0.6;
-  vector-effect: non-scaling-stroke;
-}
-.sparkline-area {
-  fill: rgba(200, 241, 53, 0.08);
-  stroke: none;
-}
 .king-stats {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
 }
 .king-stats > span {
@@ -1606,62 +1480,6 @@ not as "disabled" — use a flat surface instead. */
   color: var(--ink);
 }
 
-.top-caps {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.top-caps a {
-  align-items: center;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  display: flex;
-  gap: 14px;
-  padding: 14px 18px;
-  transition:
-    background-color 120ms ease-out,
-    border-color 120ms ease-out;
-}
-.top-caps a:hover {
-  background: var(--surface);
-  border-color: rgba(255, 255, 255, 0.16);
-}
-.top-caps .token-avatar {
-  border-radius: 50%;
-  font-size: 18px;
-  height: 40px;
-  width: 40px;
-}
-.top-cap-id {
-  display: grid;
-  flex: 1;
-  gap: 2px;
-  min-width: 0;
-}
-.top-cap-id strong {
-  font-size: 16px;
-  font-weight: 700;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.top-cap-id small,
-.top-cap-value small {
-  color: var(--muted);
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-}
-.top-cap-value {
-  display: grid;
-  gap: 2px;
-  justify-items: end;
-  text-align: right;
-}
-
 /* ---------- Board (tabs + card grid) ---------- */
 .board {
   display: grid;
@@ -1732,7 +1550,7 @@ not as "disabled" — use a flat surface instead. */
   color: var(--ink);
   font-size: 14px;
   font-weight: 600;
-  min-height: 42px;
+  min-height: 44px;
   padding: 0 38px 0 16px;
 }
 .board-view {
@@ -1750,12 +1568,12 @@ not as "disabled" — use a flat surface instead. */
   border-radius: 9px;
   color: var(--muted);
   display: flex;
-  height: 34px;
+  height: 44px;
   justify-content: center;
   transition:
     background-color 120ms ease-out,
     color 120ms ease-out;
-  width: 38px;
+  width: 44px;
 }
 .board-view button:hover {
   color: var(--ink);
@@ -1817,16 +1635,6 @@ not as "disabled" — use a flat surface instead. */
   font-size: 54px;
   height: 100%;
   width: 100%;
-}
-.tcard-change {
-  background: rgba(11, 14, 12, 0.82);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  font-size: 12px;
-  padding: 5px 10px;
-  position: absolute;
-  right: 10px;
-  top: 10px;
 }
 .tcard-milestone {
   background: rgba(11, 14, 12, 0.82);
@@ -1994,9 +1802,6 @@ not as "disabled" — use a flat surface instead. */
   .king-stats strong {
     font-size: 15px;
   }
-  .sparkline {
-    height: 72px;
-  }
   .board-head {
     align-items: stretch;
     flex-direction: column;
@@ -2022,7 +1827,19 @@ not as "disabled" — use a flat surface instead. */
 .market-page {
   display: grid;
   gap: 22px;
+  grid-template-columns: minmax(0, 1.08fr) minmax(340px, 0.92fr);
   padding-block: 22px 90px;
+}
+.market-page > .back-link,
+.market-page > .market-header,
+.market-page > .detail-tabs,
+.market-page > .disclaimer,
+.market-page > .floating-notice {
+  grid-column: 1 / -1;
+}
+.market-page > .back-link,
+.market-page > .floating-notice {
+  margin: 0;
 }
 .disclaimer {
   color: var(--muted);
@@ -2037,13 +1854,13 @@ not as "disabled" — use a flat surface instead. */
   color: var(--muted);
   display: inline-flex;
   flex: 0 0 auto;
-  height: 30px;
+  height: 44px;
   justify-content: center;
   padding: 0;
   transition:
     background-color 120ms ease-out,
     color 120ms ease-out;
-  width: 30px;
+  width: 44px;
 }
 .icon-button:hover {
   background: var(--surface);
@@ -2058,20 +1875,6 @@ not as "disabled" — use a flat surface instead. */
   stroke-width: 1.7;
   width: 16px;
 }
-.muted {
-  color: var(--muted);
-}
-.num {
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-.up {
-  color: var(--lime);
-}
-.down {
-  color: var(--orange-ink);
-}
-
 /* Header */
 .market-header {
   display: grid;
@@ -2148,10 +1951,11 @@ not as "disabled" — use a flat surface instead. */
   gap: 4px;
   justify-items: end;
   margin-left: auto;
+  min-width: 0;
   text-align: right;
 }
 .market-headline-value > strong {
-  font-size: 38px;
+  font-size: clamp(24px, 3.2vw, 38px);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.035em;
   line-height: 1.05;
@@ -2182,6 +1986,7 @@ not as "disabled" — use a flat surface instead. */
   align-items: center;
   display: flex;
   gap: 10px;
+  min-width: 0;
 }
 .market-meta dt {
   color: var(--muted);
@@ -2193,12 +1998,7 @@ not as "disabled" — use a flat surface instead. */
   font-size: 14px;
   gap: 2px;
   margin: 0;
-}
-.market-meta dd .usd-stale {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 400;
-  margin-left: 6px;
+  min-width: 0;
 }
 .market-meta code {
   font-family: ui-monospace, "SF Mono", monospace;
@@ -2206,20 +2006,7 @@ not as "disabled" — use a flat surface instead. */
   margin-right: 4px;
 }
 
-/* Chart */
-.chart-card {
-  display: grid;
-  gap: 16px;
-}
-.chart-head {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  justify-content: space-between;
-}
-.chart-metric,
-.chart-ranges,
+/* Trade panel */
 .side-toggle {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -2228,87 +2015,6 @@ not as "disabled" — use a flat surface instead. */
   gap: 2px;
   padding: 4px;
 }
-.chart-metric button,
-.chart-ranges button {
-  background: none;
-  border: 0;
-  border-radius: 999px;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 600;
-  min-height: 34px;
-  padding: 0 16px;
-  transition:
-    background-color 120ms ease-out,
-    color 120ms ease-out;
-}
-.chart-metric button:hover:not(:disabled),
-.chart-ranges button:hover {
-  color: var(--ink);
-}
-.chart-metric button.active,
-.chart-ranges button.active {
-  background: var(--raise);
-  color: var(--ink);
-}
-.chart-metric button:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
-}
-.chart-body {
-  position: relative;
-}
-.chart-svg {
-  border-bottom: 1px solid var(--line);
-  border-top: 1px solid var(--line);
-  display: block;
-  height: 300px;
-  width: 100%;
-}
-.chart-line {
-  fill: none;
-  stroke: var(--lime);
-  stroke-linejoin: round;
-  stroke-width: 1.6;
-  vector-effect: non-scaling-stroke;
-}
-.chart-area {
-  fill: rgba(200, 241, 53, 0.07);
-  stroke: none;
-}
-.chart-high,
-.chart-last {
-  color: var(--muted);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  position: absolute;
-  right: 0;
-}
-.chart-high {
-  top: 4px;
-}
-.chart-last {
-  bottom: 6px;
-}
-.chart-empty {
-  align-items: center;
-  border-radius: 20px;
-  color: var(--muted);
-  display: flex;
-  font-size: 14px;
-  height: 300px;
-  justify-content: center;
-  margin: 0;
-}
-.chart-axis {
-  color: var(--muted);
-  display: flex;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  justify-content: space-between;
-}
-
-/* Trade panel */
 .trade-panel,
 .milestone-panel {
   background: var(--panel);
@@ -2366,7 +2072,7 @@ not as "disabled" — use a flat surface instead. */
   color: var(--muted);
   font-size: 13px;
   font-weight: 600;
-  min-height: 34px;
+  min-height: 44px;
   padding: 0 12px;
   transition:
     color 120ms ease-out,
@@ -2428,6 +2134,8 @@ not as "disabled" — use a flat surface instead. */
 .trade-row strong {
   font-variant-numeric: tabular-nums;
   font-weight: 600;
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 .trade-row strong.warn {
   color: var(--orange-ink);
@@ -2496,6 +2204,7 @@ not as "disabled" — use a flat surface instead. */
   display: flex;
   font-size: 15px;
   justify-content: space-between;
+  min-height: 44px;
   padding: 0;
   width: 100%;
 }
@@ -2587,14 +2296,12 @@ not as "disabled" — use a flat surface instead. */
   margin: 0;
 }
 .milestone-figures dt,
-.account-figures dt,
 .about-facts dt {
   color: var(--muted);
   font-size: 13px;
   margin-bottom: 4px;
 }
 .milestone-figures dd,
-.account-figures dd,
 .about-facts dd {
   font-size: 17px;
   font-variant-numeric: tabular-nums;
@@ -2634,8 +2341,7 @@ not as "disabled" — use a flat surface instead. */
   width: 100%;
 }
 
-/* Tabs */
-.market-tabs,
+/* On-chain details */
 .detail-tabs {
   display: grid;
   gap: 18px;
@@ -2646,23 +2352,9 @@ not as "disabled" — use a flat surface instead. */
   gap: 4px;
   overflow-x: auto;
 }
-.tab-strip button {
-  background: none;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  color: var(--muted);
+.tab-strip strong {
   font-size: 15px;
-  font-weight: 600;
-  padding: 10px 14px 14px;
-  transition: color 120ms ease-out;
-  white-space: nowrap;
-}
-.tab-strip button:hover {
-  color: var(--ink);
-}
-.tab-strip button.active {
-  border-bottom-color: var(--lime);
-  color: var(--ink);
+  padding-bottom: 12px;
 }
 .tab-panel {
   background: var(--panel);
@@ -2670,182 +2362,32 @@ not as "disabled" — use a flat surface instead. */
   border-radius: 20px;
   overflow: hidden;
 }
-.tab-panel.skeleton {
-  border-radius: 20px;
-  min-height: 320px;
-}
-.tab-empty,
-.tab-note {
-  color: var(--muted);
-  font-size: 14px;
-  margin: 0;
-}
-.tab-empty {
-  padding: 48px 0;
-  text-align: center;
-}
-.tab-note {
-  border-top: 1px solid var(--line);
-  font-size: 13px;
-  padding: 14px 20px;
-}
-.tab-connect {
-  display: grid;
-  gap: 16px;
-  justify-items: center;
-  padding: 44px 20px;
-  text-align: center;
-}
-.tab-connect p {
-  color: var(--muted);
-  margin: 0;
-}
-.trade-table {
-  border-collapse: collapse;
-  font-size: 14px;
-  width: 100%;
-}
-.trade-table th {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  padding: 14px 20px;
-  text-align: left;
-  text-transform: uppercase;
-}
-.trade-table th.num {
-  text-align: right;
-}
-.trade-table thead tr {
-  border-bottom: 1px solid var(--line);
-}
-.trade-table td {
-  padding: 13px 20px;
-  white-space: nowrap;
-}
-.trade-table tbody tr + tr {
-  border-top: 1px solid var(--line);
-}
-.trade-table tbody tr:hover {
-  background: var(--surface);
-}
-.trade-table a {
-  color: var(--ink);
-}
-.trade-table a:hover {
-  color: var(--lime);
-}
-.trade-side {
-  font-weight: 600;
-}
-.trade-side.buy {
-  color: var(--lime);
-}
-.trade-side.sell {
-  color: var(--orange-ink);
-}
-.holder-tag {
-  background: var(--raise);
-  border-radius: 999px;
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 700;
-  margin-left: 8px;
-  padding: 3px 7px;
-}
-.pager {
-  align-items: center;
-  border-top: 1px solid var(--line);
-  color: var(--muted);
-  display: flex;
-  flex-wrap: wrap;
-  font-size: 13px;
-  gap: 12px;
-  justify-content: space-between;
-  padding: 14px 20px;
-}
-.pager-controls {
-  align-items: center;
-  display: flex;
-  gap: 4px;
-}
-.pager-slot {
-  align-items: center;
-  display: flex;
-  gap: 4px;
-}
-.pager-gap {
-  padding: 0 2px;
-}
-.pager button {
-  background: none;
-  border: 0;
-  border-radius: 9px;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 600;
-  min-height: 32px;
-  min-width: 32px;
-  padding: 0 9px;
-  transition:
-    background-color 120ms ease-out,
-    color 120ms ease-out;
-}
-.pager button:hover:not(:disabled) {
-  color: var(--ink);
-}
-.pager button.active {
-  background: var(--raise);
-  color: var(--ink);
-}
-.pager button:disabled {
-  cursor: not-allowed;
-  opacity: 0.4;
-}
 .about-panel {
   display: grid;
   gap: 20px;
   padding: 22px 20px;
 }
-.about-description {
-  color: var(--muted);
-  font-size: 15px;
-  line-height: 1.7;
-  margin: 0;
-  max-width: 68ch;
-}
-.about-facts,
-.account-figures {
+.about-facts {
   display: grid;
   gap: 18px;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   margin: 0;
 }
-.account-figures {
-  padding: 22px 20px;
-}
-.about-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin: 0;
-}
-.about-links a {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 600;
-  padding: 8px 15px;
-}
-.about-links a:hover {
-  border-color: rgba(255, 255, 255, 0.18);
+@media (max-width: 920px) {
+  .market-page {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .market-page > * {
+    grid-column: 1;
+  }
 }
 
 @media (max-width: 640px) {
   .market-header-top {
     flex-wrap: wrap;
+  }
+  .market-identity {
+    flex: 1 1 calc(100% - 74px);
   }
   .market-identity h1 {
     font-size: 28px;
@@ -2860,7 +2402,29 @@ not as "disabled" — use a flat surface instead. */
     font-size: 28px;
   }
   .market-meta {
-    gap: 10px 20px;
+    display: grid;
+    gap: 4px;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .market-meta > div {
+    justify-content: space-between;
+    min-height: 48px;
+  }
+  .market-meta dd {
+    justify-content: flex-end;
+  }
+  .amount-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .amount-presets {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    width: 100%;
+  }
+  .amount-presets button {
+    padding-inline: 8px;
   }
   .trade-panel,
   .milestone-panel {
@@ -2871,26 +2435,12 @@ not as "disabled" — use a flat surface instead. */
     font-size: 26px;
     min-height: 62px;
   }
-  .chart-svg,
-  .chart-empty {
-    height: 220px;
-  }
   .tab-panel {
     overflow-x: auto;
   }
-}
-
-.demo-banner {
-  background: var(--orange);
-  color: #1a0d07;
-  font-size: 13px;
-  font-weight: 600;
-  margin: 0;
-  padding: 9px 24px;
-  text-align: center;
-}
-.demo-banner strong {
-  font-weight: 700;
+  .about-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* ---------- Theme ---------- */
@@ -2921,11 +2471,11 @@ not as "disabled" — use a flat surface instead. */
   color: var(--ink);
   display: inline-flex;
   flex: 0 0 auto;
-  height: 42px;
+  height: 44px;
   justify-content: center;
   padding: 0;
   position: relative;
-  width: 42px;
+  width: 44px;
 }
 .theme-toggle:active {
   scale: 0.96;
@@ -3236,7 +2786,7 @@ not as "disabled" — use a flat surface instead. */
   }
   .landing-nav .theme-toggle,
   .landing-nav .wallet-button {
-    height: 39px;
+    height: 44px;
   }
   .landing-hero {
     min-height: 0;
@@ -3255,7 +2805,7 @@ not as "disabled" — use a flat surface instead. */
   }
   .curve-visual {
     border-radius: 25px;
-    height: 400px;
+    height: min(100vw, 360px);
   }
   .landing-ticker-inner {
     grid-template-columns: 1fr 1fr;
@@ -3273,7 +2823,7 @@ not as "disabled" — use a flat surface instead. */
     min-height: 390px;
   }
   .landing-cta h2 {
-    font-size: 3.8rem;
+    font-size: clamp(3rem, 15vw, 3.8rem);
   }
   .landing-footer {
     align-items: flex-start;

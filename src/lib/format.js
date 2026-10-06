@@ -1,8 +1,11 @@
 export function formatEthAmount(value) {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
   if (value === 0) return "0";
-  if (Math.abs(value) < 0.0001) return value.toExponential(2);
-  return value.toLocaleString(undefined, { maximumFractionDigits: 4 });
+  const absolute = Math.abs(value);
+  const maximumFractionDigits = absolute < 0.00000001 ? 12 : absolute < 0.0001 ? 8 : 4;
+  const formatted = value.toLocaleString(undefined, { maximumFractionDigits });
+  if (formatted !== "0") return formatted;
+  return maximumFractionDigits === 12 ? "<0.000000000001" : "<0.00000001";
 }
 
 export function formatPercent(value) {
@@ -28,59 +31,4 @@ export function formatRelativeTime(value) {
     if (seconds >= size) return `${Math.floor(seconds / size)}${suffix} ago`;
   }
   return "just now";
-}
-
-export function formatCompact(value) {
-  if (value === null || value === undefined || Number.isNaN(value)) return "—";
-  if (Math.abs(value) < 1000) return formatEthAmount(value);
-  return value.toLocaleString(undefined, {
-    notation: "compact",
-    maximumFractionDigits: 2,
-  });
-}
-
-const usdFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumSignificantDigits: 6,
-});
-
-const compactUsdFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  notation: "compact",
-  maximumFractionDigits: 2,
-});
-
-export function formatUsd(value) {
-  if (value === null || value === undefined || Number.isNaN(value)) return "—";
-  return usdFormatter.format(value);
-}
-
-export function formatUsdCompact(value) {
-  if (value === null || value === undefined || Number.isNaN(value)) return "—";
-  return compactUsdFormatter.format(value);
-}
-
-// "+70.9%" / "-22.7%" / "+<0.1%" / "0%" — tiny moves stay visibly non-zero
-// instead of rounding to "+0.0%".
-export function formatChange(value) {
-  if (value === null || value === undefined || Number.isNaN(value)) return "—";
-  if (value === 0) return "0%";
-  const sign = value > 0 ? "+" : "-";
-  const magnitude = Math.abs(value);
-  if (magnitude < 0.1) return `${sign}<0.1%`;
-  return `${sign}${magnitude.toLocaleString(undefined, { maximumFractionDigits: 1 })}%`;
-}
-
-export function changeTone(value) {
-  if (value === null || value === undefined || Number.isNaN(value)) return "flat";
-  if (value > 0) return "up";
-  if (value < 0) return "down";
-  return "flat";
-}
-
-export function formatCount(value) {
-  if (value === null || value === undefined || Number.isNaN(value)) return "—";
-  return value.toLocaleString();
 }

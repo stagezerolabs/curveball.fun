@@ -20,7 +20,7 @@ function selectTokens(tokens: Token[], tab: Tab) {
     );
   }
   return [...tokens].sort(
-    (a, b) => (b.marketCapUsd ?? -1) - (a.marketCapUsd ?? -1),
+    (a, b) => (b.progress ?? -1) - (a.progress ?? -1),
   );
 }
 

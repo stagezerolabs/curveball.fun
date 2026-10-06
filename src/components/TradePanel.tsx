@@ -7,14 +7,14 @@ import { activeChainId, activeContractVersion, activeExplorerUrl, launchpadAddre
 import { getBetaReadEnabled, selectMarketState } from "../lib/marketState";
 import { useStore } from "../app/useStore.js";
 import { useTokenBalance } from "../sdk/react";
-import { formatEthAmount, formatPercent, formatUsd } from "../lib/format.js";
+import { formatEthAmount, formatPercent } from "../lib/format.js";
 import {
   getBuyFundingState,
   TradeFundingStatus,
 } from "./TradeFundingStatus";
 import { NATIVE_GAS_RESERVE } from "../sdk/wagmiSdk";
 import type { Address } from "viem";
-import type { LaunchpadConfig, Token } from "../types";
+import type { Token } from "../types";
 
 const SLIPPAGE_BPS = 300; // useStore sends minOut at 97% of the quote.
 const PRESETS = [25, 50, 100];
@@ -39,11 +39,9 @@ function Row({
 export function TradePanel({
   token,
   address,
-  config,
 }: {
   token: Token;
   address?: Address;
-  config: LaunchpadConfig | null;
 }) {
   const {
     amount,
@@ -74,6 +72,13 @@ export function TradePanel({
     functionName: "invited", args: [address!], chainId: activeChainId,
     query: { enabled: betaReadEnabled.invited },
   });
+  const { data: quoteToken } = useReadContract({
+    address: launchpadAddress ?? undefined,
+    abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi,
+    functionName: "quote",
+    chainId: activeChainId,
+    query: { enabled: Boolean(launchpadAddress) },
+  });
   const { state, hasBetaAccess, canBuy } = selectMarketState({
     contractVersion: activeContractVersion,
     chainId: activeChainId,
@@ -85,12 +90,12 @@ export function TradePanel({
     progress: token.progress,
   });
 
-  const quoteSymbol = token.quoteSymbol ?? config?.quoteSymbol ?? "ETH";
+  const quoteSymbol = token.quoteSymbol ?? "WETH";
   const payingWith = side === "buy" ? quoteSymbol : token.symbol;
   const receiving = side === "buy" ? token.symbol : quoteSymbol;
 
   // Buying spends the quote token, selling spends the token itself.
-  const balanceOf = side === "buy" ? config?.quoteToken : token.address;
+  const balanceOf = side === "buy" ? quoteToken : token.address;
   const { data: assetBalance } = useTokenBalance(
     (balanceOf ?? undefined) as Address | undefined,
     address,
@@ -160,6 +165,7 @@ export function TradePanel({
     <section className="trade-panel" aria-label="Trade">
       <div className="side-toggle" role="group" aria-label="Buy or sell">
         <button
+          type="button"
           className={side === "buy" ? "active buy" : ""}
           aria-pressed={side === "buy"}
           onClick={() => setSide("buy")}
@@ -167,6 +173,7 @@ export function TradePanel({
           Buy
         </button>
         <button
+          type="button"
           className={side === "sell" ? "active sell" : ""}
           aria-pressed={side === "sell"}
           onClick={() => setSide("sell")}
@@ -234,7 +241,7 @@ export function TradePanel({
             atLeast === null ? "—" : `${formatEthAmount(atLeast)} ${receiving}`
           }
         />
-        <Row label="Price" value={formatUsd(token.priceUsd)} />
+        <Row label="Price" value={token.price == null ? "—" : `${formatEthAmount(token.price)} WETH`} />
         <Row label="Slippage limit" value={`${SLIPPAGE_BPS / 100}%`} />
         {activeContractVersion === "v2" && <Row label="Curve fee + creator tax" value={token.feeBps == null ? "—" : `${((token.feeBps + (token.creatorTaxBps ?? 0)) / 100).toFixed(2)}%`} />}
         <Row
@@ -246,6 +253,7 @@ export function TradePanel({
 
       {address ? (
         <button
+          type="button"
           className={`trade-submit ${side}`}
           disabled={isPending || !(input > 0) || buyFunding?.canFund === false || (side === "buy" && !canBuy)}
           onClick={() => trade(side, token)}

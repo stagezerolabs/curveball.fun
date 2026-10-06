@@ -2,9 +2,6 @@
   publish = "dist"
   command = "bun run build"
 
-# Local-first release: no default API redirect or chain-specific wallet config.
-# The existing testnet site stays on its current deployed revision until a later
-# approved update changes its Netlify settings directly.
 [[redirects]]
   from = "/*"
   to = "/index.html"

@@ -8,7 +8,7 @@ import { activeChainId, activeContractVersion, activeExplorerUrl, launchpadAddre
 import { getBetaReadEnabled, selectMarketState } from "../lib/marketState";
 import type { Navigate } from "../types";
 
-type LaunchPhase = "preparing" | "wrapWallet" | "wrapConfirming" | "approveWallet" | "approveConfirming" | "wallet" | "confirming" | "indexing" | "success" | "error";
+type LaunchPhase = "preparing" | "wrapWallet" | "wrapConfirming" | "approveWallet" | "approveConfirming" | "wallet" | "confirming" | "success" | "error";
 type LaunchProgress = { phase: LaunchPhase; hash: string | null; error: string } | null;
 
 const phaseCopy: Record<Exclude<LaunchPhase, "error">, { title: string; detail: string }> = {
@@ -19,7 +19,6 @@ const phaseCopy: Record<Exclude<LaunchPhase, "error">, { title: string; detail: 
   approveConfirming: { title: "Confirming approval", detail: "Waiting for the allowance to confirm on chain." },
   wallet: { title: "Confirm your launch", detail: "Review and confirm the token creation in your wallet." },
   confirming: { title: "Transaction submitted", detail: "Your launch is on its way. Waiting for on-chain confirmation." },
-  indexing: { title: "Your token is live", detail: "The transaction confirmed. Adding your token to the markets list." },
   success: { title: "Launch complete", detail: "Your token is in Markets. Taking you there now…" },
 };
 
@@ -68,7 +67,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
   }, [launchProgress?.phase, navigate, clearLaunchProgress]);
 
   const phase = launchProgress?.phase;
-  const step = phase === "success" ? 4 : phase === "indexing" ? 3 : phase === "confirming" ? 2 : phase === "preparing" ? 0 : 1;
+  const step = phase === "success" ? 4 : phase === "confirming" ? 2 : phase === "preparing" ? 0 : 1;
 
   return (
     <main className="launch-page">

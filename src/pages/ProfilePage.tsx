@@ -7,8 +7,8 @@ import {
   discoverCreatorTokens,
   type CreatorTokenClient,
 } from "../creatorTokens";
-import { formatAddress } from "../lib/format.js";
-import { activeChainId, activeDeploymentBlock, activeExplorerUrl } from "../lib/web3";
+import { activeChainId } from "../lib/web3";
+import { readableError } from "../lib/errors";
 import type { Navigate, Token } from "../types";
 
 export function ProfilePage({
@@ -37,11 +37,7 @@ export function ProfilePage({
         ),
       );
     } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : "Could not read this wallet's launches from the configured network.",
-      );
+      setError(readableError(cause, "Could not read this wallet's launches from the configured network."));
     } finally {
       setLoading(false);
     }
@@ -70,17 +66,6 @@ export function ProfilePage({
           <h1>Your launches</h1>
           <p>Every token created by this wallet on this launchpad.</p>
         </div>
-        <div className="profile-identity">
-          <span className="wallet-dot connected" aria-hidden="true" />
-          <strong>{formatAddress(address)}</strong>
-          <a
-            href={`${activeExplorerUrl}/address/${address}`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            View wallet ↗
-          </a>
-        </div>
       </header>
 
       <section className="profile-stats" aria-label="Launch summary">
@@ -90,19 +75,9 @@ export function ProfilePage({
       </section>
 
       <section className="profile-markets" aria-live="polite">
-        <div className="profile-section-head">
-          <div>
-            <span>Deployed tokens</span>
-            <small>Read directly from block {activeDeploymentBlock.toString()}</small>
-          </div>
-          <button type="button" onClick={() => void load()} disabled={loading}>
-            {loading ? "Refreshing…" : "Refresh"}
-          </button>
-        </div>
-
         {error && <p className="notice" role="alert">{error}</p>}
         {loading && !tokens.length ? (
-          <p className="profile-loading">Reading your launches from chain…</p>
+          <p className="profile-loading">Loading…</p>
         ) : !tokens.length ? (
           <div className="profile-empty">
             <strong>No launches from this wallet yet.</strong>

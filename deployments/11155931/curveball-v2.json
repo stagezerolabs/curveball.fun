@@ -82,5 +82,10 @@
   "initialization": {
     "hash": "0x8526b5714bcb2b548e4f8aada72901b7f38912f45f7fcbfacf8918ad72cdc0e4",
     "blockNumber": "55636469"
+  },
+  "publicLaunch": {
+    "hash": "0x5301ad02b4e220bc326f4d37b5c224503fe31fa61d70b9c79b20a8594592156d",
+    "blockNumber": "56203690",
+    "opened": true
   }
 }
