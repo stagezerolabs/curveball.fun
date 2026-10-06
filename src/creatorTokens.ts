@@ -7,6 +7,27 @@ import type { Token } from "./types";
 export const CURVEBALL_TESTNET_DEPLOYMENT_BLOCK = 55_002_177n;
 const MAX_EVENT_QUERY_BLOCKS = 5_000n;
 const EVENT_QUERY_CONCURRENCY = 8;
+const EVENT_QUERY_ATTEMPTS = 4;
+
+async function readCreatedLogs(
+  client: CreatorTokenClient,
+  parameters: object,
+): Promise<readonly CreatedLog[]> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < EVENT_QUERY_ATTEMPTS; attempt += 1) {
+    try {
+      return await client.getContractEvents(parameters);
+    } catch (error) {
+      lastError = error;
+      if (attempt < EVENT_QUERY_ATTEMPTS - 1) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, 250 * 2 ** attempt),
+        );
+      }
+    }
+  }
+  throw lastError;
+}
 
 type CreatedLog = {
   args?: {
@@ -92,7 +113,7 @@ async function discoverTokens(
   await Promise.all(Array.from({ length: Math.min(EVENT_QUERY_CONCURRENCY, ranges.length) }, async () => {
     while (nextRange < ranges.length) {
       const range = ranges[nextRange++];
-      logs.push(...await client.getContractEvents({ ...eventQuery, ...range }));
+      logs.push(...await readCreatedLogs(client, { ...eventQuery, ...range }));
     }
   }));
   if (!logs.length) return [];
