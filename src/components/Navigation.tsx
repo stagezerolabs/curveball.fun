@@ -237,7 +237,7 @@ export function LandingFooter({ navigate }: { navigate: Navigate }) {
       <div className="landing-footer-grid">
         <div className="landing-footer-brand">
           <Brand navigate={navigate} />
-          <p>A fair token launchpad on RISE.</p>
+          <p>Launch on the curve</p>
         </div>
 
         <nav className="landing-footer-column" aria-label="Product">
