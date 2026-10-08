@@ -3,7 +3,6 @@ import { Dialog } from "@base-ui/react/dialog";
 import { Button } from "@radix-ui/themes";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { ArrowIcon } from "../components/ArrowIcon";
-import { ChoiceSelect } from "../components/ChoiceSelect";
 import { LaunchPreview } from "../components/LaunchPreview";
 import { useStore } from "../app/useStore.js";
 import { useAccount, useReadContract } from "wagmi";
@@ -29,17 +28,15 @@ const phaseCopy: Record<Exclude<LaunchPhase, "error">, { title: string; detail: 
 
 export function LaunchPage({ navigate }: { navigate: Navigate }) {
   const dialogHeading = useRef<HTMLHeadingElement>(null);
-  const metadataUrlInput = useRef<HTMLInputElement>(null);
-  const advancedOptions = useRef<HTMLDetailsElement>(null);
+  const imageInput = useRef<HTMLInputElement>(null);
   const launchStartedAt = useRef<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [draftName, setDraftName] = useState("");
   const [draftSymbol, setDraftSymbol] = useState("");
-  const [draftTax, setDraftTax] = useState(0);
+  const [draftTaxPercent, setDraftTaxPercent] = useState("0");
   const [draftInitialBuy, setDraftInitialBuy] = useState("");
   const [draftImageUrl, setDraftImageUrl] = useState<string>();
   const [imageError, setImageError] = useState("");
-  const [metadataError, setMetadataError] = useState("");
   const { address } = useAccount();
   const { openConnectModal } = useConnectModal();
   const betaReadEnabled = getBetaReadEnabled({
@@ -64,6 +61,20 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
     functionName: "supply",
     chainId: activeChainId,
     query: { enabled: Boolean(launchpadAddress) },
+  });
+  const { data: buybackShareBps, isError: buybackError } = useReadContract({
+    address: launchpadAddress ?? undefined,
+    abi: v2FactoryAbi,
+    functionName: "buybackShareBps",
+    chainId: activeChainId,
+    query: { enabled: activeContractVersion === "v2" && Boolean(launchpadAddress) },
+  });
+  const { data: creatorTaxCapBps } = useReadContract({
+    address: launchpadAddress ?? undefined,
+    abi: v2FactoryAbi,
+    functionName: "creatorTaxCapBps",
+    chainId: activeChainId,
+    query: { enabled: activeContractVersion === "v2" && Boolean(launchpadAddress) },
   });
   const { canCreate } = selectMarketState({
     contractVersion: activeContractVersion,
@@ -108,12 +119,11 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
 
   const phase = launchProgress?.phase;
   const step = launchMilestone(phase);
+  const draftTaxBps = Math.round(Number(draftTaxPercent || "0") * 100);
   const submitLaunch = (event: React.FormEvent<HTMLFormElement>) => {
-    if (draftImageUrl && !metadataUrlInput.current?.value.trim()) {
+    if (draftImageUrl) {
       event.preventDefault();
-      if (advancedOptions.current) advancedOptions.current.open = true;
-      setMetadataError("Add a metadata URL before launching with artwork. The selected file is only a local preview.");
-      metadataUrlInput.current?.focus();
+      setImageError("Artwork publishing is not connected yet. Remove the image to launch without artwork.");
       return;
     }
     void create(event);
@@ -128,7 +138,6 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
       return;
     }
     setImageError("");
-    setMetadataError("");
     setDraftImageUrl(URL.createObjectURL(file));
   };
 
@@ -139,7 +148,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
         <LaunchPreview
           name={draftName}
           symbol={draftSymbol}
-          creatorTaxBps={draftTax}
+          creatorTaxBps={draftTaxBps}
           initialBuy={draftInitialBuy}
           imageUrl={draftImageUrl}
           showV2Options={activeContractVersion === "v2"}
@@ -153,11 +162,16 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                 <h2>Token details</h2>
               </div>
               <label className="launch-image-upload">
-                <input type="file" accept="image/png,image/jpeg,image/webp" onChange={selectImage} aria-describedby={imageError ? "launch-image-help launch-image-error" : "launch-image-help"} aria-invalid={Boolean(imageError)} />
+                <input ref={imageInput} type="file" accept="image/png,image/jpeg,image/webp" onChange={selectImage} aria-describedby={imageError ? "launch-image-help launch-image-error" : "launch-image-help"} aria-invalid={Boolean(imageError)} />
                 {draftImageUrl ? <img src={draftImageUrl} alt="" /> : <span className="launch-image-placeholder" aria-hidden="true">＋</span>}
                 <span>{draftImageUrl ? "Change preview image" : "Choose an image"}</span>
               </label>
               <p id="launch-image-help" className="launch-field-help">PNG, JPEG, or WebP, under 2 MB.</p>
+              {draftImageUrl && <button className="launch-remove-image" type="button" onClick={() => {
+                setDraftImageUrl(undefined);
+                setImageError("");
+                if (imageInput.current) imageInput.current.value = "";
+              }}>Remove image</button>}
               {imageError && <p id="launch-image-error" className="launch-field-error" role="alert">{imageError}</p>}
               <div className="launch-fields">
                 <label className="launch-field-wide">
@@ -191,29 +205,24 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
               )}
             </div>
 
-            <details className="launch-advanced" ref={advancedOptions}>
-              <summary>Advanced options <span>Metadata and creator tax</span></summary>
+            {activeContractVersion === "v2" && <details className="launch-advanced">
+              <summary>Advanced options</summary>
               <div className="launch-advanced-fields">
-                {activeContractVersion === "v2" && (
-                  <div className="launch-select-field">
-                    <span>Creator tax <b>Optional</b></span>
-                    <ChoiceSelect name="creatorTaxBps" label="Creator tax" value={String(draftTax)} onValueChange={(value) => setDraftTax(Number(value))} options={[
-                      { value: "0", label: "No creator tax" },
-                      { value: "10", label: "0.1%" },
-                      { value: "25", label: "0.25%" },
-                      { value: "50", label: "0.5% maximum" },
-                    ]} />
-                    <small>If enabled, part of each trade goes to the token creator.</small>
-                  </div>
-                )}
                 <label className="launch-field-wide">
-                  <span>Metadata URL <b>{draftImageUrl ? "Required for artwork" : "Optional"}</b></span>
-                  <input ref={metadataUrlInput} name="uri" type="url" placeholder="https://example.com/token.json" autoComplete="url" onChange={() => setMetadataError("")} aria-describedby={metadataError ? "metadata-url-help metadata-url-error" : "metadata-url-help"} aria-invalid={Boolean(metadataError)} />
-                  <small id="metadata-url-help">Link to public JSON with the image and description. Published artwork comes from this URL, not the local preview.</small>
-                  {metadataError && <small id="metadata-url-error" className="launch-field-error" role="alert">{metadataError}</small>}
+                  <span>Creator tax <b>0–{Number(creatorTaxCapBps ?? 50) / 100}%</b></span>
+                  <span className="launch-unit-input">
+                    <input type="number" min="0" max={Number(creatorTaxCapBps ?? 50) / 100} step="0.01" inputMode="decimal" value={draftTaxPercent} onChange={(event) => setDraftTaxPercent(event.target.value)} />
+                    <i>%</i>
+                  </span>
                 </label>
+                <div className="launch-pair-field">
+                  <span>Buyback</span>
+                  <strong>{buybackShareBps == null ? buybackError ? "Unavailable" : "Loading…" : `${Number(buybackShareBps) / 100}% of trading fee`}</strong>
+                </div>
               </div>
-            </details>
+            </details>}
+            <input type="hidden" name="creatorTaxBps" value={draftTaxBps} />
+            <input type="hidden" name="uri" value="" />
 
             {address && !canCreate && <p className="notice" role="status">{publicOpen === false && invited === false ? "This factory is invite-only." : "Checking launch access…"}</p>}
             <div className="launch-form-actions">
