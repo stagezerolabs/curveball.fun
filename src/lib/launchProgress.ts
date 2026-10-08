@@ -1,4 +1,4 @@
-export type LaunchPhase = "preparing" | "wrapWallet" | "wrapConfirming" | "approveWallet" | "approveConfirming" | "wallet" | "confirming" | "success" | "error";
+export type LaunchPhase = "preparing" | "wrapWallet" | "wrapConfirming" | "approveWallet" | "approveConfirming" | "wallet" | "confirming" | "pending" | "success" | "error";
 
 export function launchMilestone(phase: LaunchPhase | undefined): number {
   if (phase === "preparing") return 0;

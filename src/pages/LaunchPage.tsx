@@ -22,7 +22,8 @@ const phaseCopy: Record<Exclude<LaunchPhase, "error">, { title: string; detail: 
   approveWallet: { title: "Approve WETH", detail: "Confirm the allowance in your wallet." },
   approveConfirming: { title: "Approving WETH", detail: "Waiting for the approval transaction to confirm on chain." },
   wallet: { title: "Confirm launch", detail: "Review and confirm in your wallet." },
-  confirming: { title: "Launch submitted", detail: "Your launch transaction is on chain. Waiting for confirmation." },
+  confirming: { title: "Launch submitted", detail: "Your wallet submitted the launch transaction. Waiting for a network receipt." },
+  pending: { title: "Confirmation taking longer", detail: "RISE has not returned a receipt for this transaction. Check it in the explorer before trying the launch again." },
   success: { title: "Token launched", detail: "Opening Markets…" },
 };
 
@@ -201,26 +202,27 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
         </form>
       </section>
       <Dialog.Root open={Boolean(launchProgress)} onOpenChange={(open) => {
-        if (!open && (phase === "error" || phase === "success")) {
+        if (!open && (phase === "error" || phase === "pending" || phase === "success")) {
           clearLaunchProgress();
           if (phase === "success") navigate("markets");
         }
       }}>
       <Dialog.Portal>
         <Dialog.Backdrop className="launch-modal-backdrop" />
-        <Dialog.Popup className={`launch-modal ${phase === "error" || phase === "success" ? "dismissible" : ""}`}>
-          {(phase === "error" || phase === "success") && <Dialog.Close className="launch-modal-close" aria-label="Close launch status">×</Dialog.Close>}
+        <Dialog.Popup className={`launch-modal ${phase === "error" || phase === "pending" || phase === "success" ? "dismissible" : ""}`}>
+          {(phase === "error" || phase === "pending" || phase === "success") && <Dialog.Close className="launch-modal-close" aria-label="Close launch status">×</Dialog.Close>}
           <div className="launch-modal-meta">
-            <span className="launch-modal-kicker">{phase === "error" ? "Launch interrupted" : phase === "success" ? "Complete" : `Step ${step + 1} of 4`}</span>
+            <span className="launch-modal-kicker">{phase === "error" ? "Launch interrupted" : phase === "pending" ? "Status unknown" : phase === "success" ? "Complete" : `Step ${step + 1} of 4`}</span>
             <time className="launch-modal-timer" dateTime={`PT${elapsedSeconds}S`} aria-label={`${formatLaunchElapsed(elapsedSeconds)} elapsed`}>{formatLaunchElapsed(elapsedSeconds)} elapsed</time>
           </div>
           <Dialog.Title id="launch-modal-title" ref={dialogHeading} tabIndex={-1}>{phase === "error" ? "Launch stopped" : phaseCopy[phase!]?.title}</Dialog.Title>
           <Dialog.Description id="launch-modal-detail">{phase === "error" ? launchProgress?.error : phaseCopy[phase!]?.detail}</Dialog.Description>
-          {phase !== "error" && <ol className="launch-steps" aria-label="Launch progress">
+          {phase !== "error" && phase !== "pending" && <ol className="launch-steps" aria-label="Launch progress">
             {["Prepare", "Confirm in wallet", "Confirm on chain", "List in Markets"].map((label, index) => <li key={label} className={index < step ? "done" : index === step ? "current" : ""} aria-current={index === step ? "step" : undefined}><span aria-hidden="true">{index < step ? "✓" : index === step ? <i className="launch-step-spinner" /> : String(index + 1).padStart(2, "0")}</span>{label}</li>)}
           </ol>}
           {launchProgress?.hash && <a className="launch-tx-link" href={`${activeExplorerUrl}/tx/${launchProgress.hash}`} target="_blank" rel="noopener noreferrer">View transaction ↗</a>}
           {phase === "error" && <button type="button" className="launch-modal-action" onClick={clearLaunchProgress}>Try again</button>}
+          {phase === "pending" && <button type="button" className="launch-modal-action" onClick={clearLaunchProgress}>Close</button>}
           {phase === "success" && <button type="button" className="launch-modal-action" onClick={() => { clearLaunchProgress(); navigate("markets"); }}>View in Markets <ArrowIcon /></button>}
         </Dialog.Popup>
       </Dialog.Portal>
