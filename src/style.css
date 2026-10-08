@@ -793,9 +793,10 @@ select:focus-visible {
   gap: 4px;
 }
 .status-pill > span {
-  align-items: center;
-  display: flex;
-  gap: 6px;
+  display: block;
+}
+.status-pill.live > span {
+  color: #5fd39a;
 }
 .status-pill small {
   color: var(--muted);
@@ -803,17 +804,8 @@ select:focus-visible {
   font-variant-numeric: tabular-nums;
   font-weight: 500;
 }
-.status-pill i {
-  background: #5fd39a;
-  border-radius: 50%;
-  height: 6px;
-  width: 6px;
-}
 .status-pill.graduated {
   color: #a7aaa7;
-}
-.status-pill.graduated i {
-  background: #a7aaa7;
 }
 .market-cell {
   align-items: center;
@@ -3087,8 +3079,8 @@ select:focus-visible {
 :root[data-theme="light"] .market-cell small {
   color: var(--muted);
 }
-:root[data-theme="light"] .status-pill.live i {
-  background: #278257;
+:root[data-theme="light"] .status-pill.live > span {
+  color: #278257;
 }
 :root[data-theme="light"] .token-avatar {
   background: #dfe8d8;
