@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { useAccount, usePublicClient } from "wagmi";
 import { getAddress, isAddress, type Address } from "viem";
 import { useStore } from "../app/useStore.js";
@@ -11,10 +11,15 @@ import type { CreatorTokenClient } from "../creatorTokens";
 import { activeChainId } from "../lib/web3";
 import type { Navigate, Token } from "../types";
 
-function MarketPageSkeleton({ navigate }: { navigate: Navigate }) {
+const MarketChart = lazy(() =>
+  import("../components/MarketChart").then((module) => ({
+    default: module.MarketChart,
+  })),
+);
+
+function MarketPageSkeleton() {
   return (
     <main className="market-page market-page-skeleton wrap" aria-busy="true" aria-label="Loading market">
-      <AppLink className="back-link" route="markets" navigate={navigate}>← All markets</AppLink>
       <div className="market-header-skeleton">
         <span className="skeleton skeleton-circle" />
         <span className="skeleton skeleton-line skeleton-title" />
@@ -61,7 +66,7 @@ export function MarketPage({
   }, [address, fetchedAt, loadToken, publicClient]);
 
   if (validAddress && !hasCachedResult && !discoveryError) {
-    return <MarketPageSkeleton navigate={navigate} />;
+    return <MarketPageSkeleton />;
   }
   if (!resolvedToken) {
     return (
@@ -78,19 +83,31 @@ export function MarketPage({
 
   return (
     <main className="market-page wrap">
-      <AppLink className="back-link" route="markets" navigate={navigate}>
-        ← All markets
-      </AppLink>
-
       <MarketHeader token={resolvedToken} />
-      <TradePanel
-        token={resolvedToken}
-        address={walletAddress}
-      />
-      <MilestonePanel
-        token={resolvedToken}
-        address={walletAddress}
-      />
+
+      <div className="market-workspace">
+        <Suspense
+          fallback={
+            <div
+              className="market-chart-panel market-chart-lazy skeleton"
+              aria-label="Loading chart"
+            />
+          }
+        >
+          <MarketChart token={resolvedToken} refreshKey={fetchedAt} />
+        </Suspense>
+        <aside className="market-sidebar" aria-label="Market actions">
+          <TradePanel
+            token={resolvedToken}
+            address={walletAddress}
+          />
+          <MilestonePanel
+            token={resolvedToken}
+            address={walletAddress}
+          />
+        </aside>
+      </div>
+
       <MarketTabs token={resolvedToken} />
 
       <p className="disclaimer">

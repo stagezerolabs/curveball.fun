@@ -63,8 +63,20 @@ function formatUsd(value: number) {
   }).format(value);
 }
 
-export function UsdAmount({ weth, suffix = "" }: { weth?: number | null; suffix?: string }) {
+function formatCompactUsd(value: number) {
+  if (Math.abs(value) < 1000) return formatUsd(value);
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
+export function UsdAmount({ weth, suffix = "", compact = false }: { weth?: number | null; suffix?: string; compact?: boolean }) {
   const usdPerEth = useSyncExternalStore(subscribe, getEthUsdPrice, getEthUsdPrice);
   if (weth == null || usdPerEth == null) return <>—</>;
-  return <>{formatUsd(weth * usdPerEth)}{suffix}</>;
+  const full = formatUsd(weth * usdPerEth);
+  if (compact) return <span title={`${full}${suffix}`} aria-label={`${full}${suffix}`}>{formatCompactUsd(weth * usdPerEth)}{suffix}</span>;
+  return <>{full}{suffix}</>;
 }

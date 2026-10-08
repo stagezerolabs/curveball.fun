@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from "react";
+import { Heading, Text } from "@radix-ui/themes";
 import { useAccount, usePublicClient } from "wagmi";
 import type { Address } from "viem";
 import { useStore } from "../app/useStore.js";
@@ -40,7 +41,7 @@ export function ProfilePage({
   }, [address, loadCreatorTokens, publicClient]);
 
   useEffect(() => {
-    if (!address) navigate("home");
+    if (!address) navigate("markets");
   }, [address, navigate]);
 
   const graduated = useMemo(
@@ -52,12 +53,12 @@ export function ProfilePage({
 
   return (
     <main className="page-main profile-page wrap">
-      <header className="profile-heading">
+      <header className="workspace-heading">
         <div>
-          <div className="eyebrow"><span /> Creator dashboard</div>
-          <h1>Your launches</h1>
-          <p>Every token created by this wallet on this launchpad.</p>
+          <Text as="p" className="workspace-eyebrow">Creator profile</Text>
+          <Heading as="h1">Your launches</Heading>
         </div>
+        <Text as="p">Markets created by your connected wallet.</Text>
       </header>
 
       {initialLoading ? (

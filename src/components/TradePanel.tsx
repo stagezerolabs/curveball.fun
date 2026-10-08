@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { Button } from "@radix-ui/themes";
+import { Collapsible } from "@base-ui/react/collapsible";
 import type { ReactNode } from "react";
 import { formatEther } from "viem";
 import { useBalance, useReadContract } from "wagmi";
@@ -192,14 +194,16 @@ export function TradePanel({
         <label htmlFor="trade-amount">Amount</label>
         <div className="amount-presets">
           {PRESETS.map((percent) => (
-            <button
+            <Button
               key={percent}
               type="button"
+              variant="ghost"
+              size="1"
               disabled={presetBalance === undefined}
               onClick={() => applyPreset(percent)}
             >
               {percent === 100 ? "Max" : `${percent}%`}
-            </button>
+            </Button>
           ))}
         </div>
       </div>
@@ -254,18 +258,19 @@ export function TradePanel({
       </div>
 
       {address ? (
-        <button
+        <Button
           type="button"
           className={`trade-submit ${side}`}
+          size="3"
           disabled={isPending || !(input > 0) || buyFunding?.canFund === false || (side === "buy" && !canBuy)}
           onClick={() => trade(side, token)}
         >
           {isPending ? "Pending…" : side === "buy" ? "Buy" : "Sell"}
-        </button>
+        </Button>
       ) : (
-        <button className={`trade-submit ${side}`} type="button" disabled>
+        <Button className={`trade-submit ${side}`} type="button" size="3" disabled>
           {side === "buy" ? "Buy" : "Sell"}
-        </button>
+        </Button>
       )}
       {!address && <p className="trade-hint">Connect from the navigation to trade.</p>}
       {tradeMessage && !isPending && (
@@ -274,27 +279,23 @@ export function TradePanel({
         </p>
       )}
 
-      <div className="trade-explain">
-        <button
-          type="button"
-          aria-expanded={explain}
-          onClick={() => setExplain((open) => !open)}
-        >
+      <Collapsible.Root open={explain} onOpenChange={setExplain} className="trade-explain">
+        <Collapsible.Trigger type="button">
           How this trade is priced
           <svg viewBox="0 0 20 20" aria-hidden="true">
             <circle cx="10" cy="10" r="7" />
             <path d="M10 9v5M10 6.5v.01" />
           </svg>
-        </button>
-        {explain && (
+        </Collapsible.Trigger>
+        <Collapsible.Panel>
           <p>
             Every trade runs against a constant-product bonding curve held by the
             launchpad — no order book and no counterparty. The price moves with
             each buy and sell, so larger orders pay more. Your transaction
             reverts if the result lands below the slippage limit.
           </p>
-        )}
-      </div>
+        </Collapsible.Panel>
+      </Collapsible.Root>
     </section>
   );
 }

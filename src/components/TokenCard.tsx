@@ -1,4 +1,5 @@
 import { AppLink } from "./Navigation";
+import { Badge, Card } from "@radix-ui/themes";
 import { TokenAvatar } from "./TokenAvatar";
 import { UsdAmount } from "./UsdAmount";
 import {
@@ -19,61 +20,51 @@ export function TokenCard({
 }) {
   return (
     <li>
+      <Card asChild className="tcard">
       <AppLink
-        className="tcard"
         route="market"
         params={{ address: token.address }}
         navigate={navigate}
       >
-        <span className="tcard-media">
+        <span className="tcard-head">
           <TokenAvatar token={token} index={index} className="tcard-image" />
-          <span className="tcard-milestone">
-            {token.graduated
-              ? "Graduated"
-              : `${formatPercent(token.progress)} of graduation`}
+          <span className="tcard-identity">
+            <strong>{token.name}</strong>
+            <small>${token.symbol}</small>
           </span>
-          {!token.graduated && (
-            <span className="tcard-progress" aria-hidden="true">
-              <span style={{ width: formatPercent(token.progress) }} />
-            </span>
+          {token.quoteSymbol && (
+            <span className="tcard-paired">{token.quoteSymbol}</span>
           )}
+          <Badge color={token.graduated ? "orange" : "lime"} variant="soft" className={`tcard-status ${token.graduated ? "graduated" : "live"}`}>
+            {token.graduated ? "Graduated" : "Live"}
+          </Badge>
         </span>
 
         <span className="tcard-body">
-          <span className="tcard-title">
-            <strong>${token.symbol}</strong>
-            <small>{token.name}</small>
-            {token.quoteSymbol && (
-              <span className="tcard-paired">
-                Paired with<i>{token.quoteSymbol}</i>
-              </span>
-            )}
-          </span>
-
-          <span className="tcard-meta">
-            {formatAddress(token.address)} · {formatRelativeTime(token.createdAt)}
-          </span>
-
           <span className="tcard-figures">
             <span>
               <small>Market cap</small>
               <strong><UsdAmount weth={token.marketCap} /></strong>
             </span>
             <span className="tcard-figure-end">
-              <small>Price</small>
-              <strong><UsdAmount weth={token.price} /></strong>
+              <small>{token.graduated ? "Status" : "Graduation"}</small>
+              <strong>{token.graduated ? "Complete" : formatPercent(token.progress)}</strong>
             </span>
           </span>
 
-          <span className="tcard-footer">
-            <span className={token.graduated ? "graduated" : "live"}>
-              <i aria-hidden="true" />
-              {token.graduated ? "Graduated" : "Curve live"}
+          {!token.graduated && (
+            <span className="tcard-progress" aria-hidden="true">
+              <span style={{ width: formatPercent(token.progress) }} />
             </span>
-            <span>{formatPercent(token.progress)} sold</span>
+          )}
+
+          <span className="tcard-footer">
+            <span>{formatAddress(token.address)}</span>
+            <span>{formatRelativeTime(token.createdAt)}</span>
           </span>
         </span>
       </AppLink>
+      </Card>
     </li>
   );
 }

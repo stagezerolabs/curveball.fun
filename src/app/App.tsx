@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
+import { Theme as RadixTheme } from "@radix-ui/themes";
 import {
-  Footer,
   Header,
   LandingFooter,
   LandingHeader,
 } from "../components/Navigation";
-import { HomePage } from "../pages/HomePage";
 import { LandingPage } from "../pages/LandingPage";
 import { LaunchPage } from "../pages/LaunchPage";
 import { MarketPage } from "../pages/MarketPage";
@@ -31,9 +30,6 @@ export function App() {
   switch (route.id) {
     case "landing":
       page = <LandingPage navigate={navigate} />;
-      break;
-    case "home":
-      page = <HomePage navigate={navigate} />;
       break;
     case "markets":
       page = <MarketsPage navigate={navigate} />;
@@ -63,14 +59,10 @@ export function App() {
   const isLanding = route.id === "landing";
 
   return (
+    <RadixTheme appearance={theme} accentColor="lime" grayColor="olive" radius="medium" scaling="100%" className="curveball-theme">
     <div className="site-shell">
       {isLanding ? (
-        <LandingHeader
-          address={address}
-          navigate={navigate}
-          theme={theme}
-          onThemeToggle={toggleTheme}
-        />
+        <LandingHeader navigate={navigate} />
       ) : (
         <Header
           address={address}
@@ -81,11 +73,8 @@ export function App() {
         />
       )}
       {page}
-      {isLanding ? (
-        <LandingFooter navigate={navigate} />
-      ) : (
-        <Footer navigate={navigate} />
-      )}
+      <LandingFooter navigate={navigate} />
     </div>
+    </RadixTheme>
   );
 }

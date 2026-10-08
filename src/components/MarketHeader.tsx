@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { Badge } from "@radix-ui/themes";
 import { TokenAvatar } from "./TokenAvatar";
 import {
   formatAddress,
   formatEthAmount,
+  formatPercent,
   formatRelativeTime,
 } from "../lib/format.js";
 import type { Token } from "../types";
@@ -76,15 +78,14 @@ function Socials({ token }: { token: Token }) {
   if (!links.length) return null;
 
   return (
-    <span className="market-socials">
+    <nav className="market-socials" aria-label="Token links">
       {links.map((link) => (
         <a
           key={link.label}
-          className="icon-button"
+          className="market-social-link"
           href={link.href}
           target="_blank"
           rel="noreferrer"
-          aria-label={link.label}
         >
           <svg viewBox="0 0 20 20" aria-hidden="true">
             {link.icon === "globe" && (
@@ -96,64 +97,81 @@ function Socials({ token }: { token: Token }) {
             {link.icon === "x" && <path d="M4 4l12 12M16 4L4 16" />}
             {link.icon === "telegram" && <path d="M17 4 3 9.6l4 1.4 1.4 4.5L11 12l4 4 2-12Z" />}
           </svg>
+          {link.label}
         </a>
       ))}
-    </span>
+    </nav>
   );
 }
 
 export function MarketHeader({ token }: { token: Token }) {
+  const quoteSymbol = token.quoteSymbol ?? "WETH";
   return (
     <header className="market-header">
-      <div className="market-header-top">
-        <TokenAvatar token={token} className="market-avatar" />
-        <div className="market-identity">
-          <h1>{token.name}</h1>
-          <div className="market-identity-row">
-            <span className="market-ticker">${token.symbol}</span>
-            <span
-              className={`market-status ${token.graduated ? "graduated" : "live"}`}
-            >
-              <i aria-hidden="true" />
-              {token.graduated ? "Graduated" : token.pending ? "Graduation pending" : "On the curve"}
-            </span>
+      <div className="market-header-content">
+        <div className="market-token-summary">
+          <TokenAvatar token={token} className="market-avatar" />
+          <div className="market-identity">
+            <div className="market-title-row">
+              <h1>{token.name}</h1>
+              <span className="market-ticker">${token.symbol}</span>
+            </div>
+            <div className="market-identity-row">
+              <span className="market-pair">{token.symbol} / {quoteSymbol}</span>
+              <Badge color={token.graduated ? "orange" : "lime"} variant="soft" className={`market-status ${token.graduated ? "graduated" : "live"}`}>
+                {token.graduated ? "Graduated" : token.pending ? "Pending" : "Curve live"}
+              </Badge>
+              {token.feeBps != null && (
+                <span className="market-data-chip">Fee {(token.feeBps / 100).toFixed(2)}%</span>
+              )}
+              {token.creatorTaxBps != null && token.creatorTaxBps > 0 && (
+                <span className="market-data-chip">Creator tax {(token.creatorTaxBps / 100).toFixed(2)}%</span>
+              )}
+            </div>
+
+            <dl className="market-meta">
+              <div>
+                <dt>CA</dt>
+                <dd>
+                  <code>{formatAddress(token.address)}</code>
+                  <CopyButton value={token.address} label="contract address" />
+                  <ExplorerLink value={token.address} label="contract" />
+                </dd>
+              </div>
+              <div>
+                <dt>Created by</dt>
+                <dd>
+                  <code>{formatAddress(token.creator)}</code>
+                  <CopyButton value={token.creator} label="creator address" />
+                  <ExplorerLink value={token.creator} label="creator" />
+                </dd>
+              </div>
+              <div>
+                <dt>Launched</dt>
+                <dd>{formatRelativeTime(token.createdAt)}</dd>
+              </div>
+            </dl>
+
             <Socials token={token} />
           </div>
         </div>
-        <div className="market-headline-value">
-          <strong><UsdAmount weth={token.marketCap} /></strong>
-          <span>
-            <span className="market-quote-chip">USD</span>
-          </span>
-        </div>
       </div>
 
-      <dl className="market-meta">
-        <div>
-          <dt>Contract</dt>
-          <dd>
-            <code>{formatAddress(token.address)}</code>
-            <CopyButton value={token.address} label="contract address" />
-            <ExplorerLink value={token.address} label="contract" />
-          </dd>
-        </div>
-        <div>
-          <dt>Creator</dt>
-          <dd>
-            <code>{formatAddress(token.creator)}</code>
-            <CopyButton value={token.creator} label="creator address" />
-            <ExplorerLink value={token.creator} label="creator" />
-          </dd>
-        </div>
-        <div>
-          <dt>Launched</dt>
-          <dd>{formatRelativeTime(token.createdAt)}</dd>
-        </div>
+      <dl className="market-headline-stats">
         <div>
           <dt>Price</dt>
-          <dd>
-            <UsdAmount weth={token.price} />
-          </dd>
+          <dd><UsdAmount weth={token.price} /></dd>
+          <small>{token.price == null ? "—" : formatEthAmount(token.price)} {quoteSymbol}</small>
+        </div>
+        <div>
+          <dt>Market cap</dt>
+          <dd><UsdAmount weth={token.marketCap} compact /></dd>
+          <small>Fully diluted</small>
+        </div>
+        <div>
+          <dt>{token.graduated ? "Status" : "Curve sold"}</dt>
+          <dd>{token.graduated ? "100%" : formatPercent(token.progress)}</dd>
+          <small>{token.graduated ? "Graduated" : "To graduation"}</small>
         </div>
       </dl>
     </header>

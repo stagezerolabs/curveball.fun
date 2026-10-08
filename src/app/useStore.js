@@ -284,7 +284,7 @@ export const useStore = create(persist((set, get) => ({
       set({ launchProgress: { phase: "success", hash: result.hash ?? null, error: "" } });
     } catch (error) {
       handleActionError(error);
-      set((state) => ({ launchProgress: { phase: "error", hash: state.launchProgress?.hash ?? null, error: readableError(error, "Token launch failed. Please try again.") } }));
+      set((state) => ({ launchProgress: { phase: "error", hash: state.launchProgress?.hash ?? null, error: readableError(error, "Token launch failed.") } }));
     } finally {
       endAction();
     }

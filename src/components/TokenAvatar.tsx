@@ -10,15 +10,28 @@ export function TokenAvatar({
   className?: string;
   index?: number;
 }) {
-  const [failed, setFailed] = useState(false);
+  const [failedSources, setFailedSources] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const generatedAvatar = `https://api.dicebear.com/10.x/loops/svg?seed=${encodeURIComponent(token.address)}`;
+  const sources = [token.imageUrl, generatedAvatar].filter(
+    (source): source is string => Boolean(source),
+  );
+  const source = sources.find((candidate) => !failedSources.has(candidate));
 
-  if (token.imageUrl && !failed) {
+  if (source) {
     return (
       <img
         className={`token-avatar ${className}`.trim()}
-        src={token.imageUrl}
+        src={source}
         alt=""
-        onError={() => setFailed(true)}
+        onError={() =>
+          setFailedSources((current) => {
+            const next = new Set(current);
+            next.add(source);
+            return next;
+          })
+        }
       />
     );
   }

@@ -6,13 +6,16 @@ type Route = {
 
 const routes: Route[] = [
   { id: "landing", path: "/", title: "Curveball — Fair token launches" },
-  { id: "home", path: "/app", title: "Explore — Curveball" },
   { id: "markets", path: "/markets", title: "Markets — Curveball" },
   { id: "market", path: "/markets/:address", title: "Market — Curveball" },
   { id: "launch", path: "/launch", title: "Launch — Curveball" },
   { id: "profile", path: "/profile", title: "Your launches — Curveball" },
   { id: "notFound", path: "*", title: "Page not found — Curveball" },
 ];
+
+export function canonicalPathname(pathname: string) {
+  return pathname === "/app" || pathname === "/app/" ? "/markets" : pathname;
+}
 
 function matchPath(
   pattern: string,
@@ -40,6 +43,7 @@ function matchPath(
 }
 
 export function resolveRoute(pathname: string) {
+  pathname = canonicalPathname(pathname);
   const normalized =
     pathname.length > 1 ? pathname.replace(/\/$/, "") : pathname;
   for (const route of routes) {

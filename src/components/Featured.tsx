@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import { AppLink } from "./Navigation";
-import { ArrowIcon } from "./ArrowIcon";
 import { TokenAvatar } from "./TokenAvatar";
 import { UsdAmount } from "./UsdAmount";
 import { formatPercent } from "../lib/format.js";
@@ -20,6 +19,7 @@ export function Featured({ tokens, loading, navigate }: { tokens: Token[]; loadi
       <div className="featured-grid">
         <AppLink className="king" route="market" params={{ address: leader.address }} navigate={navigate}>
           <span className="king-headline">
+            <span className="king-rank" aria-hidden="true">01</span>
             <TokenAvatar token={leader} className="king-avatar" />
             <span className="king-id"><strong>${leader.symbol}</strong><small>{leader.name}</small></span>
             <span className="king-value"><strong>{formatPercent(leader.progress)}</strong><small>curve sold</small></span>
@@ -31,8 +31,9 @@ export function Featured({ tokens, loading, navigate }: { tokens: Token[]; loadi
         </AppLink>
         {contenders.length > 0 && <aside className="contenders"><ol>{contenders.map((token, index) => <li key={token.address}>
           <AppLink route="market" params={{ address: token.address }} navigate={navigate}>
-            <span className="contender-rank">{index + 2}</span><TokenAvatar token={token} index={index} />
-            <span className="contender-symbol">{token.symbol}</span><span className="contender-value"><strong>{formatPercent(token.progress)}</strong></span><ArrowIcon />
+            <span className="contender-rank">{String(index + 2).padStart(2, "0")}</span><TokenAvatar token={token} index={index} />
+            <span className="contender-id"><strong>${token.symbol}</strong><small>{token.name}</small></span>
+            <span className="contender-value"><strong>{formatPercent(token.progress)}</strong><small>sold</small></span>
           </AppLink>
         </li>)}</ol></aside>}
       </div>

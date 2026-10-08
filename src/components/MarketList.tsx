@@ -1,5 +1,4 @@
 import { AppLink } from "./Navigation";
-import { ArrowIcon } from "./ArrowIcon";
 import { TokenAvatar } from "./TokenAvatar";
 import { UsdAmount } from "./UsdAmount";
 import { formatAddress, formatPercent } from "../lib/format.js";
@@ -30,7 +29,6 @@ export function MarketList({
               <span className="skeleton skeleton-token" />
               <span className="skeleton skeleton-pill" />
               <span className="skeleton skeleton-value" />
-              <span className="skeleton skeleton-progress" />
             </div>
           ))}
         </div>
@@ -41,7 +39,7 @@ export function MarketList({
           <strong>The curve is wide open.</strong>
           <p>Be the first token to bend it.</p>
           <AppLink route="launch" navigate={navigate}>
-            Launch the first market <ArrowIcon />
+            Launch the first market
           </AppLink>
         </div>
       )}
@@ -61,28 +59,18 @@ export function MarketList({
               {highlightedToken?.toLowerCase() === token.address.toLowerCase() && <small className="market-new-tag">Just launched</small>}
             </span>
           </span>
-          <span
-            className={`status-pill ${token.graduated ? "graduated" : "live"}`}
-          >
-            <i /> {token.graduated ? "Graduated" : "Curve live"}
+          <span className={`status-pill ${token.graduated ? "graduated" : "live"}`}>
+            <span><i /> {token.graduated ? "Graduated" : "Curve live"}</span>
+            {!token.graduated && <small>{formatPercent(token.progress)} sold</small>}
           </span>
           {token.graduated ? (
             <span className="market-cell">
               <strong>Graduated</strong>
-              <ArrowIcon />
             </span>
           ) : (
             <span className="market-cell">
               <strong><UsdAmount weth={token.price} /></strong>
               <small><UsdAmount weth={token.marketCap} suffix=" cap" /></small>
-            </span>
-          )}
-          {!token.graduated && (
-            <span className="row-progress" aria-hidden="true">
-              <span
-                className="row-progress-fill"
-                style={{ width: formatPercent(token.progress) }}
-              />
             </span>
           )}
         </button>

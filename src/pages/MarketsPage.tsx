@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { Tabs } from "@base-ui/react/tabs";
 import { usePublicClient } from "wagmi";
+import { Featured } from "../components/Featured";
 import { MarketList } from "../components/MarketList";
 import { useStore } from "../app/useStore.js";
 import type { CreatorTokenClient } from "../creatorTokens";
@@ -54,38 +56,32 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
 
   return (
     <main className="page-main">
-      <section className="page-heading wrap">
-        <div className="eyebrow">
-          <span /> Discover
-        </div>
-        <h1>Markets in motion</h1>
-        <p>
-          Pick a live bonding curve to trade, or follow graduated tokens into
-          open liquidity.
-        </p>
-      </section>
-      <section className="markets-page wrap">
+      <section className="markets-page wrap" aria-labelledby="markets-title">
+        <h1 id="markets-title" className="visually-hidden">Markets</h1>
         {lastCreatedToken && <p className="market-created-note" role="status">Your new token is listed below. Market data may take a moment to appear.</p>}
         {error && (
           <p className="notice" role="alert">
             {error}
           </p>
         )}
-        <div className="market-tabs" role="tablist" aria-label="Market filters">
+        <Featured tokens={tokens} loading={initialLoading} navigate={navigate} />
+        <Tabs.Root value={tab} onValueChange={(next) => setTab(next as Tab)}>
+        <Tabs.List className="market-tabs" aria-label="Market filters">
           {TABS.map((item) => (
-            <button
+            <Tabs.Tab
               key={item.id}
-              type="button"
-              role="tab"
-              aria-selected={tab === item.id}
+              value={item.id}
               className={tab === item.id ? "active" : ""}
-              onClick={() => setTab(item.id)}
             >
               {item.label}
-            </button>
+            </Tabs.Tab>
           ))}
-        </div>
+          <Tabs.Indicator className="market-tabs-indicator" />
+        </Tabs.List>
+        <Tabs.Panel key={tab} value={tab} className="market-tab-panel">
         <MarketList tokens={visible} loading={initialLoading} navigate={navigate} highlightedToken={lastCreatedToken} />
+        </Tabs.Panel>
+        </Tabs.Root>
       </section>
     </main>
   );

@@ -15,7 +15,8 @@ contracts/crytic-export/
 
 # Local Netlify folder
 .netlify
-.agents/
+.agents/*
+!.agents/skills/
 
 .worktrees/
 .neon

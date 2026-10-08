@@ -1,6 +1,7 @@
-import type { ReactNode } from "react";
+import type { PointerEvent, ReactNode } from "react";
+import { Button } from "@radix-ui/themes";
 import { ArrowIcon } from "../components/ArrowIcon";
-import { AppLink } from "../components/Navigation";
+import { AppLink, RiseLogo } from "../components/Navigation";
 import type { Navigate } from "../types";
 
 function ActionLink({
@@ -13,10 +14,36 @@ function ActionLink({
   children: ReactNode;
 }) {
   return (
-    <AppLink className="primary-button" route={route} navigate={navigate}>
-      {children} <ArrowIcon />
-    </AppLink>
+    <Button asChild size="3" className="radix-action landing-cta-button">
+      <AppLink route={route} navigate={navigate}>
+        {children} <ArrowIcon />
+      </AppLink>
+    </Button>
   );
+}
+
+function moveCurveVisual(event: PointerEvent<HTMLDivElement>) {
+  if (event.pointerType !== "mouse") return;
+
+  const visual = event.currentTarget;
+  const bounds = visual.getBoundingClientRect();
+  const x = (event.clientX - bounds.left) / bounds.width;
+  const y = (event.clientY - bounds.top) / bounds.height;
+
+  visual.style.setProperty("--curve-tilt-x", `${(0.5 - y) * 7}deg`);
+  visual.style.setProperty("--curve-tilt-y", `${(x - 0.5) * 9}deg`);
+  visual.style.setProperty("--curve-pointer-x", `${x * 100}%`);
+  visual.style.setProperty("--curve-pointer-y", `${y * 100}%`);
+  visual.classList.add("is-tilting");
+}
+
+function resetCurveVisual(event: PointerEvent<HTMLDivElement>) {
+  const visual = event.currentTarget;
+  visual.style.setProperty("--curve-tilt-x", "0deg");
+  visual.style.setProperty("--curve-tilt-y", "0deg");
+  visual.style.setProperty("--curve-pointer-x", "72%");
+  visual.style.setProperty("--curve-pointer-y", "18%");
+  visual.classList.remove("is-tilting");
 }
 
 export function LandingPage({ navigate }: { navigate: Navigate }) {
@@ -24,33 +51,41 @@ export function LandingPage({ navigate }: { navigate: Navigate }) {
     <main className="landing-page">
       <section className="landing-hero wrap">
         <div className="landing-hero-copy">
-          <div className="eyebrow">
-            <span /> Built on RISE
+          <div className="eyebrow landing-rise-eyebrow">
+            Built on <RiseLogo />
           </div>
           <h1>
-            A fairer way to find the next <em>curveball.</em>
+            Launch on the <em>curve.</em>
           </h1>
           <p className="landing-lede">
-            Launch instantly. Trade on a transparent bonding curve. Graduate
-            into Icarus liquidity when the market is ready.
+            Create a token on an open bonding curve. Trading starts immediately;
+            graduation follows demand.
           </p>
           <div className="landing-actions">
-            <ActionLink route="home" navigate={navigate}>
-              Explore markets
+            <ActionLink route="launch" navigate={navigate}>
+              Create a token
             </ActionLink>
-            <AppLink className="text-link" route="launch" navigate={navigate}>
-              Launch your token
-            </AppLink>
           </div>
         </div>
 
         <div
           className="curve-visual"
-          aria-label="Illustration of a bonding curve"
+          role="group"
+          aria-label="Illustrative CURVE market snapshot"
+          onPointerMove={moveCurveVisual}
+          onPointerLeave={resetCurveVisual}
         >
           <div className="visual-label">
-            <span>Bonding curve</span>
-            <strong>Curve model</strong>
+            <span className="curve-market-token">
+              <img
+                src="https://api.dicebear.com/10.x/loops/svg?seed=CURVE"
+                alt=""
+              />
+              <span>
+                <strong>$CURVE</strong>
+                <small>0xC0DE…B411</small>
+              </span>
+            </span>
           </div>
           <svg viewBox="0 0 560 410" role="img" aria-hidden="true">
             <defs>
@@ -72,48 +107,29 @@ export function LandingPage({ navigate }: { navigate: Navigate }) {
               d="M20 344C150 344 238 318 307 267S420 113 540 55"
             />
             <circle cx="400" cy="165" r="9" />
-            <circle className="curve-pulse" cx="400" cy="165" r="18" />
           </svg>
         </div>
       </section>
 
-      <section className="landing-ticker" aria-label="Platform stats">
-        <div className="wrap landing-ticker-inner">
-          <p>
-            <strong>—</strong>
-            <span>markets launched</span>
-          </p>
-          <p>
-            <strong>—</strong>
-            <span>graduated to Icarus</span>
-          </p>
-          <p>
-            <strong>3%</strong>
-            <span>slippage protection</span>
-          </p>
-          <p>
-            <strong>0</strong>
-            <span>private allocations</span>
-          </p>
-        </div>
+      <section className="landing-steps wrap" aria-labelledby="landing-steps-title">
+        <h2 id="landing-steps-title" className="visually-hidden">How Curveball works</h2>
+        <article>
+          <span>01</span>
+          <h3>Launch</h3>
+          <p>Create a token. Its starting price follows the curve.</p>
+        </article>
+        <article>
+          <span>02</span>
+          <h3>Trade</h3>
+          <p>Every buy and sell moves the price on-chain.</p>
+        </article>
+        <article>
+          <span>03</span>
+          <h3>Graduate</h3>
+          <p>When the target is met, trading moves to open liquidity.</p>
+        </article>
       </section>
 
-      <section className="landing-cta wrap">
-        <div>
-          <div className="eyebrow">
-            <span /> Your move
-          </div>
-          <h2>Ready to bend the curve?</h2>
-        </div>
-        <div className="landing-cta-actions">
-          <ActionLink route="launch" navigate={navigate}>
-            Launch a token
-          </ActionLink>
-          <AppLink className="text-link" route="home" navigate={navigate}>
-            Browse live markets
-          </AppLink>
-        </div>
-      </section>
     </main>
   );
 }

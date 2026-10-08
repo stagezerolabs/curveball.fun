@@ -15,6 +15,7 @@ export type Token = {
   creatorTaxBps?: number | null;
   creatorShareBps?: number | null;
   buybackShareBps?: number | null;
+  createdBlock?: string;
   createdAt: string;
   price?: number | null;
   targetPrice?: number | null;
