@@ -34,8 +34,8 @@ export function LandingPage({ navigate }: { navigate: Navigate }) {
             Launch on the <em>curve.</em>
           </h1>
           <p className="landing-lede">
-            Create a token on an open bonding curve. Trading starts immediately;
-            graduation follows demand.
+            Discover projects launching on RISE. Explore live markets and
+            support the ones you care about.
           </p>
           <div className="landing-actions">
             <ActionLink route="markets" navigate={navigate}>
