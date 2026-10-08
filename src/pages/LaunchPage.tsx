@@ -10,7 +10,7 @@ import { launchpadAbi } from "../sdk/contracts";
 import { v2FactoryAbi } from "../sdk/v2Contracts";
 import { activeChainId, activeContractVersion, activeExplorerUrl, launchpadAddress } from "../lib/web3";
 import { getBetaReadEnabled, selectMarketState } from "../lib/marketState";
-import { formatLaunchElapsed, launchMilestone, type LaunchPhase } from "../lib/launchProgress";
+import type { LaunchPhase } from "../lib/launchProgress";
 import type { Navigate } from "../types";
 
 type LaunchProgress = { phase: LaunchPhase; hash: string | null; error: string } | null;
@@ -18,19 +18,17 @@ type LaunchProgress = { phase: LaunchPhase; hash: string | null; error: string }
 const phaseCopy: Record<Exclude<LaunchPhase, "error">, { title: string; detail: string }> = {
   preparing: { title: "Preparing launch", detail: "Checking details and network." },
   wrapWallet: { title: "Wrap ETH", detail: "Confirm the deposit in your wallet." },
-  wrapConfirming: { title: "Wrapping ETH", detail: "Waiting for the wrap transaction to confirm on chain." },
+  wrapConfirming: { title: "Wrapping ETH", detail: "Waiting for network confirmation." },
   approveWallet: { title: "Approve WETH", detail: "Confirm the allowance in your wallet." },
-  approveConfirming: { title: "Approving WETH", detail: "Waiting for the approval transaction to confirm on chain." },
+  approveConfirming: { title: "Approving WETH", detail: "Waiting for network confirmation." },
   wallet: { title: "Confirm launch", detail: "Review and confirm in your wallet." },
-  confirming: { title: "Launch submitted", detail: "Your launch transaction is on chain. Waiting for confirmation." },
-  success: { title: "Token launched", detail: "Opening Markets…" },
+  confirming: { title: "Launch submitted", detail: "Waiting for network confirmation." },
+  success: { title: "Token launched", detail: "Opening markets…" },
 };
 
 export function LaunchPage({ navigate }: { navigate: Navigate }) {
   const dialogHeading = useRef<HTMLHeadingElement>(null);
   const imageInput = useRef<HTMLInputElement>(null);
-  const launchStartedAt = useRef<number | null>(null);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [draftName, setDraftName] = useState("");
   const [draftSymbol, setDraftSymbol] = useState("");
   const [draftTaxPercent, setDraftTaxPercent] = useState("0");
@@ -89,19 +87,6 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
     launchProgress: LaunchProgress;
     clearLaunchProgress: () => void;
   };
-  const launchOpen = Boolean(launchProgress);
-  useEffect(() => {
-    if (!launchOpen) {
-      launchStartedAt.current = null;
-      setElapsedSeconds(0);
-      return;
-    }
-    launchStartedAt.current ??= Date.now();
-    const updateElapsed = () => setElapsedSeconds(Math.floor((Date.now() - launchStartedAt.current!) / 1000));
-    updateElapsed();
-    const interval = window.setInterval(updateElapsed, 1000);
-    return () => window.clearInterval(interval);
-  }, [launchOpen]);
   useEffect(() => {
     if (launchProgress) dialogHeading.current?.focus();
   }, [launchProgress?.phase]);
@@ -118,7 +103,6 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
   }, [launchProgress?.phase, navigate, clearLaunchProgress]);
 
   const phase = launchProgress?.phase;
-  const step = launchMilestone(phase);
   const draftTaxBps = Math.round(Number(draftTaxPercent || "0") * 100);
   const submitLaunch = (event: React.FormEvent<HTMLFormElement>) => {
     if (draftImageUrl) {
@@ -249,18 +233,11 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
         <Dialog.Backdrop className="launch-modal-backdrop" />
         <Dialog.Popup className={`launch-modal ${phase === "error" || phase === "success" ? "dismissible" : ""}`}>
           {(phase === "error" || phase === "success") && <Dialog.Close className="launch-modal-close" aria-label="Close launch status">×</Dialog.Close>}
-          <div className="launch-modal-meta">
-            <span className="launch-modal-kicker">{phase === "error" ? "Launch interrupted" : phase === "success" ? "Complete" : `Step ${step + 1} of 4`}</span>
-            <time className="launch-modal-timer" dateTime={`PT${elapsedSeconds}S`} aria-label={`${formatLaunchElapsed(elapsedSeconds)} elapsed`}>{formatLaunchElapsed(elapsedSeconds)} elapsed</time>
-          </div>
+          {phase !== "error" && phase !== "success" && <span className="launch-modal-spinner" aria-hidden="true" />}
           <Dialog.Title id="launch-modal-title" ref={dialogHeading} tabIndex={-1}>{phase === "error" ? "Launch stopped" : phaseCopy[phase!]?.title}</Dialog.Title>
           <Dialog.Description id="launch-modal-detail">{phase === "error" ? launchProgress?.error : phaseCopy[phase!]?.detail}</Dialog.Description>
-          {phase !== "error" && <ol className="launch-steps" aria-label="Launch progress">
-            {["Prepare", "Confirm in wallet", "Confirm on chain", "List in Markets"].map((label, index) => <li key={label} className={index < step ? "done" : index === step ? "current" : ""} aria-current={index === step ? "step" : undefined}><span aria-hidden="true">{index < step ? "✓" : index === step ? <i className="launch-step-spinner" /> : String(index + 1).padStart(2, "0")}</span>{label}</li>)}
-          </ol>}
           {launchProgress?.hash && <a className="launch-tx-link" href={`${activeExplorerUrl}/tx/${launchProgress.hash}`} target="_blank" rel="noopener noreferrer">View transaction ↗</a>}
-          {phase === "error" && <button type="button" className="launch-modal-action" onClick={clearLaunchProgress}>Try again</button>}
-          {phase === "success" && <button type="button" className="launch-modal-action" onClick={() => { clearLaunchProgress(); navigate("markets"); }}>View in Markets <ArrowIcon /></button>}
+          {phase === "error" && <button type="button" className="launch-modal-action" onClick={clearLaunchProgress}>Back to form</button>}
         </Dialog.Popup>
       </Dialog.Portal>
       </Dialog.Root>

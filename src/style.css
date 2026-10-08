@@ -1322,21 +1322,12 @@ select:focus-visible {
 }
 .launch-modal-close { background: transparent; border: 0; color: var(--muted); cursor: pointer; font-size: 24px; inset: 16px 16px auto auto; line-height: 1; min-height: 32px; min-width: 32px; position: absolute; }
 .launch-modal-close:hover { color: var(--ink); }
-.launch-modal-meta { align-items: center; display: flex; gap: 12px; justify-content: space-between; margin-bottom: 10px; }
-.launch-modal.dismissible .launch-modal-meta { padding-right: 28px; }
-.launch-modal-kicker { color: var(--lime-ink); font-size: 12px; font-weight: 700; }
-.launch-modal-timer { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.launch-modal-spinner { animation: launch-modal-spin 900ms linear infinite; border: 2px solid var(--lime); border-right-color: transparent; border-radius: 50%; display: block; height: 20px; margin-bottom: 20px; width: 20px; }
+@keyframes launch-modal-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .launch-modal-spinner { animation: none; border-right-color: var(--lime); } }
 .launch-modal h2 { font-family: "DM Sans", sans-serif; font-size: 25px; font-weight: 600; line-height: 1.2; margin: 0 0 8px; outline: 0; text-wrap: balance; }
+.launch-modal.dismissible h2 { padding-right: 28px; }
 .launch-modal p { color: var(--muted); font-size: 14px; line-height: 1.5; margin: 0; text-wrap: pretty; }
-.launch-steps { display: grid; gap: 3px; list-style: none; margin: 24px 0 0; padding: 0; }
-.launch-steps li { align-items: center; border-radius: 7px; color: var(--muted); display: flex; font-size: 13px; gap: 12px; min-height: 39px; padding: 0 10px; }
-.launch-steps li span { color: var(--muted); font-family: ui-monospace, "SF Mono", monospace; font-size: 11px; width: 20px; }
-.launch-steps li.current { animation: launch-step-enter 180ms ease-out; background: var(--raise); color: var(--ink); font-weight: 600; }
-.launch-steps li.current span,
-.launch-steps li.done span { color: var(--lime-ink); }
-.launch-step-spinner { border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; display: block; height: 15px; width: 15px; animation: launch-step-spin 900ms linear infinite; }
-@keyframes launch-step-spin { to { transform: rotate(360deg); } }
-@keyframes launch-step-enter { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 .launch-tx-link { color: var(--lime-ink); display: inline-block; font-size: 13px; margin-top: 20px; text-decoration: underline; text-underline-offset: 3px; }
 .launch-modal-action { align-items: center; background: var(--lime); border: 0; border-radius: 8px; color: #10170f; cursor: pointer; display: flex; font-size: 13px; font-weight: 700; justify-content: center; margin-top: 24px; min-height: 46px; width: 100%; }
 .launch-modal-action:focus-visible,
