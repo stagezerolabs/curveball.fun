@@ -1,6 +1,6 @@
 # Curveball
 
-Curveball is a static React/Vite dApp connected directly to the V2 Curveball contracts on RISE Testnet. Contract state and events are the application data source; no other application services are required.
+Curveball is a React/Vite dApp connected directly to the V2 Curveball contracts on RISE Testnet. Contract state and events remain the source for markets and transactions. The navbar also reads a connected wallet's primary `.rise` name from Stage0's RISE Mainnet API through a narrow same-origin proxy, with the address as a fallback.
 
 ## Testnet deployment
 
@@ -21,6 +21,8 @@ bun run dev
 ```
 
 Set `VITE_WALLETCONNECT_PROJECT_ID` to enable WalletConnect QR/mobile wallets. Injected browser wallets work without it.
+
+Vite proxies `/api/rns/primary/:address` to Stage0 during local development. The matching Vercel rewrite handles production. This identity lookup uses RISE Mainnet chain ID `4153` even when Curveball is connected to RISE Testnet; it never changes the wallet or transaction chain.
 
 ## Checks
 

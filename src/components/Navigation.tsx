@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useState } from "react";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { useQuery } from "@tanstack/react-query";
 import type { AnchorHTMLAttributes, MouseEvent, ReactNode } from "react";
 import type { Address } from "viem";
 import { NavSearch } from "./NavSearch";
@@ -7,6 +8,7 @@ import { routeHref } from "../app/routeTree";
 import { formatAddress } from "../lib/format.js";
 import type { Navigate } from "../types";
 import { activeExplorerUrl, launchpadAddress } from "../lib/web3";
+import { fetchRnsPrimaryName } from "../lib/rnsPrimary";
 import type { Theme } from "../lib/theme";
 
 type AppLinkProps = AnchorHTMLAttributes<HTMLAnchorElement> & {
@@ -103,10 +105,20 @@ export function RiseLogo() {
 }
 
 function WalletNavButton({ address, displayName }: { address?: Address; displayName?: string | null }) {
+  const { data: primaryName } = useQuery({
+    queryKey: ["rns", "primary", address?.toLowerCase()],
+    queryFn: ({ signal }) => fetchRnsPrimaryName(address!, signal),
+    enabled: Boolean(address),
+    staleTime: 60_000,
+    refetchOnWindowFocus: "always",
+    retry: 1,
+  });
+
   return <ConnectButton.Custom>
     {({ account, chain, mounted, openConnectModal, openAccountModal, openChainModal }) => {
       const connected = mounted && Boolean(account && chain);
       const wrongNetwork = connected && Boolean(chain?.unsupported);
+      const walletLabel = primaryName ?? displayName ?? account?.displayName;
       return <button
         className="wallet-button"
         type="button"
@@ -116,15 +128,15 @@ function WalletNavButton({ address, displayName }: { address?: Address; displayN
           else if (connected) openAccountModal?.();
           else openConnectModal?.();
         }}
-        aria-label={wrongNetwork ? "Switch wallet network" : connected ? `Manage wallet ${address ?? account?.address}` : "Connect wallet"}
+        aria-label={wrongNetwork ? "Switch wallet network" : connected ? `Manage wallet ${primaryName ? `${primaryName}, ` : ""}${address ?? account?.address}` : "Connect wallet"}
+        title={connected && !wrongNetwork ? walletLabel : undefined}
       >
         <svg className="wallet-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
           <path d="M3 5.5A2.5 2.5 0 0 1 5.5 3H15v3H5.5A2.5 2.5 0 0 0 3 8.5v6A2.5 2.5 0 0 0 5.5 17H17V7H5.5" />
           <path d="M17 10h-4a2 2 0 0 0 0 4h4" />
         </svg>
-        <span className={connected ? "wallet-dot connected" : "wallet-dot"} />
         <span className="wallet-label">
-          {wrongNetwork ? "Wrong network" : connected ? displayName ?? account?.displayName : "Connect wallet"}
+          {wrongNetwork ? "Wrong network" : connected ? walletLabel : "Connect wallet"}
         </span>
       </button>;
     }}

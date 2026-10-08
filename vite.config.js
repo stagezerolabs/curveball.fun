@@ -3,6 +3,15 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
+  server: {
+    proxy: {
+      "/api/rns/primary/": {
+        target: "https://api.stage0.xyz",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/rns\/primary\//, "/api/public/rns/resolve/address/") + "?chainId=4153",
+      },
+    },
+  },
   // Wallet providers and hooks must resolve to the same module instances.
   // Bun can retain multiple compatible peer-dependency installations, which
   // otherwise lets RainbowKit consume a different Wagmi React context.
