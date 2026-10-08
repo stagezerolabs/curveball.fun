@@ -1,3 +1,5 @@
+import { formatUnits } from "viem";
+
 type LaunchPreviewProps = {
   name: string;
   symbol: string;
@@ -5,19 +7,29 @@ type LaunchPreviewProps = {
   initialBuy: string;
   imageUrl?: string;
   showV2Options: boolean;
+  supply?: bigint;
+  supplyUnavailable: boolean;
 };
 
-export function LaunchPreview({ name, symbol, creatorTaxBps, initialBuy, imageUrl, showV2Options }: LaunchPreviewProps) {
+function formatSupply(supply: bigint) {
+  const [whole, fraction = ""] = formatUnits(supply, 18).split(".");
+  const decimal = fraction.replace(/0+$/, "");
+  return `${BigInt(whole).toLocaleString("en-US")}${decimal ? `.${decimal}` : ""}`;
+}
+
+export function LaunchPreview({ name, symbol, creatorTaxBps, initialBuy, imageUrl, showV2Options, supply, supplyUnavailable }: LaunchPreviewProps) {
   const displayName = name.trim() || "Your token";
   const displaySymbol = symbol.trim().replace(/^\$/, "").toUpperCase() || "TOKEN";
   const buy = Number(initialBuy);
+  const showTax = showV2Options && creatorTaxBps > 0;
+  const showBuy = showV2Options && Number.isFinite(buy) && buy > 0;
 
   return (
-    <aside className="launch-preview" aria-label="Live token preview">
+    <aside className="launch-preview" aria-label="Token preview">
       <div className="launch-preview-heading">
         <span>Preview</span>
       </div>
-      <div className="launch-preview-card">
+      <div className={`launch-preview-card${showTax || showBuy ? " has-options" : ""}`}>
         <div className="launch-preview-art">
           {imageUrl ? <img src={imageUrl} alt="Selected token artwork preview" /> : (
             <svg viewBox="0 0 48 48" aria-hidden="true">
@@ -28,23 +40,19 @@ export function LaunchPreview({ name, symbol, creatorTaxBps, initialBuy, imageUr
           )}
         </div>
         <div className="launch-preview-body">
-          <div className="launch-preview-name-row">
-            <strong className="launch-preview-name">{displayName}</strong>
-            <span className="launch-preview-dot" aria-hidden="true" />
-          </div>
+          <strong className="launch-preview-name">{displayName}</strong>
           <span className="launch-preview-symbol">${displaySymbol}</span>
-          <span className="launch-preview-address">Address assigned at launch</span>
-          <div className="launch-preview-market">
-            <div><strong>—</strong><span>Market cap</span></div>
-            <div><strong>—</strong><span>Bonding status</span></div>
-          </div>
-          <div className="launch-preview-progress" aria-hidden="true"><span /></div>
-          <span className="launch-preview-progress-label">Available after launch</span>
-          <div className="launch-preview-details">
+          <div className="launch-preview-facts">
+            <div>
+              <span>Fixed supply</span>
+              <strong>{supply == null ? supplyUnavailable ? "Unavailable" : "Loading…" : formatSupply(supply)}</strong>
+            </div>
             <div><span>Paired with</span><strong>WETH</strong></div>
-            {showV2Options && <div><span>Creator tax</span><strong>{(creatorTaxBps / 100).toFixed(2)}%</strong></div>}
-            {showV2Options && Number.isFinite(buy) && buy > 0 && <div><span>Initial buy</span><strong>{initialBuy} WETH</strong></div>}
           </div>
+          {(showTax || showBuy) && <div className="launch-preview-details">
+            {showTax && <div><span>Creator tax</span><strong>{(creatorTaxBps / 100).toFixed(2)}%</strong></div>}
+            {showBuy && <div><span>Initial buy</span><strong>{initialBuy} WETH</strong></div>}
+          </div>}
         </div>
       </div>
     </aside>

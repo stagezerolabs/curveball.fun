@@ -58,6 +58,13 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
     functionName: "invited", args: [address!], chainId: activeChainId,
     query: { enabled: betaReadEnabled.invited },
   });
+  const { data: tokenSupply, isError: supplyError } = useReadContract({
+    address: launchpadAddress ?? undefined,
+    abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi,
+    functionName: "supply",
+    chainId: activeChainId,
+    query: { enabled: Boolean(launchpadAddress) },
+  });
   const { canCreate } = selectMarketState({
     contractVersion: activeContractVersion,
     chainId: activeChainId,
@@ -129,7 +136,16 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
     <main className="launch-page">
       <h1 id="launch-title" className="visually-hidden">Launch a token</h1>
       <section className="launch-layout" aria-labelledby="launch-title">
-        <LaunchPreview name={draftName} symbol={draftSymbol} creatorTaxBps={draftTax} initialBuy={draftInitialBuy} imageUrl={draftImageUrl} showV2Options={activeContractVersion === "v2"} />
+        <LaunchPreview
+          name={draftName}
+          symbol={draftSymbol}
+          creatorTaxBps={draftTax}
+          initialBuy={draftInitialBuy}
+          imageUrl={draftImageUrl}
+          showV2Options={activeContractVersion === "v2"}
+          supply={tokenSupply}
+          supplyUnavailable={supplyError || !launchpadAddress}
+        />
         <form className="launch-form" onSubmit={submitLaunch}>
           <div className="launch-form-section">
             <div className="launch-form-group">
@@ -141,7 +157,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                 {draftImageUrl ? <img src={draftImageUrl} alt="" /> : <span className="launch-image-placeholder" aria-hidden="true">＋</span>}
                 <span>{draftImageUrl ? "Change preview image" : "Choose an image"}</span>
               </label>
-              <p id="launch-image-help" className="launch-field-help">PNG, JPEG, or WebP, under 2 MB. This file previews locally; add a metadata URL below to publish artwork.</p>
+              <p id="launch-image-help" className="launch-field-help">PNG, JPEG, or WebP, under 2 MB.</p>
               {imageError && <p id="launch-image-error" className="launch-field-error" role="alert">{imageError}</p>}
               <div className="launch-fields">
                 <label className="launch-field-wide">
@@ -159,13 +175,9 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
             </div>
 
             <div className="launch-form-group">
-              <div className="launch-group-heading">
-                <h2>Trading setup</h2>
-                <p>Every token starts on a WETH bonding curve.</p>
-              </div>
               <div className="launch-pair-field">
                 <span>Paired asset</span>
-                <strong>WETH <small>Fixed for this launch</small></strong>
+                <strong>WETH</strong>
               </div>
               {activeContractVersion === "v2" && (
                 <label className="launch-field-wide">
