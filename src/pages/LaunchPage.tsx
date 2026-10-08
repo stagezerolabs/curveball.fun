@@ -135,7 +135,6 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
             <div className="launch-form-group">
               <div className="launch-group-heading">
                 <h2>Token details</h2>
-                <p>These are shown on your market page and in Explore.</p>
               </div>
               <label className="launch-image-upload">
                 <input type="file" accept="image/png,image/jpeg,image/webp" onChange={selectImage} aria-describedby={imageError ? "launch-image-help launch-image-error" : "launch-image-help"} aria-invalid={Boolean(imageError)} />

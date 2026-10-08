@@ -19,11 +19,27 @@ export function LaunchPreview({ name, symbol, creatorTaxBps, initialBuy, imageUr
       </div>
       <div className="launch-preview-card">
         <div className="launch-preview-art">
-          {imageUrl ? <img src={imageUrl} alt="Selected token artwork preview" /> : <span aria-hidden="true">{displaySymbol.slice(0, 1)}</span>}
+          {imageUrl ? <img src={imageUrl} alt="Selected token artwork preview" /> : (
+            <svg viewBox="0 0 48 48" aria-hidden="true">
+              <rect x="7" y="8" width="34" height="32" rx="3" />
+              <circle cx="31" cy="18" r="3" />
+              <path d="m8 34 10-10 8 8 5-5 10 10" />
+            </svg>
+          )}
         </div>
         <div className="launch-preview-body">
-          <strong className="launch-preview-name">{displayName}</strong>
+          <div className="launch-preview-name-row">
+            <strong className="launch-preview-name">{displayName}</strong>
+            <span className="launch-preview-dot" aria-hidden="true" />
+          </div>
           <span className="launch-preview-symbol">${displaySymbol}</span>
+          <span className="launch-preview-address">Address assigned at launch</span>
+          <div className="launch-preview-market">
+            <div><strong>—</strong><span>Market cap</span></div>
+            <div><strong>—</strong><span>Bonding status</span></div>
+          </div>
+          <div className="launch-preview-progress" aria-hidden="true"><span /></div>
+          <span className="launch-preview-progress-label">Available after launch</span>
           <div className="launch-preview-details">
             <div><span>Paired with</span><strong>WETH</strong></div>
             {showV2Options && <div><span>Creator tax</span><strong>{(creatorTaxBps / 100).toFixed(2)}%</strong></div>}
@@ -31,7 +47,6 @@ export function LaunchPreview({ name, symbol, creatorTaxBps, initialBuy, imageUr
           </div>
         </div>
       </div>
-      <p>This shows how your token will appear. Market cap and bonding status appear after launch.</p>
     </aside>
   );
 }
