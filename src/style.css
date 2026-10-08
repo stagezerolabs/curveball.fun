@@ -3148,6 +3148,26 @@ select:focus-visible {
   gap: 27px;
   margin-top: 32px;
 }
+.landing-secondary-button {
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  display: inline-flex;
+  font-size: 14px;
+  font-weight: 700;
+  min-height: 48px;
+  padding-inline: 18px;
+  transition: border-color 190ms ease-out, color 190ms ease-out;
+}
+.landing-secondary-button:hover {
+  border-color: var(--orange);
+  color: var(--orange-ink);
+}
+.landing-secondary-button:focus-visible {
+  outline: 2px solid var(--orange);
+  outline-offset: 2px;
+}
 .landing-cta-button {
   transition: transform 190ms ease-out, background-color 190ms ease-out;
 }

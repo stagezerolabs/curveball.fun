@@ -38,9 +38,16 @@ export function LandingPage({ navigate }: { navigate: Navigate }) {
             graduation follows demand.
           </p>
           <div className="landing-actions">
-            <ActionLink route="launch" navigate={navigate}>
-              Create a token
+            <ActionLink route="markets" navigate={navigate}>
+              Explore markets
             </ActionLink>
+            <AppLink
+              className="landing-secondary-button"
+              route="launch"
+              navigate={navigate}
+            >
+              Create a token
+            </AppLink>
           </div>
         </div>
 
