@@ -3184,9 +3184,14 @@ select:focus-visible {
 .landing-hero ascii-art[piece="planet"] {
   align-self: center;
   color: var(--orange);
-  font-size: min(13px, 2.1vw);
+  container-type: inline-size;
   justify-self: center;
   max-width: 100%;
+  width: 100%;
+}
+.landing-hero ascii-art[piece="planet"] > pre {
+  font-size: min(14px, 2.5cqw);
+  margin-inline: auto;
   width: max-content;
 }
 .landing-steps {
