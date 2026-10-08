@@ -4,6 +4,7 @@ import { Button } from "@radix-ui/themes";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { ArrowIcon } from "../components/ArrowIcon";
 import { ChoiceSelect } from "../components/ChoiceSelect";
+import { LaunchPreview } from "../components/LaunchPreview";
 import { useStore } from "../app/useStore.js";
 import { useAccount, useReadContract } from "wagmi";
 import { launchpadAbi } from "../sdk/contracts";
@@ -27,13 +28,18 @@ const phaseCopy: Record<Exclude<LaunchPhase, "error">, { title: string; detail: 
 };
 
 export function LaunchPage({ navigate }: { navigate: Navigate }) {
-  const [formStep, setFormStep] = useState<1 | 2>(1);
   const dialogHeading = useRef<HTMLHeadingElement>(null);
-  const formStepHeading = useRef<HTMLHeadingElement>(null);
-  const tokenNameInput = useRef<HTMLInputElement>(null);
-  const tokenSymbolInput = useRef<HTMLInputElement>(null);
+  const metadataUrlInput = useRef<HTMLInputElement>(null);
+  const advancedOptions = useRef<HTMLDetailsElement>(null);
   const launchStartedAt = useRef<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [draftName, setDraftName] = useState("");
+  const [draftSymbol, setDraftSymbol] = useState("");
+  const [draftTax, setDraftTax] = useState(0);
+  const [draftInitialBuy, setDraftInitialBuy] = useState("");
+  const [draftImageUrl, setDraftImageUrl] = useState<string>();
+  const [imageError, setImageError] = useState("");
+  const [metadataError, setMetadataError] = useState("");
   const { address } = useAccount();
   const { openConnectModal } = useConnectModal();
   const betaReadEnabled = getBetaReadEnabled({
@@ -81,9 +87,9 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
   useEffect(() => {
     if (launchProgress) dialogHeading.current?.focus();
   }, [launchProgress?.phase]);
-  useEffect(() => {
-    formStepHeading.current?.focus();
-  }, [formStep]);
+  useEffect(() => () => {
+    if (draftImageUrl) URL.revokeObjectURL(draftImageUrl);
+  }, [draftImageUrl]);
   useEffect(() => {
     if (launchProgress?.phase !== "success") return;
     const timer = window.setTimeout(() => {
@@ -95,98 +101,111 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
 
   const phase = launchProgress?.phase;
   const step = launchMilestone(phase);
-  const showLaunchSettings = () => {
-    if (!tokenNameInput.current?.reportValidity()) return;
-    if (!tokenSymbolInput.current?.reportValidity()) return;
-    setFormStep(2);
-  };
   const submitLaunch = (event: React.FormEvent<HTMLFormElement>) => {
-    if (formStep === 1) {
+    if (draftImageUrl && !metadataUrlInput.current?.value.trim()) {
       event.preventDefault();
-      showLaunchSettings();
+      if (advancedOptions.current) advancedOptions.current.open = true;
+      setMetadataError("Add a metadata URL before launching with artwork. The selected file is only a local preview.");
+      metadataUrlInput.current?.focus();
       return;
     }
     void create(event);
   };
 
+  const selectImage = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type) || file.size > 2_000_000) {
+      setImageError("Choose a PNG, JPEG, or WebP image under 2 MB.");
+      event.target.value = "";
+      return;
+    }
+    setImageError("");
+    setMetadataError("");
+    setDraftImageUrl(URL.createObjectURL(file));
+  };
+
   return (
     <main className="launch-page">
-      <section className="launch-layout" aria-labelledby={`launch-title-${formStep}`}>
-        <form className={`launch-form launch-form-step-${formStep}`} onSubmit={submitLaunch}>
-          <header className="launch-wizard-bar">
-            <ol className="launch-stepper" aria-label="Launch steps">
-              <li className={formStep === 1 ? "current" : "done"} aria-current={formStep === 1 ? "step" : undefined}>
-                <span>01</span>
-                <strong>Details</strong>
-              </li>
-              <li className={formStep === 2 ? "current" : ""} aria-current={formStep === 2 ? "step" : undefined}>
-                <span>02</span>
-                <strong>Settings</strong>
-              </li>
-            </ol>
-          </header>
-
-          <div className="launch-form-section" hidden={formStep !== 1}>
-            <div className="form-heading">
-              <h1 id="launch-title-1" ref={formStep === 1 ? formStepHeading : undefined} tabIndex={-1}>Token details</h1>
-              <p>Give your token a name and ticker. You can review everything before launching.</p>
-            </div>
-            <div className="launch-fields">
-              <label>
-                <span>Token name</span>
-                <input
-                  ref={tokenNameInput}
-                  name="name"
-                  required
-                  placeholder="Curveball"
-                  autoComplete="off"
-                  maxLength={64}
-                />
+      <h1 id="launch-title" className="visually-hidden">Launch a token</h1>
+      <section className="launch-layout" aria-labelledby="launch-title">
+        <LaunchPreview name={draftName} symbol={draftSymbol} creatorTaxBps={draftTax} initialBuy={draftInitialBuy} imageUrl={draftImageUrl} showV2Options={activeContractVersion === "v2"} />
+        <form className="launch-form" onSubmit={submitLaunch}>
+          <div className="launch-form-section">
+            <div className="launch-form-group">
+              <div className="launch-group-heading">
+                <h2>Token details</h2>
+                <p>These are shown on your market page and in Explore.</p>
+              </div>
+              <label className="launch-image-upload">
+                <input type="file" accept="image/png,image/jpeg,image/webp" onChange={selectImage} aria-describedby={imageError ? "launch-image-help launch-image-error" : "launch-image-help"} aria-invalid={Boolean(imageError)} />
+                {draftImageUrl ? <img src={draftImageUrl} alt="" /> : <span className="launch-image-placeholder" aria-hidden="true">＋</span>}
+                <span>{draftImageUrl ? "Change preview image" : "Choose an image"}</span>
               </label>
-              <label>
-                <span>Symbol</span>
-                <span className="symbol-input">
-                  <i>$</i>
-                  <input ref={tokenSymbolInput} name="symbol" required placeholder="CURVE" autoComplete="off" autoCapitalize="characters" maxLength={12} />
-                </span>
-              </label>
-              <label className="launch-field-wide">
-                <span>Metadata URL <b>Optional</b></span>
-                <input name="uri" type="url" placeholder="https://example.com/token.json" autoComplete="url" />
-                <small>Link to a JSON file with your token image and description.</small>
-              </label>
-            </div>
-            <div className="launch-form-actions">
-              <Button className="launch-button" type="button" size="3" onClick={showLaunchSettings}>Continue <ArrowIcon /></Button>
-            </div>
-          </div>
-
-          <div className="launch-form-section launch-settings" hidden={formStep !== 2}>
-            <div className="form-heading">
-              <h1 id="launch-title-2" ref={formStep === 2 ? formStepHeading : undefined} tabIndex={-1}>Launch settings</h1>
-              <p>Choose how your token starts trading.</p>
-            </div>
-            {activeContractVersion === "v2" && <div className="launch-fields launch-settings-fields">
-                <div className="launch-select-field">
-                  <span>Creator tax <b>Optional</b></span>
-                  <ChoiceSelect name="creatorTaxBps" label="Creator tax" defaultValue="0" options={[
-                    { value: "0", label: "No creator tax" },
-                    { value: "10", label: "0.1%" },
-                    { value: "25", label: "0.25%" },
-                    { value: "50", label: "0.5% maximum" },
-                  ]} />
-                </div>
-                <label>
-                  <span>Initial buy <b>Optional</b></span>
-                  <span className="launch-unit-input">
-                    <input name="initialBuy" type="number" min="0" step="any" inputMode="decimal" placeholder="0" />
-                    <i>WETH</i>
+              <p id="launch-image-help" className="launch-field-help">PNG, JPEG, or WebP, under 2 MB. This file previews locally; add a metadata URL below to publish artwork.</p>
+              {imageError && <p id="launch-image-error" className="launch-field-error" role="alert">{imageError}</p>}
+              <div className="launch-fields">
+                <label className="launch-field-wide">
+                  <span>Token name</span>
+                  <input name="name" required placeholder="Your token name" autoComplete="off" maxLength={64} value={draftName} onChange={(event) => setDraftName(event.target.value)} />
+                </label>
+                <label className="launch-field-wide">
+                  <span>Ticker</span>
+                  <span className="symbol-input">
+                    <i>$</i>
+                    <input name="symbol" required placeholder="TOKEN" autoComplete="off" autoCapitalize="characters" maxLength={12} value={draftSymbol} onChange={(event) => setDraftSymbol(event.target.value)} />
                   </span>
                 </label>
-              </div>}
+              </div>
+            </div>
+
+            <div className="launch-form-group">
+              <div className="launch-group-heading">
+                <h2>Trading setup</h2>
+                <p>Every token starts on a WETH bonding curve.</p>
+              </div>
+              <div className="launch-pair-field">
+                <span>Paired asset</span>
+                <strong>WETH <small>Fixed for this launch</small></strong>
+              </div>
+              {activeContractVersion === "v2" && (
+                <label className="launch-field-wide">
+                  <span>Initial buy <b>Optional</b></span>
+                  <span className="launch-unit-input">
+                    <input name="initialBuy" type="number" min="0" step="any" inputMode="decimal" placeholder="0" value={draftInitialBuy} onChange={(event) => setDraftInitialBuy(event.target.value)} aria-describedby="initial-buy-help" />
+                    <i>WETH</i>
+                  </span>
+                  <small id="initial-buy-help">Buy from your own curve as part of the launch.</small>
+                </label>
+              )}
+            </div>
+
+            <details className="launch-advanced" ref={advancedOptions}>
+              <summary>Advanced options <span>Metadata and creator tax</span></summary>
+              <div className="launch-advanced-fields">
+                {activeContractVersion === "v2" && (
+                  <div className="launch-select-field">
+                    <span>Creator tax <b>Optional</b></span>
+                    <ChoiceSelect name="creatorTaxBps" label="Creator tax" value={String(draftTax)} onValueChange={(value) => setDraftTax(Number(value))} options={[
+                      { value: "0", label: "No creator tax" },
+                      { value: "10", label: "0.1%" },
+                      { value: "25", label: "0.25%" },
+                      { value: "50", label: "0.5% maximum" },
+                    ]} />
+                    <small>If enabled, part of each trade goes to the token creator.</small>
+                  </div>
+                )}
+                <label className="launch-field-wide">
+                  <span>Metadata URL <b>{draftImageUrl ? "Required for artwork" : "Optional"}</b></span>
+                  <input ref={metadataUrlInput} name="uri" type="url" placeholder="https://example.com/token.json" autoComplete="url" onChange={() => setMetadataError("")} aria-describedby={metadataError ? "metadata-url-help metadata-url-error" : "metadata-url-help"} aria-invalid={Boolean(metadataError)} />
+                  <small id="metadata-url-help">Link to public JSON with the image and description. Published artwork comes from this URL, not the local preview.</small>
+                  {metadataError && <small id="metadata-url-error" className="launch-field-error" role="alert">{metadataError}</small>}
+                </label>
+              </div>
+            </details>
+
             {address && !canCreate && <p className="notice" role="status">{publicOpen === false && invited === false ? "This factory is invite-only." : "Checking launch access…"}</p>}
-            <div className="launch-form-actions split">
-              <Button variant="outline" className="launch-back-button" type="button" size="3" onClick={() => setFormStep(1)}>Back</Button>
+            <div className="launch-form-actions">
               <Button
                 className="launch-button"
                 type={address ? "submit" : "button"}
@@ -194,7 +213,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                 onClick={!address ? () => openConnectModal?.() : undefined}
                 disabled={isPending || (Boolean(address) && !canCreate)}
               >
-                {isPending ? "Launching…" : !address ? "Connect wallet" : !canCreate ? "Checking access…" : "Launch token"} <ArrowIcon />
+                {isPending ? "Launching…" : !address ? "Connect wallet to launch" : !canCreate ? "Checking access…" : "Launch token"} <ArrowIcon />
               </Button>
             </div>
           </div>
