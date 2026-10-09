@@ -80,7 +80,7 @@ export function ProfilePage({
       ) : (
         <section className="profile-stats" aria-label="Launch summary">
           <div><small>Tokens launched</small><strong>{tokens.length}</strong></div>
-          <div><small>Curves live</small><strong>{tokens.length - graduated}</strong></div>
+          <div><small>Live</small><strong>{tokens.length - graduated}</strong></div>
           <div><small>Graduated</small><strong>{graduated}</strong></div>
         </section>
       )}

@@ -126,7 +126,7 @@ export function MarketHeader({ token, navigate }: { token: Token; navigate: Navi
             <div className="market-identity-row">
               <span className="market-pair">{token.symbol} / {quoteSymbol}</span>
               <Badge color={token.graduated ? "orange" : "lime"} variant="soft" className={`market-status ${token.graduated ? "graduated" : "live"}`}>
-                {token.graduated ? "Graduated" : token.pending ? "Pending" : "Curve live"}
+                {token.graduated ? "Graduated" : token.pending ? "Pending" : "Live"}
               </Badge>
               {token.feeBps != null && (
                 <span className="market-data-chip">Fee {(token.feeBps / 100).toFixed(2)}%</span>
