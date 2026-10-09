@@ -60,7 +60,7 @@ export function MarketList({
             </span>
           </span>
           <span className={`status-pill ${token.graduated ? "graduated" : "live"}`}>
-            <span>{token.graduated ? "Graduated" : "Curve live"}</span>
+            <span>{token.graduated ? "Graduated" : "Live"}</span>
             {!token.graduated && <small>{formatPercent(token.progress)} sold</small>}
           </span>
           {token.graduated ? (

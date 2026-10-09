@@ -26,7 +26,7 @@ export function DiscoveryCard({
         <span className="discovery-card-art">
           <TokenAvatar token={token} index={index} />
           <span className={`discovery-card-status ${token.graduated ? "graduated" : ""}`}>
-            {token.graduated ? "Graduated" : "Curve live"}
+            {token.graduated ? "Graduated" : "Live"}
           </span>
         </span>
         <span className="discovery-card-info">
