@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Tabs } from "@base-ui/react/tabs";
 import { usePublicClient } from "wagmi";
-import { DiscoveryCard } from "../components/DiscoveryCard";
+import { Featured } from "../components/Featured";
 import { MarketList } from "../components/MarketList";
 import { UsdAmount } from "../components/UsdAmount";
 import { formatPercent } from "../lib/format.js";
@@ -48,10 +48,6 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
   };
   const [tab, setTab] = useState<Tab>(lastCreatedToken ? "new" : "trending");
   const visible = useMemo(() => selectTokens(tokens, tab), [tokens, tab]);
-  const featured = useMemo(
-    () => [...tokens].filter((token) => !token.graduated).sort((a, b) => (b.progress ?? -1) - (a.progress ?? -1)).slice(0, 4),
-    [tokens],
-  );
   const tickerTokens = useMemo(() => selectTokens(tokens, "new").slice(0, 12), [tokens]);
   const initialLoading = !marketsFetchedAt && !error;
 
@@ -71,21 +67,7 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
             {error}
           </p>
         )}
-        <section className="discovery-featured" aria-labelledby="discovery-featured-title">
-          <div className="discovery-section-heading">
-            <h2 id="discovery-featured-title">Closest to graduation</h2>
-            <p>Live curves with the most progress.</p>
-          </div>
-          {initialLoading && !tokens.length ? (
-            <ul className="discovery-grid" aria-busy="true" aria-label="Loading featured markets">
-              {Array.from({ length: 4 }, (_, index) => <li className="discovery-card-skeleton skeleton" key={index} />)}
-            </ul>
-          ) : featured.length ? (
-            <ul className="discovery-grid">
-              {featured.map((token, index) => <DiscoveryCard token={token} index={index} navigate={navigate} key={token.address} />)}
-            </ul>
-          ) : null}
-        </section>
+        <Featured tokens={tokens} loading={initialLoading} navigate={navigate} />
         <Tabs.Root value={tab} onValueChange={(next) => setTab(next as Tab)}>
         <Tabs.List className="market-tabs" aria-label="Market filters">
           {TABS.map((item) => (
