@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from "react";
-import { Heading, Text } from "@radix-ui/themes";
+import { Heading } from "@radix-ui/themes";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useAccount, usePublicClient } from "wagmi";
 import type { Address } from "viem";
 import { useStore } from "../app/useStore.js";
@@ -17,6 +18,7 @@ export function ProfilePage({
   navigate: Navigate;
 }) {
   const { address } = useAccount();
+  const { openConnectModal } = useConnectModal();
   const publicClient = usePublicClient({ chainId: activeChainId });
   const key = address?.toLowerCase() ?? "";
   const { creatorTokens, creatorErrors, loadCreatorTokens } = useStore() as {
@@ -40,25 +42,33 @@ export function ProfilePage({
     ).catch(() => undefined);
   }, [address, loadCreatorTokens, publicClient]);
 
-  useEffect(() => {
-    if (!address) navigate("markets");
-  }, [address, navigate]);
-
   const graduated = useMemo(
     () => tokens.filter((token) => token.graduated).length,
     [tokens],
   );
 
-  if (!address) return null;
+  if (!address) {
+    return (
+      <main className="page-main profile-page wrap">
+        <header className="workspace-heading">
+          <Heading as="h1">Your launches</Heading>
+        </header>
+        <section className="profile-connect" aria-labelledby="profile-connect-title">
+          <span className="profile-connect-icon" aria-hidden="true">↗</span>
+          <h2 id="profile-connect-title">Connect your wallet</h2>
+          <p>See the tokens you created on Curveball.</p>
+          <button className="primary-button" type="button" onClick={() => openConnectModal?.()}>
+            Connect wallet
+          </button>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="page-main profile-page wrap">
       <header className="workspace-heading">
-        <div>
-          <Text as="p" className="workspace-eyebrow">Creator profile</Text>
-          <Heading as="h1">Your launches</Heading>
-        </div>
-        <Text as="p">Markets created by your connected wallet.</Text>
+        <Heading as="h1">Your launches</Heading>
       </header>
 
       {initialLoading ? (

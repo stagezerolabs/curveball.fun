@@ -13,6 +13,7 @@ import {
   requireCurveballSdk,
 } from "../lib/web3";
 import { readableError } from "../lib/errors";
+import { uploadArtwork } from "../lib/artworkUpload";
 
 const MARKET_CACHE_TTL_MS = 30_000;
 let marketsRequest = null;
@@ -236,7 +237,7 @@ export const useStore = create(persist((set, get) => ({
     }
   },
 
-  createToken: async (event) => {
+  createToken: async (event, address) => {
     event.preventDefault();
     const submittedForm = event.currentTarget;
     const { startAction, endAction, handleActionError } = get();
@@ -251,6 +252,12 @@ export const useStore = create(persist((set, get) => ({
         uri: String(form.get("uri") ?? ""),
         creatorTaxBps: Number(form.get("creatorTaxBps") ?? 0),
       };
+      const artwork = form.get("artwork");
+      if (artwork instanceof File && artwork.size > 0) {
+        if (!address) throw new Error("Connect your wallet to publish artwork.");
+        set({ launchProgress: { phase: "artwork", hash: null, error: "" } });
+        input.uri = await uploadArtwork(artwork, { address, name: input.name, symbol: input.symbol });
+      }
       const initialBuy = String(form.get("initialBuy") ?? "").trim();
       const sdk = requireCurveballSdk();
       const onProgress = (phase, hash = null) => set({ launchProgress: { phase, hash, error: "" } });
@@ -264,7 +271,7 @@ export const useStore = create(persist((set, get) => ({
         marketsFetchedAt: 0,
       });
       set((state) => {
-        const token = { address: result.token, name: input.name.trim(), symbol: input.symbol.trim(), creator: result.creator, graduated: false, createdAt: new Date().toISOString(), indexing: true };
+        const token = { address: result.token, name: input.name.trim(), symbol: input.symbol.trim(), creator: result.creator, graduated: false, createdAt: new Date().toISOString(), metadataUri: input.uri || null, indexing: true };
         const tokenKey = cacheKey(result.token);
         const creatorKey = cacheKey(result.creator);
         const creatorWasLoaded = Object.prototype.hasOwnProperty.call(state.creatorTokens, creatorKey);

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button } from "@radix-ui/themes";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { Collapsible } from "@base-ui/react/collapsible";
 import type { ReactNode } from "react";
 import { formatEther } from "viem";
@@ -60,6 +61,7 @@ export function TradePanel({
     fetchQuote,
   } = useStore();
   const [explain, setExplain] = useState(false);
+  const { openConnectModal } = useConnectModal();
   const betaReadEnabled = getBetaReadEnabled({
     contractVersion: activeContractVersion,
     chainId: activeChainId,
@@ -268,11 +270,10 @@ export function TradePanel({
           {isPending ? "Pending…" : side === "buy" ? "Buy" : "Sell"}
         </Button>
       ) : (
-        <Button className={`trade-submit ${side}`} type="button" size="3" disabled>
-          {side === "buy" ? "Buy" : "Sell"}
+        <Button className={`trade-submit ${side}`} type="button" size="3" onClick={() => openConnectModal?.()}>
+          Connect wallet to trade
         </Button>
       )}
-      {!address && <p className="trade-hint">Connect from the navigation to trade.</p>}
       {tradeMessage && !isPending && (
         <p className="trade-hint success" role="status">
           {tradeMessage}

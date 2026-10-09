@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { Badge } from "@radix-ui/themes";
 import { TokenAvatar } from "./TokenAvatar";
+import { AppLink } from "./Navigation";
 import {
   formatAddress,
   formatEthAmount,
   formatPercent,
   formatRelativeTime,
 } from "../lib/format.js";
-import type { Token } from "../types";
+import type { Navigate, Token } from "../types";
 import { activeExplorerUrl } from "../lib/web3";
 import { UsdAmount } from "./UsdAmount";
 
@@ -104,10 +105,16 @@ function Socials({ token }: { token: Token }) {
   );
 }
 
-export function MarketHeader({ token }: { token: Token }) {
+export function MarketHeader({ token, navigate }: { token: Token; navigate: Navigate }) {
   const quoteSymbol = token.quoteSymbol ?? "WETH";
+  const progress = token.graduated ? 100 : Math.min(100, Math.max(0, token.progress ?? 0));
   return (
     <header className="market-header">
+      <div className="market-breadcrumb">
+        <AppLink route="markets" navigate={navigate}>Explore</AppLink>
+        <span aria-hidden="true">/</span>
+        <span>{token.name}</span>
+      </div>
       <div className="market-header-content">
         <div className="market-token-summary">
           <TokenAvatar token={token} className="market-avatar" />
@@ -127,6 +134,11 @@ export function MarketHeader({ token }: { token: Token }) {
               {token.creatorTaxBps != null && token.creatorTaxBps > 0 && (
                 <span className="market-data-chip">Creator tax {(token.creatorTaxBps / 100).toFixed(2)}%</span>
               )}
+            </div>
+
+            <div className="market-bonding" aria-label={`Bonding status ${formatPercent(progress)}`}>
+              <div className="market-bonding-label"><span>Bonding status</span><strong>{formatPercent(progress)}</strong></div>
+              <span className="market-bonding-track"><span style={{ width: `${progress}%` }} /></span>
             </div>
 
             <dl className="market-meta">
@@ -169,7 +181,7 @@ export function MarketHeader({ token }: { token: Token }) {
           <small>Fully diluted</small>
         </div>
         <div>
-          <dt>{token.graduated ? "Status" : "Curve sold"}</dt>
+          <dt>Bonding status</dt>
           <dd>{token.graduated ? "100%" : formatPercent(token.progress)}</dd>
           <small>{token.graduated ? "Graduated" : "To graduation"}</small>
         </div>
