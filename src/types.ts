@@ -22,6 +22,7 @@ export type Token = {
   marketCap?: number | null;
   progress?: number | null;
   imageUrl?: string | null;
+  metadataUri?: string | null;
   pool?: Address | null;
   quoteSymbol?: string | null;
   description?: string | null;

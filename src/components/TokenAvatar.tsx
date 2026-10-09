@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { tokenArtworkUrl } from "../lib/tokenMetadata";
 import type { Token } from "../types";
 
 export function TokenAvatar({
@@ -13,8 +14,19 @@ export function TokenAvatar({
   const [failedSources, setFailedSources] = useState<Set<string>>(
     () => new Set(),
   );
+  const [metadataImage, setMetadataImage] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    setMetadataImage(null);
+    if (token.metadataUri) {
+      void tokenArtworkUrl(token.metadataUri).then((url) => {
+        if (active) setMetadataImage(url);
+      });
+    }
+    return () => { active = false; };
+  }, [token.metadataUri]);
   const generatedAvatar = `https://api.dicebear.com/10.x/loops/svg?seed=${encodeURIComponent(token.address)}`;
-  const sources = [token.imageUrl, generatedAvatar].filter(
+  const sources = [token.imageUrl, metadataImage, generatedAvatar].filter(
     (source): source is string => Boolean(source),
   );
   const source = sources.find((candidate) => !failedSources.has(candidate));

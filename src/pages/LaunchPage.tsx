@@ -17,6 +17,7 @@ type LaunchProgress = { phase: LaunchPhase; hash: string | null; error: string }
 
 const phaseCopy: Record<Exclude<LaunchPhase, "error">, { title: string; detail: string }> = {
   preparing: { title: "Preparing launch", detail: "Checking details and network." },
+  artwork: { title: "Publishing artwork", detail: "Sign the upload request in your wallet, then wait for IPFS." },
   wrapWallet: { title: "Wrap ETH", detail: "Confirm the deposit in your wallet." },
   wrapConfirming: { title: "Wrapping ETH", detail: "Waiting for network confirmation." },
   approveWallet: { title: "Approve WETH", detail: "Confirm the allowance in your wallet." },
@@ -82,7 +83,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
     invited,
   });
   const { createToken: create, isPending, launchProgress, clearLaunchProgress } = useStore() as {
-    createToken: (event: React.FormEvent<HTMLFormElement>) => Promise<void>;
+    createToken: (event: React.FormEvent<HTMLFormElement>, address?: `0x${string}`) => Promise<void>;
     isPending: boolean;
     launchProgress: LaunchProgress;
     clearLaunchProgress: () => void;
@@ -105,12 +106,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
   const phase = launchProgress?.phase;
   const draftTaxBps = Math.round(Number(draftTaxPercent || "0") * 100);
   const submitLaunch = (event: React.FormEvent<HTMLFormElement>) => {
-    if (draftImageUrl) {
-      event.preventDefault();
-      setImageError("Artwork publishing is not connected yet. Remove the image to launch without artwork.");
-      return;
-    }
-    void create(event);
+    void create(event, address);
   };
 
   const selectImage = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -146,7 +142,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                 <h2>Token details</h2>
               </div>
               <label className="launch-image-upload">
-                <input ref={imageInput} type="file" accept="image/png,image/jpeg,image/webp" onChange={selectImage} aria-describedby={imageError ? "launch-image-help launch-image-error" : "launch-image-help"} aria-invalid={Boolean(imageError)} />
+                <input ref={imageInput} name="artwork" type="file" accept="image/png,image/jpeg,image/webp" onChange={selectImage} aria-describedby={imageError ? "launch-image-help launch-image-error" : "launch-image-help"} aria-invalid={Boolean(imageError)} />
                 {draftImageUrl ? <img src={draftImageUrl} alt="" /> : <span className="launch-image-placeholder" aria-hidden="true">＋</span>}
                 <span>{draftImageUrl ? "Change preview image" : "Choose an image"}</span>
               </label>
