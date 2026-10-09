@@ -1,11 +1,12 @@
 import { TokenAvatar } from "./TokenAvatar";
+import { AppLink } from "./Navigation";
 import {
   formatAddress,
   formatEthAmount,
   formatPercent,
   formatRelativeTime,
 } from "../lib/format.js";
-import type { Token } from "../types";
+import type { Navigate, Token } from "../types";
 import { activeExplorerUrl } from "../lib/web3";
 import { UsdAmount } from "./UsdAmount";
 
@@ -72,11 +73,16 @@ function Socials({ token }: { token: Token }) {
   );
 }
 
-export function MarketHeader({ token }: { token: Token }) {
+export function MarketHeader({ token, navigate }: { token: Token; navigate: Navigate }) {
   const quoteSymbol = token.quoteSymbol ?? "WETH";
   const soldPercent = token.graduated ? 100 : Math.min(100, Math.max(0, token.progress ?? 0));
   return (
     <header className="market-header">
+      <div className="market-breadcrumb">
+        <AppLink route="markets" navigate={navigate}>Explore</AppLink>
+        <span aria-hidden="true">/</span>
+        <span>{token.name}</span>
+      </div>
       <div className="market-header-left">
         <div className="market-header-content">
           <div className="market-token-summary">
@@ -132,7 +138,7 @@ export function MarketHeader({ token }: { token: Token }) {
           <small>Fully diluted</small>
         </div>
         <div className="market-stat-progress">
-          <dt>{token.graduated ? "Status" : "Curve sold"}</dt>
+          <dt>Bonding status</dt>
           <dd>{token.graduated ? "100%" : formatPercent(token.progress)}</dd>
           <progress aria-label="Curve sold" value={soldPercent} max={100} />
           <small>{token.graduated ? "Graduated" : "To graduation"}</small>

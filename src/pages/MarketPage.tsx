@@ -83,7 +83,7 @@ export function MarketPage({
 
   return (
     <main className="market-page wrap">
-      <MarketHeader token={resolvedToken} />
+      <MarketHeader token={resolvedToken} navigate={navigate} />
 
       <div className="market-workspace">
         <Suspense

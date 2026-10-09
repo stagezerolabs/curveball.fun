@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button } from "@radix-ui/themes";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { Collapsible } from "@base-ui/react/collapsible";
 import type { ReactNode } from "react";
 import { formatEther, parseEther } from "viem";
@@ -68,6 +69,7 @@ export function TradePanel({
   const [payment, setPayment] = useState<"WETH" | "ASD">("WETH");
   const [asdQuote, setAsdQuote] = useState<Awaited<ReturnType<typeof quoteAsdBuy>> | null>(null);
   const [asdQuoteError, setAsdQuoteError] = useState("");
+  const { openConnectModal } = useConnectModal();
   const betaReadEnabled = getBetaReadEnabled({
     contractVersion: activeContractVersion,
     chainId: activeChainId,
@@ -307,11 +309,10 @@ export function TradePanel({
           {isPending ? "Pending…" : side === "buy" ? "Buy" : "Sell"}
         </Button>
       ) : (
-        <Button className={`trade-submit ${side}`} type="button" size="3" disabled>
-          {side === "buy" ? "Buy" : "Sell"}
+        <Button className={`trade-submit ${side}`} type="button" size="3" onClick={() => openConnectModal?.()}>
+          Connect wallet to trade
         </Button>
       )}
-      {!address && <p className="trade-hint">Connect from the navigation to trade.</p>}
       {asdBuy && mockQuoteBalance !== undefined && mockQuoteBalance > 0n && <div className="trade-recovery"><p>You have {formatEthAmount(Number(formatEther(mockQuoteBalance)))} mWETH from an earlier test. You can continue its conversion and buy without selling more ASD.</p><Button type="button" variant="outline" disabled={isPending || !canBuy} onClick={() => tradeWithMockQuote(token, mockQuoteBalance)}>Continue with mWETH</Button></div>}
       {tradeMessage && (
         <p className={`trade-hint ${isPending ? "" : "success"}`} role="status">

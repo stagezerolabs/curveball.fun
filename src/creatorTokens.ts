@@ -141,7 +141,7 @@ async function discoverTokens(
 
   const tokens = await Promise.all(
     logs.map(async (log) => {
-      const { token, creator: eventCreator, name, symbol } = log.args ?? {};
+      const { token, creator: eventCreator, name, symbol, uri } = log.args ?? {};
       if (!token || !eventCreator || !name || !symbol || !log.blockNumber) {
         throw new Error("The launchpad returned an incomplete TokenCreated log.");
       }
@@ -164,6 +164,7 @@ async function discoverTokens(
         const price = virtualToken === 0n ? null : Number(formatEther(virtualQuote)) / Number(formatEther(virtualToken));
         return {
           address: getAddress(token), creator: getAddress(eventCreator), name, symbol, graduated,
+          metadataUri: uri ?? null,
           curve: getAddress(curve), feeBps: market[2], creatorShareBps: market[3], buybackShareBps: market[4], creatorTaxBps: market[5],
           pending: ready, createdAt: new Date(Number(block.timestamp) * 1_000).toISOString(),
           createdBlock: log.blockNumber.toString(),
@@ -195,6 +196,7 @@ async function discoverTokens(
         creator: getAddress(eventCreator),
         name,
         symbol,
+        metadataUri: uri ?? null,
         graduated,
         pending,
         createdBlock: log.blockNumber.toString(),
