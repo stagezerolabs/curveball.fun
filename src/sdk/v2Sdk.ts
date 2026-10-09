@@ -1,15 +1,16 @@
 import {
-  getAccount, getBalance, getBytecode, readContract, simulateContract, switchChain,
+  getAccount, getBalance, getBytecode, getTransactionReceipt, readContract, simulateContract, switchChain,
   waitForTransactionReceipt, writeContract, type Config,
 } from "@wagmi/core";
 import { decodeAbiParameters, decodeEventLog, getAddress, zeroAddress, type Address, type Hash } from "viem";
 import { applySlippage, createDeadline, validateTokenInput, type CurveballDeployment, type TokenInput } from "./curveballSdk";
 import { erc20Abi } from "./contracts";
 import { v2CurveAbi, v2EscrowAbi, v2FactoryAbi, v2LaunchAndBuyAbi, v2LockerAbi, v2VaultAbi } from "./v2Contracts";
-import { CurveballSdkError, NATIVE_GAS_RESERVE, type ConfirmedTrade, type ConfirmedWrite, type LaunchProgress, type TradeSide, type WagmiActions } from "./wagmiSdk";
+import { CurveballSdkError, NATIVE_GAS_RESERVE, PendingTransactionError, type ConfirmedTrade, type ConfirmedWrite, type LaunchProgress, type TradeSide, type WagmiActions } from "./wagmiSdk";
 import { validateV2Deployment } from "../v2Deployment";
 
-const defaultActions: WagmiActions = { getAccount, getBalance, getBytecode, readContract, simulateContract, switchChain, waitForTransactionReceipt, writeContract };
+const defaultActions: WagmiActions = { getAccount, getBalance, getBytecode, getTransactionReceipt, readContract, simulateContract, switchChain, waitForTransactionReceipt, writeContract };
+const CONFIRMATION_TIMEOUT_MS = 120_000;
 
 // Some RPC endpoints briefly serve the pre-approval block after confirming the approval receipt.
 async function simulateAfterApproval<T>(simulate: () => Promise<T>, approved: boolean): Promise<T> {
@@ -63,7 +64,16 @@ export function createV2Sdk(config: Config, deployment: CurveballDeployment, act
   }
 
   async function confirm(hash: Hash): Promise<ConfirmedWrite> {
-    const receipt = await actions.waitForTransactionReceipt(config, { chainId: deployment.chainId, hash, confirmations: 1 });
+    let receipt;
+    try {
+      receipt = await actions.waitForTransactionReceipt(config, { chainId: deployment.chainId, hash, confirmations: 1, timeout: CONFIRMATION_TIMEOUT_MS });
+    } catch (waitError) {
+      try {
+        receipt = await actions.getTransactionReceipt(config, { chainId: deployment.chainId, hash });
+      } catch {
+        throw new PendingTransactionError(hash, waitError);
+      }
+    }
     if (receipt.status !== "success") throw new CurveballSdkError(`Transaction ${hash} reverted.`);
     return { hash, receipt };
   }

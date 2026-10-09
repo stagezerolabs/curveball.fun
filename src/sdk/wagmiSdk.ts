@@ -2,6 +2,7 @@ import {
   getAccount,
   getBalance,
   getBytecode,
+  getTransactionReceipt,
   readContract,
   simulateContract,
   switchChain,
@@ -84,6 +85,7 @@ export type WagmiActions = Readonly<{
   simulateContract: typeof simulateContract;
   switchChain: typeof switchChain;
   waitForTransactionReceipt: typeof waitForTransactionReceipt;
+  getTransactionReceipt: typeof getTransactionReceipt;
   writeContract: typeof writeContract;
 }>;
 
@@ -95,6 +97,7 @@ const defaultWagmiActions: WagmiActions = {
   simulateContract,
   switchChain,
   waitForTransactionReceipt,
+  getTransactionReceipt,
   writeContract,
 };
 
@@ -109,6 +112,13 @@ export class CurveballSdkError extends Error {
   ) {
     super(message);
     this.name = "CurveballSdkError";
+  }
+}
+
+export class PendingTransactionError extends Error {
+  constructor(readonly hash: Hash, readonly cause?: unknown) {
+    super("Could not verify this transaction. Check its explorer status before retrying.");
+    this.name = "PendingTransactionError";
   }
 }
 

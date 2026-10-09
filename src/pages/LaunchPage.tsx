@@ -23,7 +23,8 @@ const phaseCopy: Record<Exclude<LaunchPhase, "error">, { title: string; detail: 
   approveWallet: { title: "Approve WETH", detail: "Confirm the allowance in your wallet." },
   approveConfirming: { title: "Approving WETH", detail: "Waiting for network confirmation." },
   wallet: { title: "Confirm launch", detail: "Review and confirm in your wallet." },
-  confirming: { title: "Launch submitted", detail: "Waiting for network confirmation." },
+  confirming: { title: "Launch submitted", detail: "Your wallet submitted the launch transaction. Waiting for a network receipt." },
+  pending: { title: "Confirmation taking longer", detail: "RISE has not returned a receipt for this transaction. Check it in the explorer before trying the launch again." },
   success: { title: "Token launched", detail: "Opening markets…" },
 };
 
@@ -220,20 +221,21 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
         </form>
       </section>
       <Dialog.Root open={Boolean(launchProgress)} onOpenChange={(open) => {
-        if (!open && (phase === "error" || phase === "success")) {
+        if (!open && (phase === "error" || phase === "pending" || phase === "success")) {
           clearLaunchProgress();
           if (phase === "success") navigate("markets");
         }
       }}>
       <Dialog.Portal>
         <Dialog.Backdrop className="launch-modal-backdrop" />
-        <Dialog.Popup className={`launch-modal ${phase === "error" || phase === "success" ? "dismissible" : ""}`}>
-          {(phase === "error" || phase === "success") && <Dialog.Close className="launch-modal-close" aria-label="Close launch status">×</Dialog.Close>}
-          {phase !== "error" && phase !== "success" && <span className="launch-modal-spinner" aria-hidden="true" />}
+        <Dialog.Popup className={`launch-modal ${phase === "error" || phase === "pending" || phase === "success" ? "dismissible" : ""}`}>
+          {(phase === "error" || phase === "pending" || phase === "success") && <Dialog.Close className="launch-modal-close" aria-label="Close launch status">×</Dialog.Close>}
+          {phase !== "error" && phase !== "pending" && phase !== "success" && <span className="launch-modal-spinner" aria-hidden="true" />}
           <Dialog.Title id="launch-modal-title" ref={dialogHeading} tabIndex={-1}>{phase === "error" ? "Launch stopped" : phaseCopy[phase!]?.title}</Dialog.Title>
           <Dialog.Description id="launch-modal-detail">{phase === "error" ? launchProgress?.error : phaseCopy[phase!]?.detail}</Dialog.Description>
           {launchProgress?.hash && <a className="launch-tx-link" href={`${activeExplorerUrl}/tx/${launchProgress.hash}`} target="_blank" rel="noopener noreferrer">View transaction ↗</a>}
           {phase === "error" && <button type="button" className="launch-modal-action" onClick={clearLaunchProgress}>Back to form</button>}
+          {phase === "pending" && <button type="button" className="launch-modal-action" onClick={clearLaunchProgress}>Close</button>}
         </Dialog.Popup>
       </Dialog.Portal>
       </Dialog.Root>
