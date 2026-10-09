@@ -3,6 +3,8 @@ import { Tabs } from "@base-ui/react/tabs";
 import { usePublicClient } from "wagmi";
 import { Featured } from "../components/Featured";
 import { MarketList } from "../components/MarketList";
+import { UsdAmount } from "../components/UsdAmount";
+import { formatPercent } from "../lib/format.js";
 import { useStore } from "../app/useStore.js";
 import type { CreatorTokenClient } from "../creatorTokens";
 import { activeChainId } from "../lib/web3";
@@ -46,6 +48,7 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
   };
   const [tab, setTab] = useState<Tab>(lastCreatedToken ? "new" : "trending");
   const visible = useMemo(() => selectTokens(tokens, tab), [tokens, tab]);
+  const tickerTokens = useMemo(() => selectTokens(tokens, "new").slice(0, 12), [tokens]);
   const initialLoading = !marketsFetchedAt && !error;
 
   useEffect(() => {
@@ -57,7 +60,7 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
   return (
     <main className="page-main">
       <section className="markets-page wrap" aria-labelledby="markets-title">
-        <h1 id="markets-title" className="visually-hidden">Markets</h1>
+        <h1 id="markets-title" className="visually-hidden">Explore markets</h1>
         {lastCreatedToken && <p className="market-created-note" role="status">Your new token is listed below. Market data may take a moment to appear.</p>}
         {error && (
           <p className="notice" role="alert">
@@ -83,6 +86,23 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
         </Tabs.Panel>
         </Tabs.Root>
       </section>
+      {tickerTokens.length > 0 && (
+        <aside className="market-snapshot-ticker" aria-label="Latest market snapshots">
+          <div className="market-snapshot-track">
+            {[0, 1].map((copy) => (
+              <div className="market-snapshot-group" aria-hidden={copy === 1} key={copy}>
+                {tickerTokens.map((token) => (
+                  <span className="market-snapshot" key={token.address}>
+                    <strong>${token.symbol}</strong>
+                    <span><UsdAmount weth={token.marketCap} compact /> cap</span>
+                    <span>{formatPercent(token.progress)} sold</span>
+                  </span>
+                ))}
+              </div>
+            ))}
+          </div>
+        </aside>
+      )}
     </main>
   );
 }

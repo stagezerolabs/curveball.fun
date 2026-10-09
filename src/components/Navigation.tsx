@@ -172,17 +172,26 @@ export function Header({
     navigate(route, params);
   };
   const marketsClass = ["markets", "market"].includes(routeId) ? "active" : "";
+  const profileClass = routeId === "profile" ? "active" : "";
 
-  const links = (
+  const primaryLinks = (
     <>
       <AppLink
         className={`nav-link ${marketsClass}`}
         route="markets"
         navigate={go}
+        aria-current={marketsClass ? "page" : undefined}
       >
-        Markets
+        Explore
       </AppLink>
-      <AppLink className="nav-create" route="launch" navigate={go}>Create</AppLink>
+      <AppLink
+        className={`nav-link ${profileClass}`}
+        route="profile"
+        navigate={go}
+        aria-current={profileClass ? "page" : undefined}
+      >
+        Profile
+      </AppLink>
     </>
   );
 
@@ -190,10 +199,13 @@ export function Header({
     <>
       <header className="nav wrap">
         <Brand navigate={go} />
-        <NavSearch navigate={go} />
+        <nav className="nav-primary" aria-label="Main navigation">
+          {primaryLinks}
+        </nav>
         <div className="nav-actions">
-          {links}
+          <NavSearch navigate={go} />
           <ThemeToggle theme={theme} onToggle={onThemeToggle} />
+          <AppLink className="nav-create" route="launch" navigate={go}>Create token</AppLink>
           <WalletNavButton address={address} displayName={address ? `${address.slice(0, 5)}…${address.slice(-4)}` : null} />
         </div>
         <button
@@ -215,7 +227,8 @@ export function Header({
       </header>
       {menuOpen && (
         <nav id="nav-sheet" className="nav-sheet wrap" aria-label="Main navigation">
-          {links}
+          {primaryLinks}
+          <AppLink className="nav-create" route="launch" navigate={go}>Create token</AppLink>
           <div className="nav-sheet-theme"><span>Appearance</span><ThemeToggle theme={theme} onToggle={onThemeToggle} /></div>
         </nav>
       )}
@@ -237,7 +250,7 @@ export function LandingFooter({ navigate }: { navigate: Navigate }) {
       <div className="landing-footer-grid">
         <div className="landing-footer-brand">
           <Brand navigate={navigate} />
-          <p>A fair token launchpad on RISE.</p>
+          <p>Launch on the curve</p>
         </div>
 
         <nav className="landing-footer-column" aria-label="Product">

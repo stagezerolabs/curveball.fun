@@ -299,7 +299,6 @@ export function MarketChart({
     <section className="market-chart-panel" aria-label={`${token.symbol} price chart`}>
       <header className="market-chart-head">
         <div>
-          <span>{token.graduated ? "Bonding curve history" : "Curve price"} · {token.quoteSymbol ?? "WETH"}</span>
           <strong>{hover ? formatChartValue(hover.close) : "—"}</strong>
           {hover && <small>Volume {formatChartValue(hover.volume)}</small>}
         </div>

@@ -12,7 +12,8 @@
     "test": "make -C contracts test",
     "typecheck": "tsc --noEmit",
     "verify:icarus": "make -C contracts verify-icarus-testnet",
-    "record:v2:testnet": "bun scripts/record-v2-testnet.ts"
+    "record:v2:testnet": "bun scripts/record-v2-testnet.ts",
+    "record:token-beta:testnet": "bun scripts/record-token-beta.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

@@ -17,18 +17,13 @@ export function MarketList({
 }) {
   return (
     <div className="market-list" aria-live="polite">
-      <div className="list-labels" aria-hidden="true">
-        <span>Token</span>
-        <span>Status</span>
-        <span>Market</span>
-      </div>
       {loading && (
         <div className="market-list-skeleton" aria-busy="true" aria-label="Loading markets">
           {Array.from({ length: 5 }, (_, index) => (
-            <div className="market-row" key={index}>
-              <span className="skeleton skeleton-token" />
-              <span className="skeleton skeleton-pill" />
-              <span className="skeleton skeleton-value" />
+            <div className="market-card-skeleton" key={index}>
+              <span className="skeleton market-card-skeleton-image" />
+              <span className="skeleton market-card-skeleton-line" />
+              <span className="skeleton market-card-skeleton-line short" />
             </div>
           ))}
         </div>
@@ -43,38 +38,42 @@ export function MarketList({
           </AppLink>
         </div>
       )}
-      {!loading && tokens.map((token, index) => (
-        <button
-          type="button"
-          className={`market-row ${highlightedToken?.toLowerCase() === token.address.toLowerCase() ? "market-row-created" : ""}`}
-          key={token.address}
-          onClick={() => navigate("market", { address: token.address })}
-        >
-          <span className="token-cell">
-            <TokenAvatar token={token} index={index} />
-            <span>
-              <strong>{token.name}</strong>
-              <small>${token.symbol}</small>
-              <small className="market-token-address">{formatAddress(token.address)}</small>
-              {highlightedToken?.toLowerCase() === token.address.toLowerCase() && <small className="market-new-tag">Just launched</small>}
-            </span>
-          </span>
-          <span className={`status-pill ${token.graduated ? "graduated" : "live"}`}>
-            <span><i /> {token.graduated ? "Graduated" : "Curve live"}</span>
-            {!token.graduated && <small>{formatPercent(token.progress)} sold</small>}
-          </span>
-          {token.graduated ? (
-            <span className="market-cell">
-              <strong>Graduated</strong>
-            </span>
-          ) : (
-            <span className="market-cell">
-              <strong><UsdAmount weth={token.price} /></strong>
-              <small><UsdAmount weth={token.marketCap} suffix=" cap" /></small>
-            </span>
-          )}
-        </button>
-      ))}
+      {!loading && tokens.length > 0 && (
+        <ul className="market-card-grid">
+          {tokens.map((token, index) => (
+            <li key={token.address}>
+              <AppLink
+                route="market"
+                params={{ address: token.address }}
+                navigate={navigate}
+                className={`market-card ${highlightedToken?.toLowerCase() === token.address.toLowerCase() ? "market-card-created" : ""}`}
+              >
+                <span className="market-card-art">
+                  <TokenAvatar token={token} index={index} />
+                  <span className={`market-card-status ${token.graduated ? "graduated" : "live"}`}>
+                    {token.graduated ? "Graduated" : "Live"}
+                  </span>
+                </span>
+                <span className="market-card-content">
+                  <strong className="market-card-name">{token.name}</strong>
+                  <span className="market-card-symbol">${token.symbol}</span>
+                  <span className="market-card-address">{formatAddress(token.address)}</span>
+                  {highlightedToken?.toLowerCase() === token.address.toLowerCase() && <span className="market-new-tag">Just launched</span>}
+                  <span className="market-card-metrics">
+                    <span><strong><UsdAmount weth={token.marketCap} compact /></strong><small>Market cap</small></span>
+                    <span><strong><UsdAmount weth={token.price} /></strong><small>Price</small></span>
+                  </span>
+                  <span className="market-card-progress-label">
+                    <span>{token.graduated ? "Graduated" : "Curve sold"}</span>
+                    <strong>{token.graduated ? "100%" : formatPercent(token.progress)}</strong>
+                  </span>
+                  <span className="market-card-progress" aria-hidden="true"><span style={{ width: token.graduated ? "100%" : formatPercent(token.progress) }} /></span>
+                </span>
+              </AppLink>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

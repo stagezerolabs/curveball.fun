@@ -14,6 +14,8 @@ import {
 } from "../lib/web3";
 import { readableError } from "../lib/errors";
 import { PendingTransactionError } from "../sdk/wagmiSdk";
+import { convertAsdToWeth, convertMockToWeth } from "../sdk/asdPayment";
+import { uploadArtwork } from "../lib/artworkUpload";
 
 const MARKET_CACHE_TTL_MS = 30_000;
 let marketsRequest = null;
@@ -62,7 +64,7 @@ export const useStore = create(persist((set, get) => ({
   creatorErrors: {},
   actionError: "",
   tradeMessage: "",
-  amount: "1",
+  amount: "0",
   side: "buy",
   isPending: false,
   quotePreview: null,
@@ -237,7 +239,7 @@ export const useStore = create(persist((set, get) => ({
     }
   },
 
-  createToken: async (event) => {
+  createToken: async (event, address) => {
     event.preventDefault();
     const submittedForm = event.currentTarget;
     const { startAction, endAction, handleActionError } = get();
@@ -252,6 +254,12 @@ export const useStore = create(persist((set, get) => ({
         uri: String(form.get("uri") ?? ""),
         creatorTaxBps: Number(form.get("creatorTaxBps") ?? 0),
       };
+      const artwork = form.get("artwork");
+      if (artwork instanceof File && artwork.size > 0) {
+        if (!address) throw new Error("Connect your wallet to publish artwork.");
+        set({ launchProgress: { phase: "artwork", hash: null, error: "" } });
+        input.uri = await uploadArtwork(artwork, { address, name: input.name, symbol: input.symbol });
+      }
       const initialBuy = String(form.get("initialBuy") ?? "").trim();
       const sdk = requireCurveballSdk();
       const onProgress = (phase, hash = null) => set({ launchProgress: { phase, hash, error: "" } });
@@ -265,7 +273,7 @@ export const useStore = create(persist((set, get) => ({
         marketsFetchedAt: 0,
       });
       set((state) => {
-        const token = { address: result.token, name: input.name.trim(), symbol: input.symbol.trim(), creator: result.creator, graduated: false, createdAt: new Date().toISOString(), indexing: true };
+        const token = { address: result.token, name: input.name.trim(), symbol: input.symbol.trim(), creator: result.creator, graduated: false, createdAt: new Date().toISOString(), metadataUri: input.uri || null, indexing: true };
         const tokenKey = cacheKey(result.token);
         const creatorKey = cacheKey(result.creator);
         const creatorWasLoaded = Object.prototype.hasOwnProperty.call(state.creatorTokens, creatorKey);
@@ -328,6 +336,42 @@ export const useStore = create(persist((set, get) => ({
     } finally {
       endAction();
     }
+  },
+
+  tradeWithAsd: async (token) => {
+    const { amount, startAction, endAction, handleActionError } = get();
+    startAction();
+    try {
+      if (!token) throw Error("Select a market first.");
+      const input = parseEther(amount);
+      if (input <= 0n) throw Error("Enter an ASD amount greater than zero.");
+      const weth = await convertAsdToWeth(input, (message) => set({ tradeMessage: message }));
+      set({ tradeMessage: "Confirm WETH approval and curve buy" });
+      const result = await requireCurveballSdk().trade("buy", token.address, weth);
+      set({
+        tradeMessage: `Bought ~${formatEther(result.quotedOutput)} ${token.symbol}.`,
+        quotePreview: null,
+        marketsFetchedAt: 0,
+      });
+      set((state) => ({ tokenFetchedAt: { ...state.tokenFetchedAt, [cacheKey(token.address)]: 0 } }));
+    } catch (error) {
+      handleActionError(error);
+    } finally {
+      endAction();
+    }
+  },
+
+  tradeWithMockQuote: async (token, amount) => {
+    const { startAction, endAction, handleActionError } = get();
+    startAction();
+    try {
+      const weth = await convertMockToWeth(amount, (message) => set({ tradeMessage: message }));
+      set({ tradeMessage: "Confirm WETH approval and curve buy" });
+      const result = await requireCurveballSdk().trade("buy", token.address, weth);
+      set({ tradeMessage: `Bought ~${formatEther(result.quotedOutput)} ${token.symbol}.`, quotePreview: null, marketsFetchedAt: 0 });
+      set((state) => ({ tokenFetchedAt: { ...state.tokenFetchedAt, [cacheKey(token.address)]: 0 } }));
+    } catch (error) { handleActionError(error); }
+    finally { endAction(); }
   },
 
   // LpLocker.claim is permissionless: the caller pays gas, the creator and

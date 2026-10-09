@@ -117,7 +117,7 @@ export class CurveballSdkError extends Error {
 
 export class PendingTransactionError extends Error {
   constructor(readonly hash: Hash, readonly cause?: unknown) {
-    super("Could not verify this transaction. Check its explorer status before launching again.");
+    super("Could not verify this transaction. Check its explorer status before retrying.");
     this.name = "PendingTransactionError";
   }
 }
