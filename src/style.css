@@ -3513,11 +3513,12 @@ select:focus-visible {
     gap: 20px;
   }
   .market-header-left { display: contents; }
-  .market-header-content { grid-column: 1; grid-row: 1; }
-  .market-headline-stats { grid-column: 1; grid-row: 2; }
+  .market-breadcrumb { grid-column: 1; grid-row: 1; }
+  .market-header-content { grid-column: 1; grid-row: 2; }
+  .market-headline-stats { grid-column: 1; grid-row: 3; }
   .market-header-details {
     grid-column: 1;
-    grid-row: 3;
+    grid-row: 4;
   }
   .market-headline-stats {
     width: 100%;

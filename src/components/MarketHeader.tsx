@@ -78,12 +78,12 @@ export function MarketHeader({ token, navigate }: { token: Token; navigate: Navi
   const soldPercent = token.graduated ? 100 : Math.min(100, Math.max(0, token.progress ?? 0));
   return (
     <header className="market-header">
-      <div className="market-breadcrumb">
-        <AppLink route="markets" navigate={navigate}>Explore</AppLink>
-        <span aria-hidden="true">/</span>
-        <span>{token.name}</span>
-      </div>
       <div className="market-header-left">
+        <div className="market-breadcrumb">
+          <AppLink route="markets" navigate={navigate}>Explore</AppLink>
+          <span aria-hidden="true">/</span>
+          <span>{token.name}</span>
+        </div>
         <div className="market-header-content">
           <div className="market-token-summary">
             <TokenAvatar token={token} className="market-avatar" />

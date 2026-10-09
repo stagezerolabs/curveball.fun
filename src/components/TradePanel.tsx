@@ -148,7 +148,7 @@ export function TradePanel({
   }, [asdBuy, amount, token.address, token.graduated]);
 
   const received = asdBuy ? asdQuote ? Number(formatEther(asdQuote.tokensOut)) : null : quotePreview !== null ? Number(formatEther(quotePreview)) : null;
-  const atLeast = asdBuy ? asdQuote ? Number(formatEther(asdQuote.minimumTokens)) : null : received === null ? null : received * (1 - SLIPPAGE_BPS / 10_000);
+  const atLeast = received === null ? null : received * (1 - SLIPPAGE_BPS / 10_000);
 
   // Execution price vs the current spot price: how far this size moves the curve.
   const input = Number(amount);
@@ -270,11 +270,12 @@ export function TradePanel({
       )}
       {asdBuy && <p className={`trade-hint ${insufficientAsd ? "warn" : ""}`}>{assetBalance === undefined ? "Checking ASD balance…" : `${formatEthAmount(Number(formatEther(assetBalance)))} ASD available`}</p>}
       {asdBuy && <p className="trade-hint">ASD sells on its curve, then mWETH converts to WETH, then WETH buys {token.symbol}. These are separate wallet transactions.</p>}
+      {asdBuy && <p className="trade-hint">The final buy is quoted after conversion. Its output may differ from this current-price estimate and has its own 3% slippage limit.</p>}
       {asdBuy && asdQuoteError && <p className="trade-hint warn" role="status">{asdQuoteError}</p>}
 
       <div className="trade-summary" aria-live="polite">
         <Row
-          label="You receive"
+          label={asdBuy ? "Current-price estimate" : "You receive"}
           value={
             quoting
               ? "…"
@@ -284,10 +285,7 @@ export function TradePanel({
           }
         />
         {asdBuy && <Row label="ASD conversion" value={asdQuote ? `${formatEthAmount(Number(formatEther(asdQuote.quoteOut)))} WETH` : "—"} />}
-        <Row
-          label={asdBuy ? "Estimated after slippage" : "At least"}
-          value={atLeast === null ? "—" : `${formatEthAmount(atLeast)} ${receiving}`}
-        />
+        {!asdBuy && <Row label="At least" value={atLeast === null ? "—" : `${formatEthAmount(atLeast)} ${receiving}`} />}
         {!asdBuy && <Row label="Price" value={<UsdAmount weth={token.price} />} />}
         <Row label="Slippage limit" value={`${SLIPPAGE_BPS / 100}%`} />
         {activeContractVersion === "v2" && <Row label="Curve fee + creator tax" value={token.feeBps == null ? "—" : `${((token.feeBps + (token.creatorTaxBps ?? 0)) / 100).toFixed(2)}%`} />}
