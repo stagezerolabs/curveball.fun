@@ -8,3 +8,8 @@ test("the old app URL resolves to the single markets page", () => {
   expect(routeHref("markets")).toBe("/markets");
   expect(() => routeHref("home")).toThrow("Unknown route: home");
 });
+
+test("old beta URLs resolve to the main markets", () => {
+  expect(resolveRoute("/beta").id).toBe("markets");
+  expect(resolveRoute("/beta/markets/0xabc").id).toBe("markets");
+});

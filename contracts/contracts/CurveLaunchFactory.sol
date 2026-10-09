@@ -17,6 +17,11 @@ import {CurveLauncherToken} from "./CurveLauncherToken.sol";
 import {CurveMemeHook} from "./CurveMemeHook.sol";
 import {CurveLaunchAndBuy} from "./CurveLaunchAndBuy.sol";
 
+interface ITokenBuyAdapterBinding {
+    function factory() external view returns (address);
+    function quote() external view returns (address);
+}
+
 /// @notice V2 registry and policy authority. Existing markets retain their launch snapshot.
 contract CurveLaunchFactory is Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -54,6 +59,8 @@ contract CurveLaunchFactory is Ownable2Step, ReentrancyGuard {
     CurveLpLocker public locker;
     CurveMemeHook public hook;
     CurveLaunchAndBuy public launchAndBuy;
+    address public tokenBuyAdapter;
+    bool public tokenBuyEnabled;
     uint16 public feeBps = 50;
     uint16 public creatorShareBps = 5_000;
     uint16 public buybackShareBps = 2_500;
@@ -70,6 +77,8 @@ contract CurveLaunchFactory is Ownable2Step, ReentrancyGuard {
     event TokensRescued(address indexed asset, uint256 amount, address indexed recipient);
     event NativeRescued(uint256 amount, address indexed recipient);
     event GraduationDeferred(address indexed token, bytes reason);
+    event TokenBuyAdapterSet(address indexed adapter);
+    event TokenBuyEnabledSet(bool enabled);
 
     constructor(address quote_, address icarusFactory_, address treasury_, uint256 supply_, uint256 curveSupply_, uint256 initialVQ_)
         Ownable(msg.sender)
@@ -131,6 +140,22 @@ contract CurveLaunchFactory is Ownable2Step, ReentrancyGuard {
     /// @notice Compatibility reads for clients of the invited-beta factory.
     function publicLaunchOpen() external view returns (bool) { return address(deployer) != address(0); }
     function invited(address) external pure returns (bool) { return false; }
+
+    function setTokenBuyAdapter(address adapter) external onlyOwner {
+        require(tokenBuyAdapter == address(0) && adapter.code.length > 0, "adapter already set or missing");
+        require(ITokenBuyAdapterBinding(adapter).factory() == address(this)
+            && ITokenBuyAdapterBinding(adapter).quote() == quote, "adapter mismatch");
+        tokenBuyAdapter = adapter;
+        tokenBuyEnabled = true;
+        emit TokenBuyAdapterSet(adapter);
+        emit TokenBuyEnabledSet(true);
+    }
+
+    function setTokenBuyEnabled(bool enabled) external onlyOwner {
+        require(tokenBuyAdapter != address(0), "adapter not set");
+        tokenBuyEnabled = enabled;
+        emit TokenBuyEnabledSet(enabled);
+    }
 
     function setFeeDefaults(uint16 newFee, uint16 newCreatorShare, uint16 newBuybackShare, uint16 newTaxCap, address newTreasury)
         external onlyOwner

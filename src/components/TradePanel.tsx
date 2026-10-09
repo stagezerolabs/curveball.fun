@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@radix-ui/themes";
 import { Collapsible } from "@base-ui/react/collapsible";
 import type { ReactNode } from "react";
-import { formatEther } from "viem";
+import { formatEther, parseEther } from "viem";
 import { useBalance, useReadContract } from "wagmi";
 import { launchpadAbi } from "../sdk/contracts";
 import { v2FactoryAbi } from "../sdk/v2Contracts";
@@ -19,6 +19,8 @@ import { NATIVE_GAS_RESERVE } from "../sdk/wagmiSdk";
 import type { Address } from "viem";
 import type { Token } from "../types";
 import { UsdAmount } from "./UsdAmount";
+import { asdPayment, quoteAsdBuy } from "../sdk/asdPayment";
+import { PaymentTokenPicker, type PaymentTokenOption } from "./PaymentTokenPicker";
 
 const SLIPPAGE_BPS = 300; // useStore sends minOut at 97% of the quote.
 const PRESETS = [25, 50, 100];
@@ -53,13 +55,19 @@ export function TradePanel({
     side,
     setSide,
     trade,
+    tradeWithAsd,
+    tradeWithMockQuote,
     isPending,
     tradeMessage,
     quotePreview,
     quoting,
     fetchQuote,
+    tokens,
   } = useStore();
   const [explain, setExplain] = useState(false);
+  const [payment, setPayment] = useState<"WETH" | "ASD">("WETH");
+  const [asdQuote, setAsdQuote] = useState<Awaited<ReturnType<typeof quoteAsdBuy>> | null>(null);
+  const [asdQuoteError, setAsdQuoteError] = useState("");
   const betaReadEnabled = getBetaReadEnabled({
     contractVersion: activeContractVersion,
     chainId: activeChainId,
@@ -95,41 +103,68 @@ export function TradePanel({
   });
 
   const quoteSymbol = token.quoteSymbol ?? "WETH";
-  const payingWith = side === "buy" ? quoteSymbol : token.symbol;
+  const asdAvailable = Boolean(asdPayment && token.address.toLowerCase() !== asdPayment.token.toLowerCase());
+  const asdMarketToken = tokens.find((candidate: Token) => candidate.address.toLowerCase() === asdPayment?.token.toLowerCase()) as Token | undefined;
+  const paymentOptions: PaymentTokenOption<"WETH" | "ASD">[] = [
+    { value: "WETH", symbol: "WETH", name: "Wrapped Ether", address: typeof quoteToken === "string" ? quoteToken : undefined },
+    ...(asdAvailable ? [{ value: "ASD" as const, symbol: "ASD", name: asdMarketToken?.name ?? "ASD test token", imageUrl: asdMarketToken?.imageUrl, address: asdPayment?.token }] : []),
+  ];
+  const asdBuy = side === "buy" && payment === "ASD" && asdAvailable;
+  const payingWith = side === "buy" ? asdBuy ? "ASD" : quoteSymbol : token.symbol;
   const receiving = side === "buy" ? token.symbol : quoteSymbol;
 
   // Buying spends the quote token, selling spends the token itself.
-  const balanceOf = side === "buy" ? quoteToken : token.address;
+  const balanceOf = side === "buy" ? asdBuy ? asdPayment?.token : quoteToken : token.address;
   const { data: assetBalance } = useTokenBalance(
     (balanceOf ?? undefined) as Address | undefined,
     address,
   );
   const { data: nativeBalance } = useBalance({ address });
+  const { data: mockQuoteBalance } = useTokenBalance(asdPayment?.mockQuote, address);
 
   useEffect(() => {
-    if (token.graduated) return undefined;
+    if (token.graduated || asdBuy) return undefined;
     const timeout = setTimeout(() => fetchQuote(token), 300);
     return () => clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [amount, side, token.address, token.graduated]);
+  }, [amount, side, token.address, token.graduated, asdBuy]);
 
-  const received = quotePreview !== null ? Number(formatEther(quotePreview)) : null;
-  const atLeast = received === null ? null : received * (1 - SLIPPAGE_BPS / 10_000);
+  useEffect(() => {
+    if (!asdBuy || !amount || token.graduated) { setAsdQuote(null); setAsdQuoteError(""); return; }
+    let current = true;
+    setAsdQuote(null);
+    setAsdQuoteError("");
+    const timeout = setTimeout(() => {
+      let input: bigint;
+      try { input = parseEther(amount); }
+      catch { if (current) setAsdQuoteError("Enter a valid ASD amount."); return; }
+      quoteAsdBuy(token.address, input)
+        .then((result) => { if (current) setAsdQuote(result); })
+        .catch((error: unknown) => { if (current) setAsdQuoteError(error instanceof Error ? error.message : "ASD quote unavailable."); });
+    }, 300);
+    return () => { current = false; clearTimeout(timeout); };
+  }, [asdBuy, amount, token.address, token.graduated]);
+
+  const received = asdBuy ? asdQuote ? Number(formatEther(asdQuote.tokensOut)) : null : quotePreview !== null ? Number(formatEther(quotePreview)) : null;
+  const atLeast = asdBuy ? asdQuote ? Number(formatEther(asdQuote.minimumTokens)) : null : received === null ? null : received * (1 - SLIPPAGE_BPS / 10_000);
 
   // Execution price vs the current spot price: how far this size moves the curve.
   const input = Number(amount);
+  let inputWei = 0n;
+  try { inputWei = parseEther(amount || "0"); } catch { /* Invalid input remains disabled. */ }
+  const insufficientAsd = asdBuy && assetBalance !== undefined && inputWei > assetBalance;
   const buyFunding =
-    side === "buy"
+    side === "buy" && !asdBuy
       ? getBuyFundingState(amount, assetBalance, nativeBalance?.value)
       : null;
   const presetBalance =
-    side === "buy" && assetBalance !== undefined && nativeBalance
+    side === "buy" && !asdBuy && assetBalance !== undefined && nativeBalance
       ? assetBalance +
         (nativeBalance.value > NATIVE_GAS_RESERVE
           ? nativeBalance.value - NATIVE_GAS_RESERVE
           : 0n)
       : assetBalance;
-  const executionPrice =
+  const executionPrice = asdBuy ? null :
     received && input > 0
       ? side === "buy"
         ? input / received
@@ -190,6 +225,8 @@ export function TradePanel({
       {activeContractVersion === "v2" && !token.pending && (token.progress ?? 0) >= 100 && side === "buy" && <p className="notice" role="status">This curve is sold out. Buying will resume in the graduated pool; selling remains available for now.</p>}
       {!hasBetaAccess && side === "buy" && publicOpen === false && invited === false && <p className="notice" role="status">This deployed factory is still invite-only. Selling remains open.</p>}
 
+      {side === "buy" && asdAvailable && <PaymentTokenPicker value={payment} options={paymentOptions} onChange={setPayment} />}
+
       <div className="amount-head">
         <label htmlFor="trade-amount">Amount</label>
         <div className="amount-presets">
@@ -222,13 +259,16 @@ export function TradePanel({
         <span className="amount-unit">{payingWith}</span>
       </div>
 
-      {side === "buy" && (
+      {side === "buy" && !asdBuy && (
         <TradeFundingStatus
           amount={amount}
           wethBalance={assetBalance}
           nativeBalance={nativeBalance?.value}
         />
       )}
+      {asdBuy && <p className={`trade-hint ${insufficientAsd ? "warn" : ""}`}>{assetBalance === undefined ? "Checking ASD balance…" : `${formatEthAmount(Number(formatEther(assetBalance)))} ASD available`}</p>}
+      {asdBuy && <p className="trade-hint">ASD sells on its curve, then mWETH converts to WETH, then WETH buys {token.symbol}. These are separate wallet transactions.</p>}
+      {asdBuy && asdQuoteError && <p className="trade-hint warn" role="status">{asdQuoteError}</p>}
 
       <div className="trade-summary" aria-live="polite">
         <Row
@@ -241,20 +281,19 @@ export function TradePanel({
                 : `${formatEthAmount(received)} ${receiving}`
           }
         />
+        {asdBuy && <Row label="ASD conversion" value={asdQuote ? `${formatEthAmount(Number(formatEther(asdQuote.quoteOut)))} WETH` : "—"} />}
         <Row
-          label="At least"
-          value={
-            atLeast === null ? "—" : `${formatEthAmount(atLeast)} ${receiving}`
-          }
+          label={asdBuy ? "Estimated after slippage" : "At least"}
+          value={atLeast === null ? "—" : `${formatEthAmount(atLeast)} ${receiving}`}
         />
-        <Row label="Price" value={<UsdAmount weth={token.price} />} />
+        {!asdBuy && <Row label="Price" value={<UsdAmount weth={token.price} />} />}
         <Row label="Slippage limit" value={`${SLIPPAGE_BPS / 100}%`} />
         {activeContractVersion === "v2" && <Row label="Curve fee + creator tax" value={token.feeBps == null ? "—" : `${((token.feeBps + (token.creatorTaxBps ?? 0)) / 100).toFixed(2)}%`} />}
-        <Row
+        {!asdBuy && <Row
           label="Price impact"
           value={priceImpact === null ? "—" : formatPercent(priceImpact)}
           tone={priceImpact !== null && priceImpact > 5 ? "warn" : undefined}
-        />
+        />}
       </div>
 
       {address ? (
@@ -262,8 +301,8 @@ export function TradePanel({
           type="button"
           className={`trade-submit ${side}`}
           size="3"
-          disabled={isPending || !(input > 0) || buyFunding?.canFund === false || (side === "buy" && !canBuy)}
-          onClick={() => trade(side, token)}
+          disabled={isPending || inputWei <= 0n || buyFunding?.canFund === false || (side === "buy" && !canBuy) || (asdBuy && (!asdQuote || assetBalance === undefined || insufficientAsd))}
+          onClick={() => asdBuy ? tradeWithAsd(token) : trade(side, token)}
         >
           {isPending ? "Pending…" : side === "buy" ? "Buy" : "Sell"}
         </Button>
@@ -273,8 +312,9 @@ export function TradePanel({
         </Button>
       )}
       {!address && <p className="trade-hint">Connect from the navigation to trade.</p>}
-      {tradeMessage && !isPending && (
-        <p className="trade-hint success" role="status">
+      {asdBuy && mockQuoteBalance !== undefined && mockQuoteBalance > 0n && <div className="trade-recovery"><p>You have {formatEthAmount(Number(formatEther(mockQuoteBalance)))} mWETH from an earlier test. You can continue its conversion and buy without selling more ASD.</p><Button type="button" variant="outline" disabled={isPending || !canBuy} onClick={() => tradeWithMockQuote(token, mockQuoteBalance)}>Continue with mWETH</Button></div>}
+      {tradeMessage && (
+        <p className={`trade-hint ${isPending ? "" : "success"}`} role="status">
           {tradeMessage}
         </p>
       )}

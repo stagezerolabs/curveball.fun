@@ -7,7 +7,7 @@ import type { Navigate, Token } from "../types";
 
 export function Featured({ tokens, loading, navigate }: { tokens: Token[]; loading: boolean; navigate: Navigate }) {
   const featured = useMemo(
-    () => [...tokens].filter((token) => !token.graduated).sort((a, b) => (b.progress ?? -1) - (a.progress ?? -1)).slice(0, 5),
+    () => [...tokens].filter((token) => !token.graduated).sort((a, b) => (b.progress ?? -1) - (a.progress ?? -1)).slice(0, 3),
     [tokens],
   );
   if (loading && !tokens.length) return <section className="featured"><div className="king skeleton" /></section>;

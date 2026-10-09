@@ -14,7 +14,7 @@ const routes: Route[] = [
 ];
 
 export function canonicalPathname(pathname: string) {
-  return pathname === "/app" || pathname === "/app/" ? "/markets" : pathname;
+  return pathname === "/app" || pathname === "/app/" || pathname === "/beta" || pathname.startsWith("/beta/") ? "/markets" : pathname;
 }
 
 function matchPath(

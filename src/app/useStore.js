@@ -13,6 +13,7 @@ import {
   requireCurveballSdk,
 } from "../lib/web3";
 import { readableError } from "../lib/errors";
+import { convertAsdToWeth, convertMockToWeth } from "../sdk/asdPayment";
 
 const MARKET_CACHE_TTL_MS = 30_000;
 let marketsRequest = null;
@@ -61,7 +62,7 @@ export const useStore = create(persist((set, get) => ({
   creatorErrors: {},
   actionError: "",
   tradeMessage: "",
-  amount: "1",
+  amount: "0",
   side: "buy",
   isPending: false,
   quotePreview: null,
@@ -323,6 +324,42 @@ export const useStore = create(persist((set, get) => ({
     } finally {
       endAction();
     }
+  },
+
+  tradeWithAsd: async (token) => {
+    const { amount, startAction, endAction, handleActionError } = get();
+    startAction();
+    try {
+      if (!token) throw Error("Select a market first.");
+      const input = parseEther(amount);
+      if (input <= 0n) throw Error("Enter an ASD amount greater than zero.");
+      const weth = await convertAsdToWeth(input, (message) => set({ tradeMessage: message }));
+      set({ tradeMessage: "Confirm WETH approval and curve buy" });
+      const result = await requireCurveballSdk().trade("buy", token.address, weth);
+      set({
+        tradeMessage: `Bought ~${formatEther(result.quotedOutput)} ${token.symbol}.`,
+        quotePreview: null,
+        marketsFetchedAt: 0,
+      });
+      set((state) => ({ tokenFetchedAt: { ...state.tokenFetchedAt, [cacheKey(token.address)]: 0 } }));
+    } catch (error) {
+      handleActionError(error);
+    } finally {
+      endAction();
+    }
+  },
+
+  tradeWithMockQuote: async (token, amount) => {
+    const { startAction, endAction, handleActionError } = get();
+    startAction();
+    try {
+      const weth = await convertMockToWeth(amount, (message) => set({ tradeMessage: message }));
+      set({ tradeMessage: "Confirm WETH approval and curve buy" });
+      const result = await requireCurveballSdk().trade("buy", token.address, weth);
+      set({ tradeMessage: `Bought ~${formatEther(result.quotedOutput)} ${token.symbol}.`, quotePreview: null, marketsFetchedAt: 0 });
+      set((state) => ({ tokenFetchedAt: { ...state.tokenFetchedAt, [cacheKey(token.address)]: 0 } }));
+    } catch (error) { handleActionError(error); }
+    finally { endAction(); }
   },
 
   // LpLocker.claim is permissionless: the caller pays gas, the creator and
