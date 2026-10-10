@@ -4027,24 +4027,6 @@ select:focus-visible {
   font-family: ui-monospace, "SF Mono", monospace;
   font-size: 12px;
 }
-.landing-footer-contracts strong {
-  align-items: center;
-  color: var(--lime-ink);
-  display: flex;
-  font-size: 12px;
-  gap: 5px;
-}
-.landing-footer-contracts strong i {
-  align-items: center;
-  border: 1px solid currentColor;
-  border-radius: 50%;
-  display: inline-flex;
-  font-size: 8px;
-  font-style: normal;
-  height: 15px;
-  justify-content: center;
-  width: 15px;
-}
 .landing-footer-bottom {
   align-items: flex-end;
   border-top: 1px solid var(--line);
