@@ -48,6 +48,10 @@ function mergeTokenLists(current, discovered) {
   return [...merged.values()];
 }
 
+export function rehydrateMarketCache(persisted, current) {
+  return { ...current, ...persisted, marketsFetchedAt: 0 };
+}
+
 export const useStore = create(persist((set, get) => ({
   tokens: [],
   loading: false,
@@ -110,12 +114,12 @@ export const useStore = create(persist((set, get) => ({
       .catch((cause) => {
         set((current) => ({
           loading: false,
-          marketError: current.tokens.length
-            ? ""
-            : readableError(
-                cause,
-                "Could not read markets from the configured network.",
-              ),
+          marketError: readableError(
+            cause,
+            current.tokens.length
+              ? "Could not refresh markets. Showing saved data; try again."
+              : "Could not read markets from the configured network.",
+          ),
         }));
         throw cause;
       })
@@ -421,8 +425,5 @@ export const useStore = create(persist((set, get) => ({
     creatorTokens: state.creatorTokens,
     creatorFetchedAt: state.creatorFetchedAt,
   }),
-  merge: (persisted, current) => ({
-    ...current,
-    ...persisted,
-  }),
+  merge: rehydrateMarketCache,
 }));

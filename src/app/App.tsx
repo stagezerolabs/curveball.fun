@@ -62,7 +62,7 @@ export function App() {
     <RadixTheme appearance={theme} accentColor="lime" grayColor="olive" radius="medium" scaling="100%" className="curveball-theme">
     <div className="site-shell">
       {isLanding ? (
-        <LandingHeader navigate={navigate} />
+        <LandingHeader navigate={navigate} theme={theme} onThemeToggle={toggleTheme} />
       ) : (
         <Header
           address={address}

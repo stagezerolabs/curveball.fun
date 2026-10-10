@@ -1,7 +1,8 @@
-import { createElement, useEffect, useRef, type ReactNode } from "react";
+import { createElement, useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "@radix-ui/themes";
 import { ArrowIcon } from "../components/ArrowIcon";
 import { AppLink, RiseLogo } from "../components/Navigation";
+import { LandingProtocolStats } from "../components/LandingProtocolStats";
 import type { Navigate } from "../types";
 
 let storyProgressComplete = false;
@@ -27,6 +28,7 @@ function ActionLink({
 export function LandingPage({ navigate }: { navigate: Navigate }) {
   const storyRef = useRef<HTMLElement>(null);
   const progressRef = useRef<HTMLSpanElement>(null);
+  const [burst, setBurst] = useState(false);
 
   useEffect(() => {
     const story = storyRef.current;
@@ -50,6 +52,7 @@ export function LandingPage({ navigate }: { navigate: Navigate }) {
       progress.style.setProperty("--landing-progress", String(amount));
       if (amount === 1) {
         storyProgressComplete = true;
+        setBurst(true);
         window.removeEventListener("scroll", scheduleUpdate);
         window.removeEventListener("resize", scheduleUpdate);
       }
@@ -72,14 +75,11 @@ export function LandingPage({ navigate }: { navigate: Navigate }) {
     <main className="landing-page">
       <section className="landing-hero wrap">
         <div className="landing-hero-copy">
-          <div className="eyebrow landing-rise-eyebrow">
-            Built on <RiseLogo />
-          </div>
           <h1>
             Launch on the <em>curve.</em>
           </h1>
           <p className="landing-lede">
-            Discover projects launching on RISE. Explore live markets and
+            Discover projects launching on <span className="landing-inline-rise"><span className="visually-hidden">RISE</span><RiseLogo /></span>. Explore live markets and
             support the ones you care about.
           </p>
           <div className="landing-actions">
@@ -102,6 +102,8 @@ export function LandingPage({ navigate }: { navigate: Navigate }) {
         })}
       </section>
 
+      <LandingProtocolStats />
+
       <section
         className="landing-story"
         aria-labelledby="landing-steps-title"
@@ -112,23 +114,26 @@ export function LandingPage({ navigate }: { navigate: Navigate }) {
           <em>Open to everyone.</em>
         </h2>
         <div className="landing-story-progress" aria-hidden="true">
-          <span ref={progressRef} />
+          <span className="landing-story-progress-fill" ref={progressRef} />
+          {burst && <span className="landing-story-confetti">
+            {Array.from({ length: 9 }, (_, index) => <i key={index} onAnimationEnd={index === 0 ? () => setBurst(false) : undefined} />)}
+          </span>}
         </div>
         <div className="landing-steps">
           <article>
             <span className="landing-step-number">01</span>
             <h3>Launch</h3>
-            <p>Start on the curve.</p>
+            <p>Create your token, add an image, and start trading on its own curve.</p>
           </article>
           <article>
             <span className="landing-step-number">02</span>
             <h3>Trade</h3>
-            <p>Let the market move.</p>
+            <p>Buy and sell as the price moves. Creators can earn a share of trading fees.</p>
           </article>
           <article>
             <span className="landing-step-number">03</span>
             <h3>Graduate</h3>
-            <p>Enter open liquidity.</p>
+            <p>When the curve sells out, liquidity moves to an open pool so trading can continue.</p>
           </article>
         </div>
       </section>
