@@ -236,10 +236,11 @@ export function Header({
   );
 }
 
-export function LandingHeader({ navigate }: { navigate: Navigate }) {
+export function LandingHeader({ navigate, theme, onThemeToggle }: { navigate: Navigate; theme: Theme; onThemeToggle: () => void }) {
   return (
     <header className="landing-nav wrap">
       <Brand navigate={navigate} />
+      <ThemeToggle theme={theme} onToggle={onThemeToggle} />
     </header>
   );
 }
