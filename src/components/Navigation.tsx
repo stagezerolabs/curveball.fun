@@ -279,7 +279,6 @@ export function LandingFooter({ navigate }: { navigate: Navigate }) {
           >
             <span>Launchpad</span>
             <code>{formatAddress(launchpadAddress)}</code>
-            <strong><i aria-hidden="true">✓</i> Verified</strong>
           </a>
         </div>
       )}
