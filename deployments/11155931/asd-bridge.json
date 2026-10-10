@@ -1,7 +1,0 @@
-{
-  "chainId": 11155931,
-  "bridge": "0x352E1b1dc631F69771Fba99c0A41a7c68BDF92Aa",
-  "deploymentBlock": "56419730",
-  "transactionHash": "0x33fdce82f4559c6fe1cb7fd588d717d9c9fd4e4d30dd86849442f30efcb43eae",
-  "reserveWei": "20000000000000000"
-}
