@@ -1,13 +1,17 @@
 import { formatEther, getAddress, zeroAddress, type Address } from "viem";
 import { launchpadAbi } from "./sdk/contracts";
 import { v2CurveAbi, v2FactoryAbi } from "./sdk/v2Contracts";
-import { activeContractVersion, activeDeploymentBlock, launchpadAddress } from "./lib/web3";
+import { activeChainId, activeContractVersion, activeDeploymentBlock, launchpadAddress } from "./lib/web3";
+import testnetV2 from "../deployments/11155931/curveball-v2.json";
 import type { Token } from "./types";
 
 export const CURVEBALL_TESTNET_DEPLOYMENT_BLOCK = 55_002_177n;
 const MAX_EVENT_QUERY_BLOCKS = 5_000n;
-const EVENT_QUERY_CONCURRENCY = 8;
-const EVENT_QUERY_ATTEMPTS = 4;
+const EVENT_QUERY_CONCURRENCY = 3;
+const EVENT_QUERY_ATTEMPTS = 6;
+// The first LaunchCreated from the recorded V2 testnet factory is at this block.
+// Earlier factory blocks cannot contain a launch and need no repeated RPC scan.
+const TESTNET_V2_FIRST_LAUNCH_BLOCK = 56_102_377n;
 
 async function readCreatedLogs(
   client: CreatorTokenClient,
@@ -21,7 +25,7 @@ async function readCreatedLogs(
       lastError = error;
       if (attempt < EVENT_QUERY_ATTEMPTS - 1) {
         await new Promise((resolve) =>
-          setTimeout(resolve, 250 * 2 ** attempt),
+          setTimeout(resolve, Math.min(500 * 2 ** attempt, 4_000)),
         );
       }
     }
@@ -101,7 +105,12 @@ async function discoverTokens(
   }
   const latestBlock = await client.getBlockNumber();
   const ranges: { fromBlock: bigint; toBlock: bigint }[] = [];
-  for (let fromBlock = activeDeploymentBlock; fromBlock <= latestBlock; fromBlock += MAX_EVENT_QUERY_BLOCKS) {
+  const firstBlock = version === "v2" && activeChainId === testnetV2.chainId &&
+    launchpadAddress.toLowerCase() === testnetV2.factory.toLowerCase() &&
+    activeDeploymentBlock <= TESTNET_V2_FIRST_LAUNCH_BLOCK
+      ? TESTNET_V2_FIRST_LAUNCH_BLOCK
+      : activeDeploymentBlock;
+  for (let fromBlock = firstBlock; fromBlock <= latestBlock; fromBlock += MAX_EVENT_QUERY_BLOCKS) {
     const toBlock =
       fromBlock + MAX_EVENT_QUERY_BLOCKS - 1n < latestBlock
         ? fromBlock + MAX_EVENT_QUERY_BLOCKS - 1n

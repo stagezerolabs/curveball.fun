@@ -2,14 +2,17 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { formatUnits } from "viem";
 import { usePublicClient } from "wagmi";
-import { discoverAllTokens, type CreatorTokenClient } from "../creatorTokens";
+import type { CreatorTokenClient } from "../creatorTokens";
+import { useStore } from "../app/useStore.js";
 import { readCachedLaunches, readCachedPayout, writeCachedLaunches, writeCachedPayout } from "../lib/landingStatsCache";
 import { getCreatorPayouts } from "../lib/protocolStats";
 import { activeChainId, activeContractVersion, activeDeploymentBlock, launchpadAddress } from "../lib/web3";
+import type { Token } from "../types";
 
 export function LandingProtocolStats() {
   const client = usePublicClient({ chainId: activeChainId });
-  const cacheKey = `curveball:landing-stats:v1:${activeContractVersion}:${activeChainId}:${launchpadAddress?.toLowerCase() ?? "none"}:${activeDeploymentBlock}`;
+  const loadMarkets = useStore((state) => state.loadMarkets) as (client?: CreatorTokenClient) => Promise<Token[]>;
+  const cacheKey = `curveball:landing-stats:v2:${activeContractVersion}:${activeChainId}:${launchpadAddress?.toLowerCase() ?? "none"}:${activeDeploymentBlock}`;
   const [cachedLaunches] = useState(() => readCachedLaunches(cacheKey));
   const [cachedPayout] = useState(() => readCachedPayout(cacheKey));
   const statsEnabled = Boolean(client && launchpadAddress);
@@ -21,8 +24,8 @@ export function LandingProtocolStats() {
     staleTime: 300_000,
     retry: 1,
     queryFn: async () => {
-      const tokens = await discoverAllTokens(client as unknown as CreatorTokenClient);
-      const launches = tokens.map(({ address, creator, graduated }) => ({ address, creator, graduated }));
+      const tokens = await loadMarkets(client as unknown as CreatorTokenClient);
+      const launches = tokens.map(({ address, creator, graduated, createdBlock }) => ({ address, creator, graduated, createdBlock }));
       writeCachedLaunches(cacheKey, launches);
       return launches;
     },

@@ -27,7 +27,7 @@ describe("creator payouts", () => {
     expect(queries).toHaveLength(1);
   });
 
-  test("bounds event queries to the deployment range", async () => {
+  test("does not scan claim logs when there are no launches", async () => {
     const queries: { fromBlock: bigint; toBlock: bigint }[] = [];
     const client = {
       getBlockNumber: async () => 5_010n,
@@ -38,6 +38,20 @@ describe("creator payouts", () => {
       },
     };
     expect(await getCreatorPayouts(client, escrow, [], 10n)).toEqual({ amount: 0n, decimals: 18 });
-    expect(queries.map(({ fromBlock, toBlock }) => [fromBlock, toBlock]).sort((a, b) => Number(a[0] - b[0]))).toEqual([[10n, 5_009n], [5_010n, 5_010n]]);
+    expect(queries).toEqual([]);
+  });
+
+  test("starts claim scans at the first known launch block", async () => {
+    const queries: { fromBlock: bigint; toBlock: bigint }[] = [];
+    const client = {
+      getBlockNumber: async () => 10_000n,
+      readContract: async ({ functionName }: { functionName: string }) => functionName === "escrow" ? escrow : functionName === "quote" ? quote : 18,
+      getContractEvents: async (query: object) => {
+        queries.push(query as { fromBlock: bigint; toBlock: bigint });
+        return [];
+      },
+    };
+    await getCreatorPayouts(client, escrow, [{ address: token, creator, createdBlock: "8000" }], 10n);
+    expect(queries.map(({ fromBlock }) => fromBlock)).toEqual([8_000n]);
   });
 });
