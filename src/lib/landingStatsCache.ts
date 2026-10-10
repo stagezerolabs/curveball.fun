@@ -1,6 +1,6 @@
 import { isAddress, type Address } from "viem";
 
-export type CachedLaunch = { address: Address; creator: Address; graduated: boolean };
+export type CachedLaunch = { address: Address; creator: Address; graduated: boolean; createdBlock?: string };
 export type CachedPayout = { amount: bigint; decimals: number };
 type Stored<T> = { value: T; updatedAt: number };
 type CacheStorage = Pick<Storage, "getItem" | "setItem">;
@@ -29,7 +29,8 @@ function write(key: string, value: unknown, updatedAt: number, storage?: CacheSt
 export function readCachedLaunches(key: string, storage?: CacheStorage): Stored<CachedLaunch[]> | null {
   const stored = read(`${key}:launches`, storage);
   if (!stored || !Array.isArray(stored.value) || !stored.value.every((token) =>
-    token && typeof token === "object" && isAddress(token.address) && isAddress(token.creator) && typeof token.graduated === "boolean"
+    token && typeof token === "object" && isAddress(token.address) && isAddress(token.creator) && typeof token.graduated === "boolean" &&
+    (token.createdBlock === undefined || typeof token.createdBlock === "string" && /^\d+$/.test(token.createdBlock))
   )) return null;
   return stored as Stored<CachedLaunch[]>;
 }
