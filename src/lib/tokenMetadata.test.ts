@@ -2,11 +2,13 @@ import { afterEach, expect, test } from "bun:test";
 import { publicContentUrl, tokenArtworkUrl } from "./tokenMetadata";
 
 const cid = `bafy${"a".repeat(55)}`;
+const pinataCid = "bafkreicwtm2hta4j7xpbgk7zer4ca6lyosjihya4dvm4zmgchogxbv3bd4";
 const originalFetch = globalThis.fetch;
 afterEach(() => { globalThis.fetch = originalFetch; });
 
 test("only resolves HTTPS and valid IPFS paths", () => {
   expect(publicContentUrl(`ipfs://${cid}`)).toBe(`https://gateway.pinata.cloud/ipfs/${cid}`);
+  expect(publicContentUrl(`ipfs://${pinataCid}`)).toBe(`https://gateway.pinata.cloud/ipfs/${pinataCid}`);
   expect(publicContentUrl("javascript:alert(1)")).toBeNull();
   expect(publicContentUrl("ipfs://bad-cid")).toBeNull();
 });

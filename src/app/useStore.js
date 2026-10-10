@@ -256,9 +256,8 @@ export const useStore = create(persist((set, get) => ({
       };
       const artwork = form.get("artwork");
       if (artwork instanceof File && artwork.size > 0) {
-        if (!address) throw new Error("Connect your wallet to publish artwork.");
         set({ launchProgress: { phase: "artwork", hash: null, error: "" } });
-        input.uri = await uploadArtwork(artwork, { address, name: input.name, symbol: input.symbol });
+        input.uri = await uploadArtwork(artwork, { name: input.name, symbol: input.symbol });
       }
       const initialBuy = String(form.get("initialBuy") ?? "").trim();
       const sdk = requireCurveballSdk();

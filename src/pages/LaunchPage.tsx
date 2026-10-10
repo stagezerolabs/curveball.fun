@@ -17,7 +17,7 @@ type LaunchProgress = { phase: LaunchPhase; hash: string | null; error: string }
 
 const phaseCopy: Record<Exclude<LaunchPhase, "error">, { title: string; detail: string }> = {
   preparing: { title: "Preparing launch", detail: "Checking details and network." },
-  artwork: { title: "Publishing artwork", detail: "Sign the upload request in your wallet, then wait for IPFS." },
+  artwork: { title: "Publishing artwork", detail: "Adding your image to IPFS. This usually takes a few seconds." },
   wrapWallet: { title: "Wrap ETH", detail: "Confirm the deposit in your wallet." },
   wrapConfirming: { title: "Wrapping ETH", detail: "Waiting for network confirmation." },
   approveWallet: { title: "Approve WETH", detail: "Confirm the allowance in your wallet." },
