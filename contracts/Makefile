@@ -5,9 +5,9 @@ ACCOUNT ?= dot
 MAINNET_RPC_URL ?= $(RISE_RPC_URL)
 TESTNET_RPC_URL ?= $(RISE_TESTNET_RPC_URL)
 
-export RPC_URL EXPECTED_CHAIN_ID QUOTE_TOKEN ICARUS_FACTORY TREASURY MULTISIG CONFIRM_MAINNET CONFIRM_TESTNET CONFIRM_TOKEN CONFIRM_TOKEN_BETA_TESTNET DEPLOYER_ADDRESS BLOCKSCOUT_API LAUNCHPAD_ADDRESS RISE_TESTNET_RPC_URL RISE_RPC_URL
+export RPC_URL EXPECTED_CHAIN_ID QUOTE_TOKEN ICARUS_FACTORY TREASURY MULTISIG CONFIRM_MAINNET CONFIRM_TESTNET CONFIRM_TOKEN BLOCKSCOUT_API LAUNCHPAD_ADDRESS RISE_TESTNET_RPC_URL RISE_RPC_URL
 
-.PHONY: test test-fork-strict verify-icarus verify-icarus-testnet deploy-devnet simulate-testnet deploy-testnet record-testnet simulate-v2-testnet deploy-v2-testnet deploy-v2-testnet-interactive simulate-token-beta deploy-token-beta deploy-token-beta-interactive simulate-asd-bridge deploy-asd-bridge-interactive simulate-mainnet deploy-mainnet
+.PHONY: test test-fork-strict verify-icarus verify-icarus-testnet deploy-devnet simulate-testnet deploy-testnet record-testnet simulate-v2-testnet deploy-v2-testnet deploy-v2-testnet-interactive simulate-mainnet deploy-mainnet
 
 test:
 	forge test --threads 1
@@ -79,51 +79,6 @@ deploy-v2-testnet-interactive:
 			TREASURY=0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3 \
 			BLOCKSCOUT_API=https://explorer.testnet.riselabs.xyz/api \
 			CONFIRM_V2_TESTNET="$$confirmation"
-
-simulate-token-beta:
-	@test "$$TREASURY" = "0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3" || { echo "TREASURY must be dot."; exit 1; }
-	@test "$$(cast chain-id --rpc-url "$(TESTNET_RPC_URL)")" = "11155931" || { echo "RPC is not RISE Testnet."; exit 1; }
-	@CONFIRM_TOKEN_BETA_TESTNET=DEPLOY_TOKEN_BETA_RISE_TESTNET_11155931 forge script scripts/DeployTokenBeta.s.sol:DeployTokenBeta --rpc-url "$(TESTNET_RPC_URL)"
-
-deploy-token-beta:
-	@test -t 0 || { echo "Run this target in an interactive terminal."; exit 1; }
-	@bun -e 'const f=Bun.file("broadcast/DeployTokenBeta.s.sol/11155931/run-latest.json"); if (await f.exists()) { const j=await f.json(); if (j.transactions?.some((tx)=>tx.hash) || j.receipts?.length) throw Error("Token beta broadcast already started; inspect receipts before retrying."); }'
-	@test "$$TREASURY" = "0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3" || { echo "TREASURY must be dot."; exit 1; }
-	@test "$$CONFIRM_TOKEN_BETA_TESTNET" = "DEPLOY_TOKEN_BETA_RISE_TESTNET_11155931" || { echo "Missing beta confirmation."; exit 1; }
-	@test "$$(cast chain-id --rpc-url "$(TESTNET_RPC_URL)")" = "11155931" || { echo "RPC is not RISE Testnet."; exit 1; }
-	@forge script scripts/DeployTokenBeta.s.sol:DeployTokenBeta --rpc-url "$(TESTNET_RPC_URL)" --broadcast --account dot --verify --verifier blockscout --verifier-url "$(BLOCKSCOUT_API)"
-
-# Human-operated RISE Testnet beta deployment. The confirmation and keystore
-# password stay in the terminal and are not written to the repo.
-deploy-token-beta-interactive:
-	@test -t 0 || { echo "Run this target in an interactive terminal."; exit 1; }
-	@printf 'Type DEPLOY_TOKEN_BETA_RISE_TESTNET_11155931 to continue: '; read -r confirmation; \
-		test "$$confirmation" = "DEPLOY_TOKEN_BETA_RISE_TESTNET_11155931" || { echo "Deployment cancelled."; exit 1; }; \
-		$(MAKE) deploy-token-beta \
-			TESTNET_RPC_URL=https://testnet.riselabs.xyz \
-			RISE_TESTNET_RPC_URL=https://testnet.riselabs.xyz \
-			TREASURY=0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3 \
-			DEPLOYER_ADDRESS=0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3 \
-			BLOCKSCOUT_API=https://explorer.testnet.riselabs.xyz/api \
-			CONFIRM_TOKEN_BETA_TESTNET="$$confirmation"
-
-simulate-asd-bridge:
-	@test "$$(cast chain-id --rpc-url "$(TESTNET_RPC_URL)")" = "11155931" || { echo "RPC is not RISE Testnet."; exit 1; }
-	@head_block=$$(cast block-number --rpc-url "$(TESTNET_RPC_URL)"); \
-		DEPLOYER_ADDRESS=0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3 \
-		CONFIRM_ASD_BRIDGE_TESTNET=DEPLOY_ASD_BRIDGE_RISE_TESTNET_11155931 \
-		forge script scripts/DeployAsdBridge.s.sol:DeployAsdBridge --rpc-url "$(TESTNET_RPC_URL)" --fork-block-number $$((head_block - 128))
-
-deploy-asd-bridge-interactive:
-	@test -t 0 || { echo "Run this target in an interactive terminal."; exit 1; }
-	@bun -e 'const f=Bun.file("broadcast/DeployAsdBridge.s.sol/11155931/run-latest.json"); if (await f.exists()) { const j=await f.json(); if (j.transactions?.some((tx)=>tx.hash) || j.receipts?.length) throw Error("ASD bridge broadcast already started; inspect receipts before retrying."); }'
-	@printf 'Type DEPLOY_ASD_BRIDGE_RISE_TESTNET_11155931 to continue: '; read -r confirmation; \
-		test "$$confirmation" = "DEPLOY_ASD_BRIDGE_RISE_TESTNET_11155931" || { echo "Deployment cancelled."; exit 1; }; \
-		test "$$(cast chain-id --rpc-url https://testnet.riselabs.xyz)" = "11155931" || { echo "RPC is not RISE Testnet."; exit 1; }; \
-		head_block=$$(cast block-number --rpc-url https://testnet.riselabs.xyz); \
-		DEPLOYER_ADDRESS=0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3 CONFIRM_ASD_BRIDGE_TESTNET="$$confirmation" \
-		forge script scripts/DeployAsdBridge.s.sol:DeployAsdBridge --rpc-url https://testnet.riselabs.xyz --fork-block-number $$((head_block - 128)) --broadcast --account dot
-	@RISE_TESTNET_RPC_URL=https://testnet.riselabs.xyz bun ../scripts/record-asd-bridge.ts
 
 record-testnet:
 	RISE_TESTNET_RPC_URL="$(TESTNET_RPC_URL)" \
