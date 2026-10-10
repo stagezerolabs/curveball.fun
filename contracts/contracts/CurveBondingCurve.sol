@@ -10,6 +10,8 @@ import {CurveBuybackVault} from "./CurveBuybackVault.sol";
 
 interface ICurveFactoryAccess {
     function launchAndBuy() external view returns (address);
+    function tokenBuyAdapter() external view returns (address);
+    function tokenBuyEnabled() external view returns (bool);
     function owner() external view returns (address);
 }
 
@@ -172,7 +174,9 @@ contract CurveBondingCurve is ReentrancyGuard {
     function buyTokensFor(address recipient, uint256 maxSpend, uint256 minOut, uint256 deadline)
         external nonReentrant returns (uint256 out)
     {
-        require(msg.sender == ICurveFactoryAccess(factory).launchAndBuy() && recipient != address(0), "wrapper only");
+        ICurveFactoryAccess access = ICurveFactoryAccess(factory);
+        require(recipient != address(0) && (msg.sender == access.launchAndBuy()
+            || (msg.sender == access.tokenBuyAdapter() && access.tokenBuyEnabled())), "authorized payer only");
         out = _buy(msg.sender, recipient, maxSpend, minOut, deadline);
     }
 
