@@ -35,6 +35,7 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
   const publicClient = usePublicClient({ chainId: activeChainId });
   const {
     tokens,
+    loading,
     marketsFetchedAt,
     marketError: error,
     lastCreatedToken,
@@ -44,18 +45,31 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
     marketsFetchedAt: number;
     marketError: string;
     lastCreatedToken: string | null;
-    loadMarkets: (client?: CreatorTokenClient) => Promise<Token[]>;
+    loading: boolean;
+    loadMarkets: (client?: CreatorTokenClient, options?: { force?: boolean }) => Promise<Token[]>;
   };
   const [tab, setTab] = useState<Tab>(lastCreatedToken ? "new" : "trending");
   const visible = useMemo(() => selectTokens(tokens, tab), [tokens, tab]);
   const tickerTokens = useMemo(() => selectTokens(tokens, "new").slice(0, 12), [tokens]);
-  const initialLoading = !marketsFetchedAt && !error;
+  const initialLoading = !marketsFetchedAt && !tokens.length && !error;
 
   useEffect(() => {
-    void loadMarkets(
-      publicClient as unknown as CreatorTokenClient | undefined,
-    ).catch(() => undefined);
+    const client = publicClient as unknown as CreatorTokenClient | undefined;
+    const refresh = () => {
+      if (document.visibilityState === "visible") void loadMarkets(client).catch(() => undefined);
+    };
+    refresh();
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
   }, [loadMarkets, publicClient]);
+
+  const refreshMarkets = () => {
+    void loadMarkets(publicClient as unknown as CreatorTokenClient | undefined, { force: true }).catch(() => undefined);
+  };
 
   return (
     <main className="page-main">
@@ -69,21 +83,27 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
         )}
         <Featured tokens={tokens} loading={initialLoading} navigate={navigate} />
         <Tabs.Root value={tab} onValueChange={(next) => setTab(next as Tab)}>
-        <Tabs.List className="market-tabs" aria-label="Market filters">
-          {TABS.map((item) => (
-            <Tabs.Tab
-              key={item.id}
-              value={item.id}
-              className={tab === item.id ? "active" : ""}
-            >
-              {item.label}
-            </Tabs.Tab>
-          ))}
-          <Tabs.Indicator className="market-tabs-indicator" />
-        </Tabs.List>
-        <Tabs.Panel key={tab} value={tab} className="market-tab-panel">
-        <MarketList tokens={visible} loading={initialLoading} navigate={navigate} highlightedToken={lastCreatedToken} />
-        </Tabs.Panel>
+          <div className="market-tabs-bar">
+            <Tabs.List className="market-tabs" aria-label="Market filters">
+              {TABS.map((item) => (
+                <Tabs.Tab
+                  key={item.id}
+                  value={item.id}
+                  className={tab === item.id ? "active" : ""}
+                >
+                  {item.label}
+                </Tabs.Tab>
+              ))}
+              <Tabs.Indicator className="market-tabs-indicator" />
+            </Tabs.List>
+            <button type="button" className="market-refresh" onClick={refreshMarkets} disabled={loading || !publicClient}>
+              {loading ? "Refreshing…" : "Refresh markets"}
+            </button>
+          </div>
+          {loading && tokens.length > 0 && <p className="market-refresh-status" role="status">Checking for new markets…</p>}
+          <Tabs.Panel key={tab} value={tab} className="market-tab-panel">
+            <MarketList tokens={visible} loading={initialLoading} navigate={navigate} highlightedToken={lastCreatedToken} />
+          </Tabs.Panel>
         </Tabs.Root>
       </section>
       {tickerTokens.length > 0 && (
