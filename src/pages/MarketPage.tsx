@@ -4,7 +4,6 @@ import { getAddress, isAddress, type Address } from "viem";
 import { useStore } from "../app/useStore.js";
 import { AppLink } from "../components/Navigation";
 import { MarketHeader } from "../components/MarketHeader";
-import { MarketTabs } from "../components/MarketTabs";
 import { MilestonePanel } from "../components/MilestonePanel";
 import { TradePanel } from "../components/TradePanel";
 import type { CreatorTokenClient } from "../creatorTokens";
@@ -27,7 +26,6 @@ function MarketPageSkeleton() {
       </div>
       <div className="skeleton market-panel-skeleton" />
       <div className="skeleton market-panel-skeleton" />
-      <div className="skeleton market-tabs-skeleton" />
     </main>
   );
 }
@@ -107,12 +105,6 @@ export function MarketPage({
           />
         </aside>
       </div>
-
-      <MarketTabs token={resolvedToken} />
-
-      <p className="disclaimer">
-        Market state is read directly from the configured network. Nothing here is financial advice.
-      </p>
 
       {error && (
         <div className="notice notice-dismissible floating-notice" role="alert">

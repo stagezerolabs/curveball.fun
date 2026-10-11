@@ -11,6 +11,7 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import { usePublicClient } from "wagmi";
+import { MarketActivity } from "./MarketActivity";
 import { launchpadAbi } from "../sdk/contracts";
 import { v2CurveAbi } from "../sdk/v2Contracts";
 import {
@@ -23,7 +24,9 @@ import {
   buildBlockRanges,
   buildCandles,
   parseCreatedBlock,
+  tradeLogToActivity,
   tradeLogToPoint,
+  type TradeActivity,
   type TradePoint,
   withRetry,
 } from "../lib/marketChart";
@@ -35,6 +38,7 @@ const EVENT_QUERY_CONCURRENCY = 6;
 const tradePointCache = new Map<string, {
   lastBlock: bigint;
   points: TradePoint[];
+  trades: TradeActivity[];
 }>();
 
 const INTERVALS = [
@@ -52,8 +56,14 @@ type TradeLog = {
     grossCurveQuote?: bigint;
     vQAfter?: bigint;
     vTAfter?: bigint;
+    trader?: string;
+    isBuy?: boolean;
+    tokenAmount?: bigint;
+    netTraderQuote?: bigint;
   };
   blockNumber?: bigint | null;
+  logIndex?: number;
+  transactionHash?: string;
 };
 
 type ChartClient = {
@@ -107,7 +117,7 @@ async function loadTradePoints(client: ChartClient, token: Token) {
   try {
     result = await queryTradeLogs(client, token);
   } catch (error) {
-    if (cached) return cached.points;
+    if (cached) return { points: cached.points, trades: cached.trades };
     throw error;
   }
   const { latestBlock, logs } = result;
@@ -140,8 +150,15 @@ async function loadTradePoints(client: ChartClient, token: Token) {
     return point ? [point] : [];
   });
   const points = cached ? [...cached.points, ...newPoints] : newPoints;
-  tradePointCache.set(cacheKey, { lastBlock: latestBlock, points });
-  return points;
+  const newTrades = logs.flatMap((log): TradeActivity[] => {
+    const activity = tradeLogToActivity(log, log.blockNumber == null ? undefined : timestamps.get(log.blockNumber));
+    return activity ? [activity] : [];
+  });
+  const trades = [...(cached?.trades ?? []), ...newTrades].sort((a, b) =>
+    a.blockNumber === b.blockNumber ? b.logIndex - a.logIndex : a.blockNumber > b.blockNumber ? -1 : 1,
+  );
+  tradePointCache.set(cacheKey, { lastBlock: latestBlock, points, trades });
+  return { points, trades };
 }
 
 function formatChartValue(value: number) {
@@ -161,6 +178,7 @@ export function MarketChart({
   const publicClient = usePublicClient({ chainId: activeChainId });
   const chartRef = useRef<HTMLDivElement>(null);
   const [points, setPoints] = useState<TradePoint[]>([]);
+  const [trades, setTrades] = useState<TradeActivity[]>([]);
   const [interval, setInterval] = useState(60);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -180,10 +198,14 @@ export function MarketChart({
     setLoading(true);
     setError("");
     setPoints([]);
+    setTrades([]);
     setHover(null);
     void loadTradePoints(publicClient as unknown as ChartClient, token)
-      .then((nextPoints) => {
-        if (!cancelled) setPoints(nextPoints);
+      .then(({ points: nextPoints, trades }) => {
+        if (!cancelled) {
+          setPoints(nextPoints);
+          setTrades(trades);
+        }
       })
       .catch(() => {
         if (!cancelled) setError("Chart unavailable");
@@ -296,6 +318,7 @@ export function MarketChart({
   }, [candles, themeVersion]);
 
   return (
+    <div className="market-main">
     <section className="market-chart-panel" aria-label={`${token.symbol} price chart`}>
       <header className="market-chart-head">
         <div>
@@ -325,5 +348,7 @@ export function MarketChart({
         <div ref={chartRef} className="market-chart-canvas" />
       </div>
     </section>
+    <MarketActivity key={token.address} token={token} trades={trades} loading={loading} error={Boolean(error)} />
+    </div>
   );
 }
