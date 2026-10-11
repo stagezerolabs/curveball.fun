@@ -20,6 +20,7 @@ test("a missing launch transaction cannot leave confirmation waiting forever", a
   let requestedTimeout: number | undefined;
   const actions = {
     getAccount: () => ({ address: wallet, chainId: RISE_TESTNET_CHAIN_ID }),
+    readContract: async () => 0n,
     simulateContract: async () => ({ request: {} }),
     writeContract: async () => hash,
     waitForTransactionReceipt: async (_config: unknown, options: { timeout?: number }) => {
@@ -57,6 +58,7 @@ test("a receipt found after the waiter fails still completes the launch", async 
   } as TransactionReceipt;
   const actions = {
     getAccount: () => ({ address: wallet, chainId: RISE_TESTNET_CHAIN_ID }),
+    readContract: async () => 0n,
     simulateContract: async () => ({ request: {} }),
     writeContract: async () => hash,
     waitForTransactionReceipt: async () => { throw new WaitForTransactionReceiptTimeoutError({ hash }); },
@@ -71,6 +73,7 @@ test("a receipt found after the waiter fails still completes the launch", async 
 test("a reverted receipt found after the waiter fails is reported as a failure", async () => {
   const actions = {
     getAccount: () => ({ address: wallet, chainId: RISE_TESTNET_CHAIN_ID }),
+    readContract: async () => 0n,
     simulateContract: async () => ({ request: {} }),
     writeContract: async () => hash,
     waitForTransactionReceipt: async () => { throw new WaitForTransactionReceiptTimeoutError({ hash }); },
@@ -79,4 +82,46 @@ test("a reverted receipt found after the waiter fails is reported as a failure",
 
   await expect(createV2Sdk({} as Config, deployment, actions).createToken({ name: "Test", symbol: "TST", uri: "" }))
     .rejects.toThrow(`Transaction ${hash} reverted.`);
+});
+
+test("a paid launch wraps and approves only the exact fee before creation", async () => {
+  const fee = 400_000_000_000_000n;
+  const quote = "0x0000000000000000000000000000000000000005" as Address;
+  const token = "0x0000000000000000000000000000000000000003" as Address;
+  const curve = "0x0000000000000000000000000000000000000004" as Address;
+  const simulations: Array<{ functionName: string; args?: readonly unknown[]; value?: bigint }> = [];
+  let approved = false;
+  const receipt = {
+    status: "success",
+    logs: [{
+      address: deployment.launchpad,
+      topics: encodeEventTopics({ abi: v2FactoryAbi, eventName: "LaunchCreated", args: { token, curve, creator: wallet } }),
+      data: encodeAbiParameters([{ type: "string" }, { type: "string" }, { type: "string" }], ["Test", "TST", ""]),
+    }],
+  } as TransactionReceipt;
+  const actions = {
+    getAccount: () => ({ address: wallet, chainId: RISE_TESTNET_CHAIN_ID }),
+    getBalance: async () => ({ value: 1n * 10n ** 18n }),
+    readContract: async (_config: unknown, request: { functionName: string }) => {
+      if (request.functionName === "launchFee") return fee;
+      if (request.functionName === "quote") return quote;
+      if (request.functionName === "balanceOf") return 0n;
+      if (request.functionName === "allowance") return approved ? fee : 0n;
+      throw new Error(`Unexpected ${request.functionName}`);
+    },
+    simulateContract: async (_config: unknown, request: { functionName: string; args?: readonly unknown[]; value?: bigint }) => {
+      simulations.push(request);
+      return { request };
+    },
+    writeContract: async (_config: unknown, request: { functionName: string }) => {
+      if (request.functionName === "approve") approved = true;
+      return hash;
+    },
+    waitForTransactionReceipt: async () => receipt,
+  } as unknown as WagmiActions;
+
+  await createV2Sdk({} as Config, deployment, actions).createToken({ name: "Test", symbol: "TST", uri: "" });
+  expect(simulations.map((request) => request.functionName)).toEqual(["deposit", "approve", "createToken"]);
+  expect(simulations[0].value).toBe(fee);
+  expect(simulations[1].args).toEqual([deployment.launchpad, fee]);
 });

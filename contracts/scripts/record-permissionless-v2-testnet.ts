@@ -12,7 +12,8 @@ if (Bun.env.CONFIRM_RECORD_PERMISSIONLESS_V2 !== "RECORD_PERMISSIONLESS_CURVEBAL
 }
 if (await Bun.file(outputPath).exists()) throw new Error(`Refusing to overwrite ${outputPath}.`);
 
-const { creates, factory, initializeHash } = resolveV2Broadcast(await Bun.file(broadcastPath).json());
+const { creates, factory, feeTreasury, initializeHash } = resolveV2Broadcast(await Bun.file(broadcastPath).json());
+if (!feeTreasury) throw new Error("Launch fee treasury deployment missing.");
 const client = createPublicClient({ transport: http(rpcUrl) });
 if (await client.getChainId() !== 11_155_931) throw new Error("RPC is not RISE Testnet.");
 const services = await validateV2Deployment(
@@ -20,7 +21,7 @@ const services = await validateV2Deployment(
   getAddress("0x4200000000000000000000000000000000000006"),
 );
 const expectedServices = [services.deployer, services.escrow, services.vault, services.guard, services.locker, services.executor, services.hook, services.launchAndBuy];
-if (creates.slice(1).some((tx, i) => tx.address !== expectedServices[i])) throw new Error("Broadcast services do not match factory wiring.");
+if (creates.slice(2).some((tx, i) => tx.address !== expectedServices[i])) throw new Error("Broadcast services do not match factory wiring.");
 const receipts = await Promise.all([...creates.map((tx) => tx.hash), initializeHash].map((hash) =>
   client.getTransactionReceipt({ hash: hash as `0x${string}` }),
 ));
@@ -34,7 +35,7 @@ const initialization = receipts.at(-1)!;
 if (initialization.status !== "success" || !initialization.to || getAddress(initialization.to) !== factory) {
   throw new Error("Live initialization receipt mismatch.");
 }
-const [icarusFactory, treasury, owner, supply, curveSupply, initialVQ, permissionless] = await Promise.all([
+const [icarusFactory, treasury, owner, supply, curveSupply, initialVQ, permissionless, launchFee, launchFeeTreasury, feeTreasuryOwner] = await Promise.all([
   client.readContract({ address: factory, abi: v2FactoryAbi, functionName: "icarusFactory" }),
   client.readContract({ address: factory, abi: v2FactoryAbi, functionName: "treasury" }),
   client.readContract({ address: factory, abi: v2FactoryAbi, functionName: "owner" }),
@@ -42,28 +43,35 @@ const [icarusFactory, treasury, owner, supply, curveSupply, initialVQ, permissio
   client.readContract({ address: factory, abi: v2FactoryAbi, functionName: "curveSupply" }),
   client.readContract({ address: factory, abi: v2FactoryAbi, functionName: "initialVQ" }),
   client.readContract({ address: factory, abi: v2FactoryAbi, functionName: "publicLaunchOpen" }),
+  client.readContract({ address: factory, abi: v2FactoryAbi, functionName: "launchFee" }),
+  client.readContract({ address: factory, abi: v2FactoryAbi, functionName: "launchFeeTreasury" }),
+  client.readContract({ address: feeTreasury, abi: v2FactoryAbi, functionName: "owner" }),
 ]);
 if (icarusFactory !== getAddress("0x8221dfB70c9A2dE60253dcfC58231FD529bbF4F9")
   || treasury !== getAddress("0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3") || owner !== treasury) {
   throw new Error("Canonical dependency or owner mismatch.");
 }
 if (!permissionless) throw new Error("Replacement factory is not permissionless.");
+if (launchFee !== 400_000_000_000_000n || launchFeeTreasury !== feeTreasury || feeTreasuryOwner !== owner) {
+  throw new Error("Launch fee or treasury owner mismatch.");
+}
 if (supply !== 1_000_000n * 10n ** 18n || curveSupply !== 800_000n * 10n ** 18n || initialVQ !== 10n * 10n ** 18n) {
   throw new Error("Curve constants mismatch.");
 }
 const codeHashes: Record<string, string> = {};
-for (const [name, address] of Object.entries({ factory, ...services })) {
+for (const [name, address] of Object.entries({ factory, feeTreasury, ...services })) {
   const code = await client.getBytecode({ address: address as Address });
   if (!code || code === "0x") throw new Error(`${name} has no code.`);
   codeHashes[name] = keccak256(code);
 }
 const record = {
   version: "v2", release: "permissionless", chainId: 11_155_931, factory,
-  deploymentBlock: receipts[0].blockNumber.toString(), quote: services.quote, icarusFactory, treasury,
+  deploymentBlock: receipts[1].blockNumber.toString(), quote: services.quote, icarusFactory, treasury,
+  launchFee: launchFee.toString(), launchFeeTreasury,
   supply: supply.toString(), curveSupply: curveSupply.toString(), initialVQ: initialVQ.toString(),
   permissionless, services, codeHashes,
   transactions: creates.map((tx) => ({ name: tx.name, hash: tx.hash, address: tx.address })),
   initialization: { hash: initializeHash, blockNumber: initialization.blockNumber.toString() },
 };
 await Bun.write(outputPath, `${JSON.stringify(record, null, 2)}\n`);
-console.log(`Recorded permissionless V2 factory ${factory} at block ${receipts[0].blockNumber}`);
+console.log(`Recorded permissionless V2 factory ${factory} at block ${receipts[1].blockNumber}`);

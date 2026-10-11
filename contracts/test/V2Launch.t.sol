@@ -69,7 +69,7 @@ contract V2LaunchTest is TestBase {
 
     function testFactoryCannotLaunchUninitializedOrReplaceBoundServices() external {
         MockWETH quote = new MockWETH();
-        CurveLaunchFactory raw = new CurveLaunchFactory(address(quote), address(new MockIcarusFactory()), address(this), SUPPLY, CURVE_SUPPLY, 10 ether);
+        CurveLaunchFactory raw = new CurveLaunchFactory(address(quote), address(new MockIcarusFactory()), address(this), address(0), 0, SUPPLY, CURVE_SUPPLY, 10 ether);
         assertTrue(!raw.publicLaunchOpen(), "uninitialized factory reports public access");
         vm.expectRevert();
         raw.createToken("Uninitialized", "NO", "", 0);

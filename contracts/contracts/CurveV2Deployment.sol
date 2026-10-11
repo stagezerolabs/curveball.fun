@@ -16,7 +16,14 @@ library CurveV2Deployment {
     function deploy(address quote, address icarusFactory, address treasury, uint256 supply, uint256 curveSupply, uint256 initialVQ)
         internal returns (CurveLaunchFactory factory)
     {
-        factory = new CurveLaunchFactory(quote, icarusFactory, treasury, supply, curveSupply, initialVQ);
+        return deployWithFee(quote, icarusFactory, treasury, address(0), 0, supply, curveSupply, initialVQ);
+    }
+
+    function deployWithFee(
+        address quote, address icarusFactory, address treasury, address feeTreasury, uint256 launchFee,
+        uint256 supply, uint256 curveSupply, uint256 initialVQ
+    ) internal returns (CurveLaunchFactory factory) {
+        factory = new CurveLaunchFactory(quote, icarusFactory, treasury, feeTreasury, launchFee, supply, curveSupply, initialVQ);
         address f = address(factory);
         CurveLaunchFactory.Services memory s;
         s.deployer = address(new CurveLaunchDeployer(f));

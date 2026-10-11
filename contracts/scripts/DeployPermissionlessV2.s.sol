@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {CurveLaunchFactory} from "../contracts/CurveLaunchFactory.sol";
 import {CurveV2Deployment} from "../contracts/CurveV2Deployment.sol";
+import {CurveLaunchFeeTreasury} from "../contracts/CurveLaunchFeeTreasury.sol";
 
 interface IPermissionlessDeployVm {
     function envAddress(string calldata name) external returns (address);
@@ -19,6 +20,7 @@ contract DeployPermissionlessV2 {
 
     uint256 public constant TESTNET_CHAIN_ID = 11_155_931;
     uint256 public constant LOCAL_CHAIN_ID = 31_337;
+    uint256 public constant LAUNCH_FEE = 0.0004 ether;
     address public constant TESTNET_TREASURY = 0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3;
     address public constant TESTNET_WETH = 0x4200000000000000000000000000000000000006;
     address public constant TESTNET_ICARUS = 0x8221dfB70c9A2dE60253dcfC58231FD529bbF4F9;
@@ -54,8 +56,14 @@ contract DeployPermissionlessV2 {
         require(deployer == treasury, "deployer must be treasury");
 
         vm.startBroadcast(deployer);
-        factory = CurveV2Deployment.deploy(quote, icarus, treasury, 1_000_000 ether, 800_000 ether, 10 ether);
+        CurveLaunchFeeTreasury feeTreasury = new CurveLaunchFeeTreasury(deployer);
+        factory = CurveV2Deployment.deployWithFee(
+            quote, icarus, treasury, address(feeTreasury), LAUNCH_FEE,
+            1_000_000 ether, 800_000 ether, 10 ether
+        );
         vm.stopBroadcast();
+        require(feeTreasury.owner() == deployer, "fee treasury authority mismatch");
+        require(factory.launchFee() == LAUNCH_FEE && factory.launchFeeTreasury() == address(feeTreasury), "launch fee mismatch");
         require(factory.owner() == deployer && factory.treasury() == treasury, "factory authority mismatch");
         require(factory.quote() == quote && factory.icarusFactory() == icarus, "factory dependencies mismatch");
         require(

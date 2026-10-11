@@ -7,6 +7,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {CurveBondingCurve} from "./CurveBondingCurve.sol";
 
 interface IAtomicFactory {
+    function launchFee() external view returns (uint256);
     function createFor(address creator, string calldata name_, string calldata symbol_, string calldata uri_, uint16 tax)
         external returns (address token, address curve);
 }
@@ -36,8 +37,10 @@ contract CurveLaunchAndBuy is ReentrancyGuard {
 
     function launchAndBuy(LaunchRequest calldata request) external nonReentrant returns (address token, address curve, uint256 bought) {
         require(request.maxSpend > 0 && block.timestamp <= request.deadline, "bad buy");
+        uint256 fee = IAtomicFactory(factory).launchFee();
         uint256 beforeBalance = IERC20(quote).balanceOf(address(this));
-        IERC20(quote).safeTransferFrom(msg.sender, address(this), request.maxSpend);
+        IERC20(quote).safeTransferFrom(msg.sender, address(this), request.maxSpend + fee);
+        if (fee > 0) IERC20(quote).forceApprove(factory, fee);
         (token, curve) = IAtomicFactory(factory).createFor(msg.sender, request.name, request.symbol, request.uri, request.creatorTaxBps);
         IERC20(quote).forceApprove(curve, request.maxSpend);
         bought = CurveBondingCurve(curve).buyTokensFor(msg.sender, request.maxSpend, request.minOut, request.deadline);

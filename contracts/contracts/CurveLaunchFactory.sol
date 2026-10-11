@@ -43,6 +43,8 @@ contract CurveLaunchFactory is Ownable2Step, ReentrancyGuard {
 
     address public immutable quote;
     address public immutable icarusFactory;
+    address public immutable launchFeeTreasury;
+    uint256 public immutable launchFee;
     uint256 public immutable supply;
     uint256 public immutable curveSupply;
     uint256 public immutable initialVQ;
@@ -69,16 +71,24 @@ contract CurveLaunchFactory is Ownable2Step, ReentrancyGuard {
     event ServicesInitialized(address indexed deployer, address indexed escrow, address indexed vault);
     event TokensRescued(address indexed asset, uint256 amount, address indexed recipient);
     event NativeRescued(uint256 amount, address indexed recipient);
+    event LaunchFeePaid(address indexed creator, address indexed treasury, uint256 amount);
     event GraduationDeferred(address indexed token, bytes reason);
 
-    constructor(address quote_, address icarusFactory_, address treasury_, uint256 supply_, uint256 curveSupply_, uint256 initialVQ_)
+    constructor(
+        address quote_, address icarusFactory_, address treasury_, address launchFeeTreasury_, uint256 launchFee_,
+        uint256 supply_, uint256 curveSupply_, uint256 initialVQ_
+    )
         Ownable(msg.sender)
     {
         require(quote_ != address(0) && icarusFactory_ != address(0) && treasury_ != address(0), "bad dependency");
         require(supply_ > curveSupply_ && curveSupply_ > 0 && initialVQ_ > 0, "bad curve");
         require(supply_ <= type(uint128).max && initialVQ_ <= type(uint128).max, "curve too large");
+        require(launchFee_ <= 0.01 ether, "launch fee too high");
+        require(launchFee_ == 0 || launchFeeTreasury_.code.length > 0, "missing fee treasury");
         quote = quote_;
         icarusFactory = icarusFactory_;
+        launchFeeTreasury = launchFeeTreasury_;
+        launchFee = launchFee_;
         treasury = treasury_;
         supply = supply_;
         curveSupply = curveSupply_;
@@ -169,6 +179,10 @@ contract CurveLaunchFactory is Ownable2Step, ReentrancyGuard {
             "metadata too long"
         );
         require(creatorTaxBps <= creatorTaxCapBps, "creator tax too high");
+        if (launchFee > 0) {
+            IERC20(quote).safeTransferFrom(msg.sender, launchFeeTreasury, launchFee);
+            emit LaunchFeePaid(creator, launchFeeTreasury, launchFee);
+        }
         bytes32 salt = keccak256(abi.encode(creator, creatorNonce[creator]++, block.chainid));
         CurveLaunchDeployer.LaunchParams memory p = CurveLaunchDeployer.LaunchParams({
             name: name_, symbol: symbol_, uri: uri_, quote: quote,
