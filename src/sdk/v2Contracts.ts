@@ -2,6 +2,8 @@ import { parseAbi } from "viem";
 
 export const v2FactoryAbi = parseAbi([
   "function quote() view returns (address)",
+  "function launchFee() view returns (uint256)",
+  "function launchFeeTreasury() view returns (address)",
   "function icarusFactory() view returns (address)",
   "function locker() view returns (address)",
   "function deployer() view returns (address)",
@@ -28,10 +30,14 @@ export const v2FactoryAbi = parseAbi([
   "function graduate(address token)",
   "function createGraduatedPool(address token) returns (address pool)",
   "event LaunchCreated(address indexed token,address indexed curve,address indexed creator,string name,string symbol,string uri)",
+  "event LaunchFeePaid(address indexed creator,address indexed treasury,uint256 amount)",
   "event GraduationStarted(address indexed token,address indexed curve)",
   "event GraduationDeferred(address indexed token,bytes reason)",
   "event Graduated(address indexed token,address indexed pool,uint256 tokenLiquidity,uint256 quoteLiquidity,uint256 liquidity)",
 ]);
+
+// The recorded first V2 testnet release predates the launch fee.
+export const LEGACY_TESTNET_V2_FACTORY = "0x36628AbAC7B2cdcde1A8fa21868AfeCB74660ECf";
 
 export const v2CurveAbi = parseAbi([
   "function quoteBuy(uint256 maxSpend) view returns (uint256 tokensOut,uint256 spent,uint256 curveQuote,uint256 fee,uint256 creatorTax)",

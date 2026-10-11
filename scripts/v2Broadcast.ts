@@ -1,6 +1,6 @@
 import { getAddress, type Address } from "viem";
 
-const expectedNames = [
+const serviceNames = [
   "CurveLaunchFactory", "CurveLaunchDeployer", "CurveFeeEscrow", "CurveBuybackVault",
   "CurveGraduationGuard", "CurveLpLocker", "CurveGraduationExecutor", "CurveMemeHook", "CurveLaunchAndBuy",
 ] as const;
@@ -22,6 +22,8 @@ type BroadcastReceipt = {
 
 export function resolveV2Broadcast(broadcast: { transactions: BroadcastTransaction[]; receipts: BroadcastReceipt[] }) {
   const creations = broadcast.transactions.filter((tx) => tx.transactionType === "CREATE");
+  const feeTreasuryDeployment = creations[0]?.contractName === "CurveLaunchFeeTreasury";
+  const expectedNames = feeTreasuryDeployment ? ["CurveLaunchFeeTreasury", ...serviceNames] : [...serviceNames];
   if (creations.length !== expectedNames.length || creations.some((tx, i) => tx.contractName !== expectedNames[i])) {
     throw new Error("Broadcast does not contain the ordered V2 deployment.");
   }
@@ -41,7 +43,7 @@ export function resolveV2Broadcast(broadcast: { transactions: BroadcastTransacti
     }
     return { name: expectedNames[i], address, hash: receipt.transactionHash, blockNumber: BigInt(receipt.blockNumber) };
   });
-  const factory = creates[0].address;
+  const factory = creates[feeTreasuryDeployment ? 1 : 0].address;
   const initialization = broadcast.transactions.find((tx) =>
     tx.transactionType === "CALL" && tx.contractName === "CurveLaunchFactory"
       && tx.function?.startsWith("initialize(") && tx.transaction?.to && getAddress(tx.transaction.to) === factory
@@ -50,5 +52,6 @@ export function resolveV2Broadcast(broadcast: { transactions: BroadcastTransacti
   if (!initializeReceipt || initializeReceipt.status !== "0x1" || initializeReceipt.contractAddress) {
     throw new Error("No successful factory initialization receipt.");
   }
-  return { creates, initializeHash: initializeReceipt.transactionHash, factory: factory as Address };
+  return { creates, initializeHash: initializeReceipt.transactionHash, factory: factory as Address,
+    feeTreasury: feeTreasuryDeployment ? creates[0].address : null };
 }

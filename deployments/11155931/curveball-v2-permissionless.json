@@ -1,0 +1,96 @@
+{
+  "version": "v2",
+  "release": "permissionless",
+  "chainId": 11155931,
+  "factory": "0xD0f0cf4fd5Aa9D391477B3B9CF3B77Dc96705056",
+  "deploymentBlock": "56629483",
+  "quote": "0x4200000000000000000000000000000000000006",
+  "icarusFactory": "0x8221dfB70c9A2dE60253dcfC58231FD529bbF4F9",
+  "treasury": "0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3",
+  "launchFee": "400000000000000",
+  "launchFeeTreasury": "0x027ECdF183E064396701807E148BC474e01b7feb",
+  "supply": "1000000000000000000000000",
+  "curveSupply": "800000000000000000000000",
+  "initialVQ": "10000000000000000000",
+  "permissionless": true,
+  "services": {
+    "quote": "0x4200000000000000000000000000000000000006",
+    "deployer": "0xC79c02bAE22bb298c28Dd85594C755504773f4d5",
+    "escrow": "0x3E115CF553097d8090424a1a84901562851591ec",
+    "vault": "0x3332B21Fda88eaFDbe4f012686d8f7eEA387f0ff",
+    "guard": "0x58017Baea60882288d8fC7d59437481bcEfdcbE0",
+    "executor": "0xc9D5d8Fa2C1d611315b43b003157E17bD9804788",
+    "locker": "0x99e391A10b6737167369fabDBB12cc4276586dd1",
+    "hook": "0x719c348C7aefAD520Ec03Bf57ee35e3F204a7e13",
+    "launchAndBuy": "0x2Ae371d09aFd45346FaC7dAF54DEBf06B6e026B9"
+  },
+  "codeHashes": {
+    "factory": "0x38476f2db9c63541a5bcbf8ce2ac55b4212a851097fb1ddfb23228c7f25e9095",
+    "feeTreasury": "0xd096dcae2d27bbae38b17874ac41cb5a1060ea38d9bcacc4ca13eb671eaf59be",
+    "quote": "0x56cbe8c504010ebe7f2750c95c3b62624513908ccc7fae4f95cb73eecf312b68",
+    "deployer": "0x3671867c5dc21bd355762f54ff90e244effff177d17df4e5123251c59342c246",
+    "escrow": "0xc8cb6cd3a914a180c05c2f05f70fe225a2d63ae2f9a03a800af41c0f3ea27154",
+    "vault": "0x606d90406ceaf2398f353152b8f82ea75d281184f40e42908395bd1c368dc5d1",
+    "guard": "0xb8e5f7086e53e1e242a942097c47c30241d44e85926ef3392c99e8a580174b75",
+    "executor": "0xbbdccc6b65ca886064d8667aa4b564eb39ef1724dc3ae78641bcf20cbedc647e",
+    "locker": "0x7115cbdb126d67ee1237e94de5c48e8fa0bb2a3ea50e82a4e87b8e02a7144ddb",
+    "hook": "0x03f9b7721a347444dc93b926fa72a1bd12d814e3a66dabe7c1aeb9f94fdeb3a5",
+    "launchAndBuy": "0x26256159732563e0091b68a32acb934a4f5a7687e04b4f123aa8aa1425a66fb0"
+  },
+  "transactions": [
+    {
+      "name": "CurveLaunchFeeTreasury",
+      "hash": "0x4ac85748f042327d09f3eb6d81eb9be53be6455cd058795fcf804470e6d82707",
+      "address": "0x027ECdF183E064396701807E148BC474e01b7feb"
+    },
+    {
+      "name": "CurveLaunchFactory",
+      "hash": "0x75818c60e43431cd2e9f20da2a4b779977321426de6d83876c9309c1602f93fc",
+      "address": "0xD0f0cf4fd5Aa9D391477B3B9CF3B77Dc96705056"
+    },
+    {
+      "name": "CurveLaunchDeployer",
+      "hash": "0xf379579ce0626728009ecbb917f701ba69de6b87ad45c7cb0ef4ede81ccd875a",
+      "address": "0xC79c02bAE22bb298c28Dd85594C755504773f4d5"
+    },
+    {
+      "name": "CurveFeeEscrow",
+      "hash": "0xb7543460d8e874415a2a3f82f06e61ee99d2e57fb326f4524dc0eda52fe845a8",
+      "address": "0x3E115CF553097d8090424a1a84901562851591ec"
+    },
+    {
+      "name": "CurveBuybackVault",
+      "hash": "0xb13729347b7a65357900c8c1c6dd8308e1d89902b04ed3f85b6790b76a0676a7",
+      "address": "0x3332B21Fda88eaFDbe4f012686d8f7eEA387f0ff"
+    },
+    {
+      "name": "CurveGraduationGuard",
+      "hash": "0xf03017cb4d4ab60165ff8a9fe09f824a1ae57ec67741daa4c0b7a5319182ac17",
+      "address": "0x58017Baea60882288d8fC7d59437481bcEfdcbE0"
+    },
+    {
+      "name": "CurveLpLocker",
+      "hash": "0x8e4f31e26654d2d05b6148ad8469e551a56b798812c7d1464dbc971e64b2c7e4",
+      "address": "0x99e391A10b6737167369fabDBB12cc4276586dd1"
+    },
+    {
+      "name": "CurveGraduationExecutor",
+      "hash": "0x8c8446ef398f9ea854c42a416e429d6f12db1e6ba7a51ddf604a93b090827ea1",
+      "address": "0xc9D5d8Fa2C1d611315b43b003157E17bD9804788"
+    },
+    {
+      "name": "CurveMemeHook",
+      "hash": "0x7aadba52e758f42365c7406672e00cd3c9b7465750ab914e0848ddc7b60c1927",
+      "address": "0x719c348C7aefAD520Ec03Bf57ee35e3F204a7e13"
+    },
+    {
+      "name": "CurveLaunchAndBuy",
+      "hash": "0xb67a52510c574bc57c7eafde8a723ef5aeeb8ef80c8aeb4d3625f8348f44c7ee",
+      "address": "0x2Ae371d09aFd45346FaC7dAF54DEBf06B6e026B9"
+    }
+  ],
+  "initialization": {
+    "hash": "0x32a559c0456321a9935d1a8187968c12f3d0fa47bad1e199868b12d141844eba",
+    "blockNumber": "56629500"
+  }
+}

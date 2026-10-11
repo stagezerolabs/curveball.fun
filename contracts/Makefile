@@ -7,7 +7,7 @@ TESTNET_RPC_URL ?= $(RISE_TESTNET_RPC_URL)
 
 export RPC_URL EXPECTED_CHAIN_ID QUOTE_TOKEN ICARUS_FACTORY TREASURY MULTISIG CONFIRM_MAINNET CONFIRM_TESTNET CONFIRM_TOKEN BLOCKSCOUT_API LAUNCHPAD_ADDRESS RISE_TESTNET_RPC_URL RISE_RPC_URL
 
-.PHONY: test test-fork-strict verify-icarus verify-icarus-testnet deploy-devnet simulate-testnet deploy-testnet record-testnet simulate-v2-testnet deploy-v2-testnet deploy-v2-testnet-interactive simulate-mainnet deploy-mainnet
+.PHONY: test test-fork-strict verify-icarus verify-icarus-testnet deploy-devnet simulate-testnet deploy-testnet record-testnet simulate-v2-testnet deploy-v2-testnet deploy-v2-testnet-interactive deploy-v2-launch-fee-testnet simulate-mainnet deploy-mainnet
 
 test:
 	forge test --threads 1
@@ -79,6 +79,11 @@ deploy-v2-testnet-interactive:
 			TREASURY=0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3 \
 			BLOCKSCOUT_API=https://explorer.testnet.riselabs.xyz/api \
 			CONFIRM_V2_TESTNET="$$confirmation"
+
+# Fee-enabled replacement V2. The script checks the chain, runs tests, asks for
+# the deployment phrase, broadcasts with the local keystore, and saves a log.
+deploy-v2-launch-fee-testnet:
+	@ACCOUNT="$(ACCOUNT)" TESTNET_RPC_URL="$(TESTNET_RPC_URL)" bash scripts/deploy-v2-launch-fee-testnet.sh
 
 record-testnet:
 	RISE_TESTNET_RPC_URL="$(TESTNET_RPC_URL)" \

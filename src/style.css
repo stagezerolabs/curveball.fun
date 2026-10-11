@@ -4479,6 +4479,29 @@ select:focus-visible {
 .launch-pair-field { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; display: flex; gap: 16px; justify-content: space-between; padding: 15px 16px; }
 .launch-pair-field > span { color: var(--muted); font-size: 13px; }
 .launch-pair-field strong { font-size: 14px; }
+.launch-fee-consent {
+  align-items: center;
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  font-size: 14px;
+  gap: 10px;
+  line-height: 1.4;
+}
+.launch-form .launch-fee-consent input[type="checkbox"] {
+  appearance: auto;
+  accent-color: var(--lime);
+  background: initial;
+  border: initial;
+  border-radius: 0;
+  flex: 0 0 18px;
+  height: 18px;
+  min-height: 18px;
+  margin: 0;
+  padding: 0;
+  width: 18px;
+}
+.launch-form .launch-fee-consent input[type="checkbox"]:focus-visible { outline: 2px solid var(--lime); outline-offset: 3px; }
 .launch-advanced { border-bottom: 1px solid var(--line); padding-bottom: 24px; }
 .launch-advanced summary { align-items: center; cursor: pointer; display: flex; font-size: 15px; font-weight: 700; gap: 8px; list-style: none; }
 .launch-advanced summary::-webkit-details-marker { display: none; }

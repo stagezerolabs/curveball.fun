@@ -6,11 +6,23 @@ Curveball is a React/Vite dApp connected directly to the V2 Curveball contracts 
 
 - Chain: RISE Testnet (`11155931`)
 - RPC: `https://testnet.riselabs.xyz`
-- Factory: `0x36628AbAC7B2cdcde1A8fa21868AfeCB74660ECf`
-- Deployment block: `55636468`
-- Canonical deployment record: `deployments/11155931/curveball-v2.json`
+- Factory: `0xD0f0cf4fd5Aa9D391477B3B9CF3B77Dc96705056`
+- Deployment block: `56629483`
+- Launch fee: `0.0004 WETH` per token launch
+- Launch fee treasury: `0x027ECdF183E064396701807E148BC474e01b7feb`
+- Canonical deployment record: `deployments/11155931/curveball-v2-permissionless.json`
 
 The frontend discovers launches from factory events, reads market state from the factory and curve contracts, and sends wallet-signed launch, trade, graduation, and fee-claim transactions through the SDK in `src/sdk`.
+
+### Deploy the fee-enabled V2
+
+The factory above was deployed on RISE Testnet on October 11, 2026. It charges a fixed `0.0004 WETH` per launch and sends it to an admin-owned fee treasury. For a fresh testnet deployment, run from the repository root:
+
+```bash
+make -C contracts deploy-v2-launch-fee-testnet
+```
+
+The command uses the local Foundry `dot` keystore by default. Set `ACCOUNT=<keystore-name>` if yours differs. It checks the chain, runs contract tests, asks you to type the deployment phrase, prompts for the keystore password, and saves the Forge output under `contracts/broadcast/DeployPermissionlessV2.s.sol/11155931/`. Do not send your password, private key, or keystore file. The previous no-fee factory remains recorded in `deployments/11155931/curveball-v2.json` for historical markets.
 
 ## Run locally
 
