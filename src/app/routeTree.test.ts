@@ -17,3 +17,8 @@ test("old beta URLs resolve to the main markets", () => {
     id: "market", params: { address: "0xabc" }, title: "Market — Curveball",
   });
 });
+
+test("previous launches have a dedicated migration route", () => {
+  expect(routeHref("migration")).toBe("/migration");
+  expect(resolveRoute("/migration").id).toBe("migration");
+});

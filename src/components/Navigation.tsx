@@ -172,6 +172,7 @@ export function Header({
     navigate(route, params);
   };
   const marketsClass = ["markets", "market"].includes(routeId) ? "active" : "";
+  const migrationClass = routeId === "migration" ? "active" : "";
   const profileClass = routeId === "profile" ? "active" : "";
 
   const primaryLinks = (
@@ -183,6 +184,14 @@ export function Header({
         aria-current={marketsClass ? "page" : undefined}
       >
         Explore
+      </AppLink>
+      <AppLink
+        className={`nav-link ${migrationClass}`}
+        route="migration"
+        navigate={go}
+        aria-current={migrationClass ? "page" : undefined}
+      >
+        Migration
       </AppLink>
       <AppLink
         className={`nav-link ${profileClass}`}
@@ -257,6 +266,7 @@ export function LandingFooter({ navigate }: { navigate: Navigate }) {
         <nav className="landing-footer-column" aria-label="Product">
           <h2>Product</h2>
           <AppLink route="markets" navigate={navigate}>Markets</AppLink>
+          <AppLink route="migration" navigate={navigate}>Previous launches</AppLink>
           <AppLink route="launch" navigate={navigate}>Launch</AppLink>
         </nav>
 

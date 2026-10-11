@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Tabs } from "@base-ui/react/tabs";
 import { usePublicClient } from "wagmi";
 import { Featured } from "../components/Featured";
+import { AppLink } from "../components/Navigation";
 import { MarketList } from "../components/MarketList";
 import { UsdAmount } from "../components/UsdAmount";
 import { formatPercent } from "../lib/format.js";
@@ -75,6 +76,7 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
     <main className="page-main">
       <section className="markets-page wrap" aria-labelledby="markets-title">
         <h1 id="markets-title" className="visually-hidden">Explore markets</h1>
+        <p className="market-migration-note">We’re moving launches to a new contract. <AppLink route="migration" navigate={navigate}>Find previous tokens and addresses ↗</AppLink></p>
         {lastCreatedToken && <p className="market-created-note" role="status">Your new token is listed below. Market data may take a moment to appear.</p>}
         {error && (
           <p className="notice" role="alert">

@@ -96,10 +96,13 @@ export function ProfilePage({
         ) : !tokens.length ? (
           <div className="profile-empty">
             <strong>No launches from this wallet yet.</strong>
-            <p>Create a token and it will appear here after confirmation.</p>
-            <AppLink className="primary-button" route="launch" navigate={navigate}>
-              Launch a token
-            </AppLink>
+            <p>New launches appear here. Tokens you created on the previous contract are listed on the migration page.</p>
+            <div className="profile-empty-actions">
+              <AppLink route="migration" navigate={navigate}>Find previous tokens ↗</AppLink>
+              <AppLink className="primary-button" route="launch" navigate={navigate}>
+                Launch a token
+              </AppLink>
+            </div>
           </div>
         ) : (
           <ul className="tcard-grid">
