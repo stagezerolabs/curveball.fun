@@ -2948,7 +2948,7 @@ select:focus-visible {
 .market-activity-price { color: var(--muted); font-size: 11px; }
 .market-activity-date time, .market-activity-trader { display: grid; gap: 1px; }
 .market-activity-date time > span { color: var(--ink); font-weight: 600; }
-.market-activity-date small, .market-activity-trader small { color: var(--muted); font-size: 10px; }
+.market-activity-date small { color: var(--muted); font-size: 10px; }
 .market-activity-side { font-size: 11px; font-weight: 700; }
 .market-activity-side.buy { color: var(--lime-ink); }
 .market-activity-side.sell { color: #ff6b6b; }

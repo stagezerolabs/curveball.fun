@@ -17,9 +17,8 @@ function TraderLink({ address }: { address: Address }) {
     staleTime: 60_000,
     retry: 1,
   });
-  return <a className="market-activity-trader" href={`${activeExplorerUrl}/address/${address}`} target="_blank" rel="noreferrer" title={address}>
+  return <a className="market-activity-trader" href={`${activeExplorerUrl}/address/${address}`} target="_blank" rel="noreferrer" title={address} aria-label={name ? `${name}, ${address}` : address}>
     <span className={name ? "market-activity-name" : ""}>{name ?? formatAddress(address)}</span>
-    {name && <small>{formatAddress(address)}</small>}
   </a>;
 }
 
