@@ -203,7 +203,7 @@ export function createV2Sdk(config: Config, deployment: CurveballDeployment, act
     return { ...confirmed, ...createdFromReceipt(confirmed.receipt), minimumOutput: minOut };
   }
 
-  async function trade(side: TradeSide, token: Address, input: bigint): Promise<ConfirmedTrade> {
+  async function trade(side: TradeSide, token: Address, input: bigint, onProgress?: (phase: "approving" | "selling") => void): Promise<ConfirmedTrade> {
     if (input <= 0n) throw new CurveballSdkError("Trade amount must be greater than zero.");
     const account = await ensureWallet();
     const market = await readMarket(token);
@@ -222,6 +222,7 @@ export function createV2Sdk(config: Config, deployment: CurveballDeployment, act
     const allowance = await actions.readContract(config, { address: asset, abi: erc20Abi, functionName: "allowance", args: [account, market.curve], chainId: deployment.chainId });
     const approved = allowance < input;
     if (approved) {
+      onProgress?.("approving");
       const approval = await actions.simulateContract(config, { account, address: asset, abi: erc20Abi, functionName: "approve", args: [market.curve, input], chainId: deployment.chainId });
       await confirm(await actions.writeContract(config, approval.request));
       await waitForAllowance(asset, account, market.curve, input);
@@ -229,9 +230,48 @@ export function createV2Sdk(config: Config, deployment: CurveballDeployment, act
     const quotedOutput = await quoteTrade(side, token, input);
     const minimumOutput = applySlippage(quotedOutput, deployment.slippageBps);
     if (minimumOutput <= 0n) throw new CurveballSdkError("Trade output is too small.");
+    onProgress?.("selling");
     const simulation = await simulateAfterApproval(() => actions.simulateContract(config, { account, address: market.curve, abi: v2CurveAbi, functionName: side === "buy" ? "buyTokens" : "sellTokens", args: [input, minimumOutput, createDeadline(Date.now(), deployment.deadlineSeconds)], chainId: deployment.chainId }), approved);
     const confirmed = await confirm(await actions.writeContract(config, simulation.request));
     return { ...confirmed, side, input, quotedOutput, minimumOutput, wrappedAmount };
+  }
+
+  async function unwrapWeth(amount: bigint, expectedWeth: Address): Promise<ConfirmedWrite> {
+    if (amount <= 0n) throw new CurveballSdkError("WETH amount must be greater than zero.");
+    const account = await ensureWallet();
+    const quote = await actions.readContract(config, { address: factory, abi: v2FactoryAbi, functionName: "quote", chainId: deployment.chainId });
+    if (getAddress(quote) !== getAddress(expectedWeth)) throw new CurveballSdkError("This previous market does not use the expected WETH token.");
+    const balance = await actions.readContract(config, { address: quote, abi: erc20Abi, functionName: "balanceOf", args: [account], chainId: deployment.chainId });
+    if (balance < amount) throw new CurveballSdkError("The WETH from this sale is no longer in your wallet.");
+    const simulation = await actions.simulateContract(config, { account, address: quote, abi: erc20Abi, functionName: "withdraw", args: [amount], chainId: deployment.chainId });
+    return confirm(await actions.writeContract(config, simulation.request));
+  }
+
+  async function sellAllForEth(token: Address, expectedWeth: Address, onProgress?: (phase: "approving" | "selling" | "sold" | "unwrapping", amount?: bigint, hash?: Hash) => void) {
+    const account = await ensureWallet();
+    const quote = await actions.readContract(config, { address: factory, abi: v2FactoryAbi, functionName: "quote", chainId: deployment.chainId });
+    if (getAddress(quote) !== getAddress(expectedWeth)) throw new CurveballSdkError("This previous market does not use the expected WETH token.");
+    const tokenAddress = getAddress(token);
+    const balance = await actions.readContract(config, { address: tokenAddress, abi: erc20Abi, functionName: "balanceOf", args: [account], chainId: deployment.chainId });
+    if (balance <= 0n) throw new CurveballSdkError("There are no tokens left to sell in this wallet.");
+    const market = await readMarket(tokenAddress);
+    const sale = await trade("sell", tokenAddress, balance, onProgress);
+    let received: bigint | undefined;
+    for (const log of sale.receipt.logs) {
+      if (log.address.toLowerCase() !== market.curve.toLowerCase()) continue;
+      try {
+        const event = decodeEventLog({ abi: v2CurveAbi, eventName: "Trade", data: log.data, topics: log.topics, strict: true });
+        if (!event.args.isBuy && getAddress(event.args.token) === tokenAddress && getAddress(event.args.trader) === account) {
+          received = event.args.netTraderQuote;
+          break;
+        }
+      } catch { /* Ignore other curve events. */ }
+    }
+    if (!received || received <= 0n) throw new CurveballSdkError("Sale confirmed, but its WETH amount could not be verified. Check the transaction before unwrapping.");
+    onProgress?.("sold", received, sale.hash);
+    onProgress?.("unwrapping", received, sale.hash);
+    const unwrap = await unwrapWeth(received, expectedWeth);
+    return { sale, unwrap, amount: received };
   }
 
   async function writeFactory(functionName: "graduate", token: Address): Promise<GraduationPreparation>;
@@ -329,5 +369,5 @@ export function createV2Sdk(config: Config, deployment: CurveballDeployment, act
     readContract: ({ address, abi, functionName }) => actions.readContract(config, { address, abi: abi as typeof v2FactoryAbi, functionName: functionName as "quote", chainId: deployment.chainId }),
   }, factory, expectedQuote);
 
-  return Object.freeze({ deployment, validateDeployment, readMarket, quoteTrade, createToken, launchAndBuy, trade, graduate: (token: Address) => writeFactory("graduate", token), createGraduatedPool: (token: Address) => writeFactory("createGraduatedPool", token), graduateToIcarus, claimPoolFees, claimEscrow, sweepBuyback });
+  return Object.freeze({ deployment, validateDeployment, readMarket, quoteTrade, createToken, launchAndBuy, trade, sellAllForEth, unwrapWeth, graduate: (token: Address) => writeFactory("graduate", token), createGraduatedPool: (token: Address) => writeFactory("createGraduatedPool", token), graduateToIcarus, claimPoolFees, claimEscrow, sweepBuyback });
 }

@@ -10,6 +10,7 @@ import { LandingPage } from "../pages/LandingPage";
 import { LaunchPage } from "../pages/LaunchPage";
 import { MarketPage } from "../pages/MarketPage";
 import { MarketsPage } from "../pages/MarketsPage";
+import { MigrationPage } from "../pages/MigrationPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { ProfilePage } from "../pages/ProfilePage";
 import { useRouter } from "./useRouter.js";
@@ -33,6 +34,9 @@ export function App() {
       break;
     case "markets":
       page = <MarketsPage navigate={navigate} />;
+      break;
+    case "migration":
+      page = <MigrationPage navigate={navigate} />;
       break;
     case "market":
       page = (
