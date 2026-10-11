@@ -581,6 +581,43 @@ button {
 }
 .previous-token dd {
   margin: 2px 0 0;
+  overflow-wrap: anywhere;
+}
+.previous-token-details {
+  min-width: 0;
+}
+.previous-token-action {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 18px;
+}
+.previous-token-action button {
+  background: var(--solid);
+  border: 1px solid var(--solid);
+  border-radius: 6px;
+  color: var(--on-solid);
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  min-height: 40px;
+  padding: 8px 16px;
+}
+.previous-token-action button:disabled {
+  cursor: not-allowed;
+  opacity: .5;
+}
+.previous-token-action p {
+  font-size: 13px;
+  margin: 0;
+}
+.previous-token-action p[role="alert"] {
+  color: var(--orange-ink);
+}
+.previous-token-action a {
+  font-size: 13px;
 }
 .previous-state {
   border-top: 1px solid var(--line);

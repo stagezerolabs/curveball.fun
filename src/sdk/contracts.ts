@@ -43,6 +43,7 @@ export const erc20Abi = parseAbi([
   "function allowance(address owner, address spender) view returns (uint256)",
   "function approve(address spender, uint256 amount) returns (bool)",
   "function deposit() payable",
+  "function withdraw(uint256 amount)",
 ]);
 
 export const icarusFactoryAbi = parseAbi([

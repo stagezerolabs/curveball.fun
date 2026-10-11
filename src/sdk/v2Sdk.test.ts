@@ -4,7 +4,7 @@ import type { Config } from "@wagmi/core";
 import { createV2Sdk } from "./v2Sdk";
 import { defineCurveballDeployment, RISE_TESTNET_CHAIN_ID } from "./curveballSdk";
 import type { WagmiActions } from "./wagmiSdk";
-import { v2FactoryAbi } from "./v2Contracts";
+import { v2CurveAbi, v2FactoryAbi } from "./v2Contracts";
 
 const wallet = "0x0000000000000000000000000000000000000001" as Address;
 const hash = `0x${"ab".repeat(32)}` as Hash;
@@ -13,6 +13,109 @@ const deployment = defineCurveballDeployment({
   launchpad: "0x0000000000000000000000000000000000000002",
   slippageBps: 300,
   deadlineSeconds: 300,
+});
+
+test("sell all for ETH approves the full balance, sells, then unwraps only the sale proceeds", async () => {
+  const token = "0x0000000000000000000000000000000000000003" as Address;
+  const curve = "0x0000000000000000000000000000000000000004" as Address;
+  const quote = "0x0000000000000000000000000000000000000005" as Address;
+  const balance = 123n;
+  const net = 45n;
+  const calls: Array<{ functionName: string; args?: readonly unknown[]; address?: Address }> = [];
+  let approved = false;
+  const saleReceipt = {
+    status: "success",
+    logs: [{
+      address: curve,
+      topics: encodeEventTopics({ abi: v2CurveAbi, eventName: "Trade", args: { token, trader: wallet } }),
+      data: encodeAbiParameters([
+        { type: "bool" }, { type: "uint256" }, { type: "uint256" }, { type: "uint256" },
+        { type: "uint256" }, { type: "uint256" }, { type: "uint256" }, { type: "uint256" },
+        { type: "uint256" },
+      ], [false, 50n, net, 3n, 2n, balance, 100n, 100n, 0n]),
+    }],
+  } as TransactionReceipt;
+  const actions = {
+    getAccount: () => ({ address: wallet, chainId: RISE_TESTNET_CHAIN_ID }),
+    readContract: async (_config: unknown, request: { functionName: string }) => {
+      if (request.functionName === "market") return [curve, wallet, 0, 0, 0, 0, wallet];
+      if (request.functionName === "quote") return quote;
+      if (request.functionName === "balanceOf") return balance;
+      if (request.functionName === "allowance") return approved ? balance : 0n;
+      if (request.functionName === "quoteSell") return [net, 50n, 3n, 2n];
+      throw new Error(`Unexpected ${request.functionName}`);
+    },
+    simulateContract: async (_config: unknown, request: { functionName: string; args?: readonly unknown[]; address?: Address }) => {
+      calls.push(request);
+      return { request };
+    },
+    writeContract: async (_config: unknown, request: { functionName: string }) => {
+      if (request.functionName === "approve") approved = true;
+      return hash;
+    },
+    waitForTransactionReceipt: async (_config: unknown, request: { hash: Hash }) =>
+      calls.some((call) => call.functionName === "withdraw") ? { status: "success", logs: [] } : request.hash === hash && calls.some((call) => call.functionName === "sellTokens") ? saleReceipt : { status: "success", logs: [] },
+  } as unknown as WagmiActions;
+
+  const result = await createV2Sdk({} as Config, deployment, actions).sellAllForEth(token, quote);
+  expect(result.amount).toBe(net);
+  expect(calls.map((call) => call.functionName)).toEqual(["approve", "sellTokens", "withdraw"]);
+  expect(calls[0].args).toEqual([curve, balance]);
+  expect(calls[1].args?.[0]).toBe(balance);
+  expect(calls[2].address).toBe(quote);
+  expect(calls[2].args).toEqual([net]);
+});
+
+test("a rejected unwrap reports the confirmed sale and can be retried without selling twice", async () => {
+  const token = "0x0000000000000000000000000000000000000003" as Address;
+  const curve = "0x0000000000000000000000000000000000000004" as Address;
+  const quote = "0x0000000000000000000000000000000000000005" as Address;
+  const net = 45n;
+  const writes: string[] = [];
+  const phases: string[] = [];
+  let rejectUnwrap = true;
+  const saleReceipt = {
+    status: "success",
+    logs: [{
+      address: curve,
+      topics: encodeEventTopics({ abi: v2CurveAbi, eventName: "Trade", args: { token, trader: wallet } }),
+      data: encodeAbiParameters([
+        { type: "bool" }, { type: "uint256" }, { type: "uint256" }, { type: "uint256" },
+        { type: "uint256" }, { type: "uint256" }, { type: "uint256" }, { type: "uint256" },
+        { type: "uint256" },
+      ], [false, 50n, net, 3n, 2n, 123n, 100n, 100n, 0n]),
+    }],
+  } as TransactionReceipt;
+  const actions = {
+    getAccount: () => ({ address: wallet, chainId: RISE_TESTNET_CHAIN_ID }),
+    readContract: async (_config: unknown, request: { functionName: string }) => {
+      if (request.functionName === "market") return [curve, wallet, 0, 0, 0, 0, wallet];
+      if (request.functionName === "quote") return quote;
+      if (request.functionName === "balanceOf") return 123n;
+      if (request.functionName === "allowance") return 123n;
+      if (request.functionName === "quoteSell") return [net, 50n, 3n, 2n];
+      throw new Error(`Unexpected ${request.functionName}`);
+    },
+    simulateContract: async (_config: unknown, request: object) => ({ request }),
+    writeContract: async (_config: unknown, request: { functionName: string }) => {
+      writes.push(request.functionName);
+      if (request.functionName === "withdraw" && rejectUnwrap) throw new Error("User rejected unwrap");
+      return hash;
+    },
+    waitForTransactionReceipt: async () => writes.at(-1) === "sellTokens" ? saleReceipt : { status: "success", logs: [] },
+  } as unknown as WagmiActions;
+  const sdk = createV2Sdk({} as Config, deployment, actions);
+  let saleAmount: bigint | undefined;
+  await expect(sdk.sellAllForEth(token, quote, (phase, amount) => {
+    phases.push(phase);
+    if (phase === "sold") saleAmount = amount;
+  })).rejects.toThrow("User rejected unwrap");
+
+  expect(saleAmount).toBe(net);
+  expect(phases).toContain("sold");
+  rejectUnwrap = false;
+  await sdk.unwrapWeth(saleAmount!, quote);
+  expect(writes).toEqual(["sellTokens", "withdraw", "withdraw"]);
 });
 
 test("a missing launch transaction cannot leave confirmation waiting forever", async () => {
