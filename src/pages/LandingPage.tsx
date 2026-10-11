@@ -123,7 +123,7 @@ export function LandingPage({ navigate }: { navigate: Navigate }) {
           <article>
             <span className="landing-step-number">01</span>
             <h3>Launch</h3>
-            <p>Create your token, add an image, and start trading on its own curve.</p>
+            <p>Name your token, choose a ticker, and launch it on its own curve.</p>
           </article>
           <article>
             <span className="landing-step-number">02</span>
