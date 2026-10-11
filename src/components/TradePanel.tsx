@@ -61,29 +61,30 @@ export function TradePanel({
     fetchQuote,
   } = useStore();
   const [explain, setExplain] = useState(false);
+  const factory = token.factory ?? launchpadAddress;
   const { openConnectModal } = useConnectModal();
   const betaReadEnabled = getBetaReadEnabled({
     contractVersion: activeContractVersion,
     chainId: activeChainId,
     walletConnected: Boolean(address),
-    hasLaunchpadAddress: Boolean(launchpadAddress),
+    hasLaunchpadAddress: Boolean(factory),
   });
   const { data: publicOpen } = useReadContract({
-    address: launchpadAddress ?? undefined, abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi,
+    address: factory ?? undefined, abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi,
     functionName: "publicLaunchOpen", chainId: activeChainId,
     query: { enabled: betaReadEnabled.publicLaunchOpen },
   });
   const { data: invited } = useReadContract({
-    address: launchpadAddress ?? undefined, abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi,
+    address: factory ?? undefined, abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi,
     functionName: "invited", args: [address!], chainId: activeChainId,
     query: { enabled: betaReadEnabled.invited },
   });
   const { data: quoteToken } = useReadContract({
-    address: launchpadAddress ?? undefined,
+    address: factory ?? undefined,
     abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi,
     functionName: "quote",
     chainId: activeChainId,
-    query: { enabled: Boolean(launchpadAddress) },
+    query: { enabled: Boolean(factory) },
   });
   const { state, hasBetaAccess, canBuy } = selectMarketState({
     contractVersion: activeContractVersion,

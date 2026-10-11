@@ -11,6 +11,7 @@ import {
   activeContractVersion,
   launchpadAddress,
   requireCurveballSdk,
+  requireMarketSdk,
 } from "../lib/web3";
 import { readableError } from "../lib/errors";
 import { PendingTransactionError } from "../sdk/wagmiSdk";
@@ -49,7 +50,7 @@ function mergeTokenLists(current, discovered) {
 }
 
 export function rehydrateMarketCache(persisted, current) {
-  return { ...current, ...persisted, marketsFetchedAt: 0 };
+  return { ...current, ...persisted, marketsFetchedAt: 0, tokenFetchedAt: {}, creatorFetchedAt: {} };
 }
 
 export const useStore = create(persist((set, get) => ({
@@ -235,7 +236,7 @@ export const useStore = create(persist((set, get) => ({
     set({ quoting: true });
     try {
       const input = parseEther(amount);
-      const out = await requireCurveballSdk().quoteTrade(side, token.address, input);
+      const out = await requireMarketSdk(token.factory).quoteTrade(side, token.address, input);
       set({ quotePreview: out, quoting: false });
     } catch {
       set({ quotePreview: null, quoting: false });
@@ -276,7 +277,7 @@ export const useStore = create(persist((set, get) => ({
         marketsFetchedAt: 0,
       });
       set((state) => {
-        const token = { address: result.token, name: input.name.trim(), symbol: input.symbol.trim(), creator: result.creator, graduated: false, createdAt: new Date().toISOString(), metadataUri: input.uri || null, indexing: true };
+        const token = { address: result.token, factory: launchpadAddress, name: input.name.trim(), symbol: input.symbol.trim(), creator: result.creator, graduated: false, createdAt: new Date().toISOString(), metadataUri: input.uri || null, indexing: true };
         const tokenKey = cacheKey(result.token);
         const creatorKey = cacheKey(result.creator);
         const creatorWasLoaded = Object.prototype.hasOwnProperty.call(state.creatorTokens, creatorKey);
@@ -319,7 +320,7 @@ export const useStore = create(persist((set, get) => ({
 
       const input = parseEther(amount);
       set({ tradeMessage: "Confirming…" });
-      const result = await requireCurveballSdk().trade(side, token.address, input);
+      const result = await requireMarketSdk(token.factory).trade(side, token.address, input);
 
       const received =
         side === "buy"
@@ -343,13 +344,13 @@ export const useStore = create(persist((set, get) => ({
 
   // LpLocker.claim is permissionless: the caller pays gas, the creator and
   // treasury receive the fees. Nothing is routed to whoever clicks this.
-  claimPoolFees: async (locker, pool) => {
+  claimPoolFees: async (locker, pool, token) => {
     const { startAction, endAction, handleActionError } = get();
     startAction();
     try {
       if (!locker || !pool) throw Error("This market has no pool yet.");
       set({ tradeMessage: "Claiming pool fees…" });
-      await requireCurveballSdk().claimPoolFees(locker, pool);
+      await requireMarketSdk(token?.factory).claimPoolFees(locker, pool);
       set({
         tradeMessage: activeContractVersion === "v2" ? "Pool fees credited to creator, treasury, and buyback vault." : "Pool fees sent to the creator and treasury.",
         marketsFetchedAt: 0,
@@ -365,9 +366,9 @@ export const useStore = create(persist((set, get) => ({
     const { startAction, endAction, handleActionError } = get();
     startAction();
     try {
-      const sdk = requireCurveballSdk();
+      const sdk = requireMarketSdk(token.factory);
       if (!("claimEscrow" in sdk)) throw Error("V2 fee escrow is unavailable.");
-      await sdk.claimEscrow(token, asset, recipient);
+      await sdk.claimEscrow(token.address, asset, recipient);
       set({ tradeMessage: "Accrued fees sent to the registered recipient." });
     } catch (error) { handleActionError(error); }
     finally { endAction(); }
@@ -378,7 +379,7 @@ export const useStore = create(persist((set, get) => ({
     startAction();
     try {
       if (activeContractVersion !== "v2") throw Error("This market uses the previous graduation flow.");
-      const sdk = requireCurveballSdk();
+      const sdk = requireMarketSdk(token.factory);
       if (!sdk || !("graduateToIcarus" in sdk)) throw Error("V2 factory is unavailable.");
       const result = await sdk.graduateToIcarus(token.address);
       const poolSuffix = result.pool ? ` — Icarus pool ${result.pool}` : ".";

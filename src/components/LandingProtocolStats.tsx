@@ -6,13 +6,13 @@ import type { CreatorTokenClient } from "../creatorTokens";
 import { useStore } from "../app/useStore.js";
 import { readCachedLaunches, readCachedPayout, writeCachedLaunches, writeCachedPayout } from "../lib/landingStatsCache";
 import { getCreatorPayouts } from "../lib/protocolStats";
-import { activeChainId, activeContractVersion, activeDeploymentBlock, launchpadAddress } from "../lib/web3";
+import { activeChainId, activeContractVersion, activeDeploymentBlock, launchpadAddress, marketFactories } from "../lib/web3";
 import type { Token } from "../types";
 
 export function LandingProtocolStats() {
   const client = usePublicClient({ chainId: activeChainId });
   const loadMarkets = useStore((state) => state.loadMarkets) as (client?: CreatorTokenClient) => Promise<Token[]>;
-  const cacheKey = `curveball:landing-stats:v2:${activeContractVersion}:${activeChainId}:${launchpadAddress?.toLowerCase() ?? "none"}:${activeDeploymentBlock}`;
+  const cacheKey = `curveball:landing-stats:v3:${activeContractVersion}:${activeChainId}:${launchpadAddress?.toLowerCase() ?? "none"}:${activeDeploymentBlock}`;
   const [cachedLaunches] = useState(() => readCachedLaunches(cacheKey));
   const [cachedPayout] = useState(() => readCachedPayout(cacheKey));
   const statsEnabled = Boolean(client && launchpadAddress);
@@ -25,7 +25,7 @@ export function LandingProtocolStats() {
     retry: 1,
     queryFn: async () => {
       const tokens = await loadMarkets(client as unknown as CreatorTokenClient);
-      const launches = tokens.map(({ address, creator, graduated, createdBlock }) => ({ address, creator, graduated, createdBlock }));
+      const launches = tokens.map(({ address, factory, creator, graduated, createdBlock }) => ({ address, factory, creator, graduated, createdBlock }));
       writeCachedLaunches(cacheKey, launches);
       return launches;
     },
@@ -39,7 +39,13 @@ export function LandingProtocolStats() {
     staleTime: 300_000,
     retry: 1,
     queryFn: async () => {
-      const result = await getCreatorPayouts(client as unknown as Parameters<typeof getCreatorPayouts>[0], launchpadAddress!, data!, activeDeploymentBlock);
+      const payouts = await Promise.all(marketFactories.map(async ({ address, fromBlock }) => {
+        const tokens = data!.filter((token) => token.factory?.toLowerCase() === address.toLowerCase());
+        return tokens.length ? getCreatorPayouts(client as unknown as Parameters<typeof getCreatorPayouts>[0], address, tokens, fromBlock) : null;
+      }));
+      const recorded = payouts.filter((item): item is NonNullable<typeof item> => item !== null);
+      if (recorded.some((item) => item.decimals !== recorded[0].decimals)) throw new Error("Market quote decimals differ across factories.");
+      const result = { amount: recorded.reduce((sum, item) => sum + item.amount, 0n), decimals: recorded[0]?.decimals ?? 18 };
       writeCachedPayout(cacheKey, result);
       return result;
     },

@@ -1,17 +1,13 @@
 import { formatEther, getAddress, zeroAddress, type Address } from "viem";
 import { launchpadAbi } from "./sdk/contracts";
 import { v2CurveAbi, v2FactoryAbi } from "./sdk/v2Contracts";
-import { activeChainId, activeContractVersion, activeDeploymentBlock, launchpadAddress } from "./lib/web3";
-import testnetV2 from "../deployments/11155931/curveball-v2.json";
+import { activeContractVersion, marketFactories } from "./lib/web3";
 import type { Token } from "./types";
 
 export const CURVEBALL_TESTNET_DEPLOYMENT_BLOCK = 55_002_177n;
 const MAX_EVENT_QUERY_BLOCKS = 5_000n;
 const EVENT_QUERY_CONCURRENCY = 3;
 const EVENT_QUERY_ATTEMPTS = 6;
-// The first LaunchCreated from the recorded V2 testnet factory is at this block.
-// Earlier factory blocks cannot contain a launch and need no repeated RPC scan.
-const TESTNET_V2_FIRST_LAUNCH_BLOCK = 56_102_377n;
 
 async function readCreatedLogs(
   client: CreatorTokenClient,
@@ -92,24 +88,32 @@ async function discoverTokens(
   args?: { creator: Address } | { token: Address },
   version: "v1" | "v2" = activeContractVersion,
 ): Promise<Token[]> {
-  if (!launchpadAddress) return [];
+  if (!marketFactories.length) return [];
+  if (!client.getBlockNumber) {
+    throw new Error("RPC client cannot report the latest block for bounded event queries.");
+  }
+  const latestBlock = await client.getBlockNumber();
+  const sources = version === "v2" ? marketFactories : marketFactories.slice(0, 1);
+  const groups = await Promise.all(sources.map((source) => discoverFromFactory(client, source.address, source.fromBlock, latestBlock, args, version)));
+  return groups.flat().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+async function discoverFromFactory(
+  client: CreatorTokenClient,
+  factory: Address,
+  firstBlock: bigint,
+  latestBlock: bigint,
+  args: { creator: Address } | { token: Address } | undefined,
+  version: "v1" | "v2",
+): Promise<Token[]> {
   const eventQuery = {
-    address: launchpadAddress,
+    address: factory,
     abi: version === "v2" ? v2FactoryAbi : launchpadAbi,
     eventName: version === "v2" ? "LaunchCreated" : "TokenCreated",
     ...(args ? { args } : {}),
     strict: true,
   };
-  if (!client.getBlockNumber) {
-    throw new Error("RPC client cannot report the latest block for bounded event queries.");
-  }
-  const latestBlock = await client.getBlockNumber();
   const ranges: { fromBlock: bigint; toBlock: bigint }[] = [];
-  const firstBlock = version === "v2" && activeChainId === testnetV2.chainId &&
-    launchpadAddress.toLowerCase() === testnetV2.factory.toLowerCase() &&
-    activeDeploymentBlock <= TESTNET_V2_FIRST_LAUNCH_BLOCK
-      ? TESTNET_V2_FIRST_LAUNCH_BLOCK
-      : activeDeploymentBlock;
   for (let fromBlock = firstBlock; fromBlock <= latestBlock; fromBlock += MAX_EVENT_QUERY_BLOCKS) {
     const toBlock =
       fromBlock + MAX_EVENT_QUERY_BLOCKS - 1n < latestBlock
@@ -128,9 +132,9 @@ async function discoverTokens(
   if (!logs.length) return [];
 
   const [curveSupply, supply, initialVQ] = await Promise.all([
-    client.readContract({ address: launchpadAddress, abi: version === "v2" ? v2FactoryAbi : launchpadAbi, functionName: "curveSupply" }) as Promise<bigint>,
-    client.readContract({ address: launchpadAddress, abi: version === "v2" ? v2FactoryAbi : launchpadAbi, functionName: "supply" }) as Promise<bigint>,
-    client.readContract({ address: launchpadAddress, abi: version === "v2" ? v2FactoryAbi : launchpadAbi, functionName: "initialVQ" }) as Promise<bigint>,
+    client.readContract({ address: factory, abi: version === "v2" ? v2FactoryAbi : launchpadAbi, functionName: "curveSupply" }) as Promise<bigint>,
+    client.readContract({ address: factory, abi: version === "v2" ? v2FactoryAbi : launchpadAbi, functionName: "supply" }) as Promise<bigint>,
+    client.readContract({ address: factory, abi: version === "v2" ? v2FactoryAbi : launchpadAbi, functionName: "initialVQ" }) as Promise<bigint>,
   ]);
   const terminalVirtualToken = supply - curveSupply;
   const invariant = supply * initialVQ;
@@ -150,7 +154,7 @@ async function discoverTokens(
 
       if (version === "v2") {
         const [market, block] = await Promise.all([
-          client.readContract({ address: launchpadAddress, abi: v2FactoryAbi, functionName: "market", args: [token] }) as Promise<readonly [Address, Address, number, number, number, number, Address]>,
+          client.readContract({ address: factory, abi: v2FactoryAbi, functionName: "market", args: [token] }) as Promise<readonly [Address, Address, number, number, number, number, Address]>,
           client.getBlock({ blockNumber: log.blockNumber }),
         ]);
         const curve = market[0];
@@ -165,7 +169,7 @@ async function discoverTokens(
         ]);
         const price = virtualToken === 0n ? null : Number(formatEther(virtualQuote)) / Number(formatEther(virtualToken));
         return {
-          address: getAddress(token), creator: getAddress(eventCreator), name, symbol, graduated,
+          address: getAddress(token), factory, creator: getAddress(eventCreator), name, symbol, graduated,
           metadataUri: uri ?? null,
           curve: getAddress(curve), feeBps: market[2], creatorShareBps: market[3], buybackShareBps: market[4], creatorTaxBps: market[5],
           pending: ready, createdAt: new Date(Number(block.timestamp) * 1_000).toISOString(),
@@ -177,7 +181,7 @@ async function discoverTokens(
       }
       const [market, block] = await Promise.all([
         client.readContract({
-          address: launchpadAddress,
+          address: factory,
           abi: launchpadAbi,
           functionName: "markets",
           args: [token],
@@ -194,7 +198,7 @@ async function discoverTokens(
           : Number((sold * 10_000n) / curveSupply) / 100;
 
       return {
-        address: getAddress(token),
+        address: getAddress(token), factory,
         creator: getAddress(eventCreator),
         name,
         symbol,

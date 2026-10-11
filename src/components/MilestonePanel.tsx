@@ -18,15 +18,16 @@ export function MilestonePanel({
 }) {
   const { isPending, claimPoolFees, claimEscrow, advanceGraduation } = useStore() as {
     isPending: boolean;
-    claimPoolFees: (locker: string, pool: string) => Promise<void>;
-    claimEscrow: (token: Address, asset: Address, recipient: Address) => Promise<void>;
+    claimPoolFees: (locker: string, pool: string, token: Token) => Promise<void>;
+    claimEscrow: (token: Token, asset: Address, recipient: Address) => Promise<void>;
     advanceGraduation: (token: Token) => Promise<void>;
   };
 
   const progress = token.graduated ? 100 : (token.progress ?? 0);
-  const { data: locker } = useReadContract({ address: launchpadAddress ?? undefined, abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi, functionName: "locker", chainId: activeChainId, query: { enabled: Boolean(launchpadAddress) } });
-  const { data: escrow } = useReadContract({ address: launchpadAddress ?? undefined, abi: v2FactoryAbi, functionName: "escrow", chainId: activeChainId, query: { enabled: activeContractVersion === "v2" && Boolean(launchpadAddress) } });
-  const { data: quote } = useReadContract({ address: launchpadAddress ?? undefined, abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi, functionName: "quote", chainId: activeChainId, query: { enabled: Boolean(launchpadAddress) } });
+  const factory = token.factory ?? launchpadAddress;
+  const { data: locker } = useReadContract({ address: factory ?? undefined, abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi, functionName: "locker", chainId: activeChainId, query: { enabled: Boolean(factory) } });
+  const { data: escrow } = useReadContract({ address: factory ?? undefined, abi: v2FactoryAbi, functionName: "escrow", chainId: activeChainId, query: { enabled: activeContractVersion === "v2" && Boolean(factory) } });
+  const { data: quote } = useReadContract({ address: factory ?? undefined, abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi, functionName: "quote", chainId: activeChainId, query: { enabled: Boolean(factory) } });
   const { data: v1CreatorShareBps } = useReadContract({ address: locker, abi: lockerAbi, functionName: "creatorShareBps", chainId: activeChainId, query: { enabled: activeContractVersion === "v1" && Boolean(locker) } });
   const creatorShareBps = token.creatorShareBps ?? v1CreatorShareBps;
   const creatorShare = creatorShareBps == null ? null : Number(creatorShareBps) / 100;
@@ -129,7 +130,7 @@ export function MilestonePanel({
               className="primary-button claim-button"
               disabled={isPending || !locker || !token.pool}
               onClick={() =>
-                claimPoolFees(locker ?? "", token.pool ?? "")
+                claimPoolFees(locker ?? "", token.pool ?? "", token)
               }
             >
               {isPending ? "Claiming…" : "Claim pool fees"}
@@ -141,10 +142,10 @@ export function MilestonePanel({
       {activeContractVersion === "v2" && <div className="claim-block">
         <h3 className="panel-subhead">Creator fee credits</h3>
         <p className="panel-note">Claims always pay the launch creator. Anyone may trigger them.</p>
-        {quoteOwed !== undefined && quoteOwed > 0n && quote && <button type="button" className="primary-button claim-button" disabled={!address || isPending} onClick={() => claimEscrow(token.address, quote, token.creator)}>
+        {quoteOwed !== undefined && quoteOwed > 0n && quote && <button type="button" className="primary-button claim-button" disabled={!address || isPending} onClick={() => claimEscrow(token, quote, token.creator)}>
           Claim {formatEther(quoteOwed)} WETH
         </button>}
-        {tokenOwed !== undefined && tokenOwed > 0n && <button type="button" className="primary-button claim-button" disabled={!address || isPending} onClick={() => claimEscrow(token.address, token.address, token.creator)}>
+        {tokenOwed !== undefined && tokenOwed > 0n && <button type="button" className="primary-button claim-button" disabled={!address || isPending} onClick={() => claimEscrow(token, token.address, token.creator)}>
           Claim {formatEther(tokenOwed)} {token.symbol}
         </button>}
       </div>}

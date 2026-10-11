@@ -12,6 +12,8 @@ import { createWagmiCurveballSdk } from "../sdk/wagmiSdk";
 import { createV2Sdk } from "../sdk/v2Sdk";
 import { resolveContractVersion, resolveRiseTestnetRpcUrl } from "./clientRuntime";
 import { createWalletConfig } from "./walletConfig";
+import legacyTestnetV2 from "../../deployments/11155931/curveball-v2.json";
+import feeTestnetV2 from "../../deployments/11155931/curveball-v2-permissionless.json";
 
 const riseTestnetRpcUrl = resolveRiseTestnetRpcUrl(import.meta.env);
 export const activeContractVersion = resolveContractVersion(import.meta.env);
@@ -58,6 +60,16 @@ export const launchpadAddress: Address | null =
     ? getAddress(configuredLaunchpad)
     : null;
 
+export const marketFactories = launchpadAddress
+  ? [
+      { address: launchpadAddress, fromBlock: activeDeploymentBlock },
+      ...(activeContractVersion === "v2" && activeChainId === RISE_TESTNET_CHAIN_ID &&
+      launchpadAddress.toLowerCase() === feeTestnetV2.factory.toLowerCase()
+        ? [{ address: getAddress(legacyTestnetV2.factory), fromBlock: 56_102_377n }]
+        : []),
+    ]
+  : [];
+
 const deployment = launchpadAddress ? defineCurveballDeployment({
   chainId: activeChainId,
   launchpad: launchpadAddress,
@@ -75,4 +87,27 @@ export function requireCurveballSdk() {
     throw new Error("Curveball deployment is not configured.");
   }
   return curveballSdk;
+}
+
+const marketSdks = new Map<Address, ReturnType<typeof createV2Sdk>>();
+
+export function requireMarketSdk(factory?: Address | null) {
+  if (activeContractVersion !== "v2") return requireCurveballSdk();
+  if (!factory) throw new Error("Market factory is still loading. Refresh this market and try again.");
+  if (!marketFactories.some((source) => source.address.toLowerCase() === factory.toLowerCase())) {
+    throw new Error("This market belongs to an unsupported factory.");
+  }
+  if (factory.toLowerCase() === launchpadAddress?.toLowerCase()) return requireCurveballSdk();
+  const address = getAddress(factory);
+  let sdk = marketSdks.get(address);
+  if (!sdk) {
+    sdk = createV2Sdk(wagmiConfig, defineCurveballDeployment({
+      chainId: activeChainId,
+      launchpad: address,
+      slippageBps: 300,
+      deadlineSeconds: 300,
+    }));
+    marketSdks.set(address, sdk);
+  }
+  return sdk;
 }
