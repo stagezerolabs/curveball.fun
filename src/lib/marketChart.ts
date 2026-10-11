@@ -1,4 +1,41 @@
-import { formatEther } from "viem";
+import { formatEther, isAddress, type Address, type Hash } from "viem";
+
+export type TradeActivity = {
+  trader: Address;
+  isBuy: boolean;
+  tokenAmount: bigint;
+  quoteAmount: bigint;
+  timestamp: number;
+  blockNumber: bigint;
+  logIndex: number;
+  transactionHash: Hash;
+};
+
+export function tradeLogToActivity(
+  log: {
+    args?: { trader?: string; isBuy?: boolean; tokenAmount?: bigint; netTraderQuote?: bigint; quoteAmount?: bigint };
+    blockNumber?: bigint | null;
+    logIndex?: number;
+    transactionHash?: string;
+  },
+  timestamp: number | undefined,
+): TradeActivity | null {
+  const { trader, isBuy, tokenAmount, netTraderQuote, quoteAmount } = log.args ?? {};
+  const actualQuote = netTraderQuote ?? quoteAmount;
+  if (!trader || !isAddress(trader) || typeof isBuy !== "boolean" || tokenAmount === undefined ||
+      actualQuote === undefined || timestamp === undefined ||
+      log.blockNumber == null || log.logIndex === undefined || !log.transactionHash) return null;
+  return {
+    trader,
+    isBuy,
+    tokenAmount,
+    quoteAmount: actualQuote,
+    timestamp,
+    blockNumber: log.blockNumber,
+    logIndex: log.logIndex,
+    transactionHash: log.transactionHash as Hash,
+  };
+}
 
 export type TradePoint = {
   timestamp: number;

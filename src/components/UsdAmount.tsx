@@ -50,11 +50,12 @@ function getEthUsdPrice() {
   return ethUsdPrice;
 }
 
-function formatUsd(value: number) {
+export function formatUsd(value: number, precision: "standard" | "price" = "standard") {
   if (!Number.isFinite(value)) return "—";
   const absolute = Math.abs(value);
-  if (absolute > 0 && absolute < 0.00000001) return "<$0.00000001";
-  const maximumFractionDigits = absolute >= 1 ? 2 : absolute >= 0.01 ? 4 : absolute >= 0.0001 ? 6 : 8;
+  const floor = precision === "price" ? 0.00000000000001 : 0.00000001;
+  if (absolute > 0 && absolute < floor) return precision === "price" ? "<$0.00000000000001" : "<$0.00000001";
+  const maximumFractionDigits = absolute >= 1 ? 2 : absolute >= 0.01 ? 4 : absolute >= 0.0001 ? 6 : precision === "price" ? 14 : 8;
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
@@ -73,10 +74,10 @@ function formatCompactUsd(value: number) {
   }).format(value);
 }
 
-export function UsdAmount({ weth, suffix = "", compact = false }: { weth?: number | null; suffix?: string; compact?: boolean }) {
+export function UsdAmount({ weth, suffix = "", compact = false, precision = "standard" }: { weth?: number | null; suffix?: string; compact?: boolean; precision?: "standard" | "price" }) {
   const usdPerEth = useSyncExternalStore(subscribe, getEthUsdPrice, getEthUsdPrice);
   if (weth == null || usdPerEth == null) return <>—</>;
-  const full = formatUsd(weth * usdPerEth);
+  const full = formatUsd(weth * usdPerEth, precision);
   if (compact) return <span title={`${full}${suffix}`} aria-label={`${full}${suffix}`}>{formatCompactUsd(weth * usdPerEth)}{suffix}</span>;
   return <>{full}{suffix}</>;
 }

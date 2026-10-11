@@ -4,6 +4,7 @@ import {
   buildCandles,
   parseCreatedBlock,
   tradeLogToPoint,
+  tradeLogToActivity,
   withRetry,
 } from "./marketChart";
 
@@ -85,6 +86,25 @@ describe("chart RPC helpers", () => {
       price: 2,
       volume: 3,
     });
+  });
+
+  test("keeps the actual trader quote and event identity for buy and sell rows", () => {
+    const trader = "0x0000000000000000000000000000000000000001";
+    const transactionHash = `0x${"a".repeat(64)}` as `0x${string}`;
+    const log = {
+      args: { trader, isBuy: false, tokenAmount: 2_000000000000000000n,
+        grossCurveQuote: 3_000000000000000000n, netTraderQuote: 2_700000000000000000n },
+      blockNumber: 42n,
+      logIndex: 1,
+      transactionHash,
+    };
+    expect(tradeLogToActivity(log, 100)).toEqual({
+      trader, isBuy: false, tokenAmount: 2_000000000000000000n,
+      quoteAmount: 2_700000000000000000n, timestamp: 100,
+      blockNumber: 42n, logIndex: 1, transactionHash,
+    });
+    expect(tradeLogToActivity({ ...log, args: { ...log.args, netTraderQuote: undefined, quoteAmount: 3n } }, 100)?.quoteAmount).toBe(3n);
+    expect(tradeLogToActivity({ ...log, args: { ...log.args, trader: undefined } }, 100)).toBeNull();
   });
 
   test("keeps created blocks JSON-safe and parses them at the boundary", () => {
