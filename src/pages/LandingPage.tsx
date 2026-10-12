@@ -110,7 +110,7 @@ export function LandingPage({ navigate }: { navigate: Navigate }) {
         ref={storyRef}
       >
         <h2 id="landing-steps-title" className="landing-story-title">
-          <span>One curve.</span>
+          <span>Many curves.</span>
           <em>Open to everyone.</em>
         </h2>
         <div className="landing-story-progress" aria-hidden="true">
