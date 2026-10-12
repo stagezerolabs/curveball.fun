@@ -11,15 +11,17 @@ import { launchpadAbi } from "../sdk/contracts";
 import { LEGACY_TESTNET_V2_FACTORY, v2FactoryAbi } from "../sdk/v2Contracts";
 import { activeChainId, activeContractVersion, activeExplorerUrl, launchpadAddress } from "../lib/web3";
 import { canSubmitLaunch } from "../lib/launchForm";
+import { publishTokenMetadata, uploadArtworkImage } from "../lib/artworkUpload";
 import { getBetaReadEnabled, selectMarketState } from "../lib/marketState";
 import type { LaunchPhase } from "../lib/launchProgress";
 import type { Navigate } from "../types";
 
 type LaunchProgress = { phase: LaunchPhase; hash: string | null; error: string } | null;
+type ImageUpload = { file: File; status: "uploading" | "ready" | "error"; cid?: string; error?: string };
+type MetadataUpload = { file: File; name: string; symbol: string; status: "publishing" | "ready" | "error"; uri?: string; error?: string };
 
 const phaseCopy: Record<Exclude<LaunchPhase, "error">, { title: string; detail: string }> = {
   preparing: { title: "Preparing launch", detail: "Checking details and network." },
-  artwork: { title: "Publishing artwork", detail: "Sign the upload request in your wallet, then wait for IPFS." },
   wrapWallet: { title: "Wrap ETH", detail: "Confirm the deposit in your wallet." },
   wrapConfirming: { title: "Wrapping ETH", detail: "Waiting for network confirmation." },
   approveWallet: { title: "Approve WETH", detail: "Confirm the allowance in your wallet." },
@@ -39,6 +41,11 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
   const [draftInitialBuy, setDraftInitialBuy] = useState("");
   const [feeAccepted, setFeeAccepted] = useState(false);
   const [draftImageUrl, setDraftImageUrl] = useState<string>();
+  const [artworkFile, setArtworkFile] = useState<File | null>(null);
+  const [imageUpload, setImageUpload] = useState<ImageUpload | null>(null);
+  const [metadataUpload, setMetadataUpload] = useState<MetadataUpload | null>(null);
+  const [imageRetry, setImageRetry] = useState(0);
+  const [metadataRetry, setMetadataRetry] = useState(0);
   const [imageError, setImageError] = useState("");
   const { address } = useAccount();
   const { openConnectModal } = useConnectModal();
@@ -97,7 +104,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
     invited,
   });
   const { createToken: create, isPending, launchProgress, clearLaunchProgress } = useStore() as {
-    createToken: (event: React.FormEvent<HTMLFormElement>, address?: `0x${string}`) => Promise<void>;
+    createToken: (event: React.FormEvent<HTMLFormElement>) => Promise<void>;
     isPending: boolean;
     launchProgress: LaunchProgress;
     clearLaunchProgress: () => void;
@@ -109,8 +116,60 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
     if (draftImageUrl) URL.revokeObjectURL(draftImageUrl);
   }, [draftImageUrl]);
   useEffect(() => {
+    if (!artworkFile) return;
+    const controller = new AbortController();
+    let active = true;
+    setImageUpload({ file: artworkFile, status: "uploading" });
+    void uploadArtworkImage(artworkFile, { signal: controller.signal })
+      .then((cid: string) => {
+        if (active) setImageUpload({ file: artworkFile, status: "ready", cid });
+      })
+      .catch((cause: unknown) => {
+        if (active && !controller.signal.aborted) setImageUpload({ file: artworkFile, status: "error", error: cause instanceof Error ? cause.message : "Artwork upload failed. Try again." });
+      });
+    return () => { active = false; controller.abort(); };
+  }, [artworkFile, imageRetry]);
+  const nameForMetadata = draftName.trim();
+  const symbolForMetadata = draftSymbol.trim().toUpperCase();
+  const imageCid = imageUpload?.file === artworkFile && imageUpload.status === "ready" ? imageUpload.cid : undefined;
+  const metadataDetailsValid = nameForMetadata.length > 0 && new TextEncoder().encode(nameForMetadata).length <= 64 && /^[A-Z0-9]{1,12}$/.test(symbolForMetadata);
+  useEffect(() => {
+    if (!artworkFile || !imageCid || !metadataDetailsValid) return;
+    const controller = new AbortController();
+    let active = true;
+    setMetadataUpload({ file: artworkFile, name: nameForMetadata, symbol: symbolForMetadata, status: "publishing" });
+    const timer = window.setTimeout(() => {
+      void publishTokenMetadata(imageCid, { name: nameForMetadata, symbol: symbolForMetadata, signal: controller.signal })
+        .then((uri: string) => {
+          if (active) setMetadataUpload({ file: artworkFile, name: nameForMetadata, symbol: symbolForMetadata, status: "ready", uri });
+        })
+        .catch((cause: unknown) => {
+          if (active && !controller.signal.aborted) setMetadataUpload({ file: artworkFile, name: nameForMetadata, symbol: symbolForMetadata, status: "error", error: cause instanceof Error ? cause.message : "Token metadata upload failed. Try again." });
+        });
+    }, 400);
+    return () => { active = false; window.clearTimeout(timer); controller.abort(); };
+  }, [artworkFile, imageCid, metadataDetailsValid, nameForMetadata, symbolForMetadata, metadataRetry]);
+  const publishedUri = artworkFile && metadataUpload?.file === artworkFile && metadataUpload.name === nameForMetadata && metadataUpload.symbol === symbolForMetadata && metadataUpload.status === "ready"
+    ? metadataUpload.uri ?? "" : "";
+  const artworkStatus = !artworkFile ? "idle"
+    : imageUpload?.file !== artworkFile || imageUpload.status === "uploading" ? "uploading"
+    : imageUpload.status === "error" ? "error"
+    : !metadataDetailsValid ? "waiting"
+    : metadataUpload?.file !== artworkFile || metadataUpload.name !== nameForMetadata || metadataUpload.symbol !== symbolForMetadata || metadataUpload.status === "publishing" ? "publishing"
+    : metadataUpload.status === "error" ? "error" : "ready";
+  const artworkStatusMessage = artworkStatus === "uploading" ? "Uploading image to IPFS…"
+    : artworkStatus === "waiting" ? "Add a token name and ticker to finish publishing artwork."
+    : artworkStatus === "publishing" ? "Publishing token metadata to IPFS…"
+    : artworkStatus === "ready" ? "Artwork ready on IPFS."
+    : imageUpload?.status === "error" ? imageUpload.error : metadataUpload?.error;
+  useEffect(() => {
     if (launchProgress?.phase !== "success") return;
     setFeeAccepted(false);
+    setArtworkFile(null);
+    setImageUpload(null);
+    setMetadataUpload(null);
+    setDraftImageUrl(undefined);
+    if (imageInput.current) imageInput.current.value = "";
     const timer = window.setTimeout(() => {
       clearLaunchProgress();
       navigate("markets");
@@ -120,12 +179,14 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
 
   const phase = launchProgress?.phase;
   const draftTaxBps = Math.round(Number(draftTaxPercent || "0") * 100);
-  const formReady = canSubmitLaunch({
+  const formReady = !imageError && canSubmitLaunch({
     name: draftName,
     symbol: draftSymbol,
     initialBuy: draftInitialBuy,
     launchFee: activeContractVersion === "v2" ? launchFee : 0n,
     feeAccepted,
+    artworkSelected: Boolean(artworkFile),
+    artworkUri: publishedUri,
   });
   let launchTotal: string | null = null;
   if (launchFee !== undefined && launchFee > 0n && draftInitialBuy.trim()) {
@@ -140,19 +201,36 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
       event.preventDefault();
       return;
     }
-    void create(event, address);
+    void create(event);
   };
 
   const selectImage = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type) || file.size > 2_000_000) {
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type) || file.size === 0 || file.size > 2_000_000) {
+      setArtworkFile(null);
+      setImageUpload(null);
+      setMetadataUpload(null);
+      setDraftImageUrl(undefined);
       setImageError("Choose a PNG, JPEG, or WebP image under 2 MB.");
       event.target.value = "";
       return;
     }
     setImageError("");
+    setArtworkFile(file);
+    setImageUpload(null);
+    setMetadataUpload(null);
     setDraftImageUrl(URL.createObjectURL(file));
+  };
+  const retryArtwork = () => {
+    if (imageUpload?.file === artworkFile && imageUpload.status === "error") {
+      setImageUpload(null);
+      setMetadataUpload(null);
+      setImageRetry((attempt) => attempt + 1);
+    } else {
+      setMetadataUpload(null);
+      setMetadataRetry((attempt) => attempt + 1);
+    }
   };
 
   return (
@@ -176,13 +254,20 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                 <h2>Token details</h2>
               </div>
               <label className="launch-image-upload">
-                <input ref={imageInput} name="artwork" type="file" accept="image/png,image/jpeg,image/webp" onChange={selectImage} aria-describedby={imageError ? "launch-image-help launch-image-error" : "launch-image-help"} aria-invalid={Boolean(imageError)} />
+                <input ref={imageInput} name="artwork" type="file" accept="image/png,image/jpeg,image/webp" onChange={selectImage} aria-describedby={["launch-image-help", artworkFile && "launch-image-status", imageError && "launch-image-error"].filter(Boolean).join(" ")} aria-invalid={Boolean(imageError)} />
                 {draftImageUrl ? <img src={draftImageUrl} alt="" /> : <span className="launch-image-placeholder" aria-hidden="true">＋</span>}
                 <span>{draftImageUrl ? "Change preview image" : "Choose an image"}</span>
               </label>
               <p id="launch-image-help" className="launch-field-help">PNG, JPEG, or WebP, under 2 MB.</p>
-              {draftImageUrl && <button className="launch-remove-image" type="button" onClick={() => {
+              {artworkFile && <div className="launch-upload-state">
+                <p id="launch-image-status" className={artworkStatus === "error" ? "launch-field-error" : "launch-field-help"} role={artworkStatus === "error" ? "alert" : "status"}>{artworkStatusMessage}</p>
+                {artworkStatus === "error" && <button className="launch-remove-image" type="button" onClick={retryArtwork}>Retry upload</button>}
+              </div>}
+              {(artworkFile || imageError) && <button className="launch-remove-image" type="button" onClick={() => {
                 setDraftImageUrl(undefined);
+                setArtworkFile(null);
+                setImageUpload(null);
+                setMetadataUpload(null);
                 setImageError("");
                 if (imageInput.current) imageInput.current.value = "";
               }}>Remove image</button>}
@@ -240,7 +325,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
               </div>
             </details>}
             <input type="hidden" name="creatorTaxBps" value={draftTaxBps} />
-            <input type="hidden" name="uri" value="" />
+            <input type="hidden" name="uri" value={publishedUri} />
 
             {address && !canCreate && <p className="notice" role="status">{publicOpen === false && invited === false ? "This factory is invite-only." : "Checking launch access…"}</p>}
             {activeContractVersion === "v2" && launchFeeError && !legacyV2 && <p className="notice" role="alert">Could not verify the launch fee. Try again before launching.</p>}
@@ -259,7 +344,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                 onClick={!address ? () => openConnectModal?.() : undefined}
                 disabled={isPending || (Boolean(address) && (!canCreate || !formReady))}
               >
-                {isPending ? "Launching…" : !address ? "Connect wallet to launch" : !canCreate ? "Checking access…" : !formReady ? "Complete form to launch" : "Launch token"} <ArrowIcon />
+                {isPending ? "Launching…" : !address ? "Connect wallet to launch" : artworkStatus === "uploading" ? "Uploading artwork…" : artworkStatus === "publishing" ? "Publishing artwork…" : artworkStatus === "error" ? "Artwork unavailable" : !canCreate ? "Checking access…" : !formReady ? "Complete form to launch" : "Launch token"} <ArrowIcon />
               </Button>
             </div>
           </div>

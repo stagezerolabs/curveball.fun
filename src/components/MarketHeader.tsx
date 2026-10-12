@@ -1,7 +1,6 @@
 import { TokenAvatar } from "./TokenAvatar";
 import {
   formatAddress,
-  formatEthAmount,
   formatPercent,
   formatRelativeTime,
 } from "../lib/format.js";
@@ -98,6 +97,7 @@ export function MarketHeader({ token }: { token: Token }) {
                   <span className="market-data-chip">Creator tax <strong>{(token.creatorTaxBps / 100).toFixed(2)}%</strong></span>
                 )}
               </div>
+              <p className="market-identity-price"><span className="visually-hidden">Price: </span><UsdAmount weth={token.price} /></p>
             </div>
           </div>
         </div>
@@ -121,11 +121,6 @@ export function MarketHeader({ token }: { token: Token }) {
         </div>
       </div>
       <div className="market-headline-stats">
-        <dl className="market-stat-price">
-          <dt>Price</dt>
-          <dd><UsdAmount weth={token.price} /></dd>
-          <dd className="market-stat-note">{token.price == null ? "—" : formatEthAmount(token.price)} {quoteSymbol}</dd>
-        </dl>
         <dl className="market-stat-summary">
           <div className="market-stat-cap">
             <dt>Market cap</dt>

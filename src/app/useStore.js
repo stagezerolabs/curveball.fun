@@ -14,7 +14,7 @@ import {
 } from "../lib/web3";
 import { readableError } from "../lib/errors";
 import { PendingTransactionError } from "../sdk/wagmiSdk";
-import { uploadArtwork } from "../lib/artworkUpload";
+import { hasPublishedArtwork } from "../lib/launchForm";
 
 const MARKET_CACHE_TTL_MS = 30_000;
 let marketsRequest = null;
@@ -52,6 +52,28 @@ export function rehydrateMarketCache(persisted, current) {
   return { ...current, ...persisted, marketsFetchedAt: 0 };
 }
 
+const validCachedTokens = (tokens) => Array.isArray(tokens)
+  ? tokens.filter((item) => typeof item?.address === "string")
+  : [];
+
+export function createdTokenCacheUpdate(state, token) {
+  const tokenKey = cacheKey(token.address);
+  const creatorKey = cacheKey(token.creator);
+  const creatorTokens = state.creatorTokens && typeof state.creatorTokens === "object" ? state.creatorTokens : {};
+  const creatorWasLoaded = Object.prototype.hasOwnProperty.call(creatorTokens, creatorKey);
+  return {
+    tokenCache: { ...state.tokenCache, [tokenKey]: token },
+    tokenFetchedAt: { ...state.tokenFetchedAt, [tokenKey]: 0 },
+    tokens: state.marketsFetchedAt
+      ? [token, ...validCachedTokens(state.tokens).filter((item) => cacheKey(item.address) !== tokenKey)]
+      : state.tokens,
+    creatorTokens: creatorWasLoaded
+      ? { ...creatorTokens, [creatorKey]: [token, ...validCachedTokens(creatorTokens[creatorKey]).filter((item) => cacheKey(item.address) !== tokenKey)] }
+      : creatorTokens,
+    creatorFetchedAt: { ...state.creatorFetchedAt, [creatorKey]: 0 },
+  };
+}
+
 export const useStore = create(persist((set, get) => ({
   tokens: [],
   loading: false,
@@ -67,6 +89,7 @@ export const useStore = create(persist((set, get) => ({
   creatorErrors: {},
   actionError: "",
   tradeMessage: "",
+  tradeProgress: null,
   amount: "0",
   side: "buy",
   isPending: false,
@@ -242,27 +265,26 @@ export const useStore = create(persist((set, get) => ({
     }
   },
 
-  createToken: async (event, address) => {
+  createToken: async (event) => {
     event.preventDefault();
     const submittedForm = event.currentTarget;
+    const form = new FormData(submittedForm);
+    const input = {
+      name: String(form.get("name") ?? ""),
+      symbol: String(form.get("symbol") ?? ""),
+      uri: String(form.get("uri") ?? ""),
+      creatorTaxBps: Number(form.get("creatorTaxBps") ?? 0),
+    };
+    const artwork = form.get("artwork");
+    if (!hasPublishedArtwork(artwork instanceof File && artwork.size > 0, input.uri)) {
+      set({ launchProgress: { phase: "error", hash: null, error: "Wait for artwork to finish publishing before launching." } });
+      return;
+    }
     const { startAction, endAction, handleActionError } = get();
     startAction();
     set({ launchProgress: { phase: "preparing", hash: null, error: "" } });
 
     try {
-      const form = new FormData(submittedForm);
-      const input = {
-        name: String(form.get("name") ?? ""),
-        symbol: String(form.get("symbol") ?? ""),
-        uri: String(form.get("uri") ?? ""),
-        creatorTaxBps: Number(form.get("creatorTaxBps") ?? 0),
-      };
-      const artwork = form.get("artwork");
-      if (artwork instanceof File && artwork.size > 0) {
-        if (!address) throw new Error("Connect your wallet to publish artwork.");
-        set({ launchProgress: { phase: "artwork", hash: null, error: "" } });
-        input.uri = await uploadArtwork(artwork, { address, name: input.name, symbol: input.symbol });
-      }
       const initialBuy = String(form.get("initialBuy") ?? "").trim();
       const sdk = requireCurveballSdk();
       const onProgress = (phase, hash = null) => set({ launchProgress: { phase, hash, error: "" } });
@@ -270,29 +292,19 @@ export const useStore = create(persist((set, get) => ({
         ? await sdk.launchAndBuy(input, parseEther(initialBuy), onProgress)
         : await sdk.createToken(input, onProgress);
 
-      set({
-        tradeMessage: `Token created at ${result.token}.`,
-        lastCreatedToken: result.token,
-        marketsFetchedAt: 0,
-      });
-      set((state) => {
+      try {
         const token = { address: result.token, name: input.name.trim(), symbol: input.symbol.trim(), creator: result.creator, graduated: false, createdAt: new Date().toISOString(), metadataUri: input.uri || null, indexing: true };
-        const tokenKey = cacheKey(result.token);
-        const creatorKey = cacheKey(result.creator);
-        const creatorWasLoaded = Object.prototype.hasOwnProperty.call(state.creatorTokens, creatorKey);
-        return {
-          tokenCache: { ...state.tokenCache, [tokenKey]: token },
-          tokenFetchedAt: { ...state.tokenFetchedAt, [tokenKey]: 0 },
-          tokens: state.marketsFetchedAt
-            ? [token, ...state.tokens.filter((item) => cacheKey(item.address) !== tokenKey)]
-            : state.tokens,
-          creatorTokens: creatorWasLoaded
-            ? { ...state.creatorTokens, [creatorKey]: [token, ...state.creatorTokens[creatorKey].filter((item) => cacheKey(item.address) !== tokenKey)] }
-            : state.creatorTokens,
-          creatorFetchedAt: { ...state.creatorFetchedAt, [creatorKey]: 0 },
-        };
-      });
-      submittedForm.reset();
+        set((state) => ({
+          ...createdTokenCacheUpdate(state, token),
+          tradeMessage: `Token created at ${result.token}.`,
+          lastCreatedToken: result.token,
+          marketsFetchedAt: 0,
+        }));
+        submittedForm.reset();
+      } catch {
+        // A confirmed transaction cannot be undone by a stale browser cache.
+        set({ lastCreatedToken: result.token, marketsFetchedAt: 0 });
+      }
       set({ launchProgress: { phase: "success", hash: result.hash ?? null, error: "" } });
     } catch (error) {
       handleActionError(error);
@@ -309,6 +321,7 @@ export const useStore = create(persist((set, get) => ({
   trade: async (side, token) => {
     const { amount, startAction, endAction, handleActionError } = get();
     startAction();
+    set({ tradeProgress: { side, phase: "preparing" } });
 
     try {
       if (!token)
@@ -318,8 +331,9 @@ export const useStore = create(persist((set, get) => ({
         throw Error("Enter an amount greater than zero.");
 
       const input = parseEther(amount);
-      set({ tradeMessage: "Confirming…" });
-      const result = await requireCurveballSdk().trade(side, token.address, input);
+      const result = await requireCurveballSdk().trade(side, token.address, input, (phase) => {
+        set({ tradeProgress: { side, phase } });
+      });
 
       const received =
         side === "buy"
@@ -405,8 +419,8 @@ export const useStore = create(persist((set, get) => ({
   },
 
   startAction: () =>
-    set({ isPending: true, actionError: "", tradeMessage: "" }),
-  endAction: () => set({ isPending: false }),
+    set({ isPending: true, actionError: "", tradeMessage: "", tradeProgress: null }),
+  endAction: () => set({ isPending: false, tradeProgress: null }),
   handleActionError: (error) =>
     set({
       actionError: readableError(error, "Transaction failed. Please try again."),

@@ -7,6 +7,8 @@ const ready = {
   initialBuy: "",
   launchFee: 400_000_000_000_000n,
   feeAccepted: true,
+  artworkSelected: false,
+  artworkUri: "",
 };
 
 test("a paid launch needs token details and explicit fee consent", () => {
@@ -26,4 +28,9 @@ test("optional buy must be a valid nonnegative WETH amount", () => {
 
 test("a zero-fee factory does not ask for fee consent", () => {
   expect(canSubmitLaunch({ ...ready, launchFee: 0n, feeAccepted: false })).toBe(true);
+});
+
+test("selected artwork must have a published metadata URI before a paid launch", () => {
+  expect(canSubmitLaunch({ ...ready, artworkSelected: true, artworkUri: "" })).toBe(false);
+  expect(canSubmitLaunch({ ...ready, artworkSelected: true, artworkUri: "ipfs://bafy" + "a".repeat(55) })).toBe(true);
 });

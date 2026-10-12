@@ -20,6 +20,7 @@ import { NATIVE_GAS_RESERVE } from "../sdk/wagmiSdk";
 import type { Address } from "viem";
 import type { Token } from "../types";
 import { UsdAmount } from "./UsdAmount";
+import { tradeButtonLabel } from "../lib/tradeProgress";
 
 const SLIPPAGE_BPS = 300; // useStore sends minOut at 97% of the quote.
 const PRESETS = [25, 50, 100];
@@ -56,6 +57,7 @@ export function TradePanel({
     trade,
     isPending,
     tradeMessage,
+    tradeProgress,
     quotePreview,
     quoting,
     fetchQuote,
@@ -97,7 +99,7 @@ export function TradePanel({
   });
 
   const quoteSymbol = token.quoteSymbol ?? "WETH";
-  const payingWith = side === "buy" ? quoteSymbol : token.symbol;
+  const payingWith = side === "buy" ? (quoteSymbol === "WETH" ? "ETH" : quoteSymbol) : token.symbol;
   const receiving = side === "buy" ? token.symbol : quoteSymbol;
 
   // Buying spends the quote token, selling spends the token itself.
@@ -258,20 +260,21 @@ export function TradePanel({
       {address ? (
         <Button
           type="button"
-          className={`trade-submit ${side}`}
+          className={`trade-submit ${tradeProgress?.side ?? side}${tradeProgress ? " processing" : ""}`}
           size="3"
+          aria-busy={Boolean(tradeProgress)}
           disabled={isPending || inputWei <= 0n || buyFunding?.canFund === false || (side === "buy" && !canBuy)}
           onClick={() => trade(side, token)}
         >
-          {isPending ? "Pending…" : side === "buy" ? "Buy" : "Sell"}
+          <span aria-live="polite" aria-atomic="true">{tradeProgress ? tradeButtonLabel(tradeProgress.side, tradeProgress.phase) : tradeButtonLabel(side, null)}</span>
         </Button>
       ) : (
         <Button className={`trade-submit ${side}`} type="button" size="3" onClick={() => openConnectModal?.()}>
           Connect wallet to trade
         </Button>
       )}
-      {tradeMessage && (
-        <p className={`trade-hint ${isPending ? "" : "success"}`} role="status">
+      {tradeMessage && !isPending && (
+        <p className="trade-hint success" role="status">
           {tradeMessage}
         </p>
       )}

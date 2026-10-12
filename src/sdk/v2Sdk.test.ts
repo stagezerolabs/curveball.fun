@@ -15,6 +15,37 @@ const deployment = defineCurveballDeployment({
   deadlineSeconds: 300,
 });
 
+test("buy progress follows each wallet prompt and its network confirmation", async () => {
+  const token = "0x0000000000000000000000000000000000000003" as Address;
+  const curve = "0x0000000000000000000000000000000000000004" as Address;
+  const quote = "0x0000000000000000000000000000000000000005" as Address;
+  const phases: string[] = [];
+  let approved = false;
+  const actions = {
+    getAccount: () => ({ address: wallet, chainId: RISE_TESTNET_CHAIN_ID }),
+    getBalance: async () => ({ value: 1_000_000_000_000_000_000n }),
+    readContract: async (_config: unknown, request: { functionName: string }) => {
+      if (request.functionName === "market") return [curve, wallet, 0, 0, 0, 0, wallet];
+      if (request.functionName === "quote") return quote;
+      if (request.functionName === "balanceOf") return 0n;
+      if (request.functionName === "allowance") return approved ? 100n : 0n;
+      if (request.functionName === "quoteBuy") return [100n, 100n, 0n, 0n, 0n];
+      throw new Error(`Unexpected ${request.functionName}`);
+    },
+    simulateContract: async (_config: unknown, request: object) => ({ request }),
+    writeContract: async (_config: unknown, request: { functionName: string }) => {
+      if (request.functionName === "approve") approved = true;
+      return hash;
+    },
+    waitForTransactionReceipt: async () => ({ status: "success", logs: [] }),
+  } as unknown as WagmiActions;
+
+  await createV2Sdk({} as Config, deployment, actions).trade("buy", token, 100n, (phase) => phases.push(phase));
+  expect(phases).toEqual([
+    "preparing", "wrapWallet", "wrapConfirming", "approveWallet", "approveConfirming", "tradeWallet", "tradeConfirming",
+  ]);
+});
+
 test("sell all for ETH approves the full balance, sells, then unwraps only the sale proceeds", async () => {
   const token = "0x0000000000000000000000000000000000000003" as Address;
   const curve = "0x0000000000000000000000000000000000000004" as Address;

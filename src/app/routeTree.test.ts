@@ -18,7 +18,8 @@ test("old beta URLs resolve to the main markets", () => {
   });
 });
 
-test("previous launches have a dedicated migration route", () => {
-  expect(routeHref("migration")).toBe("/migration");
-  expect(resolveRoute("/migration").id).toBe("migration");
+test("retired migration links open the active markets", () => {
+  expect(canonicalPathname("/migration")).toBe("/markets");
+  expect(resolveRoute("/migration").id).toBe("markets");
+  expect(() => routeHref("migration")).toThrow("Unknown route: migration");
 });
