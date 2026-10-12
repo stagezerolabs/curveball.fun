@@ -1,15 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  CandlestickSeries,
-  ColorType,
-  CrosshairMode,
-  HistogramSeries,
-  LineStyle,
-  createChart,
-  type CandlestickData,
-  type HistogramData,
-  type UTCTimestamp,
-} from "lightweight-charts";
+import * as echarts from "echarts/core";
+import { BarChart, CandlestickChart } from "echarts/charts";
+import { DataZoomComponent, GridComponent, MarkLineComponent, TooltipComponent } from "echarts/components";
+import { CanvasRenderer } from "echarts/renderers";
 import { usePublicClient } from "wagmi";
 import { MarketActivity } from "./MarketActivity";
 import { launchpadAbi } from "../sdk/contracts";
@@ -30,7 +23,10 @@ import {
   type TradePoint,
   withRetry,
 } from "../lib/marketChart";
+import { buildMarketChartOptions } from "../lib/marketChartOptions";
 import type { Token } from "../types";
+
+echarts.use([BarChart, CandlestickChart, DataZoomComponent, GridComponent, MarkLineComponent, TooltipComponent, CanvasRenderer]);
 
 const MAX_EVENT_QUERY_BLOCKS = 5_000n;
 const EVENT_QUERY_CONCURRENCY = 6;
@@ -222,100 +218,35 @@ export function MarketChart({
     const container = chartRef.current;
     if (!container || !candles.length) return undefined;
     const styles = getComputedStyle(document.documentElement);
-    const textColor = styles.getPropertyValue("--muted").trim();
-    const gridColor = styles.getPropertyValue("--chart-grid").trim();
-    const lime = styles.getPropertyValue("--lime").trim();
-    const orange = styles.getPropertyValue("--orange").trim();
-    const chart = createChart(container, {
-      autoSize: true,
-      height: 430,
-      layout: {
-        attributionLogo: true,
-        background: { type: ColorType.Solid, color: "transparent" },
-        textColor,
-        fontFamily: '"DM Sans", system-ui, sans-serif',
-      },
-      grid: {
-        vertLines: { color: gridColor },
-        horzLines: { color: gridColor },
-      },
-      crosshair: {
-        mode: CrosshairMode.Normal,
-        vertLine: { color: textColor, style: LineStyle.Dashed, labelBackgroundColor: textColor },
-        horzLine: { color: textColor, style: LineStyle.Dashed, labelBackgroundColor: textColor },
-      },
-      rightPriceScale: {
-        borderVisible: false,
-        scaleMargins: { top: 0.08, bottom: 0.24 },
-      },
-      timeScale: {
-        borderVisible: false,
-        rightOffset: 6,
-        timeVisible: true,
-        secondsVisible: false,
-      },
-      localization: { priceFormatter: formatChartValue },
-    });
-    const smallestPrice = Math.min(
-      ...candles.flatMap((candle) => [candle.open, candle.high, candle.low, candle.close]),
-    );
-    const precision = smallestPrice >= 1
-      ? 4
-      : Math.min(12, Math.max(4, -Math.floor(Math.log10(smallestPrice)) + 2));
-    const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: lime,
-      downColor: orange,
-      wickUpColor: lime,
-      wickDownColor: orange,
-      borderUpColor: lime,
-      borderDownColor: orange,
-      priceFormat: {
-        type: "price",
-        precision,
-        minMove: 10 ** -precision,
-      },
-    });
-    const volumeSeries = chart.addSeries(HistogramSeries, {
-      priceFormat: { type: "volume" },
-      priceScaleId: "volume",
-      lastValueVisible: false,
-      priceLineVisible: false,
-    });
-    chart.priceScale("volume").applyOptions({
-      scaleMargins: { top: 0.82, bottom: 0 },
-      visible: false,
-    });
-    const candleData: CandlestickData<UTCTimestamp>[] = candles.map((candle) => ({
-      time: candle.time as UTCTimestamp,
-      open: candle.open,
-      high: candle.high,
-      low: candle.low,
-      close: candle.close,
-    }));
-    const volumeData: HistogramData<UTCTimestamp>[] = candles.map((candle) => ({
-      time: candle.time as UTCTimestamp,
-      value: candle.volume,
-      color: candle.close >= candle.open ? `${lime}55` : `${orange}55`,
-    }));
-    candleSeries.setData(candleData);
-    volumeSeries.setData(volumeData);
-    chart.timeScale().fitContent();
+    const chart = echarts.init(container, undefined, { renderer: "canvas" });
+    chart.setOption(buildMarketChartOptions(candles, {
+      text: styles.getPropertyValue("--muted").trim(),
+      grid: styles.getPropertyValue("--chart-grid").trim(),
+      lime: styles.getPropertyValue("--lime").trim(),
+      orange: styles.getPropertyValue("--orange").trim(),
+    }, interval));
     setHover({
       close: candles[candles.length - 1].close,
       volume: candles[candles.length - 1].volume,
     });
-    chart.subscribeCrosshairMove((param) => {
-      const candle = param.seriesData.get(candleSeries);
-      const volume = param.seriesData.get(volumeSeries);
-      if (candle && "close" in candle) {
-        setHover({
-          close: candle.close,
-          volume: volume && "value" in volume ? volume.value : 0,
-        });
+    chart.on("updateAxisPointer", (event) => {
+      const pointer = event as { axesInfo?: { value?: number }[] };
+      const index = pointer.axesInfo?.[0]?.value;
+      if (index !== undefined && candles[index]) {
+        setHover({ close: candles[index].close, volume: candles[index].volume });
       }
     });
-    return () => chart.remove();
-  }, [candles, themeVersion]);
+    chart.getZr().on("globalout", () => {
+      const latest = candles[candles.length - 1];
+      setHover({ close: latest.close, volume: latest.volume });
+    });
+    const observer = new ResizeObserver(() => chart.resize());
+    observer.observe(container);
+    return () => {
+      observer.disconnect();
+      chart.dispose();
+    };
+  }, [candles, interval, themeVersion]);
 
   return (
     <div className="market-main">
