@@ -1,6 +1,4 @@
-import { createHash } from "node:crypto";
-import { getAddress, isAddress, verifyMessage } from "viem";
-import { artworkMessage, MAX_ARTWORK_BYTES } from "../src/lib/artworkMessage.js";
+import { MAX_ARTWORK_BYTES } from "../src/lib/artworkRules.js";
 
 const PINATA_UPLOAD_URL = "https://uploads.pinata.cloud/v3/files";
 const CID = /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|baf[a-z2-7]{20,})$/i;
@@ -16,7 +14,7 @@ function imageType(bytes) {
   return null;
 }
 
-async function pinFile(file, jwt) {
+async function pinFile(file, jwt, signal) {
   const form = new FormData();
   form.set("network", "public");
   form.set("file", file);
@@ -24,6 +22,7 @@ async function pinFile(file, jwt) {
     method: "POST",
     headers: { Authorization: `Bearer ${jwt}` },
     body: form,
+    signal,
   });
   if (!response.ok) throw new Error("Pinata upload failed.");
   const result = await response.json();
@@ -44,37 +43,39 @@ export async function POST(request) {
   let form;
   try { form = await request.formData(); }
   catch { return json({ error: "Invalid upload request." }, 400); }
-  const file = form.get("artwork");
-  const rawAddress = form.get("address");
-  const name = form.get("name");
-  const symbol = form.get("symbol");
-  const issuedAt = Number(form.get("issuedAt"));
-  const signature = form.get("signature");
-  if (!(file instanceof File) || typeof rawAddress !== "string" || !isAddress(rawAddress) ||
-      typeof name !== "string" || !name.trim() || new TextEncoder().encode(name.trim()).length > 64 ||
-      typeof symbol !== "string" || !/^[a-zA-Z0-9]{1,12}$/.test(symbol.trim()) ||
-      typeof signature !== "string" || !/^0x[0-9a-f]{130}$/i.test(signature) ||
-      !Number.isSafeInteger(issuedAt) || Math.abs(Math.floor(Date.now() / 1000) - issuedAt) > 60 ||
-      file.size === 0 || file.size > MAX_ARTWORK_BYTES) {
-    return json({ error: "Invalid artwork upload." }, 400);
+  const kind = form.get("kind");
+  if (kind === "image") {
+    const file = form.get("artwork");
+    if (!(file instanceof File) || file.size === 0 || file.size > MAX_ARTWORK_BYTES) {
+      return json({ error: "Choose a PNG, JPEG, or WebP image under 2 MB." }, 400);
+    }
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const type = imageType(bytes);
+    if (!type || type !== file.type) return json({ error: "Use a PNG, JPEG, or WebP image." }, 400);
+    try {
+      const cid = await pinFile(new File([bytes], `artwork.${type.split("/")[1]}`, { type }), jwt, request.signal);
+      return json({ cid });
+    } catch {
+      return json({ error: "Artwork upload failed. Try again." }, 502);
+    }
   }
-  const bytes = Buffer.from(await file.arrayBuffer());
-  const type = imageType(bytes);
-  if (!type || type !== file.type) return json({ error: "Use a PNG, JPEG, or WebP image." }, 400);
-  const address = getAddress(rawAddress);
-  const digest = createHash("sha256").update(bytes).digest("hex");
-  const chainId = Number(process.env.VITE_CHAIN_ID || 11155931);
-  const message = artworkMessage({ address, chainId, name, symbol, digest, issuedAt });
-  const valid = await verifyMessage({ address, message, signature }).catch(() => false);
-  if (!valid) return json({ error: "Wallet signature did not match this artwork." }, 403);
-
-  try {
-    const imageCid = await pinFile(new File([bytes], `artwork.${type.split("/")[1]}`, { type }), jwt);
-    const metadata = { name: name.trim(), symbol: symbol.trim().toUpperCase(), image: `ipfs://${imageCid}` };
-    const metadataFile = new File([JSON.stringify(metadata)], "metadata.json", { type: "application/json" });
-    const metadataCid = await pinFile(metadataFile, jwt);
-    return json({ uri: `ipfs://${metadataCid}` });
-  } catch {
-    return json({ error: "Artwork upload failed. Try again." }, 502);
+  if (kind === "metadata") {
+    const imageCid = form.get("imageCid");
+    const name = form.get("name");
+    const symbol = form.get("symbol");
+    if (typeof imageCid !== "string" || !CID.test(imageCid) ||
+        typeof name !== "string" || !name.trim() || new TextEncoder().encode(name.trim()).length > 64 ||
+        typeof symbol !== "string" || !/^[a-zA-Z0-9]{1,12}$/.test(symbol.trim())) {
+      return json({ error: "Enter a valid token name and ticker before publishing artwork." }, 400);
+    }
+    try {
+      const metadata = { name: name.trim(), symbol: symbol.trim().toUpperCase(), image: `ipfs://${imageCid}` };
+      const metadataFile = new File([JSON.stringify(metadata)], "metadata.json", { type: "application/json" });
+      const cid = await pinFile(metadataFile, jwt, request.signal);
+      return json({ uri: `ipfs://${cid}` });
+    } catch {
+      return json({ error: "Token metadata upload failed. Try again." }, 502);
+    }
   }
+  return json({ error: "Invalid artwork upload." }, 400);
 }

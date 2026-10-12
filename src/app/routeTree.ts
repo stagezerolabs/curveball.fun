@@ -7,7 +7,6 @@ type Route = {
 const routes: Route[] = [
   { id: "landing", path: "/", title: "Curveball — Fair token launches" },
   { id: "markets", path: "/markets", title: "Markets — Curveball" },
-  { id: "migration", path: "/migration", title: "Previous launches — Curveball" },
   { id: "market", path: "/markets/:address", title: "Market — Curveball" },
   { id: "launch", path: "/launch", title: "Launch — Curveball" },
   { id: "profile", path: "/profile", title: "Your launches — Curveball" },
@@ -15,6 +14,7 @@ const routes: Route[] = [
 ];
 
 export function canonicalPathname(pathname: string) {
+  if (pathname === "/migration" || pathname === "/migration/") return "/markets";
   const legacyMarket = /^\/beta\/markets\/([^/]+)\/?$/.exec(pathname);
   if (legacyMarket) return `/markets/${legacyMarket[1]}`;
   return pathname === "/app" || pathname === "/app/" || pathname === "/beta" || pathname.startsWith("/beta/") ? "/markets" : pathname;

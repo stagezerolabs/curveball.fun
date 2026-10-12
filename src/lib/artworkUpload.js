@@ -1,29 +1,38 @@
-import { signMessage } from "@wagmi/core";
-import { artworkMessage, MAX_ARTWORK_BYTES } from "./artworkMessage";
-import { activeChainId, wagmiConfig } from "./web3";
+import { MAX_ARTWORK_BYTES } from "./artworkRules";
 
-export async function uploadArtwork(file, { address, name, symbol }) {
-  if (file.size > MAX_ARTWORK_BYTES || !["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+const CID = /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|baf[a-z2-7]{20,})$/i;
+
+async function postArtwork(form, signal) {
+  const response = await fetch("/api/artwork", { method: "POST", body: form, signal });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(typeof data.error === "string" ? data.error : "Artwork upload failed. Try again.");
+  }
+  return data;
+}
+
+export async function uploadArtworkImage(file, { signal } = {}) {
+  if (file.size === 0 || file.size > MAX_ARTWORK_BYTES || !["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
     throw new Error("Choose a PNG, JPEG, or WebP image under 2 MB.");
   }
-  const bytes = await file.arrayBuffer();
-  const digest = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)), (byte) => byte.toString(16).padStart(2, "0")).join("");
-  const issuedAt = Math.floor(Date.now() / 1000);
-  const signature = await signMessage(wagmiConfig, {
-    account: address,
-    message: artworkMessage({ address, chainId: activeChainId, name, symbol, digest, issuedAt }),
-  });
   const form = new FormData();
+  form.set("kind", "image");
   form.set("artwork", file);
-  form.set("address", address);
-  form.set("name", name);
-  form.set("symbol", symbol);
-  form.set("issuedAt", String(issuedAt));
-  form.set("signature", signature);
-  const response = await fetch("/api/artwork", { method: "POST", body: form });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok || typeof data.uri !== "string") {
-    throw new Error(typeof data.error === "string" ? data.error : "Artwork upload failed. Try again.");
+  const data = await postArtwork(form, signal);
+  if (typeof data.cid !== "string" || !CID.test(data.cid)) throw new Error("Artwork upload did not return a valid IPFS hash.");
+  return data.cid;
+}
+
+export async function publishTokenMetadata(imageCid, { name, symbol, signal }) {
+  if (!CID.test(imageCid)) throw new Error("Artwork has no valid IPFS hash.");
+  const form = new FormData();
+  form.set("kind", "metadata");
+  form.set("imageCid", imageCid);
+  form.set("name", name.trim());
+  form.set("symbol", symbol.trim().toUpperCase());
+  const data = await postArtwork(form, signal);
+  if (typeof data.uri !== "string" || !data.uri.startsWith("ipfs://") || !CID.test(data.uri.slice(7))) {
+    throw new Error("Token metadata did not return a valid IPFS URI.");
   }
   return data.uri;
 }

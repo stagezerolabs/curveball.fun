@@ -32,6 +32,8 @@ import {
 } from "./curveballSdk";
 
 export type TradeSide = "buy" | "sell";
+export type TradePhase = "preparing" | "wrapWallet" | "wrapConfirming" | "approveWallet" | "approveConfirming" | "tradeWallet" | "tradeConfirming";
+export type TradeProgress = (phase: TradePhase) => void;
 export type LaunchProgress = (phase: "preparing" | "wrapWallet" | "wrapConfirming" | "approveWallet" | "approveConfirming" | "wallet" | "confirming", hash?: Hash) => void;
 
 export type CurveballRuntime = Readonly<{
@@ -348,8 +350,9 @@ export function createWagmiCurveballSdk(
     }
   }
 
-  async function trade(side: TradeSide, token: Address, input: bigint): Promise<ConfirmedTrade> {
+  async function trade(side: TradeSide, token: Address, input: bigint, onProgress?: TradeProgress): Promise<ConfirmedTrade> {
     try {
+      onProgress?.("preparing");
       if (input <= 0n) throw new CurveballSdkError("Trade amount must be greater than zero.");
       const account = await ensureWallet();
       const tokenAddress = getAddress(token);
@@ -379,7 +382,7 @@ export function createWagmiCurveballSdk(
         });
         if (nativeBalance.value < wrappedAmount + NATIVE_GAS_RESERVE) {
           throw new CurveballSdkError(
-            "Not enough ETH to wrap the required WETH and pay network fees.",
+            "Not enough ETH to cover this buy and network fees.",
           );
         }
         const wrapping = await actions.simulateContract(config, {
@@ -390,7 +393,10 @@ export function createWagmiCurveballSdk(
           value: wrappedAmount,
           chainId: deployment.chainId,
         });
-        await confirm(await actions.writeContract(config, wrapping.request));
+        onProgress?.("wrapWallet");
+        const wrapHash = await actions.writeContract(config, wrapping.request);
+        onProgress?.("wrapConfirming");
+        await confirm(wrapHash);
       }
 
       const allowance = await actions.readContract(config, {
@@ -409,7 +415,10 @@ export function createWagmiCurveballSdk(
           args: [deployment.launchpad, input],
           chainId: deployment.chainId,
         });
-        await confirm(await actions.writeContract(config, approval.request));
+        onProgress?.("approveWallet");
+        const approvalHash = await actions.writeContract(config, approval.request);
+        onProgress?.("approveConfirming");
+        await confirm(approvalHash);
       }
 
       // Quote after approval confirmation so minOut is based on the freshest state.
@@ -429,7 +438,10 @@ export function createWagmiCurveballSdk(
         ],
         chainId: deployment.chainId,
       });
-      const confirmed = await confirm(await actions.writeContract(config, simulation.request));
+      onProgress?.("tradeWallet");
+      const tradeHash = await actions.writeContract(config, simulation.request);
+      onProgress?.("tradeConfirming");
+      const confirmed = await confirm(tradeHash);
       return { ...confirmed, side, input, quotedOutput, minimumOutput, wrappedAmount };
     } catch (error) {
       throw explainError(error);

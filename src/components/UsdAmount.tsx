@@ -76,6 +76,7 @@ function formatCompactUsd(value: number) {
 
 export function UsdAmount({ weth, suffix = "", compact = false, precision = "standard" }: { weth?: number | null; suffix?: string; compact?: boolean; precision?: "standard" | "price" }) {
   const usdPerEth = useSyncExternalStore(subscribe, getEthUsdPrice, getEthUsdPrice);
+  if (weth === 0) return <>{formatUsd(0)}{suffix}</>;
   if (weth == null || usdPerEth == null) return <>—</>;
   const full = formatUsd(weth * usdPerEth, precision);
   if (compact) return <span title={`${full}${suffix}`} aria-label={`${full}${suffix}`}>{formatCompactUsd(weth * usdPerEth)}{suffix}</span>;

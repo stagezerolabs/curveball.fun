@@ -79,7 +79,7 @@ export function LandingPage({ navigate }: { navigate: Navigate }) {
             Launch on the <em>curve.</em>
           </h1>
           <p className="landing-lede">
-            Discover projects launching on <span className="landing-inline-rise"><span className="visually-hidden">RISE</span><RiseLogo /></span>. Explore live markets and
+            Discover projects launching on <span className="landing-inline-rise"><span className="visually-hidden">RISE</span><RiseLogo /></span><br />Explore live markets and
             support the ones you care about.
           </p>
           <div className="landing-actions">

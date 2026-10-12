@@ -172,7 +172,6 @@ export function Header({
     navigate(route, params);
   };
   const marketsClass = ["markets", "market"].includes(routeId) ? "active" : "";
-  const migrationClass = routeId === "migration" ? "active" : "";
   const profileClass = routeId === "profile" ? "active" : "";
 
   const primaryLinks = (
@@ -184,14 +183,6 @@ export function Header({
         aria-current={marketsClass ? "page" : undefined}
       >
         Explore
-      </AppLink>
-      <AppLink
-        className={`nav-link ${migrationClass}`}
-        route="migration"
-        navigate={go}
-        aria-current={migrationClass ? "page" : undefined}
-      >
-        Migration
       </AppLink>
       <AppLink
         className={`nav-link ${profileClass}`}
@@ -266,7 +257,6 @@ export function LandingFooter({ navigate }: { navigate: Navigate }) {
         <nav className="landing-footer-column" aria-label="Product">
           <h2>Product</h2>
           <AppLink route="markets" navigate={navigate}>Markets</AppLink>
-          <AppLink route="migration" navigate={navigate}>Previous launches</AppLink>
           <AppLink route="launch" navigate={navigate}>Launch</AppLink>
         </nav>
 
@@ -288,6 +278,10 @@ export function LandingFooter({ navigate }: { navigate: Navigate }) {
             rel="noreferrer"
           >
             <span>Launchpad</span>
+            <svg className="landing-contract-check" viewBox="0 0 20 20" role="img" aria-label="Official Curveball contract">
+              <circle cx="10" cy="10" r="9" fill="currentColor" />
+              <path d="m6 10 2.5 2.5L14 7" fill="none" stroke="var(--on-solid)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
             <code>{formatAddress(launchpadAddress)}</code>
           </a>
         </div>

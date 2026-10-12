@@ -1,5 +1,4 @@
-import { formatEther, parseEther } from "viem";
-import { formatEthAmount } from "../lib/format.js";
+import { parseEther } from "viem";
 import { NATIVE_GAS_RESERVE } from "../sdk/wagmiSdk";
 
 export type BuyFundingState = Readonly<{
@@ -28,10 +27,6 @@ export function getBuyFundingState(
   });
 }
 
-function amount(value: bigint) {
-  return formatEthAmount(Number(formatEther(value)));
-}
-
 export function TradeFundingStatus({
   amount: input,
   wethBalance,
@@ -42,22 +37,12 @@ export function TradeFundingStatus({
   nativeBalance?: bigint;
 }) {
   const funding = getBuyFundingState(input, wethBalance, nativeBalance);
-  if (wethBalance === undefined) {
-    return <p className="trade-hint">Checking WETH balance…</p>;
-  }
   if (funding?.needsWrap && !funding.canFund) {
     return (
       <p className="trade-hint warn" role="alert">
-        Not enough ETH to wrap the required WETH and pay network fees.
+        Not enough ETH to cover this buy and network fees.
       </p>
     );
   }
-  return (
-    <p className="trade-hint">
-      {amount(wethBalance)} WETH available
-      {funding?.needsWrap
-        ? ` · ${amount(funding.shortfall)} ETH will be wrapped to WETH before buying.`
-        : ""}
-    </p>
-  );
+  return null;
 }

@@ -6,7 +6,7 @@ import { decodeAbiParameters, decodeEventLog, getAddress, zeroAddress, type Addr
 import { applySlippage, createDeadline, validateTokenInput, type CurveballDeployment, type TokenInput } from "./curveballSdk";
 import { erc20Abi } from "./contracts";
 import { LEGACY_TESTNET_V2_FACTORY, v2CurveAbi, v2EscrowAbi, v2FactoryAbi, v2LaunchAndBuyAbi, v2LockerAbi, v2VaultAbi } from "./v2Contracts";
-import { CurveballSdkError, NATIVE_GAS_RESERVE, PendingTransactionError, type ConfirmedTrade, type ConfirmedWrite, type LaunchProgress, type TradeSide, type WagmiActions } from "./wagmiSdk";
+import { CurveballSdkError, NATIVE_GAS_RESERVE, PendingTransactionError, type ConfirmedTrade, type ConfirmedWrite, type LaunchProgress, type TradeProgress, type TradeSide, type WagmiActions } from "./wagmiSdk";
 import { validateV2Deployment } from "../v2Deployment";
 
 const defaultActions: WagmiActions = { getAccount, getBalance, getBytecode, getTransactionReceipt, readContract, simulateContract, switchChain, waitForTransactionReceipt, writeContract };
@@ -114,7 +114,7 @@ export function createV2Sdk(config: Config, deployment: CurveballDeployment, act
     if (balance < amount) {
       const missing = amount - balance;
       const native = await actions.getBalance(config, { address: account, chainId: deployment.chainId });
-      if (native.value < missing + NATIVE_GAS_RESERVE) throw new CurveballSdkError("Not enough ETH to wrap the required WETH and pay network fees.");
+      if (native.value < missing + NATIVE_GAS_RESERVE) throw new CurveballSdkError("Not enough ETH to cover this transaction and network fees.");
       const wrapping = await actions.simulateContract(config, { account, address: quote, abi: erc20Abi, functionName: "deposit", value: missing, chainId: deployment.chainId });
       onProgress?.("wrapWallet");
       const wrapHash = await actions.writeContract(config, wrapping.request);
@@ -203,7 +203,8 @@ export function createV2Sdk(config: Config, deployment: CurveballDeployment, act
     return { ...confirmed, ...createdFromReceipt(confirmed.receipt), minimumOutput: minOut };
   }
 
-  async function trade(side: TradeSide, token: Address, input: bigint, onProgress?: (phase: "approving" | "selling") => void): Promise<ConfirmedTrade> {
+  async function trade(side: TradeSide, token: Address, input: bigint, onProgress?: TradeProgress): Promise<ConfirmedTrade> {
+    onProgress?.("preparing");
     if (input <= 0n) throw new CurveballSdkError("Trade amount must be greater than zero.");
     const account = await ensureWallet();
     const market = await readMarket(token);
@@ -215,24 +216,31 @@ export function createV2Sdk(config: Config, deployment: CurveballDeployment, act
       if (side === "sell") throw new CurveballSdkError("Your token balance is too low for this sale.");
       wrappedAmount = input - balance;
       const native = await actions.getBalance(config, { address: account, chainId: deployment.chainId });
-      if (native.value < wrappedAmount + NATIVE_GAS_RESERVE) throw new CurveballSdkError("Not enough ETH to wrap the required WETH and pay network fees.");
+      if (native.value < wrappedAmount + NATIVE_GAS_RESERVE) throw new CurveballSdkError("Not enough ETH to cover this buy and network fees.");
       const wrapping = await actions.simulateContract(config, { account, address: quote, abi: erc20Abi, functionName: "deposit", value: wrappedAmount, chainId: deployment.chainId });
-      await confirm(await actions.writeContract(config, wrapping.request));
+      onProgress?.("wrapWallet");
+      const wrapHash = await actions.writeContract(config, wrapping.request);
+      onProgress?.("wrapConfirming");
+      await confirm(wrapHash);
     }
     const allowance = await actions.readContract(config, { address: asset, abi: erc20Abi, functionName: "allowance", args: [account, market.curve], chainId: deployment.chainId });
     const approved = allowance < input;
     if (approved) {
-      onProgress?.("approving");
       const approval = await actions.simulateContract(config, { account, address: asset, abi: erc20Abi, functionName: "approve", args: [market.curve, input], chainId: deployment.chainId });
-      await confirm(await actions.writeContract(config, approval.request));
+      onProgress?.("approveWallet");
+      const approvalHash = await actions.writeContract(config, approval.request);
+      onProgress?.("approveConfirming");
+      await confirm(approvalHash);
       await waitForAllowance(asset, account, market.curve, input);
     }
     const quotedOutput = await quoteTrade(side, token, input);
     const minimumOutput = applySlippage(quotedOutput, deployment.slippageBps);
     if (minimumOutput <= 0n) throw new CurveballSdkError("Trade output is too small.");
-    onProgress?.("selling");
     const simulation = await simulateAfterApproval(() => actions.simulateContract(config, { account, address: market.curve, abi: v2CurveAbi, functionName: side === "buy" ? "buyTokens" : "sellTokens", args: [input, minimumOutput, createDeadline(Date.now(), deployment.deadlineSeconds)], chainId: deployment.chainId }), approved);
-    const confirmed = await confirm(await actions.writeContract(config, simulation.request));
+    onProgress?.("tradeWallet");
+    const tradeHash = await actions.writeContract(config, simulation.request);
+    onProgress?.("tradeConfirming");
+    const confirmed = await confirm(tradeHash);
     return { ...confirmed, side, input, quotedOutput, minimumOutput, wrappedAmount };
   }
 
@@ -255,7 +263,10 @@ export function createV2Sdk(config: Config, deployment: CurveballDeployment, act
     const balance = await actions.readContract(config, { address: tokenAddress, abi: erc20Abi, functionName: "balanceOf", args: [account], chainId: deployment.chainId });
     if (balance <= 0n) throw new CurveballSdkError("There are no tokens left to sell in this wallet.");
     const market = await readMarket(tokenAddress);
-    const sale = await trade("sell", tokenAddress, balance, onProgress);
+    const sale = await trade("sell", tokenAddress, balance, (phase) => {
+      if (phase === "approveWallet") onProgress?.("approving");
+      if (phase === "tradeWallet") onProgress?.("selling");
+    });
     let received: bigint | undefined;
     for (const log of sale.receipt.logs) {
       if (log.address.toLowerCase() !== market.curve.toLowerCase()) continue;

@@ -76,7 +76,6 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
     <main className="page-main">
       <section className="markets-page wrap" aria-labelledby="markets-title">
         <h1 id="markets-title" className="visually-hidden">Explore markets</h1>
-        <p className="market-migration-note">We’re moving launches to a new contract. <AppLink route="migration" navigate={navigate}>Find previous tokens and addresses ↗</AppLink></p>
         {lastCreatedToken && <p className="market-created-note" role="status">Your new token is listed below. Market data may take a moment to appear.</p>}
         {error && (
           <p className="notice" role="alert">
@@ -98,8 +97,19 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
               ))}
               <Tabs.Indicator className="market-tabs-indicator" />
             </Tabs.List>
-            <button type="button" className="market-refresh" onClick={refreshMarkets} disabled={loading || !publicClient}>
-              {loading ? "Refreshing…" : "Refresh markets"}
+            <button
+              type="button"
+              className="market-refresh"
+              onClick={refreshMarkets}
+              disabled={loading || !publicClient}
+              aria-label={loading ? "Refreshing markets" : "Refresh markets"}
+              aria-busy={loading}
+              title={loading ? "Refreshing markets" : "Refresh markets"}
+            >
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M16.8 8A7 7 0 1 0 17 11" />
+                <path d="M17 3.5V8h-4.5" />
+              </svg>
             </button>
           </div>
           {loading && tokens.length > 0 && <p className="market-refresh-status" role="status">Checking for new markets…</p>}
