@@ -8,6 +8,7 @@ import { useBalance, useReadContract } from "wagmi";
 import { launchpadAbi } from "../sdk/contracts";
 import { v2FactoryAbi } from "../sdk/v2Contracts";
 import { activeChainId, activeContractVersion, activeExplorerUrl, launchpadAddress } from "../lib/web3";
+import { factoryForToken } from "../lib/marketFactories";
 import { getBetaReadEnabled, selectMarketState } from "../lib/marketState";
 import { useStore } from "../app/useStore.js";
 import { useTokenBalance } from "../sdk/react";
@@ -64,28 +65,29 @@ export function TradePanel({
   } = useStore();
   const [explain, setExplain] = useState(false);
   const { openConnectModal } = useConnectModal();
+  const marketFactory = launchpadAddress ? factoryForToken(token.factory) : undefined;
   const betaReadEnabled = getBetaReadEnabled({
     contractVersion: activeContractVersion,
     chainId: activeChainId,
     walletConnected: Boolean(address),
-    hasLaunchpadAddress: Boolean(launchpadAddress),
+    hasLaunchpadAddress: Boolean(marketFactory),
   });
   const { data: publicOpen } = useReadContract({
-    address: launchpadAddress ?? undefined, abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi,
+    address: marketFactory, abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi,
     functionName: "publicLaunchOpen", chainId: activeChainId,
     query: { enabled: betaReadEnabled.publicLaunchOpen },
   });
   const { data: invited } = useReadContract({
-    address: launchpadAddress ?? undefined, abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi,
+    address: marketFactory, abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi,
     functionName: "invited", args: [address!], chainId: activeChainId,
     query: { enabled: betaReadEnabled.invited },
   });
   const { data: quoteToken } = useReadContract({
-    address: launchpadAddress ?? undefined,
+    address: marketFactory,
     abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi,
     functionName: "quote",
     chainId: activeChainId,
-    query: { enabled: Boolean(launchpadAddress) },
+    query: { enabled: Boolean(marketFactory) },
   });
   const { state, hasBetaAccess, canBuy } = selectMarketState({
     contractVersion: activeContractVersion,

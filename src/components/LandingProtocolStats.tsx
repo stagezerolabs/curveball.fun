@@ -7,18 +7,20 @@ import { useStore } from "../app/useStore.js";
 import { UsdAmount } from "./UsdAmount";
 import { readCachedLaunches, readCachedPayout, writeCachedLaunches, writeCachedPayout } from "../lib/landingStatsCache";
 import { getCreatorPayouts } from "../lib/protocolStats";
-import { activeChainId, activeContractVersion, activeDeploymentBlock, launchpadAddress } from "../lib/web3";
+import { activeChainId, activeContractVersion, launchpadAddress } from "../lib/web3";
+import { marketFactories } from "../lib/marketFactories";
 import type { Token } from "../types";
 
 export function LandingProtocolStats() {
   const client = usePublicClient({ chainId: activeChainId });
   const loadMarkets = useStore((state) => state.loadMarkets) as (client?: CreatorTokenClient) => Promise<Token[]>;
-  const cacheKey = `curveball:landing-stats:v2:${activeContractVersion}:${activeChainId}:${launchpadAddress?.toLowerCase() ?? "none"}:${activeDeploymentBlock}`;
+  const factoryKey = marketFactories().map(({ address, fromBlock }) => `${address.toLowerCase()}:${fromBlock}`).join(":");
+  const cacheKey = `curveball:landing-stats:v3:${activeContractVersion}:${activeChainId}:${factoryKey}`;
   const [cachedLaunches] = useState(() => readCachedLaunches(cacheKey));
   const [cachedPayout] = useState(() => readCachedPayout(cacheKey));
   const statsEnabled = Boolean(client && launchpadAddress);
   const { data, isPending } = useQuery({
-    queryKey: ["landing-launch-stats", activeChainId, launchpadAddress, activeDeploymentBlock.toString()],
+    queryKey: ["landing-launch-stats", activeChainId, factoryKey],
     enabled: statsEnabled,
     initialData: cachedLaunches?.value,
     initialDataUpdatedAt: cachedLaunches?.updatedAt,
@@ -26,21 +28,25 @@ export function LandingProtocolStats() {
     retry: 1,
     queryFn: async () => {
       const tokens = await loadMarkets(client as unknown as CreatorTokenClient);
-      const launches = tokens.map(({ address, creator, graduated, createdBlock }) => ({ address, creator, graduated, createdBlock }));
+      const launches = tokens.map(({ address, factory, creator, graduated, createdBlock }) => ({ address, factory, creator, graduated, createdBlock }));
       writeCachedLaunches(cacheKey, launches);
       return launches;
     },
   });
   const payoutEnabled = activeContractVersion === "v2" && Boolean(client && launchpadAddress && data);
   const { data: payout, isPending: payoutPending } = useQuery({
-    queryKey: ["landing-creator-payouts", activeChainId, launchpadAddress, activeDeploymentBlock.toString()],
+    queryKey: ["landing-creator-payouts", activeChainId, factoryKey],
     enabled: payoutEnabled,
     initialData: cachedPayout?.value,
     initialDataUpdatedAt: cachedPayout?.updatedAt,
     staleTime: 300_000,
     retry: 1,
     queryFn: async () => {
-      const result = await getCreatorPayouts(client as unknown as Parameters<typeof getCreatorPayouts>[0], launchpadAddress!, data!, activeDeploymentBlock);
+      const results = await Promise.all(marketFactories().map(async ({ address, fromBlock }) => {
+        const owned = data!.filter((token) => token.factory?.toLowerCase() === address.toLowerCase());
+        return getCreatorPayouts(client as unknown as Parameters<typeof getCreatorPayouts>[0], address, owned, fromBlock);
+      }));
+      const result = { amount: results.reduce((sum, entry) => sum + entry.amount, 0n), decimals: results[0]?.decimals ?? 18 };
       writeCachedPayout(cacheKey, result);
       return result;
     },

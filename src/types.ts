@@ -4,6 +4,7 @@ export type Navigate = (id: string, params?: Record<string, string>) => void;
 
 export type Token = {
   address: Address;
+  factory?: Address;
   name: string;
   symbol: string;
   creator: Address;

@@ -25,6 +25,11 @@ export const v2FactoryAbi = parseAbi([
   "function invited(address) view returns (bool)",
   "function initialize((address deployer,address escrow,address vault,address guard,address executor,address locker,address hook,address launchAndBuy) services)",
   "function owner() view returns (address)",
+  "function pendingOwner() view returns (address)",
+  "function transferOwnership(address newOwner)",
+  "function acceptOwnership()",
+  "function setFeeDefaults(uint16 newFee,uint16 newCreatorShare,uint16 newBuybackShare,uint16 newTaxCap,address newTreasury)",
+  "event FeeDefaultsUpdated(uint16 feeBps,uint16 creatorShareBps,uint16 buybackShareBps,uint16 creatorTaxCapBps,address treasury)",
   "function market(address) view returns (address curve,address creator,uint16 feeBps,uint16 creatorShareBps,uint16 buybackShareBps,uint16 creatorTaxBps,address treasury)",
   "function createToken(string name_,string symbol_,string uri_,uint16 creatorTaxBps) returns (address token,address curve)",
   "function graduate(address token)",
@@ -34,6 +39,13 @@ export const v2FactoryAbi = parseAbi([
   "event GraduationStarted(address indexed token,address indexed curve)",
   "event GraduationDeferred(address indexed token,bytes reason)",
   "event Graduated(address indexed token,address indexed pool,uint256 tokenLiquidity,uint256 quoteLiquidity,uint256 liquidity)",
+]);
+
+export const factoryFeeControllerAbi = parseAbi([
+  "function factory() view returns (address)",
+  "function owner() view returns (address)",
+  "function feeAdmin() view returns (address)",
+  "function setTradingFeeBps(uint16 newFee)",
 ]);
 
 // The recorded first V2 testnet release predates the launch fee.

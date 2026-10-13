@@ -15,6 +15,7 @@ import {
 import { readableError } from "../lib/errors";
 import { PendingTransactionError } from "../sdk/wagmiSdk";
 import { hasPublishedArtwork } from "../lib/launchForm";
+import { sdkForMarket } from "../lib/marketSdk";
 
 const MARKET_CACHE_TTL_MS = 30_000;
 let marketsRequest = null;
@@ -258,7 +259,7 @@ export const useStore = create(persist((set, get) => ({
     set({ quoting: true });
     try {
       const input = parseEther(amount);
-      const out = await requireCurveballSdk().quoteTrade(side, token.address, input);
+      const out = await sdkForMarket(token.factory).quoteTrade(side, token.address, input);
       set({ quotePreview: out, quoting: false });
     } catch {
       set({ quotePreview: null, quoting: false });
@@ -293,7 +294,7 @@ export const useStore = create(persist((set, get) => ({
         : await sdk.createToken(input, onProgress);
 
       try {
-        const token = { address: result.token, name: input.name.trim(), symbol: input.symbol.trim(), creator: result.creator, graduated: false, createdAt: new Date().toISOString(), metadataUri: input.uri || null, indexing: true };
+        const token = { address: result.token, factory: launchpadAddress, name: input.name.trim(), symbol: input.symbol.trim(), creator: result.creator, graduated: false, createdAt: new Date().toISOString(), metadataUri: input.uri || null, indexing: true };
         set((state) => ({
           ...createdTokenCacheUpdate(state, token),
           tradeMessage: `Token created at ${result.token}.`,
@@ -331,7 +332,7 @@ export const useStore = create(persist((set, get) => ({
         throw Error("Enter an amount greater than zero.");
 
       const input = parseEther(amount);
-      const result = await requireCurveballSdk().trade(side, token.address, input, (phase) => {
+      const result = await sdkForMarket(token.factory).trade(side, token.address, input, (phase) => {
         set({ tradeProgress: { side, phase } });
       });
 
@@ -357,13 +358,13 @@ export const useStore = create(persist((set, get) => ({
 
   // LpLocker.claim is permissionless: the caller pays gas, the creator and
   // treasury receive the fees. Nothing is routed to whoever clicks this.
-  claimPoolFees: async (locker, pool) => {
+  claimPoolFees: async (locker, pool, factory) => {
     const { startAction, endAction, handleActionError } = get();
     startAction();
     try {
       if (!locker || !pool) throw Error("This market has no pool yet.");
       set({ tradeMessage: "Claiming pool fees…" });
-      await requireCurveballSdk().claimPoolFees(locker, pool);
+      await sdkForMarket(factory).claimPoolFees(locker, pool);
       set({
         tradeMessage: activeContractVersion === "v2" ? "Pool fees credited to creator, treasury, and buyback vault." : "Pool fees sent to the creator and treasury.",
         marketsFetchedAt: 0,
@@ -375,11 +376,11 @@ export const useStore = create(persist((set, get) => ({
     }
   },
 
-  claimEscrow: async (token, asset, recipient) => {
+  claimEscrow: async (token, asset, recipient, factory) => {
     const { startAction, endAction, handleActionError } = get();
     startAction();
     try {
-      const sdk = requireCurveballSdk();
+      const sdk = sdkForMarket(factory);
       if (!("claimEscrow" in sdk)) throw Error("V2 fee escrow is unavailable.");
       await sdk.claimEscrow(token, asset, recipient);
       set({ tradeMessage: "Accrued fees sent to the registered recipient." });
@@ -392,7 +393,7 @@ export const useStore = create(persist((set, get) => ({
     startAction();
     try {
       if (activeContractVersion !== "v2") throw Error("This market uses the previous graduation flow.");
-      const sdk = requireCurveballSdk();
+      const sdk = sdkForMarket(token.factory);
       if (!sdk || !("graduateToIcarus" in sdk)) throw Error("V2 factory is unavailable.");
       const result = await sdk.graduateToIcarus(token.address);
       const poolSuffix = result.pool ? ` — Icarus pool ${result.pool}` : ".";
@@ -429,7 +430,7 @@ export const useStore = create(persist((set, get) => ({
     }),
 }), {
   name: `curveball-chain-cache:${activeChainId}:${launchpadAddress ?? "unconfigured"}:${activeContractVersion}`,
-  version: 2,
+  version: 3,
   storage: createJSONStorage(() => localStorage),
   partialize: (state) => ({
     tokens: state.tokens,

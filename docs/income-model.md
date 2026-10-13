@@ -1,6 +1,6 @@
 # Curveball — how fees and income work now (V2)
 
-Status: 2026-10-06, read from the curveball.fun codebase (V2 contracts via `docs/security/curveball-v2-review.md`, the SDK, and the UI surfaces). Two important frames up front:
+Status: updated 2026-10-13. The deployed fee-enabled testnet factory still reads 50 bps until the separately approved on-chain update is confirmed. The 75 bps figures below describe the intended new-launch setting after that update. Two important frames up front:
 
 - **Nothing earns real money today.** Everything runs on RISE testnet / a local fork. This is the model, not income.
 - **Creators earn and the protocol earns from the same fee** — the split is fixed per token at launch.
@@ -10,17 +10,17 @@ Status: 2026-10-06, read from the curveball.fun codebase (V2 contracts via `docs
 Curveball is a launchpad. Its income is **a fee on every trade** (buy and sell), charged on the quote leg (WETH), taken at the point of trade on the bonding curve.
 
 **Default split (per launch, snapshotted at creation):**
-- Curve fee: **50 bps** (0.5% of a trade)
+- Curve fee: **75 bps** (0.75% of a trade) for new launches after the factory update. Earlier markets retain their launch-time fee.
 - Split: **50% creator · 25% buyback · 25% protocol (treasury)**
 
-So the **protocol's / operator's main income = 25% of that 50 bps = 12.5 bps (0.125%) of every tradable volume**, in WETH. The creator gets half the fee; a quarter is forced into buyback of the token.
+At 75 bps, the **protocol's / operator's share = 25% of the fee = 18.75 bps (0.1875%) of curve trading volume**, in WETH. The creator gets half the fee; a quarter is forced into buyback of the token.
 
 **Why the "buyback 25%" matters:** buyback is the second lever. The protocol owns and claims the **vested** buyback lots (each lot vests over 5 years; only the current protocol owner claims the vested portion). So buyback is both a token-supporting tool and a longer-term asset/authority the protocol controls rather than immediate income.
 
 ## How a token's split is fixed
 
 At each launch the contract **snapshots** the fee, the three-way share, the **creator tax**, and the **treasury address** for that token. Nothing drifts after launch:
-- `feeBps` — trade fee (default 50 bps)
+- `feeBps` — curve trade fee (new-deployment default 75 bps; each market snapshots the live factory value)
 - `creatorShareBps` / `buybackShareBps` — creator and buyback cut of the fee (sum to the trade fee with the protocol's share)
 - `creatorTaxBps` — a separate tax on the **creator**, default **0**, capped at **50 bps** (income only if Curveball sets a creator tax)
 - treasury = the protocol address that receives the protocol share
@@ -39,7 +39,7 @@ Per the V2 review: **creators have no mint, reserve, fee-policy, or graduation a
 
 ## Income summary (ranked)
 
-1. **Protocol share of trading fees** — 25% of the (default 50 bps) curve fee, on all volume. *The main income source.*
+1. **Protocol share of trading fees** — 25% of each market's curve fee. At 75 bps, this is 18.75 bps of curve trading volume. *The main income source.*
 2. **Creator tax** — a protocol-chosen tax on creators, off by default, up to 50 bps — pure protocol income when enabled.
 3. **Buyback vested-lot ownership** — a locked, 5-year-vesting asset the protocol owns, claimable only by the current protocol owner (authority/asset, not near-term cash).
 4. (Secondary) **LP locker claim** on post-graduation pool fees routed in kind.

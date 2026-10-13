@@ -6,6 +6,7 @@ import { useReadContract } from "wagmi";
 import { launchpadAbi, lockerAbi } from "../sdk/contracts";
 import { v2EscrowAbi, v2FactoryAbi } from "../sdk/v2Contracts";
 import { activeChainId, activeContractVersion, launchpadAddress } from "../lib/web3";
+import { factoryForToken } from "../lib/marketFactories";
 import type { Token } from "../types";
 import { UsdAmount } from "./UsdAmount";
 
@@ -18,15 +19,16 @@ export function MilestonePanel({
 }) {
   const { isPending, claimPoolFees, claimEscrow, advanceGraduation } = useStore() as {
     isPending: boolean;
-    claimPoolFees: (locker: string, pool: string) => Promise<void>;
-    claimEscrow: (token: Address, asset: Address, recipient: Address) => Promise<void>;
+    claimPoolFees: (locker: string, pool: string, factory?: Address) => Promise<void>;
+    claimEscrow: (token: Address, asset: Address, recipient: Address, factory?: Address) => Promise<void>;
     advanceGraduation: (token: Token) => Promise<void>;
   };
 
   const progress = token.graduated ? 100 : (token.progress ?? 0);
-  const { data: locker } = useReadContract({ address: launchpadAddress ?? undefined, abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi, functionName: "locker", chainId: activeChainId, query: { enabled: Boolean(launchpadAddress) } });
-  const { data: escrow } = useReadContract({ address: launchpadAddress ?? undefined, abi: v2FactoryAbi, functionName: "escrow", chainId: activeChainId, query: { enabled: activeContractVersion === "v2" && Boolean(launchpadAddress) } });
-  const { data: quote } = useReadContract({ address: launchpadAddress ?? undefined, abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi, functionName: "quote", chainId: activeChainId, query: { enabled: Boolean(launchpadAddress) } });
+  const marketFactory = launchpadAddress ? factoryForToken(token.factory) : undefined;
+  const { data: locker } = useReadContract({ address: marketFactory, abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi, functionName: "locker", chainId: activeChainId, query: { enabled: Boolean(marketFactory) } });
+  const { data: escrow } = useReadContract({ address: marketFactory, abi: v2FactoryAbi, functionName: "escrow", chainId: activeChainId, query: { enabled: activeContractVersion === "v2" && Boolean(marketFactory) } });
+  const { data: quote } = useReadContract({ address: marketFactory, abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi, functionName: "quote", chainId: activeChainId, query: { enabled: Boolean(marketFactory) } });
   const { data: v1CreatorShareBps } = useReadContract({ address: locker, abi: lockerAbi, functionName: "creatorShareBps", chainId: activeChainId, query: { enabled: activeContractVersion === "v1" && Boolean(locker) } });
   const creatorShareBps = token.creatorShareBps ?? v1CreatorShareBps;
   const creatorShare = creatorShareBps == null ? null : Number(creatorShareBps) / 100;
@@ -129,7 +131,7 @@ export function MilestonePanel({
               className="primary-button claim-button"
               disabled={isPending || !locker || !token.pool}
               onClick={() =>
-                claimPoolFees(locker ?? "", token.pool ?? "")
+                claimPoolFees(locker ?? "", token.pool ?? "", marketFactory)
               }
             >
               {isPending ? "Claiming…" : "Claim pool fees"}
@@ -141,10 +143,10 @@ export function MilestonePanel({
       {activeContractVersion === "v2" && <div className="claim-block">
         <h3 className="panel-subhead">Creator fee credits</h3>
         <p className="panel-note">Claims always pay the launch creator. Anyone may trigger them.</p>
-        {quoteOwed !== undefined && quoteOwed > 0n && quote && <button type="button" className="primary-button claim-button" disabled={!address || isPending} onClick={() => claimEscrow(token.address, quote, token.creator)}>
+        {quoteOwed !== undefined && quoteOwed > 0n && quote && <button type="button" className="primary-button claim-button" disabled={!address || isPending} onClick={() => claimEscrow(token.address, quote, token.creator, marketFactory)}>
           Claim {formatEther(quoteOwed)} WETH
         </button>}
-        {tokenOwed !== undefined && tokenOwed > 0n && <button type="button" className="primary-button claim-button" disabled={!address || isPending} onClick={() => claimEscrow(token.address, token.address, token.creator)}>
+        {tokenOwed !== undefined && tokenOwed > 0n && <button type="button" className="primary-button claim-button" disabled={!address || isPending} onClick={() => claimEscrow(token.address, token.address, token.creator, marketFactory)}>
           Claim {formatEther(tokenOwed)} {token.symbol}
         </button>}
       </div>}

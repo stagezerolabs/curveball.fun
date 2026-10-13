@@ -28,7 +28,7 @@ contract V2LaunchTest is TestBase {
         (address recordedCurve, address recordedCreator, uint16 feeBps, uint16 creatorShareBps, uint16 buybackShareBps, uint16 creatorTaxBps, address treasury) = factory.market(token);
         assertEq(recordedCurve, curve, "wrong registered curve");
         assertEq(recordedCreator, CREATOR, "wrong creator");
-        assertEq(feeBps, 50, "wrong fee snapshot");
+        assertEq(feeBps, 75, "wrong fee snapshot");
         assertEq(creatorShareBps, 5_000, "wrong creator share");
         assertEq(buybackShareBps, 2_500, "wrong buyback share");
         assertEq(creatorTaxBps, 25, "wrong creator tax");
@@ -89,6 +89,7 @@ contract V2LaunchTest is TestBase {
 
     function testPolicyChangesOnlyAffectFutureLaunches() external {
         (CurveLaunchFactory factory,) = _setup();
+        factory.setFeeDefaults(50, 5_000, 2_500, 50, address(this));
         vm.prank(CREATOR);
         (address first,) = factory.createToken("First", "ONE", "", 0);
         factory.setFeeDefaults(75, 4_000, 3_000, 50, address(0xBEEF));
@@ -102,6 +103,25 @@ contract V2LaunchTest is TestBase {
         assertEq(newFee, 75, "new fee missing");
         assertEq(newTax, 40, "new tax missing");
         assertEq(newTreasury, address(0xBEEF), "new treasury missing");
+    }
+
+    function testFeeOnlyUpdateKeepsOtherDefaultsAndExistingMarket() external {
+        (CurveLaunchFactory factory,) = _setup();
+        vm.prank(CREATOR);
+        (address first,) = factory.createToken("First", "ONE", "", 0);
+        vm.prank(CREATOR);
+        vm.expectRevert();
+        factory.setFeeDefaults(75, 5_000, 2_500, 50, address(this));
+        factory.setFeeDefaults(50, factory.creatorShareBps(), factory.buybackShareBps(), factory.creatorTaxCapBps(), factory.treasury());
+        vm.prank(CREATOR);
+        (address second,) = factory.createToken("Second", "TWO", "", 0);
+        (,, uint16 firstFee, uint16 firstCreatorShare, uint16 firstBuybackShare,, address firstTreasury) = factory.market(first);
+        (,, uint16 secondFee, uint16 secondCreatorShare, uint16 secondBuybackShare,, address secondTreasury) = factory.market(second);
+        assertEq(firstFee, 75, "first fee changed");
+        assertEq(secondFee, 50, "second fee missing");
+        assertEq(firstCreatorShare, secondCreatorShare, "creator share changed");
+        assertEq(firstBuybackShare, secondBuybackShare, "buyback share changed");
+        assertEq(firstTreasury, secondTreasury, "treasury changed");
     }
 
     function _setup() private returns (CurveLaunchFactory factory, CurveLaunchDeployer deployer) {
