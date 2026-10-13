@@ -7,6 +7,7 @@ Curveball is a React/Vite dApp connected directly to the V2 Curveball contracts 
 - Chain: RISE Testnet (`11155931`)
 - RPC: `https://testnet.riselabs.xyz`
 - Factory: `0xD0f0cf4fd5Aa9D391477B3B9CF3B77Dc96705056`
+- Fee controller: `0xDA65621b5f212604Ebd1d87a641b766ED5F7A4c9`
 - Deployment block: `56629483`
 - Launch fee: `0.0004 WETH` per token launch
 - Launch fee treasury: `0x027ECdF183E064396701807E148BC474e01b7feb`
@@ -23,9 +24,9 @@ The designated dashboard wallet is `0x5cc42e772f67089b4670eec4dcd904be2f2d511c`.
 
 The dashboard also reads live WETH balances for the trading-fee treasury, the separate launch-fee treasury, and the buyback vault. These are wallet and contract balances, not lifetime fee totals.
 
-The fee update to 75 bps was confirmed on RISE Testnet in transaction `0xd4a3abbe31fe92fe65f7d70cceadf08994af6c6f9b478b7c4940da9bae67c8b6`. The designated dashboard wallet subsequently accepted direct factory ownership. Dot therefore has no factory authority until the controller handoff below completes. The controller changes factory ownership, including rescue authority and vested buyback claims; it does not transfer the separately owned launch-fee treasury or change the recorded trading-fee treasury address.
+The fee update to 75 bps was confirmed on RISE Testnet in transaction `0xd4a3abbe31fe92fe65f7d70cceadf08994af6c6f9b478b7c4940da9bae67c8b6`. The controller was deployed in transaction `0x1d5ac7803044f8762a0211162a8275079e187f11bb2636e90d167598b6a53477`; its verified deployment details are in `deployments/11155931/curveball-fee-controller.json`. The ownership handoff is complete: the factory is owned by the controller, dot owns the controller as super admin, and the designated wallet is its fee admin. The controller now holds factory authority, including rescue authority and vested buyback claims; it does not control the separately owned launch-fee treasury or change the recorded trading-fee treasury address.
 
-To keep dot as super admin while the designated wallet edits trading fees:
+For a fresh factory handoff that keeps dot as super admin while the designated wallet edits trading fees:
 
 1. Dot runs `make deploy-fee-controller-testnet` from the repository root in an interactive terminal and records the printed controller address. The command verifies RISE Testnet, runs controller tests, asks for a confirmation phrase, and uses the local Foundry `dot` keystore.
 2. The designated wallet opens `/admin`, enters that controller address under **Keep dot as super admin**, reviews it, and confirms the wallet transaction. The dashboard verifies the controller is bound to this factory, owned by dot, and delegates fee editing to the designated wallet before nominating it.

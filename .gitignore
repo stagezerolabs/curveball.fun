@@ -7,6 +7,8 @@ broadcast
 typechain-types
 *.sqlite
 .env
+agent_wallet
+agent_wallet.json
 coverage
 contracts/echidna-corpus/
 contracts/echidna-v2-corpus/
