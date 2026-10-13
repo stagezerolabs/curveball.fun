@@ -13,6 +13,25 @@ Curveball is a React/Vite dApp connected directly to the V2 Curveball contracts 
 - Canonical deployment record: `deployments/11155931/curveball-v2-permissionless.json`
 
 The frontend discovers launches from factory events, reads market state from the factory and curve contracts, and sends wallet-signed launch, trade, graduation, and fee-claim transactions through the SDK in `src/sdk`.
+The production frontend launches through the fee-enabled factory above and still discovers and services markets from the previous V2 factory (`0x36628AbAC7B2cdcde1A8fa21868AfeCB74660ECf`).
+
+## Trading fee administration
+
+The fee-enabled factory has an owner-controlled curve trading fee. The checked-in contract default for **new deployments** is 75 bps (0.75%). The already deployed factory retains its on-chain value until its owner changes it; changing source code or deploying the frontend does not change contract state. Each market snapshots its trading fee at launch, so changes affect future launches only. Icarus pool swap fees after graduation are separate.
+
+The designated dashboard wallet is `0x5cc42e772f67089b4670eec4dcd904be2f2d511c`. Connect it on RISE Testnet and open `/admin` to see the live fee, owner, and other fee defaults. It can update the fee while it directly owns the factory, or after a dot-owned fee controller becomes the factory owner. The controller delegates only trading-fee changes to this wallet and reads the other four defaults from the factory in the same transaction. Dot owns the controller and can revoke the delegate, change all factory policy, or transfer factory ownership. The dashboard checks the confirmed on-chain result.
+
+The dashboard also reads live WETH balances for the trading-fee treasury, the separate launch-fee treasury, and the buyback vault. These are wallet and contract balances, not lifetime fee totals.
+
+The fee update to 75 bps was confirmed on RISE Testnet in transaction `0xd4a3abbe31fe92fe65f7d70cceadf08994af6c6f9b478b7c4940da9bae67c8b6`. The designated dashboard wallet subsequently accepted direct factory ownership. Dot therefore has no factory authority until the controller handoff below completes. The controller changes factory ownership, including rescue authority and vested buyback claims; it does not transfer the separately owned launch-fee treasury or change the recorded trading-fee treasury address.
+
+To keep dot as super admin while the designated wallet edits trading fees:
+
+1. Dot runs `make deploy-fee-controller-testnet` from the repository root in an interactive terminal and records the printed controller address. The command verifies RISE Testnet, runs controller tests, asks for a confirmation phrase, and uses the local Foundry `dot` keystore.
+2. The designated wallet opens `/admin`, enters that controller address under **Keep dot as super admin**, reviews it, and confirms the wallet transaction. The dashboard verifies the controller is bound to this factory, owned by dot, and delegates fee editing to the designated wallet before nominating it.
+3. Dot runs `make accept-fee-controller-testnet CONTROLLER=0x...` in an interactive terminal. The command checks the pending transfer, simulates acceptance, asks for confirmation, and verifies the final owner. It uses the `dot` keystore by default; pass `ACCOUNT=<keystore-name>` if that account has another local name.
+
+No existing factory redeployment is needed. Each on-chain command above is run by the user; Codex-run writes require the exact approval specified in `AGENTS.md`.
 
 ### Deploy the fee-enabled V2
 

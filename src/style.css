@@ -3768,11 +3768,12 @@ select:focus-visible {
   position: relative;
   z-index: 20;
 }
-.landing-nav > .theme-toggle {
+.landing-nav-actions { align-items: center; display: flex; gap: 12px; }
+.landing-nav .theme-toggle {
   background: transparent;
   border: 1px solid var(--line);
 }
-.landing-nav > .theme-toggle:hover {
+.landing-nav .theme-toggle:hover {
   color: var(--orange-ink);
 }
 .landing-hero {
@@ -4207,6 +4208,11 @@ select:focus-visible {
   .landing-nav {
     padding-block: 14px;
   }
+  .landing-nav-actions { gap: 4px; }
+  .landing-nav-actions .wallet-button { min-width: 44px; padding-inline: 12px; }
+  .landing-nav-actions .wallet-icon { display: block; }
+  .landing-nav-actions .wallet-label { display: none; }
+  .landing-nav-actions .nav-link { padding-inline: 10px; }
   .landing-proof-inner { padding-block: 12px; }
   .landing-proof-stats { grid-template-columns: 1fr; }
   .landing-proof-stats > div,
@@ -4541,6 +4547,61 @@ select:focus-visible {
   width: 18px;
 }
 .launch-form .launch-fee-consent input[type="checkbox"]:focus-visible { outline: 2px solid var(--lime); outline-offset: 3px; }
+
+/* Admin settings use the same quiet panels and lime action as the trading workspace. */
+.admin-page { padding-block: 48px 96px; }
+.admin-eyebrow { color: var(--lime-ink); font-size: 12px; font-weight: 700; letter-spacing: .08em; margin: 0 0 8px; text-transform: uppercase; }
+.admin-grid { align-items: start; display: grid; gap: 20px; grid-template-columns: minmax(0, 1.25fr) minmax(280px, .75fr); }
+.admin-funds-summary { background: var(--panel); border-radius: 14px; margin-bottom: 20px; padding: 28px; }
+.admin-funds-head { align-items: center; display: flex; justify-content: space-between; margin-bottom: 22px; }
+.admin-funds-head h2 { font-size: 21px; letter-spacing: -.03em; margin: 0; }
+.admin-funds-head h2 span { color: var(--muted); font-size: 13px; font-weight: 500; letter-spacing: 0; margin-left: 8px; }
+.admin-funds-grid { display: grid; gap: 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; }
+.admin-fund-card { background: var(--surface); border-radius: 10px; min-width: 0; padding: 22px; }
+.admin-fund-card dt { color: var(--muted); font-size: 13px; margin-bottom: 12px; }
+.admin-fund-card dd { margin: 0; min-width: 0; }
+.admin-fund-card strong { color: var(--ink); display: block; font-size: clamp(22px, 2.6vw, 34px); font-variant-numeric: tabular-nums; letter-spacing: -.04em; line-height: 1.1; margin-bottom: 16px; }
+.admin-fund-card strong span { color: var(--muted); font-size: .5em; font-weight: 600; letter-spacing: 0; }
+.admin-fund-card a { color: var(--muted); display: block; font-size: 12px; overflow-wrap: anywhere; text-decoration: underline; text-underline-offset: 3px; }
+.admin-fund-card a:hover { color: var(--ink); }
+.admin-panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; min-width: 0; padding: 28px; }
+.admin-panel h2 { font-size: 21px; letter-spacing: -.03em; margin: 0; }
+.admin-panel-head { align-items: center; display: flex; gap: 16px; justify-content: space-between; }
+.admin-panel-head strong { color: var(--lime-ink); font-size: 32px; font-variant-numeric: tabular-nums; letter-spacing: -.04em; }
+.admin-description { color: var(--muted); margin: 20px 0 28px; max-width: 54ch; }
+.admin-owner-line { align-items: baseline; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0 0 22px; }
+.admin-owner-line a { color: var(--ink); overflow-wrap: anywhere; text-decoration: underline; text-underline-offset: 3px; }
+.admin-controller-form { border-top: 1px solid var(--line); margin-top: 28px; padding-top: 24px; }
+.admin-controller-form h3 { font-size: 16px; margin: 0 0 8px; }
+.admin-controller-form > p { color: var(--muted); font-size: 13px; margin: 0 0 18px; }
+.admin-controller-input { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; color: var(--ink); display: block; font: inherit; margin-bottom: 16px; max-width: 100%; min-height: 44px; padding: 9px 12px; width: 100%; }
+.admin-controller-input:focus-visible { outline: 2px solid var(--lime); outline-offset: 2px; }
+.admin-label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 9px; }
+.admin-fee-input { align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; display: flex; max-width: 240px; padding: 0 14px; }
+.admin-fee-input:focus-within { outline: 2px solid var(--lime); outline-offset: 2px; }
+.admin-fee-input input { background: transparent; border: 0; color: var(--ink); font-size: 24px; font-variant-numeric: tabular-nums; min-height: 52px; outline: 0; width: 100%; }
+.admin-fee-input span { color: var(--muted); }
+.admin-help { color: var(--muted); font-size: 13px; margin: 10px 0 22px; }
+.admin-panel .primary-button { align-items: center; display: inline-flex; justify-content: center; min-height: 42px; padding: 9px 18px; }
+.admin-review { border-top: 1px solid var(--line); margin-top: 24px; padding-top: 20px; }
+.admin-review p { margin: 0 0 18px; }
+.admin-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.admin-secondary { background: transparent; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); cursor: pointer; min-height: 42px; padding: 9px 16px; }
+.admin-secondary:hover { border-color: var(--muted); }
+.admin-secondary:focus-visible, .admin-panel .primary-button:focus-visible { outline: 2px solid var(--lime); outline-offset: 3px; }
+.admin-secondary:disabled, .admin-panel .primary-button:disabled { cursor: not-allowed; opacity: .5; }
+.admin-details dl { margin: 20px 0; }
+.admin-details dl div { border-top: 1px solid var(--line); display: grid; gap: 12px; grid-template-columns: 105px minmax(0, 1fr); padding: 12px 0; }
+.admin-details dt { color: var(--muted); font-size: 13px; }
+.admin-details dd { font-size: 13px; margin: 0; overflow-wrap: anywhere; }
+.admin-details a { text-decoration: underline; text-underline-offset: 3px; }
+.admin-state { max-width: 580px; }
+.admin-state p { color: var(--muted); }
+.admin-notice { margin-bottom: 18px; }
+.admin-notice button { background: transparent; border: 0; color: inherit; cursor: pointer; font-weight: 700; text-decoration: underline; }
+.admin-feedback { color: var(--lime-ink); margin: 0 0 18px; }
+.admin-feedback a { text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 760px) { .admin-page { padding-block: 32px 72px; } .admin-grid, .admin-funds-grid { grid-template-columns: 1fr; } .admin-panel, .admin-funds-summary { padding: 22px; } }
 .launch-advanced { border-bottom: 1px solid var(--line); padding-bottom: 24px; }
 .launch-advanced summary { align-items: center; cursor: pointer; display: flex; font-size: 15px; font-weight: 700; gap: 8px; list-style: none; }
 .launch-advanced summary::-webkit-details-marker { display: none; }

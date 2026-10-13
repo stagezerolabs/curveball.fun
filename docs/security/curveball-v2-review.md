@@ -59,7 +59,7 @@ The guard rejects paused, noncanonical, nonempty, or underfunded pools. When pre
 
 ## Fee and buyback invariants
 
-- Each launch snapshots fee, creator share, buyback share, creator tax, and treasury. Default curve fee is 50 bps, split 50% creator, 25% buyback, 25% protocol. Creator tax defaults to zero and is capped at 50 bps.
+- Each launch snapshots fee, creator share, buyback share, creator tax, and treasury. The reviewed deployment initialized at 50 bps; the current source default for fresh deployments is 75 bps. A deployed factory changes only through its owner-controlled setter. The fee is split 50% creator, 25% buyback, 25% protocol. Creator tax defaults to zero and is capped at 50 bps.
 - Buys and sells charge fees on the quote leg. `CurveFeeEscrow` and `CurveBuybackVault` require asset backing before crediting liabilities. Claims are permissionless but always pay the recorded recipient.
 - Icarus pool fees are claimed by the LP locker, measured as actual balance deltas, and routed in kind through `CurveMemeHook`. There is no Icarus after-swap hook registry.
 - Buybacks are restricted to their own curve or own Icarus pool, a 30-minute price reference, 5% spot deviation, and 2% impact bound. Each acquired token lot vests independently over five years; only the current protocol owner can claim the vested portion.

@@ -56,7 +56,7 @@ contract CurveLaunchFactory is Ownable2Step, ReentrancyGuard {
     CurveLpLocker public locker;
     CurveMemeHook public hook;
     CurveLaunchAndBuy public launchAndBuy;
-    uint16 public feeBps = 50;
+    uint16 public feeBps = 75;
     uint16 public creatorShareBps = 5_000;
     uint16 public buybackShareBps = 2_500;
     uint16 public creatorTaxCapBps = 50;

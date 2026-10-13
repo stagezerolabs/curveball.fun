@@ -23,3 +23,8 @@ test("retired migration links open the active markets", () => {
   expect(resolveRoute("/migration").id).toBe("markets");
   expect(() => routeHref("migration")).toThrow("Unknown route: migration");
 });
+
+test("admin dashboard has a direct route", () => {
+  expect(resolveRoute("/admin").id).toBe("admin");
+  expect(routeHref("admin")).toBe("/admin");
+});

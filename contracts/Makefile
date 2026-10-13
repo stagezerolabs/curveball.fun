@@ -7,11 +7,12 @@ TESTNET_RPC_URL ?= $(RISE_TESTNET_RPC_URL)
 
 export RPC_URL EXPECTED_CHAIN_ID QUOTE_TOKEN ICARUS_FACTORY TREASURY MULTISIG CONFIRM_MAINNET CONFIRM_TESTNET CONFIRM_TOKEN BLOCKSCOUT_API LAUNCHPAD_ADDRESS RISE_TESTNET_RPC_URL RISE_RPC_URL
 
-.PHONY: test test-fork-strict verify-icarus verify-icarus-testnet deploy-devnet simulate-testnet deploy-testnet record-testnet simulate-v2-testnet deploy-v2-testnet deploy-v2-testnet-interactive deploy-v2-launch-fee-testnet simulate-mainnet deploy-mainnet
+.PHONY: test test-fork-strict verify-icarus verify-icarus-testnet deploy-devnet simulate-testnet deploy-testnet record-testnet simulate-v2-testnet deploy-v2-testnet deploy-v2-testnet-interactive deploy-v2-launch-fee-testnet set-fee-testnet deploy-fee-controller-testnet accept-fee-controller-testnet simulate-mainnet deploy-mainnet
 
 test:
 	forge test --threads 1
 	bun scripts/check-bytecode.ts
+	bun ../scripts/check-fee-controller-codehash.ts
 
 test-fork-strict:
 	@test -n "$(RISE_TESTNET_RPC_URL)" || { echo "RISE_TESTNET_RPC_URL is required for strict fork tests."; exit 2; }
@@ -84,6 +85,15 @@ deploy-v2-testnet-interactive:
 # the deployment phrase, broadcasts with the local keystore, and saves a log.
 deploy-v2-launch-fee-testnet:
 	@ACCOUNT="$(ACCOUNT)" TESTNET_RPC_URL="$(TESTNET_RPC_URL)" bash scripts/deploy-v2-launch-fee-testnet.sh
+
+set-fee-testnet:
+	@ACCOUNT="$(ACCOUNT)" TESTNET_RPC_URL="$(TESTNET_RPC_URL)" bash scripts/set-fee-testnet.sh
+
+deploy-fee-controller-testnet:
+	@ACCOUNT="$(ACCOUNT)" TESTNET_RPC_URL="$(TESTNET_RPC_URL)" bash scripts/deploy-fee-controller-testnet.sh
+
+accept-fee-controller-testnet:
+	@ACCOUNT="$(ACCOUNT)" TESTNET_RPC_URL="$(TESTNET_RPC_URL)" CONTROLLER="$(CONTROLLER)" bash scripts/accept-fee-controller-testnet.sh
 
 record-testnet:
 	RISE_TESTNET_RPC_URL="$(TESTNET_RPC_URL)" \

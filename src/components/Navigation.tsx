@@ -10,6 +10,7 @@ import type { Navigate } from "../types";
 import { activeExplorerUrl, launchpadAddress } from "../lib/web3";
 import { fetchRnsPrimaryName } from "../lib/rnsPrimary";
 import type { Theme } from "../lib/theme";
+import { ADMIN_ADDRESS } from "../lib/adminFees";
 
 type AppLinkProps = AnchorHTMLAttributes<HTMLAnchorElement> & {
   route: string;
@@ -173,6 +174,7 @@ export function Header({
   };
   const marketsClass = ["markets", "market"].includes(routeId) ? "active" : "";
   const profileClass = routeId === "profile" ? "active" : "";
+  const adminClass = routeId === "admin" ? "active" : "";
 
   const primaryLinks = (
     <>
@@ -192,6 +194,7 @@ export function Header({
       >
         Profile
       </AppLink>
+      {address?.toLowerCase() === ADMIN_ADDRESS.toLowerCase() && <AppLink className={`nav-link ${adminClass}`} route="admin" navigate={go} aria-current={adminClass ? "page" : undefined}>Admin</AppLink>}
     </>
   );
 
@@ -236,11 +239,15 @@ export function Header({
   );
 }
 
-export function LandingHeader({ navigate, theme, onThemeToggle }: { navigate: Navigate; theme: Theme; onThemeToggle: () => void }) {
+export function LandingHeader({ address, navigate, theme, onThemeToggle }: { address?: Address; navigate: Navigate; theme: Theme; onThemeToggle: () => void }) {
   return (
     <header className="landing-nav wrap">
       <Brand navigate={navigate} />
-      <ThemeToggle theme={theme} onToggle={onThemeToggle} />
+      <div className="landing-nav-actions">
+        {address?.toLowerCase() === ADMIN_ADDRESS.toLowerCase() && <AppLink className="nav-link" route="admin" navigate={navigate}>Admin</AppLink>}
+        <ThemeToggle theme={theme} onToggle={onThemeToggle} />
+        <WalletNavButton address={address} displayName={address ? `${address.slice(0, 5)}…${address.slice(-4)}` : null} />
+      </div>
     </header>
   );
 }

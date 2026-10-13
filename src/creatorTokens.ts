@@ -1,7 +1,8 @@
 import { formatEther, getAddress, zeroAddress, type Address } from "viem";
 import { launchpadAbi } from "./sdk/contracts";
 import { v2CurveAbi, v2FactoryAbi } from "./sdk/v2Contracts";
-import { activeChainId, activeContractVersion, activeDeploymentBlock, launchpadAddress } from "./lib/web3";
+import { activeChainId, activeContractVersion } from "./lib/web3";
+import { marketFactories, type MarketFactory } from "./lib/marketFactories";
 import testnetV2 from "../deployments/11155931/curveball-v2.json";
 import type { Token } from "./types";
 
@@ -92,9 +93,20 @@ async function discoverTokens(
   args?: { creator: Address } | { token: Address },
   version: "v1" | "v2" = activeContractVersion,
 ): Promise<Token[]> {
-  if (!launchpadAddress) return [];
+  const factories = marketFactories();
+  const results = await Promise.all(factories.map((factory) => discoverFromFactory(client, factory, args, version)));
+  return results.flat().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+async function discoverFromFactory(
+  client: CreatorTokenClient,
+  factory: MarketFactory,
+  args?: { creator: Address } | { token: Address },
+  version: "v1" | "v2" = activeContractVersion,
+): Promise<Token[]> {
+  const factoryAddress = factory.address;
   const eventQuery = {
-    address: launchpadAddress,
+    address: factoryAddress,
     abi: version === "v2" ? v2FactoryAbi : launchpadAbi,
     eventName: version === "v2" ? "LaunchCreated" : "TokenCreated",
     ...(args ? { args } : {}),
@@ -106,10 +118,10 @@ async function discoverTokens(
   const latestBlock = await client.getBlockNumber();
   const ranges: { fromBlock: bigint; toBlock: bigint }[] = [];
   const firstBlock = version === "v2" && activeChainId === testnetV2.chainId &&
-    launchpadAddress.toLowerCase() === testnetV2.factory.toLowerCase() &&
-    activeDeploymentBlock <= TESTNET_V2_FIRST_LAUNCH_BLOCK
+    factoryAddress.toLowerCase() === testnetV2.factory.toLowerCase() &&
+    factory.fromBlock <= TESTNET_V2_FIRST_LAUNCH_BLOCK
       ? TESTNET_V2_FIRST_LAUNCH_BLOCK
-      : activeDeploymentBlock;
+      : factory.fromBlock;
   for (let fromBlock = firstBlock; fromBlock <= latestBlock; fromBlock += MAX_EVENT_QUERY_BLOCKS) {
     const toBlock =
       fromBlock + MAX_EVENT_QUERY_BLOCKS - 1n < latestBlock
@@ -128,9 +140,9 @@ async function discoverTokens(
   if (!logs.length) return [];
 
   const [curveSupply, supply, initialVQ] = await Promise.all([
-    client.readContract({ address: launchpadAddress, abi: version === "v2" ? v2FactoryAbi : launchpadAbi, functionName: "curveSupply" }) as Promise<bigint>,
-    client.readContract({ address: launchpadAddress, abi: version === "v2" ? v2FactoryAbi : launchpadAbi, functionName: "supply" }) as Promise<bigint>,
-    client.readContract({ address: launchpadAddress, abi: version === "v2" ? v2FactoryAbi : launchpadAbi, functionName: "initialVQ" }) as Promise<bigint>,
+    client.readContract({ address: factoryAddress, abi: version === "v2" ? v2FactoryAbi : launchpadAbi, functionName: "curveSupply" }) as Promise<bigint>,
+    client.readContract({ address: factoryAddress, abi: version === "v2" ? v2FactoryAbi : launchpadAbi, functionName: "supply" }) as Promise<bigint>,
+    client.readContract({ address: factoryAddress, abi: version === "v2" ? v2FactoryAbi : launchpadAbi, functionName: "initialVQ" }) as Promise<bigint>,
   ]);
   const terminalVirtualToken = supply - curveSupply;
   const invariant = supply * initialVQ;
@@ -150,7 +162,7 @@ async function discoverTokens(
 
       if (version === "v2") {
         const [market, block] = await Promise.all([
-          client.readContract({ address: launchpadAddress, abi: v2FactoryAbi, functionName: "market", args: [token] }) as Promise<readonly [Address, Address, number, number, number, number, Address]>,
+          client.readContract({ address: factoryAddress, abi: v2FactoryAbi, functionName: "market", args: [token] }) as Promise<readonly [Address, Address, number, number, number, number, Address]>,
           client.getBlock({ blockNumber: log.blockNumber }),
         ]);
         const curve = market[0];
@@ -165,7 +177,7 @@ async function discoverTokens(
         ]);
         const price = virtualToken === 0n ? null : Number(formatEther(virtualQuote)) / Number(formatEther(virtualToken));
         return {
-          address: getAddress(token), creator: getAddress(eventCreator), name, symbol, graduated,
+          address: getAddress(token), factory: factoryAddress, creator: getAddress(eventCreator), name, symbol, graduated,
           metadataUri: uri ?? null,
           curve: getAddress(curve), feeBps: market[2], creatorShareBps: market[3], buybackShareBps: market[4], creatorTaxBps: market[5],
           pending: ready, createdAt: new Date(Number(block.timestamp) * 1_000).toISOString(),
@@ -177,7 +189,7 @@ async function discoverTokens(
       }
       const [market, block] = await Promise.all([
         client.readContract({
-          address: launchpadAddress,
+          address: factoryAddress,
           abi: launchpadAbi,
           functionName: "markets",
           args: [token],
@@ -195,6 +207,7 @@ async function discoverTokens(
 
       return {
         address: getAddress(token),
+        factory: factoryAddress,
         creator: getAddress(eventCreator),
         name,
         symbol,

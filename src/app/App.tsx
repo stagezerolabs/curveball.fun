@@ -12,6 +12,7 @@ import { MarketPage } from "../pages/MarketPage";
 import { MarketsPage } from "../pages/MarketsPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { ProfilePage } from "../pages/ProfilePage";
+import { AdminPage } from "../pages/AdminPage";
 import { useRouter } from "./useRouter.js";
 import {
   applyTheme,
@@ -50,6 +51,9 @@ export function App() {
         <ProfilePage navigate={navigate} />
       );
       break;
+    case "admin":
+      page = <AdminPage />;
+      break;
     default:
       page = <NotFoundPage navigate={navigate} />;
   }
@@ -62,7 +66,7 @@ export function App() {
     <RadixTheme appearance={theme} accentColor="lime" grayColor="olive" radius="medium" scaling="100%" className="curveball-theme">
     <div className="site-shell">
       {isLanding ? (
-        <LandingHeader navigate={navigate} theme={theme} onThemeToggle={toggleTheme} />
+        <LandingHeader address={address} navigate={navigate} theme={theme} onThemeToggle={toggleTheme} />
       ) : (
         <Header
           address={address}
