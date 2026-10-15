@@ -114,7 +114,7 @@ contract V2Properties {
 
     function echidna_s7_reserves_survive_preparation() external view returns (bool) {
         return curve.graduated() || (quote.balanceOf(address(curve)) >= curve.realQuote()
-            && token.balanceOf(address(curve)) >= SUPPLY - curve.sold());
+            && token.balanceOf(address(curve)) >= SUPPLY - curve.reserveAmount() - curve.sold());
     }
 
     function echidna_s8_creator_has_no_mint_or_reserve_authority() external view returns (bool) {

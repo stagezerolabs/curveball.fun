@@ -35,6 +35,7 @@ contract CurveBondingCurve is ReentrancyGuard {
     CurveBuybackVault public immutable vault;
     uint256 public immutable supply;
     uint256 public immutable curveSupply;
+    uint256 public immutable reserveAmount;
     uint256 public immutable initialVQ;
     address public immutable creator;
     address public immutable treasury;
@@ -68,10 +69,10 @@ contract CurveBondingCurve is ReentrancyGuard {
 
     constructor(
         address factory_, address quote_, address escrow_, address vault_, address executor_,
-        uint256 supply_, uint256 curveSupply_, uint256 initialVQ_, Policy memory policy
+        uint256 supply_, uint256 curveSupply_, uint256 reserveAmount_, uint256 initialVQ_, Policy memory policy
     ) {
         require(factory_ != address(0) && quote_ != address(0) && escrow_ != address(0) && vault_ != address(0) && executor_ != address(0), "bad dependency");
-        require(supply_ > curveSupply_ && curveSupply_ > 0 && initialVQ_ > 0, "bad curve");
+        require(supply_ > curveSupply_ + reserveAmount_ && curveSupply_ > 0 && initialVQ_ > 0, "bad curve");
         require(supply_ <= type(uint128).max && initialVQ_ <= type(uint128).max, "curve too large");
         require(policy.creator != address(0) && policy.treasury != address(0), "bad recipient");
         require(uint256(policy.creatorShareBps) + policy.buybackShareBps <= 10_000, "bad split");
@@ -83,6 +84,7 @@ contract CurveBondingCurve is ReentrancyGuard {
         vault = CurveBuybackVault(vault_);
         supply = supply_;
         curveSupply = curveSupply_;
+        reserveAmount = reserveAmount_;
         initialVQ = initialVQ_;
         creator = policy.creator;
         treasury = policy.treasury;
@@ -239,7 +241,7 @@ contract CurveBondingCurve is ReentrancyGuard {
 
     function releaseForGraduation(address pool_) external nonReentrant returns (uint256 tokenLiquidity, uint256 quoteLiquidity) {
         require(msg.sender == executor && ready && !graduated && sold == curveSupply && pool_ != address(0), "not prepared");
-        tokenLiquidity = supply - sold;
+        tokenLiquidity = supply - reserveAmount - sold;
         quoteLiquidity = realQuote;
         realQuote = 0;
         IERC20(token).safeTransfer(pool_, tokenLiquidity);
@@ -258,7 +260,7 @@ contract CurveBondingCurve is ReentrancyGuard {
         require(msg.sender == ICurveFactoryAccess(factory).owner() && recipient != address(0), "owner only");
         uint256 reserved;
         if (asset == quote) reserved = realQuote;
-        if (asset == token && !graduated) reserved = supply - sold;
+        if (asset == token && !graduated) reserved = supply - reserveAmount - sold;
         uint256 balance = IERC20(asset).balanceOf(address(this));
         require(balance >= reserved && amount <= balance - reserved, "reserved asset");
         IERC20(asset).safeTransfer(recipient, amount);

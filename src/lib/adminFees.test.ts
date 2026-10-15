@@ -64,6 +64,23 @@ test("admin update submits only the new fee and confirms the chain value", async
   expect(submitted).toMatchObject({ address: factory, functionName: "setFeeDefaults", args: [75, 5000, 2500, 50, treasury] });
 });
 
+test("dot can edit the new factory while it owns it directly", async () => {
+  let fee = 75;
+  let submitted: { address: Address; functionName: string } | undefined;
+  const actions = {
+    getAccount: () => ({ address: treasury, chainId: 11_155_931 }),
+    readContract: async (_config: unknown, request: { functionName: string }) => ({
+      feeBps: fee, creatorShareBps: 5000, buybackShareBps: 2500,
+      creatorTaxCapBps: 50, treasury, owner: treasury, pendingOwner: zeroAddress,
+    })[request.functionName as "feeBps"],
+    simulateContract: async (_config: unknown, request: { address: Address; functionName: string }) => { submitted = request; return { request }; },
+    writeContract: async () => { fee = 80; return hash; },
+    waitForTransactionReceipt: async () => ({ status: "success" }),
+  } as unknown as AdminActions;
+  expect(await submitFeeUpdate({} as Config, factory, 11_155_931, 80, undefined, actions)).toBe(hash);
+  expect(submitted).toMatchObject({ address: factory, functionName: "setFeeDefaults" });
+});
+
 test("wallet without on-chain ownership cannot submit a fee update", async () => {
   let simulated = false;
   const actions = {

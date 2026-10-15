@@ -10,6 +10,7 @@ import {CurveGraduationExecutor} from "./CurveGraduationExecutor.sol";
 import {CurveLpLocker} from "./LpLocker.sol";
 import {CurveMemeHook} from "./CurveMemeHook.sol";
 import {CurveLaunchAndBuy} from "./CurveLaunchAndBuy.sol";
+import {CurveHolderReserve} from "./CurveHolderReserve.sol";
 
 /// @notice Deployment helper executed by scripts/tests. Each `new` is a separate broadcast transaction.
 library CurveV2Deployment {
@@ -34,6 +35,7 @@ library CurveV2Deployment {
         s.executor = address(new CurveGraduationExecutor(f, icarusFactory, quote, s.locker));
         s.hook = address(new CurveMemeHook(f, s.locker, quote, s.escrow, s.vault));
         s.launchAndBuy = address(new CurveLaunchAndBuy(f, quote));
+        s.holderReserve = address(new CurveHolderReserve(f));
         factory.initialize(s);
     }
 }

@@ -83,7 +83,7 @@ contract V2LaunchFeeTest is TestBase {
         quote.approve(address(wrapper), 50 ether + FEE);
         vm.prank(CREATOR);
         wrapper.launchAndBuy(CurveLaunchAndBuy.LaunchRequest({
-            name: "Atomic", symbol: "ATM", uri: "", creatorTaxBps: 0,
+            name: "Atomic", symbol: "ATM", uri: "", creatorTaxBps: 0, holderReserveBps: 500,
             maxSpend: 50 ether, minOut: 800_000 ether, deadline: DEADLINE
         }));
         assertEq(quote.balanceOf(address(treasury)), FEE, "fee charged incorrectly");

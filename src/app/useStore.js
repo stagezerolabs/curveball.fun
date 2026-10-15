@@ -274,6 +274,7 @@ export const useStore = create(persist((set, get) => ({
       symbol: String(form.get("symbol") ?? ""),
       uri: String(form.get("uri") ?? ""),
       creatorTaxBps: Number(form.get("creatorTaxBps") ?? 0),
+      holderReserveBps: Number(form.get("holderReserveBps") ?? 0),
     };
     const artwork = form.get("artwork");
     if (!hasPublishedArtwork(artwork instanceof File && artwork.size > 0, input.uri)) {

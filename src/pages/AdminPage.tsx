@@ -6,7 +6,6 @@ import { ADMIN_ADDRESS, SUPER_ADMIN_ADDRESS, feePercentToBps, nominateFeeControl
 import { readableError } from "../lib/errors";
 import { formatAddress } from "../lib/format.js";
 import { activeChainId, activeExplorerUrl, launchpadAddress, wagmiConfig } from "../lib/web3";
-import feeEnabledV2 from "../../deployments/11155931/curveball-v2-permissionless.json";
 import { RISE_TESTNET_CHAIN_ID } from "../sdk/curveballSdk";
 
 type Settings = FeeAuthority;
@@ -74,9 +73,8 @@ export function AdminPage() {
   const [fieldError, setFieldError] = useState("");
   const [message, setMessage] = useState("");
   const [hash, setHash] = useState<Hash | null>(null);
-  const configured = activeChainId === RISE_TESTNET_CHAIN_ID &&
-    launchpadAddress?.toLowerCase() === feeEnabledV2.factory.toLowerCase();
-  const isAdmin = address?.toLowerCase() === ADMIN_ADDRESS.toLowerCase();
+  const configured = activeChainId === RISE_TESTNET_CHAIN_ID && Boolean(launchpadAddress);
+  const isAdmin = address?.toLowerCase() === ADMIN_ADDRESS.toLowerCase() || address?.toLowerCase() === SUPER_ADMIN_ADDRESS.toLowerCase();
   const correctChain = chainId === activeChainId;
 
   const refresh = useCallback(async (resetDraft = false) => {
@@ -158,7 +156,7 @@ export function AdminPage() {
   return <main className="page-main admin-page wrap">
     <h1 className="visually-hidden">Admin controls</h1>
     {!address ? <section className="admin-panel admin-state"><h2>Connect your wallet</h2><p>Connect the admin wallet to manage the factory fee.</p><button type="button" className="primary-button" onClick={() => openConnectModal?.()}>Connect wallet</button></section>
-      : !isAdmin ? <section className="admin-panel admin-state"><h2>Access restricted</h2><p>This dashboard is available to the designated admin wallet.</p></section>
+      : !isAdmin ? <section className="admin-panel admin-state"><h2>Access restricted</h2><p>This dashboard is available to the designated fee admin or dot wallet.</p></section>
       : !configured ? <section className="admin-panel admin-state"><h2>Factory unavailable</h2><p>Configure the active V2 factory before managing fees.</p></section>
       : <>
         {!correctChain && <div className="notice admin-notice" role="status">Switch to the configured network to submit transactions. <button type="button" onClick={() => switchChain({ chainId: activeChainId })}>Switch network</button></div>}
@@ -170,7 +168,7 @@ export function AdminPage() {
             <section className="admin-panel admin-fee-panel" aria-labelledby="admin-fee-title">
               <div className="admin-panel-head"><h2 id="admin-fee-title">Curve trading fee</h2><div className="admin-fee-metrics"><div className="admin-current-fee"><span>Current fee</span><strong>{(settings.feeBps / 100).toFixed(2)}%</strong></div><button type="button" className="market-refresh admin-refresh" disabled={pending || loading} aria-label={loading ? "Refreshing chain data" : "Refresh chain data"} aria-busy={loading} title={loading ? "Refreshing chain data" : "Refresh chain data"} onClick={() => void refresh(false)}><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M16.8 8A7 7 0 1 0 17 11" /><path d="M17 3.5V8h-4.5" /></svg></button></div></div>
               <p className="admin-description">Future launches only. Existing market fees stay fixed.</p>
-              {(settings.owner === ADMIN_ADDRESS || (settings.controller?.feeAdmin === ADMIN_ADDRESS && settings.controller.superAdmin === SUPER_ADMIN_ADDRESS)) ? <form onSubmit={onReview}>
+              {(settings.owner.toLowerCase() === address.toLowerCase() || (settings.controller?.feeAdmin.toLowerCase() === address.toLowerCase() && settings.controller.superAdmin === SUPER_ADMIN_ADDRESS)) ? <form onSubmit={onReview}>
                 <label className="admin-label" htmlFor="admin-fee">New trading fee</label>
                 <div className="admin-fee-input"><input ref={feeInputRef} id="admin-fee" type="text" inputMode="decimal" value={draft} disabled={pending || !correctChain} aria-invalid={Boolean(fieldError)} aria-describedby={fieldError ? "admin-fee-help admin-fee-error" : "admin-fee-help"} onChange={(event) => { setDraft(event.target.value); setReviewBps(null); setFieldError(""); }} /><span>%</span></div>
                 <p id="admin-fee-help" className="admin-help">0.00%–5.00% · 0.01% steps</p>
@@ -178,7 +176,7 @@ export function AdminPage() {
                 {reviewBps === null ? <button type="submit" className="primary-button" disabled={pending || !correctChain || loading}>Review change</button>
                   : <div className="admin-review" role="group" aria-label="Review fee update"><p>Change future launch fees from <strong>{(settings.feeBps / 100).toFixed(2)}%</strong> to <strong>{(reviewBps / 100).toFixed(2)}%</strong>?</p><div className="admin-actions"><button ref={confirmRef} type="button" className="primary-button" disabled={pending || !correctChain} onClick={() => void run()}>{pending ? "Waiting for confirmation…" : "Confirm in wallet"}</button><button type="button" className="admin-secondary" disabled={pending} onClick={() => { setReviewBps(null); feeInputRef.current?.focus(); }}>Cancel</button></div></div>}
               </form> : <p className="admin-help">Fee editing unavailable for this wallet.</p>}
-              {settings.owner === ADMIN_ADDRESS && (settings.pendingOwner === zeroAddress ? <form className="admin-controller-form" onSubmit={(event) => {
+              {settings.owner.toLowerCase() === address.toLowerCase() && (settings.pendingOwner === zeroAddress ? <form className="admin-controller-form" onSubmit={(event) => {
                 event.preventDefault();
                 try { setControllerReview(getAddress(controllerDraft.trim())); setControllerError(""); }
                 catch { setControllerError("Enter a valid controller contract address."); }

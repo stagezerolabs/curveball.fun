@@ -1,14 +1,12 @@
 import { expect, test } from "bun:test";
-import testnetV2 from "../deployments/11155931/curveball-v2-permissionless.json";
 import { discoverAllTokens, type CreatorTokenClient } from "./creatorTokens";
-import { activeDeploymentBlock, launchpadAddress } from "./lib/web3";
+import { activeDeploymentBlock, factoryVersion, launchpadAddress, legacyFactories } from "./lib/web3";
 import { factoryForToken } from "./lib/marketFactories";
 import { getAddress, zeroAddress, type Address } from "viem";
 
-test("discovery scans only the current testnet factory from its deployment block", async () => {
-  const deploymentBlock = BigInt(testnetV2.deploymentBlock);
-  expect(launchpadAddress?.toLowerCase()).toBe(testnetV2.factory.toLowerCase());
-  expect(activeDeploymentBlock).toBe(deploymentBlock);
+test("discovery scans every supported testnet factory from its deployment block", async () => {
+  const deploymentBlock = activeDeploymentBlock;
+  expect(launchpadAddress).not.toBeNull();
   const ranges: { address: string; fromBlock: bigint; toBlock: bigint }[] = [];
   const client = {
     getBlockNumber: async () => deploymentBlock,
@@ -19,22 +17,22 @@ test("discovery scans only the current testnet factory from its deployment block
   } as unknown as CreatorTokenClient;
 
   expect(await discoverAllTokens(client)).toEqual([]);
-  expect(ranges).toEqual([
-    { address: testnetV2.factory, fromBlock: deploymentBlock, toBlock: deploymentBlock },
-  ]);
+  expect(ranges).toContainEqual({ address: launchpadAddress!, fromBlock: deploymentBlock, toBlock: deploymentBlock });
+  expect(ranges.some((range) => range.address === legacyFactories[0]?.address && range.fromBlock === legacyFactories[0]?.deploymentBlock)).toBe(true);
 });
 
-test("discovery and market access use only the current factory", async () => {
+test("discovery and market access use each token's factory", async () => {
   const newToken = getAddress("0x0000000000000000000000000000000000000022");
   const newCurve = getAddress("0x0000000000000000000000000000000000000044");
   const creator = getAddress("0x0000000000000000000000000000000000000055");
   const oldFactory = getAddress("0x36628AbAC7B2cdcde1A8fa21868AfeCB74660ECf");
-  const newFactory = getAddress(testnetV2.factory);
+  const newFactory = launchpadAddress!;
   const client = {
     getBlockNumber: async () => activeDeploymentBlock,
     getContractEvents: async ({ address, fromBlock }: { address: Address; fromBlock: bigint }) => {
       if (address.toLowerCase() === newFactory.toLowerCase() && fromBlock === activeDeploymentBlock)
         return [{ args: { token: newToken, curve: newCurve, creator, name: "New", symbol: "NEW" }, blockNumber: fromBlock }];
+      if (legacyFactories.some((entry) => entry.address.toLowerCase() === address.toLowerCase())) return [];
       throw new Error(`Unexpected factory ${address}`);
     },
     readContract: async ({ functionName }: { functionName: string }) => {
@@ -53,5 +51,8 @@ test("discovery and market access use only the current factory", async () => {
   const tokens = await discoverAllTokens(client);
   expect(tokens.map(({ factory, feeBps }) => [factory, feeBps])).toEqual([[newFactory, 75]]);
   expect(factoryForToken(tokens[0].factory)).toBe(newFactory);
-  expect(() => factoryForToken(oldFactory)).toThrow("unsupported factory");
+  expect(legacyFactories.some((entry) => entry.address === oldFactory)).toBe(true);
+  expect(factoryForToken(oldFactory)).toBe(oldFactory);
+  expect(factoryVersion(oldFactory)).toBe("V2 early");
+  expect(factoryVersion(newFactory)).toMatch(/^V2(?:\.1)?$/);
 });

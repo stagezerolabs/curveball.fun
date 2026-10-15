@@ -70,14 +70,16 @@ contract DeployPermissionlessV2 {
             address(factory.deployer()).code.length > 0 && address(factory.escrow()).code.length > 0
                 && address(factory.vault()).code.length > 0 && address(factory.guard()).code.length > 0
                 && address(factory.executor()).code.length > 0 && address(factory.locker()).code.length > 0
-                && address(factory.hook()).code.length > 0 && address(factory.launchAndBuy()).code.length > 0,
+                && address(factory.hook()).code.length > 0 && address(factory.launchAndBuy()).code.length > 0
+                && address(factory.holderReserve()).code.length > 0,
             "factory services not initialized"
         );
         require(
             factory.deployer().factory() == address(factory) && factory.escrow().factory() == address(factory)
                 && factory.vault().factory() == address(factory) && factory.executor().factory() == address(factory)
                 && factory.locker().factory() == address(factory) && factory.hook().factory() == address(factory)
-                && factory.launchAndBuy().factory() == address(factory),
+                && factory.launchAndBuy().factory() == address(factory)
+                && factory.holderReserve().factory() == address(factory),
             "factory service binding mismatch"
         );
         require(factory.publicLaunchOpen(), "factory is not permissionless");

@@ -122,7 +122,7 @@ contract V2TradeTest is TestBase {
         curve.rescueTokens(address(quote), 1 ether, address(this));
         curve.rescueTokens(address(token), 1 ether, address(this));
         assertEq(quote.balanceOf(address(curve)), curve.realQuote(), "reserve drained by rescue");
-        assertEq(token.balanceOf(address(curve)), curve.supply() - curve.sold(), "unsold token drained by rescue");
+        assertEq(token.balanceOf(address(curve)), curve.supply() - curve.reserveAmount() - curve.sold(), "unsold token drained by rescue");
         assertEq(factory.escrow().totalLiability(address(quote)), quote.balanceOf(address(factory.escrow())), "escrow liability changed");
     }
 

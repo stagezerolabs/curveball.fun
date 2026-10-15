@@ -5,7 +5,7 @@ import {
   formatRelativeTime,
 } from "../lib/format.js";
 import type { Token } from "../types";
-import { activeExplorerUrl } from "../lib/web3";
+import { activeExplorerUrl, factoryVersion } from "../lib/web3";
 import { UsdAmount } from "./UsdAmount";
 
 const EXPLORER = `${activeExplorerUrl}/address/`;
@@ -84,6 +84,7 @@ export function MarketHeader({ token }: { token: Token }) {
               <div className="market-title-row">
                 <h1>{token.name}</h1>
                 <span className="market-ticker">${token.symbol}</span>
+                <span className="market-data-chip" title="Factory release">{factoryVersion(token.factory)}</span>
                 <span className={`market-status ${token.graduated ? "graduated" : token.pending ? "pending" : "live"}`}>
                   {token.graduated ? "Graduated" : token.pending ? "Pending" : "live"}
                 </span>

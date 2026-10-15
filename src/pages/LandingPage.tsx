@@ -2,7 +2,7 @@ import { createElement, useEffect, useRef, useState, type ReactNode } from "reac
 import { ArrowIcon } from "../components/ArrowIcon";
 import { AppLink, RiseLogo } from "../components/Navigation";
 import { LandingProtocolStats } from "../components/LandingProtocolStats";
-import { activeChainId } from "../lib/web3";
+import { activeChainId, activeFactoryIsLegacy } from "../lib/web3";
 import { RISE_TESTNET_CHAIN_ID } from "../sdk/curveballSdk";
 import type { Navigate } from "../types";
 
@@ -236,7 +236,7 @@ export function LandingPage({ navigate }: { navigate: Navigate }) {
         <div className="landing-faq-list landing-reveal">
           <details><summary>Can I sell before graduation?</summary><p>Yes, while the curve is trading, you can sell tokens back into it. A sold-out curve stops new buys while graduation is prepared; check the market page for its current state and available actions.</p></details>
           <details><summary>Do I need WETH to buy or launch?</summary><p>Curve markets use WETH. The app can wrap ETH for a buy or a paid launch and will ask for wallet approval when required. Keep some ETH for network gas.</p></details>
-          <details><summary>Can a creator change the token supply or fee split later?</summary><p>No. The token has a fixed supply, and the market’s fee settings are recorded at launch. The creator does not control minting, reserves, or graduation.</p></details>
+          <details><summary>Can a creator change the token supply or fee split later?</summary><p>No. The token has a fixed supply, and the market’s fee settings are recorded at launch. {activeFactoryIsLegacy ? "Creators cannot reserve tokens on this factory." : "Creators can choose a holder airdrop reserve of up to 5% at launch, then start claim rounds after graduation."}</p></details>
           <details><summary>Can a creator withdraw the graduated pool’s liquidity?</summary><p>No. The pool’s liquidity position is minted to the protocol locker, not the creator’s wallet. The creator can receive their recorded share of trading fees.</p></details>
           <details><summary>When does the buyback happen?</summary><p>Fees first accrue to the buyback vault. A separate transaction can use those funds under the vault’s price and impact limits; it is not automatic on each trade.</p></details>
           <details><summary>How do creators receive trading fees?</summary><p>Curve fees accrue for the recorded creator and can be claimed through the market page. After graduation, anyone can trigger a pool fee claim, but the funds still go to the recorded recipients.</p></details>

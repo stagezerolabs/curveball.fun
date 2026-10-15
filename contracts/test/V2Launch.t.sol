@@ -21,7 +21,8 @@ contract V2LaunchTest is TestBase {
         (address token, address curve) = factory.createToken("V2 Token", "V2", "ipfs://v2", 25);
 
         assertEq(CurveLauncherToken(token).totalSupply(), SUPPLY, "wrong fixed supply");
-        assertEq(CurveLauncherToken(token).balanceOf(curve), SUPPLY, "supply did not go directly to curve");
+        assertEq(CurveLauncherToken(token).balanceOf(curve), SUPPLY - 50_000 ether, "wrong curve allocation");
+        assertEq(CurveLauncherToken(token).balanceOf(address(factory.holderReserve())), 50_000 ether, "missing holder reserve");
         assertEq(CurveLauncherToken(token).balanceOf(CREATOR), 0, "creator received mint authority");
         assertEq(CurveBondingCurve(curve).token(), token, "token not bound to curve");
         assertEq(CurveBondingCurve(curve).deployer(), address(deployer), "wrong deployer");
@@ -42,7 +43,7 @@ contract V2LaunchTest is TestBase {
         vm.prank(CREATOR);
         (address token, address curve) = factory.createToken("No invite", "NO", "", 0);
         assertEq(CurveBondingCurve(curve).creator(), CREATOR, "caller is not creator");
-        assertEq(CurveLauncherToken(token).balanceOf(curve), SUPPLY, "missing curve supply");
+        assertEq(CurveLauncherToken(token).balanceOf(curve), SUPPLY - 50_000 ether, "missing curve supply");
         assertTrue(factory.canBuy(CREATOR), "creator cannot buy");
         assertTrue(factory.canBuy(address(0xBEEF)), "public buyer blocked");
         vm.prank(CREATOR);
@@ -78,7 +79,7 @@ contract V2LaunchTest is TestBase {
         CurveLaunchFactory.Services memory services = CurveLaunchFactory.Services({
             deployer: address(factory.deployer()), escrow: address(factory.escrow()), vault: address(factory.vault()),
             guard: address(factory.guard()), executor: address(factory.executor()), locker: address(factory.locker()),
-            hook: address(factory.hook()), launchAndBuy: address(factory.launchAndBuy())
+            hook: address(factory.hook()), launchAndBuy: address(factory.launchAndBuy()), holderReserve: address(factory.holderReserve())
         });
         vm.expectRevert();
         factory.initialize(services);

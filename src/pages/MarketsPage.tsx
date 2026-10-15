@@ -8,7 +8,7 @@ import { UsdAmount } from "../components/UsdAmount";
 import { formatPercent } from "../lib/format.js";
 import { useStore } from "../app/useStore.js";
 import type { CreatorTokenClient } from "../creatorTokens";
-import { activeChainId } from "../lib/web3";
+import { activeChainId, factoryVersion } from "../lib/web3";
 import type { Navigate, Token } from "../types";
 
 const TABS: { id: Tab; label: string }[] = [
@@ -50,7 +50,9 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
     loadMarkets: (client?: CreatorTokenClient, options?: { force?: boolean }) => Promise<Token[]>;
   };
   const [tab, setTab] = useState<Tab>(lastCreatedToken ? "new" : "trending");
-  const visible = useMemo(() => selectTokens(tokens, tab), [tokens, tab]);
+  const [versionFilter, setVersionFilter] = useState("all");
+  const versions = useMemo(() => [...new Set(tokens.map((token) => factoryVersion(token.factory)))], [tokens]);
+  const visible = useMemo(() => selectTokens(tokens, tab).filter((token) => versionFilter === "all" || factoryVersion(token.factory) === versionFilter), [tokens, tab, versionFilter]);
   const tickerTokens = useMemo(() => selectTokens(tokens, "new").slice(0, 12), [tokens]);
   const initialLoading = !marketsFetchedAt && !tokens.length && !error;
 
@@ -97,6 +99,12 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
               ))}
               <Tabs.Indicator className="market-tabs-indicator" />
             </Tabs.List>
+            <label className="market-version-filter" htmlFor="market-version-filter">Factory version
+              <select id="market-version-filter" value={versionFilter} onChange={(event) => setVersionFilter(event.target.value)}>
+                <option value="all">All versions</option>
+                {versions.map((version) => <option key={version} value={version}>{version}</option>)}
+              </select>
+            </label>
             <button
               type="button"
               className="market-refresh"
@@ -114,7 +122,9 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
           </div>
           {loading && tokens.length > 0 && <p className="market-refresh-status" role="status">Checking for new markets…</p>}
           <Tabs.Panel key={tab} value={tab} className="market-tab-panel">
-            <MarketList tokens={visible} loading={initialLoading} navigate={navigate} highlightedToken={lastCreatedToken} />
+            {versionFilter !== "all" && tokens.length > 0 && visible.length === 0
+              ? <div className="empty-state"><strong>No {versionFilter} markets in this view.</strong><button type="button" className="market-version-reset" onClick={() => setVersionFilter("all")}>Show all versions</button></div>
+              : <MarketList tokens={visible} loading={initialLoading} navigate={navigate} highlightedToken={lastCreatedToken} />}
           </Tabs.Panel>
         </Tabs.Root>
       </section>

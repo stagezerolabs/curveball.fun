@@ -13,6 +13,8 @@ export const v2FactoryAbi = parseAbi([
   "function vault() view returns (address)",
   "function hook() view returns (address)",
   "function launchAndBuy() view returns (address)",
+  "function holderReserve() view returns (address)",
+  "function reserveBps(address) view returns (uint16)",
   "function supply() view returns (uint256)",
   "function curveSupply() view returns (uint256)",
   "function initialVQ() view returns (uint256)",
@@ -23,7 +25,7 @@ export const v2FactoryAbi = parseAbi([
   "function creatorTaxCapBps() view returns (uint16)",
   "function publicLaunchOpen() view returns (bool)",
   "function invited(address) view returns (bool)",
-  "function initialize((address deployer,address escrow,address vault,address guard,address executor,address locker,address hook,address launchAndBuy) services)",
+  "function initialize((address deployer,address escrow,address vault,address guard,address executor,address locker,address hook,address launchAndBuy,address holderReserve) services)",
   "function owner() view returns (address)",
   "function pendingOwner() view returns (address)",
   "function transferOwnership(address newOwner)",
@@ -32,9 +34,11 @@ export const v2FactoryAbi = parseAbi([
   "event FeeDefaultsUpdated(uint16 feeBps,uint16 creatorShareBps,uint16 buybackShareBps,uint16 creatorTaxCapBps,address treasury)",
   "function market(address) view returns (address curve,address creator,uint16 feeBps,uint16 creatorShareBps,uint16 buybackShareBps,uint16 creatorTaxBps,address treasury)",
   "function createToken(string name_,string symbol_,string uri_,uint16 creatorTaxBps) returns (address token,address curve)",
+  "function createToken(string name_,string symbol_,string uri_,uint16 creatorTaxBps,uint16 holderReserveBps) returns (address token,address curve)",
   "function graduate(address token)",
   "function createGraduatedPool(address token) returns (address pool)",
   "event LaunchCreated(address indexed token,address indexed curve,address indexed creator,string name,string symbol,string uri)",
+  "event ReserveConfigured(address indexed token,uint16 reserveBps,uint256 amount)",
   "event LaunchFeePaid(address indexed creator,address indexed treasury,uint256 amount)",
   "event GraduationStarted(address indexed token,address indexed curve)",
   "event GraduationDeferred(address indexed token,bytes reason)",
@@ -90,7 +94,22 @@ export const v2VaultAbi = parseAbi([
 ]);
 
 export const v2LaunchAndBuyAbi = parseAbi([
+  "function launchAndBuy((string name,string symbol,string uri,uint16 creatorTaxBps,uint16 holderReserveBps,uint256 maxSpend,uint256 minOut,uint256 deadline) request) returns (address token,address curve,uint256 bought)",
+]);
+
+export const legacyLaunchAndBuyAbi = parseAbi([
   "function launchAndBuy((string name,string symbol,string uri,uint16 creatorTaxBps,uint256 maxSpend,uint256 minOut,uint256 deadline) request) returns (address token,address curve,uint256 bought)",
+]);
+
+export const holderReserveAbi = parseAbi([
+  "function launches(address) view returns (address creator,address curve,address pool,address vault,uint256 reserve,uint256 committed,uint256 graduationBlock,uint256 roundCount)",
+  "function rounds(address,uint256) view returns (uint256 snapshotBlock,uint256 amount,uint256 eligibleSupply)",
+  "function claimable(address,uint256,address) view returns (uint256)",
+  "function claimed(address,uint256,address) view returns (bool)",
+  "function createRound(address token,uint256 snapshotBlock,uint256 amount) returns (uint256)",
+  "function claim(address token,uint256 roundId,address holder) returns (uint256)",
+  "event RoundCreated(address indexed token,uint256 indexed roundId,uint256 snapshotBlock,uint256 amount,uint256 eligibleSupply)",
+  "event Claimed(address indexed token,uint256 indexed roundId,address indexed holder,uint256 amount)",
 ]);
 
 export const erc20Abi = parseAbi([

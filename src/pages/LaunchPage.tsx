@@ -7,7 +7,7 @@ import { useStore } from "../app/useStore.js";
 import { useAccount, useReadContract } from "wagmi";
 import { formatEther, parseEther } from "viem";
 import { v2FactoryAbi } from "../sdk/v2Contracts";
-import { activeChainId, activeExplorerUrl, launchpadAddress } from "../lib/web3";
+import { activeChainId, activeExplorerUrl, activeFactoryIsLegacy, activeFactoryVersion, launchpadAddress } from "../lib/web3";
 import { canSubmitLaunch } from "../lib/launchForm";
 import { publishTokenMetadata, uploadArtworkImage } from "../lib/artworkUpload";
 import { getBetaReadEnabled, selectMarketState } from "../lib/marketState";
@@ -36,6 +36,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
   const [draftName, setDraftName] = useState("");
   const [draftSymbol, setDraftSymbol] = useState("");
   const [draftTaxPercent, setDraftTaxPercent] = useState("0");
+  const [draftReservePercent, setDraftReservePercent] = useState("5");
   const [draftInitialBuy, setDraftInitialBuy] = useState("");
   const [feeAccepted, setFeeAccepted] = useState(false);
   const [draftImageUrl, setDraftImageUrl] = useState<string>();
@@ -68,6 +69,18 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
     chainId: activeChainId,
     query: { enabled: Boolean(launchpadAddress) },
   });
+  const { data: curveSupply } = useReadContract({
+    address: launchpadAddress ?? undefined, abi: v2FactoryAbi,
+    functionName: "curveSupply", chainId: activeChainId,
+    query: { enabled: Boolean(launchpadAddress) },
+  });
+  const { data: holderReserveAddress, isPending: reserveCheckPending, isError: reserveCheckError } = useReadContract({
+    address: launchpadAddress ?? undefined, abi: v2FactoryAbi,
+    functionName: "holderReserve", chainId: activeChainId,
+    query: { enabled: Boolean(launchpadAddress), retry: false },
+  });
+  const reserveSupported = Boolean(holderReserveAddress);
+  const reserveCheckReady = reserveSupported || activeFactoryIsLegacy || (!reserveCheckPending && !reserveCheckError);
   const { data: buybackShareBps, isError: buybackError } = useReadContract({
     address: launchpadAddress ?? undefined,
     abi: v2FactoryAbi,
@@ -171,7 +184,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
 
   const phase = launchProgress?.phase;
   const draftTaxBps = Math.round(Number(draftTaxPercent || "0") * 100);
-  const formReady = !imageError && canSubmitLaunch({
+  const formReady = reserveCheckReady && !imageError && canSubmitLaunch({
     name: draftName,
     symbol: draftSymbol,
     initialBuy: draftInitialBuy,
@@ -236,7 +249,10 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
           initialBuy={draftInitialBuy}
           imageUrl={draftImageUrl}
           supply={tokenSupply}
+          curveSupply={curveSupply}
+          reserveBps={reserveSupported ? Math.round(Number(draftReservePercent) * 100) : 0}
           supplyUnavailable={supplyError || !launchpadAddress}
+          version={activeFactoryVersion}
         />
         <form className="launch-form" onSubmit={submitLaunch}>
           <div className="launch-form-section">
@@ -307,6 +323,18 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                     <i>%</i>
                   </span>
                 </label>
+                {reserveSupported && <label className="launch-field-wide">
+                  <span>Holder airdrop reserve <b>0–5%</b></span>
+                  <span className="launch-unit-input">
+                    <input name="holderReservePercent" type="number" min="0" max="5" step="0.01" inputMode="decimal" required value={draftReservePercent} onChange={(event) => setDraftReservePercent(event.target.value)} />
+                    <i>%</i>
+                  </span>
+                  <small>Held for creator-triggered, holder-claimable airdrops after graduation. This reduces pool tokens, not curve sale tokens.</small>
+                </label>}
+                {reserveSupported && tokenSupply !== undefined && Number.isFinite(Number(draftReservePercent)) && <div className="launch-pair-field">
+                  <span>Reserved tokens</span>
+                  <strong>{(Number(formatEther(tokenSupply)) * Number(draftReservePercent) / 100).toLocaleString()}</strong>
+                </div>}
                 <div className="launch-pair-field">
                   <span>Buyback</span>
                   <strong>{buybackShareBps == null ? buybackError ? "Unavailable" : "Loading…" : `${Number(buybackShareBps) / 100}% of trading fee`}</strong>
@@ -314,10 +342,12 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
               </div>
             </details>
             <input type="hidden" name="creatorTaxBps" value={draftTaxBps} />
+            <input type="hidden" name="holderReserveBps" value={reserveSupported ? Math.round(Number(draftReservePercent) * 100) : 0} />
             <input type="hidden" name="uri" value={publishedUri} />
 
             {address && !canCreate && <p className="notice" role="status">{publicOpen === false && invited === false ? "This factory is invite-only." : "Checking launch access…"}</p>}
             {launchFeeError && <p className="notice" role="alert">Could not verify the launch fee. Try again before launching.</p>}
+            {!reserveCheckReady && !activeFactoryIsLegacy && <p className="notice" role="alert">Could not verify holder reserve support. Retry before launching.</p>}
             {launchFee === undefined && !launchFeeError && <p className="launch-field-help" role="status">Checking launch fee…</p>}
             {launchFee !== undefined && launchFee > 0n && (
               <label className="launch-fee-consent">

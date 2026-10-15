@@ -20,10 +20,11 @@ type BroadcastReceipt = {
   blockNumber: string;
 };
 
-export function resolveV2Broadcast(broadcast: { transactions: BroadcastTransaction[]; receipts: BroadcastReceipt[] }) {
+export function resolveV2Broadcast(broadcast: { transactions: BroadcastTransaction[]; receipts: BroadcastReceipt[] }, reserveEnabled = false) {
   const creations = broadcast.transactions.filter((tx) => tx.transactionType === "CREATE");
   const feeTreasuryDeployment = creations[0]?.contractName === "CurveLaunchFeeTreasury";
-  const expectedNames = feeTreasuryDeployment ? ["CurveLaunchFeeTreasury", ...serviceNames] : [...serviceNames];
+  const services = reserveEnabled ? [...serviceNames, "CurveHolderReserve"] : [...serviceNames];
+  const expectedNames = feeTreasuryDeployment ? ["CurveLaunchFeeTreasury", ...services] : services;
   if (creations.length !== expectedNames.length || creations.some((tx, i) => tx.contractName !== expectedNames[i])) {
     throw new Error("Broadcast does not contain the ordered V2 deployment.");
   }

@@ -259,3 +259,48 @@ test("a paid launch wraps and approves only the exact fee before creation", asyn
   expect(simulations[0].value).toBe(fee);
   expect(simulations[1].args).toEqual([deployment.launchpad, fee]);
 });
+
+test("reserve-enabled direct and atomic launches carry the selected percentage", async () => {
+  const token = "0x0000000000000000000000000000000000000003" as Address;
+  const curve = "0x0000000000000000000000000000000000000004" as Address;
+  const quote = "0x0000000000000000000000000000000000000005" as Address;
+  const wrapper = "0x0000000000000000000000000000000000000006" as Address;
+  const reserve = "0x0000000000000000000000000000000000000007" as Address;
+  const requests: Array<{ functionName: string; args?: readonly unknown[] }> = [];
+  const receipt = {
+    status: "success",
+    logs: [{
+      address: deployment.launchpad,
+      topics: encodeEventTopics({ abi: v2FactoryAbi, eventName: "LaunchCreated", args: { token, curve, creator: wallet } }),
+      data: encodeAbiParameters([{ type: "string" }, { type: "string" }, { type: "string" }], ["Test", "TST", ""]),
+    }],
+  } as TransactionReceipt;
+  const actions = {
+    getAccount: () => ({ address: wallet, chainId: RISE_TESTNET_CHAIN_ID }),
+    readContract: async (_config: unknown, request: { functionName: string }) => {
+      if (request.functionName === "holderReserve") return reserve;
+      if (request.functionName === "launchFee") return 0n;
+      if (request.functionName === "quote") return quote;
+      if (request.functionName === "launchAndBuy") return wrapper;
+      if (request.functionName === "supply") return 1_000_000n * 10n ** 18n;
+      if (request.functionName === "curveSupply") return 800_000n * 10n ** 18n;
+      if (request.functionName === "initialVQ") return 10n * 10n ** 18n;
+      if (request.functionName === "feeBps") return 75;
+      if (request.functionName === "creatorTaxCapBps") return 50;
+      if (request.functionName === "balanceOf" || request.functionName === "allowance") return 50n * 10n ** 18n;
+      throw new Error(`Unexpected ${request.functionName}`);
+    },
+    simulateContract: async (_config: unknown, request: { functionName: string; args?: readonly unknown[] }) => {
+      requests.push(request);
+      return { request };
+    },
+    writeContract: async () => hash,
+    waitForTransactionReceipt: async () => receipt,
+  } as unknown as WagmiActions;
+  const sdk = createV2Sdk({} as Config, deployment, actions);
+  await sdk.createToken({ name: "Test", symbol: "TST", uri: "", holderReserveBps: 250 });
+  await sdk.launchAndBuy({ name: "Test", symbol: "TST", uri: "", holderReserveBps: 500 }, 50n * 10n ** 18n);
+  expect(requests[0].args).toEqual(["Test", "TST", "", 0, 250]);
+  expect((requests[1].args?.[0] as { holderReserveBps: number }).holderReserveBps).toBe(500);
+  await expect(sdk.createToken({ name: "Test", symbol: "TST", uri: "", holderReserveBps: 501 })).rejects.toThrow("0–5%");
+});

@@ -1,6 +1,6 @@
 import { formatEther, getAddress, zeroAddress, type Address } from "viem";
 import { v2CurveAbi, v2FactoryAbi } from "./sdk/v2Contracts";
-import { activeDeploymentBlock, launchpadAddress } from "./lib/web3";
+import { activeDeploymentBlock, launchpadAddress, legacyFactories } from "./lib/web3";
 import { buildBlockRanges } from "./lib/marketChart";
 import type { Token } from "./types";
 
@@ -52,7 +52,17 @@ async function discoverTokens(
   args?: { creator: Address } | { token: Address },
 ): Promise<Token[]> {
   if (!launchpadAddress) return [];
-  const factoryAddress = launchpadAddress;
+  const deployments = [{ address: launchpadAddress, deploymentBlock: activeDeploymentBlock }, ...legacyFactories];
+  const batches = await Promise.all(deployments.map((deployment) => discoverTokensForFactory(client, deployment.address, deployment.deploymentBlock, args)));
+  return batches.flat().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+async function discoverTokensForFactory(
+  client: CreatorTokenClient,
+  factoryAddress: Address,
+  deploymentBlock: bigint,
+  args?: { creator: Address } | { token: Address },
+): Promise<Token[]> {
   const eventQuery = {
     address: factoryAddress,
     abi: v2FactoryAbi,
@@ -64,7 +74,7 @@ async function discoverTokens(
     throw new Error("RPC client cannot report the latest block for bounded event queries.");
   }
   const latestBlock = await client.getBlockNumber();
-  const ranges = buildBlockRanges(activeDeploymentBlock, latestBlock, MAX_EVENT_QUERY_BLOCKS);
+  const ranges = buildBlockRanges(deploymentBlock, latestBlock, MAX_EVENT_QUERY_BLOCKS);
   const logs: CreatedLog[] = [];
   let nextRange = 0;
   await Promise.all(Array.from({ length: Math.min(EVENT_QUERY_CONCURRENCY, ranges.length) }, async () => {
@@ -124,8 +134,5 @@ async function discoverTokens(
     }),
   );
 
-  return tokens.sort(
-    (a, b) =>
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-  );
+  return tokens;
 }

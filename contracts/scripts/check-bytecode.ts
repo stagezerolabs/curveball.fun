@@ -9,6 +9,7 @@ const contracts: Record<string, string> = {
   CurveGraduationExecutor: "CurveGraduationExecutor",
   CurveMemeHook: "CurveMemeHook",
   CurveLaunchAndBuy: "CurveLaunchAndBuy",
+  CurveHolderReserve: "CurveHolderReserve",
   CurveLpLocker: "LpLocker",
 };
 

@@ -10,6 +10,8 @@ interface IAtomicFactory {
     function launchFee() external view returns (uint256);
     function createFor(address creator, string calldata name_, string calldata symbol_, string calldata uri_, uint16 tax)
         external returns (address token, address curve);
+    function createFor(address creator, string calldata name_, string calldata symbol_, string calldata uri_, uint16 tax, uint16 holderReserveBps)
+        external returns (address token, address curve);
 }
 
 /// @notice Optional launch and curve buy in one atomic transaction.
@@ -22,6 +24,7 @@ contract CurveLaunchAndBuy is ReentrancyGuard {
         string symbol;
         string uri;
         uint16 creatorTaxBps;
+        uint16 holderReserveBps;
         uint256 maxSpend;
         uint256 minOut;
         uint256 deadline;
@@ -41,7 +44,7 @@ contract CurveLaunchAndBuy is ReentrancyGuard {
         uint256 beforeBalance = IERC20(quote).balanceOf(address(this));
         IERC20(quote).safeTransferFrom(msg.sender, address(this), request.maxSpend + fee);
         if (fee > 0) IERC20(quote).forceApprove(factory, fee);
-        (token, curve) = IAtomicFactory(factory).createFor(msg.sender, request.name, request.symbol, request.uri, request.creatorTaxBps);
+        (token, curve) = IAtomicFactory(factory).createFor(msg.sender, request.name, request.symbol, request.uri, request.creatorTaxBps, request.holderReserveBps);
         IERC20(quote).forceApprove(curve, request.maxSpend);
         bought = CurveBondingCurve(curve).buyTokensFor(msg.sender, request.maxSpend, request.minOut, request.deadline);
         uint256 refund = IERC20(quote).balanceOf(address(this)) - beforeBalance;

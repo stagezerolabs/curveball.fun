@@ -12,6 +12,10 @@ import {
   defineCurveballDeployment,
 } from "../sdk/curveballSdk";
 import { createV2Sdk } from "../sdk/v2Sdk";
+import testnetV2 from "../../deployments/11155931/curveball-v2-permissionless.json";
+import earlyTestnetV2 from "../../deployments/11155931/curveball-v2-early.json";
+
+const firstTestnetV2 = { address: getAddress(earlyTestnetV2.factory), deploymentBlock: BigInt(earlyTestnetV2.deploymentBlock) };
 
 const env = import.meta.env;
 if (!env.VITE_LAUNCHPAD_ADDRESS) throw new Error("VITE_LAUNCHPAD_ADDRESS is required.");
@@ -50,6 +54,28 @@ export const wagmiConfig = walletConnectProjectId
 
 const configuredLaunchpad = env.VITE_LAUNCHPAD_ADDRESS.trim();
 export const launchpadAddress: Address | null = isAddress(configuredLaunchpad) ? getAddress(configuredLaunchpad) : null;
+const legacyAddress = typeof env.VITE_LEGACY_LAUNCHPAD_ADDRESS === "string" ? env.VITE_LEGACY_LAUNCHPAD_ADDRESS.trim() : "";
+const legacyBlock = typeof env.VITE_LEGACY_DEPLOYMENT_BLOCK === "string" ? env.VITE_LEGACY_DEPLOYMENT_BLOCK.trim() : "";
+const configuredLegacy = isAddress(legacyAddress) && /^\d+$/.test(legacyBlock)
+  ? [{ address: getAddress(legacyAddress), deploymentBlock: BigInt(legacyBlock) }] : [];
+const testnetLegacy = activeChainId === RISE_TESTNET_CHAIN_ID
+  ? [firstTestnetV2, { address: getAddress(testnetV2.factory), deploymentBlock: BigInt(testnetV2.deploymentBlock) }] : [];
+export const legacyFactories: ReadonlyArray<{ address: Address; deploymentBlock: bigint }> =
+  [...configuredLegacy, ...testnetLegacy].filter((entry, index, all) =>
+    entry.address.toLowerCase() !== launchpadAddress?.toLowerCase()
+      && all.findIndex((candidate) => candidate.address.toLowerCase() === entry.address.toLowerCase()) === index);
+export const activeFactoryIsLegacy = launchpadAddress != null &&
+  (activeChainId === RISE_TESTNET_CHAIN_ID && testnetLegacy.some((entry) => entry.address.toLowerCase() === launchpadAddress.toLowerCase())
+    || configuredLegacy.some((entry) => entry.address.toLowerCase() === launchpadAddress.toLowerCase()));
+export const activeFactoryVersion = (typeof env.VITE_FACTORY_VERSION === "string" && env.VITE_FACTORY_VERSION.trim())
+  || (activeChainId === RISE_TESTNET_CHAIN_ID && !activeFactoryIsLegacy ? "V2.1" : "V2");
+
+export function factoryVersion(factory?: Address | null): string {
+  if (!factory) return activeFactoryVersion;
+  if (activeChainId === RISE_TESTNET_CHAIN_ID && factory.toLowerCase() === firstTestnetV2.address.toLowerCase()) return "V2 early";
+  if (activeChainId === RISE_TESTNET_CHAIN_ID && factory.toLowerCase() === testnetV2.factory.toLowerCase()) return "V2";
+  return factory.toLowerCase() === launchpadAddress?.toLowerCase() ? activeFactoryVersion : "V2";
+}
 
 export const curveballSdk = launchpadAddress
   ? createV2Sdk(wagmiConfig, defineCurveballDeployment({

@@ -2,6 +2,7 @@ import { AppLink } from "./Navigation";
 import { TokenAvatar } from "./TokenAvatar";
 import { UsdAmount } from "./UsdAmount";
 import { formatAddress, formatPercent } from "../lib/format.js";
+import { factoryVersion } from "../lib/web3";
 import type { Navigate, Token } from "../types";
 
 export function MarketList({
@@ -57,6 +58,7 @@ export function MarketList({
                 <span className="market-card-content">
                   <strong className="market-card-name">{token.name}</strong>
                   <span className="market-card-symbol">${token.symbol}</span>
+                  <span className="market-card-address">{factoryVersion(token.factory)}</span>
                   <span className="market-card-address">{formatAddress(token.address)}</span>
                   {highlightedToken?.toLowerCase() === token.address.toLowerCase() && <span className="market-new-tag">Just launched</span>}
                   <span className="market-card-metrics">

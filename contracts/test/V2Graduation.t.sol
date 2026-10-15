@@ -90,7 +90,7 @@ contract V2GraduationTest is TestBase {
         vm.expectRevert();
         factory.createGraduatedPool(address(token));
         assertEq(quote.balanceOf(address(curve)), reserve, "wrong pool drained WETH");
-        assertEq(token.balanceOf(address(curve)), 200_000 ether, "wrong pool drained tokens");
+        assertEq(token.balanceOf(address(curve)), 150_000 ether, "wrong pool drained tokens");
         assertTrue(!token.tradingEnabled() && !curve.graduated(), "failed graduation changed market");
     }
 

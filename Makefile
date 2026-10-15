@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help dev build test typecheck contracts-test deploy-v2-testnet set-fee-testnet deploy-fee-controller-testnet accept-fee-controller-testnet
+.PHONY: help dev build test typecheck contracts-test deploy-v2-testnet deploy-holder-reserve-testnet set-fee-testnet deploy-fee-controller-testnet accept-fee-controller-testnet
 
 help:
 	@echo "make dev                 Run the static frontend"
@@ -8,6 +8,7 @@ help:
 	@echo "make test                Run frontend tests and typecheck"
 	@echo "make contracts-test      Run Foundry contract tests"
 	@echo "make deploy-v2-testnet   Open the guarded V2 deployment flow"
+	@echo "make deploy-holder-reserve-testnet   Open the guarded holder-reserve deployment flow"
 	@echo "make set-fee-testnet     Set the live RISE Testnet V2 fee to 0.75%"
 	@echo "make deploy-fee-controller-testnet  Deploy dot-owned fee controller"
 	@echo "make accept-fee-controller-testnet CONTROLLER=0x...  Complete controller ownership"
@@ -28,6 +29,9 @@ contracts-test:
 
 deploy-v2-testnet:
 	@$(MAKE) -C contracts deploy-v2-testnet-interactive
+
+deploy-holder-reserve-testnet:
+	@$(MAKE) -C contracts deploy-holder-reserve-testnet
 
 set-fee-testnet:
 	@$(MAKE) -C contracts set-fee-testnet

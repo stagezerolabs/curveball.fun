@@ -581,12 +581,40 @@ button {
   gap: 16px;
   justify-content: space-between;
   margin-bottom: 18px;
+  flex-wrap: wrap;
 }
 .market-tabs {
   display: flex;
   gap: 28px;
   position: relative;
 }
+.market-version-filter {
+  align-items: center;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 12px;
+  gap: 8px;
+  margin-left: auto;
+}
+.market-version-filter select {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  font: inherit;
+  min-height: 36px;
+  padding: 0 8px;
+}
+.market-version-filter select:focus-visible { outline: 2px solid var(--lime); outline-offset: 2px; }
+.market-version-reset {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  cursor: pointer;
+  padding: 9px 14px;
+}
+.market-version-reset:focus-visible { outline: 2px solid var(--lime); outline-offset: 2px; }
 .market-refresh {
   align-items: center;
   background: transparent;
@@ -2070,8 +2098,55 @@ select:focus-visible {
 }
 .market-page > .market-header,
 .market-page > .market-workspace,
+.market-page > .holder-airdrop,
 .market-page > .floating-notice {
   min-width: 0;
+}
+
+.holder-airdrop {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  display: grid;
+  gap: 18px;
+  padding: 24px;
+}
+.holder-airdrop-heading,
+.holder-airdrop-rounds li,
+.holder-airdrop-summary {
+  align-items: start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+  justify-content: space-between;
+}
+.holder-airdrop h2,
+.holder-airdrop h3,
+.holder-airdrop p { margin: 0; }
+.holder-airdrop h2 { font-size: 20px; }
+.holder-airdrop h3 { font-size: 16px; }
+.holder-airdrop-heading > span,
+.holder-airdrop > p,
+.holder-airdrop-rounds li span { color: var(--muted); font-size: 13px; }
+.holder-airdrop-summary { border-block: 1px solid var(--line); margin: 0; padding-block: 16px; }
+.holder-airdrop-summary div { display: grid; gap: 4px; }
+.holder-airdrop-summary dt { color: var(--muted); font-size: 12px; }
+.holder-airdrop-summary dd { font-weight: 600; margin: 0; }
+.holder-airdrop-form { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.holder-airdrop-form h3 { grid-column: 1 / -1; }
+.holder-airdrop-form label { display: grid; font-size: 13px; gap: 7px; }
+.holder-airdrop-form input { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; color: var(--ink); min-height: 46px; padding: 0 12px; width: 100%; }
+.holder-airdrop-form input:focus-visible { outline: 2px solid var(--lime); }
+.holder-airdrop-form button { justify-self: start; }
+.holder-airdrop-rounds { display: grid; gap: 12px; }
+.holder-airdrop-rounds ol { display: grid; gap: 0; list-style: none; margin: 0; padding: 0; }
+.holder-airdrop-rounds li { border-top: 1px solid var(--line); padding: 14px 0; }
+.holder-airdrop-rounds li > div { display: grid; gap: 4px; }
+.holder-airdrop-rounds li button { background: var(--raise); border: 1px solid var(--line); border-radius: 7px; color: var(--lime); cursor: pointer; min-height: 36px; padding: 6px 12px; }
+.holder-airdrop button:disabled { cursor: not-allowed; opacity: 0.5; }
+@media (max-width: 640px) {
+  .holder-airdrop { padding: 18px; }
+  .holder-airdrop-form { grid-template-columns: 1fr; }
 }
 .market-page > .floating-notice {
   margin: 0;

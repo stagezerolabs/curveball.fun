@@ -35,7 +35,7 @@ The UI shows the same picture ("Where pool fees go" in the milestone panel: crea
 
 ## Who has authority (why the protocol is the one earning)
 
-Per the V2 review: **creators have no mint, reserve, fee-policy, or graduation authority.** The **factory owns launch policy and invitation control**, and its one-time `initialize` binds every service and the locker + fee authorizations. So the fee shares and the treasury are protocol-owned parameters; creators get their half of the trade fee and can be taxed (creator tax), but can't reshape the model for their own tokens.
+On the currently deployed V2 factory, creators have no mint or token-reserve authority. The new, undeployed reserve-enabled factory keeps minting fixed and fee policy under protocol control, but lets each creator select a 0–5% holder airdrop reserve at launch. After graduation, the creator can allocate that reserve across snapshot-based claim rounds. They cannot withdraw it or redirect a holder's claim. The reserve is separate from trading fees and reduces token liquidity sent to the graduation pool.
 
 ## Income summary (ranked)
 

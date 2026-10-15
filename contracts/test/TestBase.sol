@@ -10,6 +10,7 @@ interface Vm {
     function envOr(string calldata name, string calldata defaultValue) external returns (string memory);
     function createSelectFork(string calldata urlOrAlias) external returns (uint256);
     function warp(uint256 newTimestamp) external;
+    function roll(uint256 newBlockNumber) external;
 }
 
 abstract contract TestBase {

@@ -5,7 +5,7 @@ import {
 import type { Config } from "wagmi";
 import { decodeAbiParameters, decodeEventLog, getAddress, zeroAddress, type Address, type Hash, type TransactionReceipt } from "viem";
 import { applySlippage, createDeadline, validateTokenInput, type CurveballDeployment, type TokenInput } from "./curveballSdk";
-import { erc20Abi, v2CurveAbi, v2EscrowAbi, v2FactoryAbi, v2LaunchAndBuyAbi, v2LockerAbi, v2VaultAbi } from "./v2Contracts";
+import { erc20Abi, legacyLaunchAndBuyAbi, v2CurveAbi, v2EscrowAbi, v2FactoryAbi, v2LaunchAndBuyAbi, v2LockerAbi, v2VaultAbi } from "./v2Contracts";
 import { validateV2Deployment } from "../v2Deployment";
 
 export type TradeSide = "buy" | "sell";
@@ -164,19 +164,30 @@ export function createV2Sdk(config: Config, deployment: CurveballDeployment, act
     return result[0];
   }
 
-  async function createToken(input: TokenInput & { creatorTaxBps?: number }, onProgress?: LaunchProgress) {
+  async function reserveSupported(): Promise<boolean> {
+    try {
+      const address = await actions.readContract(config, { address: factory, abi: v2FactoryAbi, functionName: "holderReserve", chainId: deployment.chainId });
+      return typeof address === "string" && address !== zeroAddress;
+    } catch { return false; }
+  }
+
+  async function createToken(input: TokenInput & { creatorTaxBps?: number; holderReserveBps?: number }, onProgress?: LaunchProgress) {
     onProgress?.("preparing");
     const account = await ensureWallet();
     const token = validateTokenInput(input);
     const tax = input.creatorTaxBps ?? 0;
     if (!Number.isInteger(tax) || tax < 0 || tax > 50) throw new CurveballSdkError("Creator tax must be 0–0.5%.");
+    const reserveBps = input.holderReserveBps ?? 0;
+    if (!Number.isInteger(reserveBps) || reserveBps < 0 || reserveBps > 500) throw new CurveballSdkError("Holder reserve must be 0–5%.");
+    const hasReserve = await reserveSupported();
+    if (!hasReserve && reserveBps !== 0) throw new CurveballSdkError("This factory does not support holder reserves.");
     const fee = await readLaunchFee();
     let approved = false;
     if (fee > 0n) {
       const quote = await actions.readContract(config, { address: factory, abi: v2FactoryAbi, functionName: "quote", chainId: deployment.chainId });
       approved = await ensureQuoteApproval(account, quote, factory, fee, onProgress);
     }
-    const simulation = await simulateAfterApproval(() => actions.simulateContract(config, { account, address: factory, abi: v2FactoryAbi, functionName: "createToken", args: [token.name, token.symbol, token.uri, tax], chainId: deployment.chainId }), approved);
+    const simulation = await simulateAfterApproval(() => actions.simulateContract(config, { account, address: factory, abi: v2FactoryAbi, functionName: "createToken", args: hasReserve ? [token.name, token.symbol, token.uri, tax, reserveBps] : [token.name, token.symbol, token.uri, tax], chainId: deployment.chainId }), approved);
     onProgress?.("wallet");
     const hash = await actions.writeContract(config, simulation.request);
     onProgress?.("confirming", hash);
@@ -195,12 +206,16 @@ export function createV2Sdk(config: Config, deployment: CurveballDeployment, act
     throw new CurveballSdkError("Confirmed launch did not emit LaunchCreated.");
   }
 
-  async function launchAndBuy(input: TokenInput & { creatorTaxBps?: number }, maxSpend: bigint, onProgress?: LaunchProgress) {
+  async function launchAndBuy(input: TokenInput & { creatorTaxBps?: number; holderReserveBps?: number }, maxSpend: bigint, onProgress?: LaunchProgress) {
     onProgress?.("preparing");
     const account = await ensureWallet();
     const token = validateTokenInput(input);
     const tax = input.creatorTaxBps ?? 0;
     if (!Number.isInteger(tax) || tax < 0 || tax > 50 || maxSpend <= 0n) throw new CurveballSdkError("Invalid initial buy or creator tax.");
+    const reserveBps = input.holderReserveBps ?? 0;
+    if (!Number.isInteger(reserveBps) || reserveBps < 0 || reserveBps > 500) throw new CurveballSdkError("Holder reserve must be 0–5%.");
+    const hasReserve = await reserveSupported();
+    if (!hasReserve && reserveBps !== 0) throw new CurveballSdkError("This factory does not support holder reserves.");
     const [quote, wrapper, supply, curveSupply, initialVQ, feeBps, taxCap, launchFee] = await Promise.all([
       actions.readContract(config, { address: factory, abi: v2FactoryAbi, functionName: "quote", chainId: deployment.chainId }),
       actions.readContract(config, { address: factory, abi: v2FactoryAbi, functionName: "launchAndBuy", chainId: deployment.chainId }),
@@ -220,9 +235,16 @@ export function createV2Sdk(config: Config, deployment: CurveballDeployment, act
     const total = maxSpend + launchFee;
     const approved = await ensureQuoteApproval(account, quote, wrapper, total, onProgress);
     const request = { name: token.name, symbol: token.symbol, uri: token.uri, creatorTaxBps: tax, maxSpend, minOut, deadline: createDeadline(Date.now(), deployment.deadlineSeconds) };
-    const simulation = await simulateAfterApproval(() => actions.simulateContract(config, { account, address: wrapper, abi: v2LaunchAndBuyAbi, functionName: "launchAndBuy", args: [request], chainId: deployment.chainId }), approved);
-    onProgress?.("wallet");
-    const hash = await actions.writeContract(config, simulation.request);
+    let hash: Hash;
+    if (hasReserve) {
+      const simulation = await simulateAfterApproval(() => actions.simulateContract(config, { account, address: wrapper, abi: v2LaunchAndBuyAbi, functionName: "launchAndBuy", args: [{ ...request, holderReserveBps: reserveBps }], chainId: deployment.chainId }), approved);
+      onProgress?.("wallet");
+      hash = await actions.writeContract(config, simulation.request);
+    } else {
+      const simulation = await simulateAfterApproval(() => actions.simulateContract(config, { account, address: wrapper, abi: legacyLaunchAndBuyAbi, functionName: "launchAndBuy", args: [request], chainId: deployment.chainId }), approved);
+      onProgress?.("wallet");
+      hash = await actions.writeContract(config, simulation.request);
+    }
     onProgress?.("confirming", hash);
     const confirmed = await confirm(hash);
     return { ...confirmed, ...createdFromReceipt(confirmed.receipt), minimumOutput: minOut };

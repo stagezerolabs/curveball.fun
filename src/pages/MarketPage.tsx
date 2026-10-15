@@ -5,6 +5,7 @@ import { useStore } from "../app/useStore.js";
 import { AppLink } from "../components/Navigation";
 import { MarketHeader } from "../components/MarketHeader";
 import { MilestonePanel } from "../components/MilestonePanel";
+import { HolderAirdropPanel } from "../components/HolderAirdropPanel";
 import { TradePanel } from "../components/TradePanel";
 import type { CreatorTokenClient } from "../creatorTokens";
 import { activeChainId } from "../lib/web3";
@@ -105,6 +106,8 @@ export function MarketPage({
           />
         </aside>
       </div>
+
+      <HolderAirdropPanel token={resolvedToken} />
 
       {error && (
         <div className="notice notice-dismissible floating-notice" role="alert">
