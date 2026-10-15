@@ -21,3 +21,4 @@ contracts/crytic-export/
 .vercel
 # Local backup of verified deployment artifacts; canonical copies live in deployments/
 deployments.local-backup/
+.env*
