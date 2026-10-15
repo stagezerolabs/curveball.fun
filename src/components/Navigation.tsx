@@ -173,6 +173,7 @@ export function Header({
     navigate(route, params);
   };
   const marketsClass = ["markets", "market"].includes(routeId) ? "active" : "";
+  const statsClass = routeId === "stats" ? "active" : "";
   const profileClass = routeId === "profile" ? "active" : "";
   const adminClass = routeId === "admin" ? "active" : "";
 
@@ -194,6 +195,7 @@ export function Header({
       >
         Profile
       </AppLink>
+      <AppLink className={`nav-link ${statsClass}`} route="stats" navigate={go} aria-current={statsClass ? "page" : undefined}>Stats</AppLink>
       {address?.toLowerCase() === ADMIN_ADDRESS.toLowerCase() && <AppLink className={`nav-link ${adminClass}`} route="admin" navigate={go} aria-current={adminClass ? "page" : undefined}>Admin</AppLink>}
     </>
   );
@@ -264,6 +266,7 @@ export function LandingFooter({ navigate }: { navigate: Navigate }) {
         <nav className="landing-footer-column" aria-label="Product">
           <h2>Product</h2>
           <AppLink route="markets" navigate={navigate}>Markets</AppLink>
+          <AppLink route="stats" navigate={navigate}>Stats</AppLink>
           <AppLink route="launch" navigate={navigate}>Launch</AppLink>
         </nav>
 

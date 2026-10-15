@@ -9,7 +9,7 @@ function memoryStorage() {
   };
 }
 
-const token = { address: "0x1111111111111111111111111111111111111111" as const, creator: "0x2222222222222222222222222222222222222222" as const, graduated: false };
+const token = { address: "0x1111111111111111111111111111111111111111" as const, creator: "0x2222222222222222222222222222222222222222" as const, graduated: false, name: "First token", symbol: "FIRST", createdAt: "2026-10-15T00:00:00.000Z" };
 
 describe("landing stats cache", () => {
   test("restores launch counts and creator payout with their fetch times", () => {

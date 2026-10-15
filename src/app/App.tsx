@@ -12,6 +12,7 @@ import { MarketPage } from "../pages/MarketPage";
 import { MarketsPage } from "../pages/MarketsPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { ProfilePage } from "../pages/ProfilePage";
+import { StatsPage } from "../pages/StatsPage";
 import { AdminPage } from "../pages/AdminPage";
 import { useRouter } from "./useRouter.js";
 import {
@@ -34,6 +35,9 @@ export function App() {
       break;
     case "markets":
       page = <MarketsPage navigate={navigate} />;
+      break;
+    case "stats":
+      page = <StatsPage navigate={navigate} />;
       break;
     case "market":
       page = (
@@ -77,7 +81,7 @@ export function App() {
         />
       )}
       {page}
-      <LandingFooter navigate={navigate} />
+      {isLanding && <LandingFooter navigate={navigate} />}
     </div>
     </RadixTheme>
   );

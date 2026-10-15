@@ -4,6 +4,7 @@ import { useAccount, useSwitchChain } from "wagmi";
 import { formatUnits, getAddress, zeroAddress, type Address, type Hash } from "viem";
 import { ADMIN_ADDRESS, SUPER_ADMIN_ADDRESS, feePercentToBps, nominateFeeController, readFactoryFunds, readFeeDefaults, submitFeeUpdate, type FactoryFunds, type FeeAuthority } from "../lib/adminFees";
 import { readableError } from "../lib/errors";
+import { formatAddress } from "../lib/format.js";
 import { activeChainId, activeContractVersion, activeExplorerUrl, launchpadAddress, wagmiConfig } from "../lib/web3";
 import feeEnabledV2 from "../../deployments/11155931/curveball-v2-permissionless.json";
 import { RISE_TESTNET_CHAIN_ID } from "../sdk/curveballSdk";
@@ -15,6 +16,42 @@ function displayBalance(balance: bigint, decimals: number): string {
   const visibleFraction = fraction.slice(0, 6).replace(/0+$/, "");
   if (balance > 0n && whole === "0" && !visibleFraction) return "<0.000001";
   return visibleFraction ? `${whole}.${visibleFraction}` : whole;
+}
+
+function ExplorerAddress({ address, label }: { address: Address; label: string }) {
+  return <a href={`${activeExplorerUrl}/address/${address}`} target="_blank" rel="noreferrer" title={address} aria-label={`${label}: ${address}. View on explorer`}>{formatAddress(address)} <span aria-hidden="true">↗</span></a>;
+}
+
+function FundsPanel({ funds }: { funds: FactoryFunds }) {
+  return <section className="admin-panel admin-funds-summary" aria-labelledby="admin-funds-title">
+    <div className="admin-side-head"><h2 id="admin-funds-title">Protocol funds</h2><span>{funds.symbol}</span></div>
+    <dl className="admin-funds-grid">
+      {[
+        { label: "Trading treasury", fund: funds.tradingTreasury },
+        { label: "Launch treasury", fund: funds.launchTreasury },
+        { label: "Buyback vault", fund: funds.buybackVault },
+      ].filter(({ fund }) => fund.address !== zeroAddress).map(({ label, fund }) => <div key={label} className="admin-fund-row">
+        <dt>{label}</dt>
+        <dd><strong>{displayBalance(fund.balance, funds.decimals)} <span>{funds.symbol}</span></strong><ExplorerAddress address={fund.address} label={label} /></dd>
+      </div>)}
+    </dl>
+  </section>;
+}
+
+function FactoryDetails({ settings, factory }: { settings: Settings; factory: Address }) {
+  return <aside className="admin-panel admin-details" aria-labelledby="admin-details-title">
+    <h2 id="admin-details-title">Factory details</h2>
+    <dl>
+      <div><dt>Factory</dt><dd><ExplorerAddress address={factory} label="Factory" /></dd></div>
+      <div><dt>Owner</dt><dd><ExplorerAddress address={settings.owner} label="Owner" /></dd></div>
+      {settings.pendingOwner !== zeroAddress && <div><dt>Pending owner</dt><dd><ExplorerAddress address={settings.pendingOwner} label="Pending owner" /></dd></div>}
+      {settings.controller && <><div><dt>Super admin</dt><dd><ExplorerAddress address={settings.controller.superAdmin} label="Super admin" /></dd></div><div><dt>Fee admin</dt><dd><ExplorerAddress address={settings.controller.feeAdmin} label="Fee admin" /></dd></div></>}
+      <div><dt>Creator share</dt><dd>{(settings.creatorShareBps / 100).toFixed(2)}%</dd></div>
+      <div><dt>Buyback share</dt><dd>{(settings.buybackShareBps / 100).toFixed(2)}%</dd></div>
+      <div><dt>Creator tax cap</dt><dd>{(settings.creatorTaxCapBps / 100).toFixed(2)}%</dd></div>
+      <div><dt>Treasury</dt><dd><ExplorerAddress address={settings.treasury} label="Treasury" /></dd></div>
+    </dl>
+  </aside>;
 }
 
 export function AdminPage() {
@@ -119,7 +156,7 @@ export function AdminPage() {
   };
 
   return <main className="page-main admin-page wrap">
-    <h1 className="visually-hidden">Trading fee administration</h1>
+    <h1 className="visually-hidden">Admin controls</h1>
     {!address ? <section className="admin-panel admin-state"><h2>Connect your wallet</h2><p>Connect the admin wallet to manage the factory fee.</p><button type="button" className="primary-button" onClick={() => openConnectModal?.()}>Connect wallet</button></section>
       : !isAdmin ? <section className="admin-panel admin-state"><h2>Access restricted</h2><p>This dashboard is available to the designated admin wallet.</p></section>
       : !configured ? <section className="admin-panel admin-state"><h2>Factory unavailable</h2><p>Configure the active V2 factory before managing fees.</p></section>
@@ -129,68 +166,35 @@ export function AdminPage() {
         {(message || hash) && <p className="admin-feedback" role="status">{message || "Check the submitted transaction before retrying."} {hash && <a href={`${activeExplorerUrl}/tx/${hash}`} target="_blank" rel="noreferrer">View transaction ↗</a>}</p>}
         {loading && !settings ? <section className="admin-panel admin-state" aria-busy="true">Reading factory settings…</section>
           : settings && <>
-          {funds && <section className="admin-funds-summary" aria-labelledby="admin-funds-title">
-            <div className="admin-funds-head">
-              <div><p className="admin-eyebrow">Live balances</p><h2 id="admin-funds-title">Protocol funds <span>{funds.symbol}</span></h2></div>
-              <button type="button" className="market-refresh admin-refresh" disabled={pending || loading} aria-label={loading ? "Refreshing chain data" : "Refresh chain data"} aria-busy={loading} title={loading ? "Refreshing chain data" : "Refresh chain data"} onClick={() => void refresh(false)}>
-                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M16.8 8A7 7 0 1 0 17 11" />
-                  <path d="M17 3.5V8h-4.5" />
-                </svg>
-              </button>
-            </div>
-            <dl className="admin-funds-grid">
-              {[
-                { label: "Trading treasury", fund: funds.tradingTreasury },
-                { label: "Launch treasury", fund: funds.launchTreasury },
-                { label: "Buyback vault", fund: funds.buybackVault },
-              ].filter(({ fund }) => fund.address !== zeroAddress).map(({ label, fund }) => <div key={label} className="admin-fund-card">
-                <dt>{label}</dt>
-                <dd><strong>{displayBalance(fund.balance, funds.decimals)} <span>{funds.symbol}</span></strong><a href={`${activeExplorerUrl}/address/${fund.address}`} target="_blank" rel="noreferrer" aria-label={`View ${label} address on explorer`}>{fund.address}</a></dd>
-              </div>)}
-            </dl>
-          </section>}
           <div className="admin-grid">
-            <section className="admin-panel" aria-labelledby="admin-fee-title">
-              <div className="admin-panel-head"><div><p className="admin-eyebrow">New launches</p><h2 id="admin-fee-title">Curve trading fee</h2></div><strong>{(settings.feeBps / 100).toFixed(2)}%</strong></div>
-              <p className="admin-description">This fee is fixed when a token launches. Existing markets keep their recorded fee; Icarus pool swap fees are separate.</p>
-              <p className="admin-owner-line"><span>Current owner</span><a href={`${activeExplorerUrl}/address/${settings.owner}`} target="_blank" rel="noreferrer"><code>{settings.owner}</code></a></p>
-              {settings.controller && <p className="admin-owner-line"><span>Super admin</span><a href={`${activeExplorerUrl}/address/${settings.controller.superAdmin}`} target="_blank" rel="noreferrer"><code>{settings.controller.superAdmin}</code></a></p>}
+            <section className="admin-panel admin-fee-panel" aria-labelledby="admin-fee-title">
+              <div className="admin-panel-head"><h2 id="admin-fee-title">Curve trading fee</h2><div className="admin-fee-metrics"><div className="admin-current-fee"><span>Current fee</span><strong>{(settings.feeBps / 100).toFixed(2)}%</strong></div><button type="button" className="market-refresh admin-refresh" disabled={pending || loading} aria-label={loading ? "Refreshing chain data" : "Refresh chain data"} aria-busy={loading} title={loading ? "Refreshing chain data" : "Refresh chain data"} onClick={() => void refresh(false)}><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M16.8 8A7 7 0 1 0 17 11" /><path d="M17 3.5V8h-4.5" /></svg></button></div></div>
+              <p className="admin-description">Future launches only. Existing market fees stay fixed.</p>
               {(settings.owner === ADMIN_ADDRESS || (settings.controller?.feeAdmin === ADMIN_ADDRESS && settings.controller.superAdmin === SUPER_ADMIN_ADDRESS)) ? <form onSubmit={onReview}>
                 <label className="admin-label" htmlFor="admin-fee">New trading fee</label>
                 <div className="admin-fee-input"><input ref={feeInputRef} id="admin-fee" type="text" inputMode="decimal" value={draft} disabled={pending || !correctChain} aria-invalid={Boolean(fieldError)} aria-describedby={fieldError ? "admin-fee-help admin-fee-error" : "admin-fee-help"} onChange={(event) => { setDraft(event.target.value); setReviewBps(null); setFieldError(""); }} /><span>%</span></div>
-                <p id="admin-fee-help" className="admin-help">0.00% to 5.00%, in 0.01% steps. Applies to future launches.</p>
+                <p id="admin-fee-help" className="admin-help">0.00%–5.00% · 0.01% steps</p>
                 {fieldError && <p id="admin-fee-error" className="notice" role="alert">{fieldError}</p>}
                 {reviewBps === null ? <button type="submit" className="primary-button" disabled={pending || !correctChain || loading}>Review change</button>
                   : <div className="admin-review" role="group" aria-label="Review fee update"><p>Change future launch fees from <strong>{(settings.feeBps / 100).toFixed(2)}%</strong> to <strong>{(reviewBps / 100).toFixed(2)}%</strong>?</p><div className="admin-actions"><button ref={confirmRef} type="button" className="primary-button" disabled={pending || !correctChain} onClick={() => void run()}>{pending ? "Waiting for confirmation…" : "Confirm in wallet"}</button><button type="button" className="admin-secondary" disabled={pending} onClick={() => { setReviewBps(null); feeInputRef.current?.focus(); }}>Cancel</button></div></div>}
-              </form> : <p className="admin-help">Only the on-chain owner can change the fee. Dot must activate a fee controller that delegates fee editing to this wallet while retaining super admin authority.</p>}
+              </form> : <p className="admin-help">Fee editing unavailable for this wallet.</p>}
               {settings.owner === ADMIN_ADDRESS && (settings.pendingOwner === zeroAddress ? <form className="admin-controller-form" onSubmit={(event) => {
                 event.preventDefault();
                 try { setControllerReview(getAddress(controllerDraft.trim())); setControllerError(""); }
                 catch { setControllerError("Enter a valid controller contract address."); }
               }}>
                 <h3>Keep dot as super admin</h3>
-                <p>After dot deploys the fee controller, nominate its address here. Dot will then accept ownership through that controller. Your wallet will retain fee editing access.</p>
                 <label className="admin-label" htmlFor="admin-controller-address">Controller address</label>
                 <input id="admin-controller-address" className="admin-controller-input" type="text" value={controllerDraft} disabled={pending || !correctChain} aria-invalid={Boolean(controllerError)} aria-describedby={controllerError ? "admin-controller-error" : undefined} onChange={(event) => { setControllerDraft(event.target.value); setControllerReview(null); setControllerError(""); }} />
                 {controllerError && <p id="admin-controller-error" className="notice" role="alert">{controllerError}</p>}
                 {controllerReview ? <div className="admin-review"><p>Nominate <code>{controllerReview}</code> as factory owner? Dot must accept to complete the handoff.</p><div className="admin-actions"><button type="button" className="primary-button" disabled={pending || !correctChain} onClick={() => void runController()}>{pending ? "Waiting for confirmation…" : "Confirm in wallet"}</button><button type="button" className="admin-secondary" disabled={pending} onClick={() => setControllerReview(null)}>Cancel</button></div></div>
                   : <button type="submit" className="admin-secondary" disabled={pending || !correctChain}>Review controller handoff</button>}
-              </form> : <p className="admin-help">Factory ownership transfer is pending to <code>{settings.pendingOwner}</code>. Dot must accept through the controller if this is the deployed fee controller.</p>)}
+              </form> : <p className="admin-help">Pending owner: <ExplorerAddress address={settings.pendingOwner} label="Pending owner" /> · Awaiting acceptance</p>)}
             </section>
-            <aside className="admin-panel admin-details" aria-label="Current factory settings">
-              <h2>Factory details</h2>
-              <dl>
-                <div><dt>Factory</dt><dd><a href={`${activeExplorerUrl}/address/${launchpadAddress}`} target="_blank" rel="noreferrer">{launchpadAddress}</a></dd></div>
-                <div><dt>Owner</dt><dd>{settings.owner}</dd></div>
-                {settings.pendingOwner !== zeroAddress && <div><dt>Pending owner</dt><dd>{settings.pendingOwner}</dd></div>}
-                {settings.controller && <><div><dt>Super admin</dt><dd>{settings.controller.superAdmin}</dd></div><div><dt>Fee admin</dt><dd>{settings.controller.feeAdmin}</dd></div></>}
-                <div><dt>Creator share</dt><dd>{(settings.creatorShareBps / 100).toFixed(2)}%</dd></div>
-                <div><dt>Buyback share</dt><dd>{(settings.buybackShareBps / 100).toFixed(2)}%</dd></div>
-                <div><dt>Creator tax cap</dt><dd>{(settings.creatorTaxCapBps / 100).toFixed(2)}%</dd></div>
-                <div><dt>Treasury</dt><dd>{settings.treasury}</dd></div>
-              </dl>
-            </aside>
+            <div className="admin-side">
+              {funds && <FundsPanel funds={funds} />}
+              <FactoryDetails settings={settings} factory={launchpadAddress!} />
+            </div>
           </div></>}
       </>}
   </main>;

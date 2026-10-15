@@ -8,7 +8,7 @@ import { useStore } from "../app/useStore.js";
 import { useAccount, useReadContract } from "wagmi";
 import { formatEther, parseEther } from "viem";
 import { launchpadAbi } from "../sdk/contracts";
-import { LEGACY_TESTNET_V2_FACTORY, v2FactoryAbi } from "../sdk/v2Contracts";
+import { v2FactoryAbi } from "../sdk/v2Contracts";
 import { activeChainId, activeContractVersion, activeExplorerUrl, launchpadAddress } from "../lib/web3";
 import { canSubmitLaunch } from "../lib/launchForm";
 import { publishTokenMetadata, uploadArtworkImage } from "../lib/artworkUpload";
@@ -86,16 +86,14 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
     chainId: activeChainId,
     query: { enabled: activeContractVersion === "v2" && Boolean(launchpadAddress) },
   });
-  const legacyV2 = activeContractVersion === "v2" && activeChainId === 11_155_931
-    && launchpadAddress?.toLowerCase() === LEGACY_TESTNET_V2_FACTORY.toLowerCase();
   const { data: onchainLaunchFee, isError: launchFeeError } = useReadContract({
     address: launchpadAddress ?? undefined,
     abi: v2FactoryAbi,
     functionName: "launchFee",
     chainId: activeChainId,
-    query: { enabled: activeContractVersion === "v2" && Boolean(launchpadAddress) && !legacyV2 },
+    query: { enabled: activeContractVersion === "v2" && Boolean(launchpadAddress) },
   });
-  const launchFee = legacyV2 ? 0n : onchainLaunchFee;
+  const launchFee = onchainLaunchFee;
   const { canCreate } = selectMarketState({
     contractVersion: activeContractVersion,
     chainId: activeChainId,
@@ -328,7 +326,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
             <input type="hidden" name="uri" value={publishedUri} />
 
             {address && !canCreate && <p className="notice" role="status">{publicOpen === false && invited === false ? "This factory is invite-only." : "Checking launch access…"}</p>}
-            {activeContractVersion === "v2" && launchFeeError && !legacyV2 && <p className="notice" role="alert">Could not verify the launch fee. Try again before launching.</p>}
+            {activeContractVersion === "v2" && launchFeeError && <p className="notice" role="alert">Could not verify the launch fee. Try again before launching.</p>}
             {activeContractVersion === "v2" && launchFee === undefined && !launchFeeError && <p className="launch-field-help" role="status">Checking launch fee…</p>}
             {activeContractVersion === "v2" && launchFee !== undefined && launchFee > 0n && (
               <label className="launch-fee-consent">

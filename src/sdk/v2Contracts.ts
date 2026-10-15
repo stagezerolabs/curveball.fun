@@ -49,7 +49,6 @@ export const factoryFeeControllerAbi = parseAbi([
 ]);
 
 // The recorded first V2 testnet release predates the launch fee.
-export const LEGACY_TESTNET_V2_FACTORY = "0x36628AbAC7B2cdcde1A8fa21868AfeCB74660ECf";
 
 export const v2CurveAbi = parseAbi([
   "function quoteBuy(uint256 maxSpend) view returns (uint256 tokensOut,uint256 spent,uint256 curveQuote,uint256 fee,uint256 creatorTax)",

@@ -28,3 +28,8 @@ test("admin dashboard has a direct route", () => {
   expect(resolveRoute("/admin").id).toBe("admin");
   expect(routeHref("admin")).toBe("/admin");
 });
+
+test("protocol stats has a direct route", () => {
+  expect(resolveRoute("/stats").id).toBe("stats");
+  expect(routeHref("stats")).toBe("/stats");
+});

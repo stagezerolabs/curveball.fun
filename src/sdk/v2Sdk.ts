@@ -5,7 +5,7 @@ import {
 import { decodeAbiParameters, decodeEventLog, getAddress, zeroAddress, type Address, type Hash } from "viem";
 import { applySlippage, createDeadline, validateTokenInput, type CurveballDeployment, type TokenInput } from "./curveballSdk";
 import { erc20Abi } from "./contracts";
-import { LEGACY_TESTNET_V2_FACTORY, v2CurveAbi, v2EscrowAbi, v2FactoryAbi, v2LaunchAndBuyAbi, v2LockerAbi, v2VaultAbi } from "./v2Contracts";
+import { v2CurveAbi, v2EscrowAbi, v2FactoryAbi, v2LaunchAndBuyAbi, v2LockerAbi, v2VaultAbi } from "./v2Contracts";
 import { CurveballSdkError, NATIVE_GAS_RESERVE, PendingTransactionError, type ConfirmedTrade, type ConfirmedWrite, type LaunchProgress, type TradeProgress, type TradeSide, type WagmiActions } from "./wagmiSdk";
 import { validateV2Deployment } from "../v2Deployment";
 
@@ -104,7 +104,6 @@ export function createV2Sdk(config: Config, deployment: CurveballDeployment, act
   }
 
   async function readLaunchFee(): Promise<bigint> {
-    if (deployment.chainId === 11_155_931 && factory.toLowerCase() === LEGACY_TESTNET_V2_FACTORY.toLowerCase()) return 0n;
     return actions.readContract(config, { address: factory, abi: v2FactoryAbi, functionName: "launchFee", chainId: deployment.chainId });
   }
 

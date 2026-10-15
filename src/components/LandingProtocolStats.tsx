@@ -11,7 +11,7 @@ import { activeChainId, activeContractVersion, launchpadAddress } from "../lib/w
 import { marketFactories } from "../lib/marketFactories";
 import type { Token } from "../types";
 
-export function LandingProtocolStats() {
+export function useProtocolStats() {
   const client = usePublicClient({ chainId: activeChainId });
   const loadMarkets = useStore((state) => state.loadMarkets) as (client?: CreatorTokenClient) => Promise<Token[]>;
   const factoryKey = marketFactories().map(({ address, fromBlock }) => `${address.toLowerCase()}:${fromBlock}`).join(":");
@@ -19,7 +19,7 @@ export function LandingProtocolStats() {
   const [cachedLaunches] = useState(() => readCachedLaunches(cacheKey));
   const [cachedPayout] = useState(() => readCachedPayout(cacheKey));
   const statsEnabled = Boolean(client && launchpadAddress);
-  const { data, isPending } = useQuery({
+  const { data, isPending, isFetching, isError, dataUpdatedAt, refetch: refetchLaunches } = useQuery({
     queryKey: ["landing-launch-stats", activeChainId, factoryKey],
     enabled: statsEnabled,
     initialData: cachedLaunches?.value,
@@ -28,13 +28,13 @@ export function LandingProtocolStats() {
     retry: 1,
     queryFn: async () => {
       const tokens = await loadMarkets(client as unknown as CreatorTokenClient);
-      const launches = tokens.map(({ address, factory, creator, graduated, createdBlock }) => ({ address, factory, creator, graduated, createdBlock }));
+      const launches = tokens.map(({ address, factory, creator, graduated, createdBlock, name, symbol, createdAt }) => ({ address, factory, creator, graduated, createdBlock, name, symbol, createdAt }));
       writeCachedLaunches(cacheKey, launches);
       return launches;
     },
   });
   const payoutEnabled = activeContractVersion === "v2" && Boolean(client && launchpadAddress && data);
-  const { data: payout, isPending: payoutPending } = useQuery({
+  const { data: payout, isPending: payoutPending, isFetching: payoutFetching, isError: payoutError, refetch: refetchPayout } = useQuery({
     queryKey: ["landing-creator-payouts", activeChainId, factoryKey],
     enabled: payoutEnabled,
     initialData: cachedPayout?.value,
@@ -51,17 +51,22 @@ export function LandingProtocolStats() {
       return result;
     },
   });
+  return { data, payout, isPending, isFetching, isError, payoutPending, payoutFetching, payoutError, statsEnabled, payoutEnabled, dataUpdatedAt, refetchLaunches, refetchPayout };
+}
+
+export function LandingProtocolStats() {
+  const { data, payout, isPending, payoutPending, statsEnabled, payoutEnabled } = useProtocolStats();
   const loading = <><span className="landing-stat-placeholder" aria-hidden="true" /><span className="visually-hidden">Loading</span></>;
   const fallback = statsEnabled && isPending ? loading : "Unavailable";
   const paid = payout ? Number(formatUnits(payout.amount, payout.decimals)) : null;
 
   return (
-    <section className="landing-proof" aria-label="Protocol stats on RISE Testnet">
+    <section className="landing-proof" aria-label="Protocol stats from the active factory">
       <div className="landing-proof-inner wrap">
         <dl className="landing-proof-stats" aria-busy={(statsEnabled && isPending) || (payoutEnabled && payoutPending)}>
           <div><dt>Tokens created</dt><dd className={!data && !(statsEnabled && isPending) ? "landing-stat-unavailable" : undefined}>{data ? new Intl.NumberFormat().format(data.length) : fallback}</dd></div>
           <div><dt>Markets graduated</dt><dd className={!data && !(statsEnabled && isPending) ? "landing-stat-unavailable" : undefined}>{data ? new Intl.NumberFormat().format(data.filter((token) => token.graduated).length) : fallback}</dd></div>
-          {activeContractVersion === "v2" && <div><dt>Claimed by creators</dt><dd className={paid === null && !(payoutEnabled && payoutPending) ? "landing-stat-unavailable" : undefined}>{paid === null ? (payoutEnabled && payoutPending ? loading : "Unavailable") : <UsdAmount weth={paid} compact />}</dd></div>}
+          {activeContractVersion === "v2" && <div><dt>Curve fees claimed by creators</dt><dd className={paid === null && !(payoutEnabled && payoutPending) ? "landing-stat-unavailable" : undefined}>{paid === null ? (payoutEnabled && payoutPending ? loading : "Unavailable") : <UsdAmount weth={paid} compact />}</dd></div>}
         </dl>
       </div>
     </section>

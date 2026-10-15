@@ -430,7 +430,7 @@ export const useStore = create(persist((set, get) => ({
     }),
 }), {
   name: `curveball-chain-cache:${activeChainId}:${launchpadAddress ?? "unconfigured"}:${activeContractVersion}`,
-  version: 3,
+  version: 4,
   storage: createJSONStorage(() => localStorage),
   partialize: (state) => ({
     tokens: state.tokens,

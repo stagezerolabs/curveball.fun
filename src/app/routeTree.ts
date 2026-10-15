@@ -7,6 +7,7 @@ type Route = {
 const routes: Route[] = [
   { id: "landing", path: "/", title: "Curveball — Fair token launches" },
   { id: "markets", path: "/markets", title: "Markets — Curveball" },
+  { id: "stats", path: "/stats", title: "Protocol stats — Curveball" },
   { id: "market", path: "/markets/:address", title: "Market — Curveball" },
   { id: "launch", path: "/launch", title: "Launch — Curveball" },
   { id: "profile", path: "/profile", title: "Your launches — Curveball" },

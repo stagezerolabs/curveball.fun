@@ -14,7 +14,7 @@ Curveball is a React/Vite dApp connected directly to the V2 Curveball contracts 
 - Canonical deployment record: `deployments/11155931/curveball-v2-permissionless.json`
 
 The frontend discovers launches from factory events, reads market state from the factory and curve contracts, and sends wallet-signed launch, trade, graduation, and fee-claim transactions through the SDK in `src/sdk`.
-The production frontend launches through the fee-enabled factory above and still discovers and services markets from the previous V2 factory (`0x36628AbAC7B2cdcde1A8fa21868AfeCB74660ECf`).
+The production frontend discovers and services markets from the fee-enabled factory above only. Older factory deployments remain in deployment records for historical reference.
 
 ## Trading fee administration
 
