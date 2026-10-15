@@ -1,21 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { Dialog } from "@base-ui/react/dialog";
-import { Button } from "@radix-ui/themes";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { ArrowIcon } from "../components/ArrowIcon";
 import { LaunchPreview } from "../components/LaunchPreview";
 import { useStore } from "../app/useStore.js";
 import { useAccount, useReadContract } from "wagmi";
 import { formatEther, parseEther } from "viem";
-import { launchpadAbi } from "../sdk/contracts";
 import { v2FactoryAbi } from "../sdk/v2Contracts";
-import { activeChainId, activeContractVersion, activeExplorerUrl, launchpadAddress } from "../lib/web3";
+import { activeChainId, activeExplorerUrl, launchpadAddress } from "../lib/web3";
 import { canSubmitLaunch } from "../lib/launchForm";
 import { publishTokenMetadata, uploadArtworkImage } from "../lib/artworkUpload";
 import { getBetaReadEnabled, selectMarketState } from "../lib/marketState";
-import type { LaunchPhase } from "../lib/launchProgress";
 import type { Navigate } from "../types";
 
+type LaunchPhase = "preparing" | "wrapWallet" | "wrapConfirming" | "approveWallet" | "approveConfirming" | "wallet" | "confirming" | "pending" | "success" | "error";
 type LaunchProgress = { phase: LaunchPhase; hash: string | null; error: string } | null;
 type ImageUpload = { file: File; status: "uploading" | "ready" | "error"; cid?: string; error?: string };
 type MetadataUpload = { file: File; name: string; symbol: string; status: "publishing" | "ready" | "error"; uri?: string; error?: string };
@@ -50,24 +48,22 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
   const { address } = useAccount();
   const { openConnectModal } = useConnectModal();
   const betaReadEnabled = getBetaReadEnabled({
-    contractVersion: activeContractVersion,
-    chainId: activeChainId,
     walletConnected: Boolean(address),
     hasLaunchpadAddress: Boolean(launchpadAddress),
   });
   const { data: publicOpen } = useReadContract({
-    address: launchpadAddress ?? undefined, abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi,
+    address: launchpadAddress ?? undefined, abi: v2FactoryAbi,
     functionName: "publicLaunchOpen", chainId: activeChainId,
     query: { enabled: betaReadEnabled.publicLaunchOpen },
   });
   const { data: invited } = useReadContract({
-    address: launchpadAddress ?? undefined, abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi,
+    address: launchpadAddress ?? undefined, abi: v2FactoryAbi,
     functionName: "invited", args: [address!], chainId: activeChainId,
     query: { enabled: betaReadEnabled.invited },
   });
   const { data: tokenSupply, isError: supplyError } = useReadContract({
     address: launchpadAddress ?? undefined,
-    abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi,
+    abi: v2FactoryAbi,
     functionName: "supply",
     chainId: activeChainId,
     query: { enabled: Boolean(launchpadAddress) },
@@ -77,26 +73,24 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
     abi: v2FactoryAbi,
     functionName: "buybackShareBps",
     chainId: activeChainId,
-    query: { enabled: activeContractVersion === "v2" && Boolean(launchpadAddress) },
+    query: { enabled: Boolean(launchpadAddress) },
   });
   const { data: creatorTaxCapBps } = useReadContract({
     address: launchpadAddress ?? undefined,
     abi: v2FactoryAbi,
     functionName: "creatorTaxCapBps",
     chainId: activeChainId,
-    query: { enabled: activeContractVersion === "v2" && Boolean(launchpadAddress) },
+    query: { enabled: Boolean(launchpadAddress) },
   });
   const { data: onchainLaunchFee, isError: launchFeeError } = useReadContract({
     address: launchpadAddress ?? undefined,
     abi: v2FactoryAbi,
     functionName: "launchFee",
     chainId: activeChainId,
-    query: { enabled: activeContractVersion === "v2" && Boolean(launchpadAddress) },
+    query: { enabled: Boolean(launchpadAddress) },
   });
   const launchFee = onchainLaunchFee;
   const { canCreate } = selectMarketState({
-    contractVersion: activeContractVersion,
-    chainId: activeChainId,
     walletConnected: Boolean(address),
     publicLaunchOpen: publicOpen,
     invited,
@@ -181,7 +175,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
     name: draftName,
     symbol: draftSymbol,
     initialBuy: draftInitialBuy,
-    launchFee: activeContractVersion === "v2" ? launchFee : 0n,
+    launchFee,
     feeAccepted,
     artworkSelected: Boolean(artworkFile),
     artworkUri: publishedUri,
@@ -241,7 +235,6 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
           creatorTaxBps={draftTaxBps}
           initialBuy={draftInitialBuy}
           imageUrl={draftImageUrl}
-          showV2Options={activeContractVersion === "v2"}
           supply={tokenSupply}
           supplyUnavailable={supplyError || !launchpadAddress}
         />
@@ -290,23 +283,21 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                 <span>Paired asset</span>
                 <strong>WETH</strong>
               </div>
-              {activeContractVersion === "v2" && (
-                <label className="launch-field-wide">
-                  <span>Initial buy <b>Optional</b></span>
-                  <span className="launch-unit-input">
-                    <input name="initialBuy" type="number" min="0" step="any" inputMode="decimal" placeholder="0" value={draftInitialBuy} onChange={(event) => setDraftInitialBuy(event.target.value)} aria-describedby="initial-buy-help" />
-                    <i>WETH</i>
-                  </span>
-                  <small id="initial-buy-help">Buy from your own curve as part of the launch.</small>
-                </label>
-              )}
-              {activeContractVersion === "v2" && launchTotal !== null && <div className="launch-pair-field">
+              <label className="launch-field-wide">
+                <span>Initial buy <b>Optional</b></span>
+                <span className="launch-unit-input">
+                  <input name="initialBuy" type="number" min="0" step="any" inputMode="decimal" placeholder="0" value={draftInitialBuy} onChange={(event) => setDraftInitialBuy(event.target.value)} aria-describedby="initial-buy-help" />
+                  <i>WETH</i>
+                </span>
+                <small id="initial-buy-help">Buy from your own curve as part of the launch.</small>
+              </label>
+              {launchTotal !== null && <div className="launch-pair-field">
                 <span>Maximum total (fee + initial buy limit)</span>
                 <strong>{launchTotal} WETH</strong>
               </div>}
             </div>
 
-            {activeContractVersion === "v2" && <details className="launch-advanced">
+            <details className="launch-advanced">
               <summary>Advanced options</summary>
               <div className="launch-advanced-fields">
                 <label className="launch-field-wide">
@@ -321,29 +312,28 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                   <strong>{buybackShareBps == null ? buybackError ? "Unavailable" : "Loading…" : `${Number(buybackShareBps) / 100}% of trading fee`}</strong>
                 </div>
               </div>
-            </details>}
+            </details>
             <input type="hidden" name="creatorTaxBps" value={draftTaxBps} />
             <input type="hidden" name="uri" value={publishedUri} />
 
             {address && !canCreate && <p className="notice" role="status">{publicOpen === false && invited === false ? "This factory is invite-only." : "Checking launch access…"}</p>}
-            {activeContractVersion === "v2" && launchFeeError && <p className="notice" role="alert">Could not verify the launch fee. Try again before launching.</p>}
-            {activeContractVersion === "v2" && launchFee === undefined && !launchFeeError && <p className="launch-field-help" role="status">Checking launch fee…</p>}
-            {activeContractVersion === "v2" && launchFee !== undefined && launchFee > 0n && (
+            {launchFeeError && <p className="notice" role="alert">Could not verify the launch fee. Try again before launching.</p>}
+            {launchFee === undefined && !launchFeeError && <p className="launch-field-help" role="status">Checking launch fee…</p>}
+            {launchFee !== undefined && launchFee > 0n && (
               <label className="launch-fee-consent">
                 <input type="checkbox" required checked={feeAccepted} onChange={(event) => setFeeAccepted(event.target.checked)} />
                 <span>I agree to pay the anti-spam fee.</span>
               </label>
             )}
             <div className="launch-form-actions">
-              <Button
+              <button
                 className="launch-button"
                 type={address ? "submit" : "button"}
-                size="3"
                 onClick={!address ? () => openConnectModal?.() : undefined}
                 disabled={isPending || (Boolean(address) && (!canCreate || !formReady))}
               >
                 {isPending ? "Launching…" : !address ? "Connect wallet to launch" : artworkStatus === "uploading" ? "Uploading artwork…" : artworkStatus === "publishing" ? "Publishing artwork…" : artworkStatus === "error" ? "Artwork unavailable" : !canCreate ? "Checking access…" : !formReady ? "Complete form to launch" : "Launch token"} <ArrowIcon />
-              </Button>
+              </button>
             </div>
           </div>
         </form>

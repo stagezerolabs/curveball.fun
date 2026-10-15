@@ -10,18 +10,14 @@ typechain-types
 agent_wallet
 agent_wallet.json
 coverage
-contracts/echidna-corpus/
 contracts/echidna-v2-corpus/
 .trash/
 contracts/crytic-export/
 
-# Local Netlify folder
-.netlify
 .agents/*
 !.agents/skills/
 
 .worktrees/
-.neon
 .vercel
 # Local backup of verified deployment artifacts; canonical copies live in deployments/
 deployments.local-backup/

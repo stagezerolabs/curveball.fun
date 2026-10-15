@@ -6,7 +6,6 @@ type LaunchPreviewProps = {
   creatorTaxBps: number;
   initialBuy: string;
   imageUrl?: string;
-  showV2Options: boolean;
   supply?: bigint;
   supplyUnavailable: boolean;
 };
@@ -17,12 +16,12 @@ function formatSupply(supply: bigint) {
   return `${BigInt(whole).toLocaleString("en-US")}${decimal ? `.${decimal}` : ""}`;
 }
 
-export function LaunchPreview({ name, symbol, creatorTaxBps, initialBuy, imageUrl, showV2Options, supply, supplyUnavailable }: LaunchPreviewProps) {
+export function LaunchPreview({ name, symbol, creatorTaxBps, initialBuy, imageUrl, supply, supplyUnavailable }: LaunchPreviewProps) {
   const displayName = name.trim() || "Your token";
   const displaySymbol = symbol.trim().replace(/^\$/, "").toUpperCase() || "TOKEN";
   const buy = Number(initialBuy);
-  const showTax = showV2Options && creatorTaxBps > 0;
-  const showBuy = showV2Options && Number.isFinite(buy) && buy > 0;
+  const showTax = creatorTaxBps > 0;
+  const showBuy = Number.isFinite(buy) && buy > 0;
 
   return (
     <aside className="launch-preview" aria-label="Token preview">

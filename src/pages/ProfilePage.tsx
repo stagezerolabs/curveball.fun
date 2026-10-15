@@ -1,5 +1,4 @@
 import { useEffect, useMemo } from "react";
-import { Heading } from "@radix-ui/themes";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useAccount, usePublicClient } from "wagmi";
 import type { Address } from "viem";
@@ -51,7 +50,7 @@ export function ProfilePage({
     return (
       <main className="page-main profile-page wrap">
         <header className="workspace-heading">
-          <Heading as="h1">Your launches</Heading>
+          <h1>Your launches</h1>
         </header>
         <section className="profile-connect" aria-labelledby="profile-connect-title">
           <span className="profile-connect-icon" aria-hidden="true">↗</span>
@@ -68,7 +67,7 @@ export function ProfilePage({
   return (
     <main className="page-main profile-page wrap">
       <header className="workspace-heading">
-        <Heading as="h1">Your launches</Heading>
+        <h1>Your launches</h1>
       </header>
 
       {initialLoading ? (

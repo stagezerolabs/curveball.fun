@@ -1,33 +1,11 @@
 import { formatEther, getAddress, zeroAddress, type Address } from "viem";
-import { launchpadAbi } from "./sdk/contracts";
 import { v2CurveAbi, v2FactoryAbi } from "./sdk/v2Contracts";
-import { activeContractVersion } from "./lib/web3";
-import { marketFactories, type MarketFactory } from "./lib/marketFactories";
+import { activeDeploymentBlock, launchpadAddress } from "./lib/web3";
+import { buildBlockRanges } from "./lib/marketChart";
 import type { Token } from "./types";
 
 const MAX_EVENT_QUERY_BLOCKS = 5_000n;
 const EVENT_QUERY_CONCURRENCY = 3;
-const EVENT_QUERY_ATTEMPTS = 6;
-
-async function readCreatedLogs(
-  client: CreatorTokenClient,
-  parameters: object,
-): Promise<readonly CreatedLog[]> {
-  let lastError: unknown;
-  for (let attempt = 0; attempt < EVENT_QUERY_ATTEMPTS; attempt += 1) {
-    try {
-      return await client.getContractEvents(parameters);
-    } catch (error) {
-      lastError = error;
-      if (attempt < EVENT_QUERY_ATTEMPTS - 1) {
-        await new Promise((resolve) =>
-          setTimeout(resolve, Math.min(500 * 2 ** attempt, 4_000)),
-        );
-      }
-    }
-  }
-  throw lastError;
-}
 
 type CreatedLog = {
   args?: {
@@ -48,62 +26,37 @@ export type CreatorTokenClient = {
   getBlock(parameters: { blockNumber: bigint }): Promise<{ timestamp: bigint }>;
 };
 
-type Market = readonly [
-  Address,
-  bigint,
-  bigint,
-  bigint,
-  bigint,
-  boolean,
-  boolean,
-  Address,
-];
-
 export async function discoverCreatorTokens(
   client: CreatorTokenClient,
-  creator: Address,
-  version: "v1" | "v2" = activeContractVersion,
+  creator: Address
 ): Promise<Token[]> {
-  return discoverTokens(client, { creator }, version);
+  return discoverTokens(client, { creator });
 }
 
 export async function discoverAllTokens(
-  client: CreatorTokenClient,
-  version: "v1" | "v2" = activeContractVersion,
+  client: CreatorTokenClient
 ): Promise<Token[]> {
-  return discoverTokens(client, undefined, version);
+  return discoverTokens(client);
 }
 
 export async function discoverToken(
   client: CreatorTokenClient,
-  token: Address,
-  version: "v1" | "v2" = activeContractVersion,
+  token: Address
 ): Promise<Token | null> {
-  const tokens = await discoverTokens(client, { token }, version);
+  const tokens = await discoverTokens(client, { token });
   return tokens[0] ?? null;
 }
 
 async function discoverTokens(
   client: CreatorTokenClient,
   args?: { creator: Address } | { token: Address },
-  version: "v1" | "v2" = activeContractVersion,
 ): Promise<Token[]> {
-  const factories = marketFactories();
-  const results = await Promise.all(factories.map((factory) => discoverFromFactory(client, factory, args, version)));
-  return results.flat().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-}
-
-async function discoverFromFactory(
-  client: CreatorTokenClient,
-  factory: MarketFactory,
-  args?: { creator: Address } | { token: Address },
-  version: "v1" | "v2" = activeContractVersion,
-): Promise<Token[]> {
-  const factoryAddress = factory.address;
+  if (!launchpadAddress) return [];
+  const factoryAddress = launchpadAddress;
   const eventQuery = {
     address: factoryAddress,
-    abi: version === "v2" ? v2FactoryAbi : launchpadAbi,
-    eventName: version === "v2" ? "LaunchCreated" : "TokenCreated",
+    abi: v2FactoryAbi,
+    eventName: "LaunchCreated",
     ...(args ? { args } : {}),
     strict: true,
   };
@@ -111,28 +64,21 @@ async function discoverFromFactory(
     throw new Error("RPC client cannot report the latest block for bounded event queries.");
   }
   const latestBlock = await client.getBlockNumber();
-  const ranges: { fromBlock: bigint; toBlock: bigint }[] = [];
-  for (let fromBlock = factory.fromBlock; fromBlock <= latestBlock; fromBlock += MAX_EVENT_QUERY_BLOCKS) {
-    const toBlock =
-      fromBlock + MAX_EVENT_QUERY_BLOCKS - 1n < latestBlock
-        ? fromBlock + MAX_EVENT_QUERY_BLOCKS - 1n
-        : latestBlock;
-    ranges.push({ fromBlock, toBlock });
-  }
+  const ranges = buildBlockRanges(activeDeploymentBlock, latestBlock, MAX_EVENT_QUERY_BLOCKS);
   const logs: CreatedLog[] = [];
   let nextRange = 0;
   await Promise.all(Array.from({ length: Math.min(EVENT_QUERY_CONCURRENCY, ranges.length) }, async () => {
     while (nextRange < ranges.length) {
       const range = ranges[nextRange++];
-      logs.push(...await readCreatedLogs(client, { ...eventQuery, ...range }));
+      logs.push(...await client.getContractEvents({ ...eventQuery, ...range }));
     }
   }));
   if (!logs.length) return [];
 
   const [curveSupply, supply, initialVQ] = await Promise.all([
-    client.readContract({ address: factoryAddress, abi: version === "v2" ? v2FactoryAbi : launchpadAbi, functionName: "curveSupply" }) as Promise<bigint>,
-    client.readContract({ address: factoryAddress, abi: version === "v2" ? v2FactoryAbi : launchpadAbi, functionName: "supply" }) as Promise<bigint>,
-    client.readContract({ address: factoryAddress, abi: version === "v2" ? v2FactoryAbi : launchpadAbi, functionName: "initialVQ" }) as Promise<bigint>,
+    client.readContract({ address: factoryAddress, abi: v2FactoryAbi, functionName: "curveSupply" }) as Promise<bigint>,
+    client.readContract({ address: factoryAddress, abi: v2FactoryAbi, functionName: "supply" }) as Promise<bigint>,
+    client.readContract({ address: factoryAddress, abi: v2FactoryAbi, functionName: "initialVQ" }) as Promise<bigint>,
   ]);
   const terminalVirtualToken = supply - curveSupply;
   const invariant = supply * initialVQ;
@@ -147,71 +93,33 @@ async function discoverFromFactory(
     logs.map(async (log) => {
       const { token, creator: eventCreator, name, symbol, uri } = log.args ?? {};
       if (!token || !eventCreator || !name || !symbol || !log.blockNumber) {
-        throw new Error("The launchpad returned an incomplete TokenCreated log.");
+        throw new Error("The launchpad returned an incomplete LaunchCreated log.");
       }
 
-      if (version === "v2") {
-        const [market, block] = await Promise.all([
-          client.readContract({ address: factoryAddress, abi: v2FactoryAbi, functionName: "market", args: [token] }) as Promise<readonly [Address, Address, number, number, number, number, Address]>,
-          client.getBlock({ blockNumber: log.blockNumber }),
-        ]);
-        const curve = market[0];
-        if (curve === zeroAddress || (log.args?.curve && getAddress(log.args.curve) !== getAddress(curve))) throw new Error("Launch event does not match factory market.");
-        const [sold, ready, graduated, pool, virtualQuote, virtualToken] = await Promise.all([
-          client.readContract({ address: curve, abi: v2CurveAbi, functionName: "sold" }) as Promise<bigint>,
-          client.readContract({ address: curve, abi: v2CurveAbi, functionName: "ready" }) as Promise<boolean>,
-          client.readContract({ address: curve, abi: v2CurveAbi, functionName: "graduated" }) as Promise<boolean>,
-          client.readContract({ address: curve, abi: v2CurveAbi, functionName: "pool" }) as Promise<Address>,
-          client.readContract({ address: curve, abi: v2CurveAbi, functionName: "virtualQuote" }) as Promise<bigint>,
-          client.readContract({ address: curve, abi: v2CurveAbi, functionName: "virtualToken" }) as Promise<bigint>,
-        ]);
-        const price = virtualToken === 0n ? null : Number(formatEther(virtualQuote)) / Number(formatEther(virtualToken));
-        return {
-          address: getAddress(token), factory: factoryAddress, creator: getAddress(eventCreator), name, symbol, graduated,
-          metadataUri: uri ?? null,
-          curve: getAddress(curve), feeBps: market[2], creatorShareBps: market[3], buybackShareBps: market[4], creatorTaxBps: market[5],
-          pending: ready, createdAt: new Date(Number(block.timestamp) * 1_000).toISOString(),
-          createdBlock: log.blockNumber.toString(),
-          progress: curveSupply === 0n ? 0 : Number((sold * 10_000n) / curveSupply) / 100,
-          price, targetPrice, marketCap: price === null ? null : price * Number(formatEther(supply)),
-          pool: pool === zeroAddress ? null : getAddress(pool), quoteSymbol: "WETH",
-        } satisfies Token;
-      }
       const [market, block] = await Promise.all([
-        client.readContract({
-          address: factoryAddress,
-          abi: launchpadAbi,
-          functionName: "markets",
-          args: [token],
-        }) as Promise<Market>,
+        client.readContract({ address: factoryAddress, abi: v2FactoryAbi, functionName: "market", args: [token] }) as Promise<readonly [Address, Address, number, number, number, number, Address]>,
         client.getBlock({ blockNumber: log.blockNumber }),
       ]);
-      const [, , , , sold, graduated, pending, pool] = market;
-      const virtualToken = market[1];
-      const virtualQuote = market[2];
+      const curve = market[0];
+      if (curve === zeroAddress || (log.args?.curve && getAddress(log.args.curve) !== getAddress(curve))) throw new Error("Launch event does not match factory market.");
+      const [sold, ready, graduated, pool, virtualQuote, virtualToken] = await Promise.all([
+        client.readContract({ address: curve, abi: v2CurveAbi, functionName: "sold" }) as Promise<bigint>,
+        client.readContract({ address: curve, abi: v2CurveAbi, functionName: "ready" }) as Promise<boolean>,
+        client.readContract({ address: curve, abi: v2CurveAbi, functionName: "graduated" }) as Promise<boolean>,
+        client.readContract({ address: curve, abi: v2CurveAbi, functionName: "pool" }) as Promise<Address>,
+        client.readContract({ address: curve, abi: v2CurveAbi, functionName: "virtualQuote" }) as Promise<bigint>,
+        client.readContract({ address: curve, abi: v2CurveAbi, functionName: "virtualToken" }) as Promise<bigint>,
+      ]);
       const price = virtualToken === 0n ? null : Number(formatEther(virtualQuote)) / Number(formatEther(virtualToken));
-      const progress =
-        curveSupply === 0n
-          ? 0
-          : Number((sold * 10_000n) / curveSupply) / 100;
-
       return {
-        address: getAddress(token),
-        factory: factoryAddress,
-        creator: getAddress(eventCreator),
-        name,
-        symbol,
+        address: getAddress(token), factory: factoryAddress, creator: getAddress(eventCreator), name, symbol, graduated,
         metadataUri: uri ?? null,
-        graduated,
-        pending,
+        curve: getAddress(curve), feeBps: market[2], creatorShareBps: market[3], buybackShareBps: market[4], creatorTaxBps: market[5],
+        pending: ready, createdAt: new Date(Number(block.timestamp) * 1_000).toISOString(),
         createdBlock: log.blockNumber.toString(),
-        createdAt: new Date(Number(block.timestamp) * 1_000).toISOString(),
-        price,
-        targetPrice,
-        marketCap: price === null ? null : price * Number(formatEther(supply)),
-        progress,
-        pool: pool === zeroAddress ? null : getAddress(pool),
-        quoteSymbol: "WETH",
+        progress: curveSupply === 0n ? 0 : Number((sold * 10_000n) / curveSupply) / 100,
+        price, targetPrice, marketCap: price === null ? null : price * Number(formatEther(supply)),
+        pool: pool === zeroAddress ? null : getAddress(pool), quoteSymbol: "WETH",
       } satisfies Token;
     }),
   );

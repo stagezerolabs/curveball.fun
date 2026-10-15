@@ -1,5 +1,5 @@
 import { parseEther } from "viem";
-import { NATIVE_GAS_RESERVE } from "../sdk/wagmiSdk";
+import { NATIVE_GAS_RESERVE } from "../sdk/v2Sdk";
 
 export type BuyFundingState = Readonly<{
   canFund: boolean;

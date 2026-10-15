@@ -1,5 +1,4 @@
 import { createElement, useEffect, useRef, useState, type ReactNode } from "react";
-import { Button } from "@radix-ui/themes";
 import { ArrowIcon } from "../components/ArrowIcon";
 import { AppLink, RiseLogo } from "../components/Navigation";
 import { LandingProtocolStats } from "../components/LandingProtocolStats";
@@ -19,11 +18,9 @@ function ActionLink({
   children: ReactNode;
 }) {
   return (
-    <Button asChild size="3" className="radix-action landing-cta-button">
-      <AppLink route={route} navigate={navigate}>
-        {children} <ArrowIcon />
-      </AppLink>
-    </Button>
+    <AppLink className="action-button landing-cta-button" route={route} navigate={navigate}>
+      {children} <ArrowIcon />
+    </AppLink>
   );
 }
 

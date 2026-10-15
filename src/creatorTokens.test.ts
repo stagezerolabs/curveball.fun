@@ -18,7 +18,7 @@ test("discovery scans only the current testnet factory from its deployment block
     },
   } as unknown as CreatorTokenClient;
 
-  expect(await discoverAllTokens(client, "v2")).toEqual([]);
+  expect(await discoverAllTokens(client)).toEqual([]);
   expect(ranges).toEqual([
     { address: testnetV2.factory, fromBlock: deploymentBlock, toBlock: deploymentBlock },
   ]);
@@ -50,7 +50,7 @@ test("discovery and market access use only the current factory", async () => {
     },
     getBlock: async ({ blockNumber }: { blockNumber: bigint }) => ({ timestamp: blockNumber }),
   } as unknown as CreatorTokenClient;
-  const tokens = await discoverAllTokens(client, "v2");
+  const tokens = await discoverAllTokens(client);
   expect(tokens.map(({ factory, feeBps }) => [factory, feeBps])).toEqual([[newFactory, 75]]);
   expect(factoryForToken(tokens[0].factory)).toBe(newFactory);
   expect(() => factoryForToken(oldFactory)).toThrow("unsupported factory");

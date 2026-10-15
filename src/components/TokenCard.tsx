@@ -1,5 +1,4 @@
 import { AppLink } from "./Navigation";
-import { Badge, Card } from "@radix-ui/themes";
 import { TokenAvatar } from "./TokenAvatar";
 import { UsdAmount } from "./UsdAmount";
 import {
@@ -20,8 +19,8 @@ export function TokenCard({
 }) {
   return (
     <li>
-      <Card asChild className="tcard">
       <AppLink
+        className="tcard"
         route="market"
         params={{ address: token.address }}
         navigate={navigate}
@@ -35,9 +34,9 @@ export function TokenCard({
           {token.quoteSymbol && (
             <span className="tcard-paired">{token.quoteSymbol}</span>
           )}
-          <Badge color={token.graduated ? "orange" : "lime"} variant="soft" className={`tcard-status ${token.graduated ? "graduated" : "live"}`}>
+          <span className={`tcard-status ${token.graduated ? "graduated" : "live"}`}>
             {token.graduated ? "Graduated" : "Live"}
-          </Badge>
+          </span>
         </span>
 
         <span className="tcard-body">
@@ -64,7 +63,6 @@ export function TokenCard({
           </span>
         </span>
       </AppLink>
-      </Card>
     </li>
   );
 }

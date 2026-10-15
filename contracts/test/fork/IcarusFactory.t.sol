@@ -2,11 +2,8 @@
 pragma solidity ^0.8.24;
 
 import {ThrowawayERC20} from "../../contracts/test/ThrowawayERC20.sol";
-import {CurveballLaunchpad} from "../../contracts/CurveballLaunchpad.sol";
-import {LpLocker} from "../../contracts/LpLocker.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {TestBase} from "../TestBase.sol";
-import {DeployTestnet} from "../../scripts/DeployTestnet.s.sol";
 import {CurveLaunchFactory} from "../../contracts/CurveLaunchFactory.sol";
 import {CurveV2Deployment} from "../../contracts/CurveV2Deployment.sol";
 import {CurveBondingCurve} from "../../contracts/CurveBondingCurve.sol";
@@ -74,25 +71,6 @@ contract IcarusFactoryForkTest is TestBase {
         assertTrue(swept > 0 && v2.vault().memeBalance(token) >= swept, "pool sweep did not vest tokens");
     }
 
-    function testTestnetDeploymentScriptWiresCanonicalContracts() external {
-        string memory rpcUrl = vm.envOr("RISE_TESTNET_RPC_URL", "");
-        if (bytes(rpcUrl).length == 0) return;
-        vm.createSelectFork(rpcUrl);
-        vm.setEnv("CONFIRM_TESTNET", "DEPLOY_CURVEBALL_RISE_TESTNET_11155931");
-        vm.setEnv("TREASURY", vm.toString(DOT));
-
-        (LpLocker locker, CurveballLaunchpad launchpad) = new DeployTestnet().run();
-
-        assertEq(locker.treasury(), DOT, "wrong treasury");
-        assertEq(locker.launchpad(), address(launchpad), "wrong launchpad binding");
-        assertEq(address(launchpad.quote()), WETH, "wrong quote token");
-        assertEq(address(launchpad.factory()), FACTORY, "wrong factory");
-        assertEq(launchpad.supply(), 1_000_000 ether, "wrong supply");
-        assertEq(launchpad.curveSupply(), 800_000 ether, "wrong curve supply");
-        assertEq(launchpad.initialVQ(), 10 ether, "wrong virtual quote");
-        assertEq(locker.creatorShareBps(), 5_000, "wrong fee split");
-    }
-
     function testCreateVolatilePoolWithThrowawayTokens() external {
         string memory rpcUrl = vm.envOr("RISE_TESTNET_RPC_URL", "");
         if (bytes(rpcUrl).length == 0) return;
@@ -103,45 +81,5 @@ contract IcarusFactoryForkTest is TestBase {
         factory.createPool(address(tokenA), address(tokenB), false);
         address pool = factory.getPool(address(tokenA), address(tokenB), false);
         assertTrue(factory.isPool(pool), "factory did not register pool");
-    }
-
-    function testLaunchpadGraduatesAndClaimsIcarusFees() external {
-        string memory rpcUrl = vm.envOr("RISE_TESTNET_RPC_URL", "");
-        if (bytes(rpcUrl).length == 0) return;
-        vm.createSelectFork(rpcUrl);
-
-        LpLocker locker = new LpLocker(address(this), 5_000);
-        CurveballLaunchpad launchpad =
-            new CurveballLaunchpad(WETH, FACTORY, address(locker), 1_000_000 ether, 800_000 ether, 10 ether);
-        locker.setLaunchpad(address(launchpad));
-        launchpad.setInvited(address(this), true);
-        launchpad.setInvited(TRADER, true);
-        address token = launchpad.createToken("Fork Token", "FORK", "");
-
-        vm.deal(TRADER, 50 ether);
-        vm.prank(TRADER);
-        IWETH(WETH).deposit{value: 41 ether}();
-        vm.prank(TRADER);
-        IWETH(WETH).approve(address(launchpad), 40 ether);
-        vm.prank(TRADER);
-        launchpad.buyTokens(token, 40 ether, 800_000 ether, DEADLINE);
-
-        (,,,,, bool graduated,, address pool) = launchpad.markets(token);
-        assertTrue(graduated && IIcarusFactoryFork(FACTORY).isPool(pool), "market did not graduate on Icarus");
-        assertTrue(IERC20(pool).balanceOf(address(locker)) > 0, "locker received no LP");
-
-        uint256 out = IIcarusPoolFork(pool).getAmountOut(1 ether, WETH);
-        vm.prank(TRADER);
-        IWETH(WETH).transfer(pool, 1 ether);
-        vm.prank(TRADER);
-        if (IIcarusPoolFork(pool).token0() == WETH) {
-            IIcarusPoolFork(pool).swap(0, out, TRADER, "");
-        } else {
-            IIcarusPoolFork(pool).swap(out, 0, TRADER, "");
-        }
-
-        uint256 before = IERC20(WETH).balanceOf(address(this));
-        locker.claim(pool);
-        assertTrue(IERC20(WETH).balanceOf(address(this)) > before, "fee claim paid no WETH");
     }
 }
