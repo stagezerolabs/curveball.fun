@@ -1,13 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "bun run build",
-  "redirects": [
-    {
-      "source": "/app",
-      "destination": "/markets",
-      "permanent": true
-    }
-  ],
   "rewrites": [
     {
       "source": "/api/rns/primary/:address",

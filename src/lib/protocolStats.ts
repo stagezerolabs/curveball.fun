@@ -1,6 +1,5 @@
 import { getAddress, type Address } from "viem";
-import { erc20Abi } from "../sdk/contracts";
-import { v2EscrowAbi, v2FactoryAbi } from "../sdk/v2Contracts";
+import { erc20Abi, v2EscrowAbi, v2FactoryAbi } from "../sdk/v2Contracts";
 import type { Token } from "../types";
 
 type Claim = { args?: { launch?: Address; asset?: Address; recipient?: Address; amount?: bigint } };

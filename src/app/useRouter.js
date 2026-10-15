@@ -1,22 +1,11 @@
 import { useEffect, useState } from "react";
-import { canonicalPathname, resolveRoute, routeHref } from "./routeTree";
+import { resolveRoute, routeHref } from "./routeTree";
 
 export function useRouter() {
   const [pathname, setPathname] = useState(window.location.pathname);
 
   useEffect(() => {
-    const sync = () => {
-      const next = canonicalPathname(window.location.pathname);
-      if (next !== window.location.pathname) {
-        window.history.replaceState(
-          window.history.state,
-          "",
-          `${next}${window.location.search}${window.location.hash}`,
-        );
-      }
-      setPathname(next);
-    };
-    sync();
+    const sync = () => setPathname(window.location.pathname);
     window.addEventListener("popstate", sync);
     return () => window.removeEventListener("popstate", sync);
   }, []);

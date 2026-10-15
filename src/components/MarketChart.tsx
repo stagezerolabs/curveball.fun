@@ -5,13 +5,10 @@ import { DataZoomComponent, GridComponent, MarkLineComponent, TooltipComponent }
 import { CanvasRenderer } from "echarts/renderers";
 import { usePublicClient } from "wagmi";
 import { MarketActivity } from "./MarketActivity";
-import { launchpadAbi } from "../sdk/contracts";
 import { v2CurveAbi } from "../sdk/v2Contracts";
 import {
   activeChainId,
-  activeContractVersion,
   activeDeploymentBlock,
-  launchpadAddress,
 } from "../lib/web3";
 import {
   buildBlockRanges,
@@ -21,7 +18,6 @@ import {
   tradeLogToPoint,
   type TradeActivity,
   type TradePoint,
-  withRetry,
 } from "../lib/marketChart";
 import { buildMarketChartOptions } from "../lib/marketChartOptions";
 import type { Token } from "../types";
@@ -48,7 +44,6 @@ const INTERVALS = [
 
 type TradeLog = {
   args?: {
-    quoteAmount?: bigint;
     grossCurveQuote?: bigint;
     vQAfter?: bigint;
     vTAfter?: bigint;
@@ -69,12 +64,12 @@ type ChartClient = {
 };
 
 async function queryTradeLogs(client: ChartClient, token: Token) {
-  const address = activeContractVersion === "v2" ? token.curve : launchpadAddress;
+  const address = token.curve;
   if (!address) return { latestBlock: 0n, logs: [] as TradeLog[] };
 
   const cacheKey = `${activeChainId}:${token.address.toLowerCase()}`;
   const cached = tradePointCache.get(cacheKey);
-  const latestBlock = await withRetry(() => client.getBlockNumber());
+  const latestBlock = await client.getBlockNumber();
   const createdBlock = parseCreatedBlock(token.createdBlock, activeDeploymentBlock);
   const fromBlock = cached && cached.lastBlock >= createdBlock
     ? cached.lastBlock + 1n
@@ -83,7 +78,7 @@ async function queryTradeLogs(client: ChartClient, token: Token) {
 
   const eventQuery = {
     address,
-    abi: activeContractVersion === "v2" ? v2CurveAbi : launchpadAbi,
+    abi: v2CurveAbi,
     eventName: "Trade",
     args: { token: token.address },
     strict: true,
@@ -96,9 +91,7 @@ async function queryTradeLogs(client: ChartClient, token: Token) {
       async () => {
         while (nextRange < ranges.length) {
           const range = ranges[nextRange++];
-          logs.push(...(await withRetry(() =>
-            client.getContractEvents({ ...eventQuery, ...range })
-          )));
+          logs.push(...await client.getContractEvents({ ...eventQuery, ...range }));
         }
       },
     ),
@@ -132,7 +125,7 @@ async function loadTradePoints(client: ChartClient, token: Token) {
       async () => {
         while (nextBlock < blockNumbers.length) {
           const blockNumber = blockNumbers[nextBlock++];
-          const block = await withRetry(() => client.getBlock({ blockNumber }));
+          const block = await client.getBlock({ blockNumber });
           timestamps.set(blockNumber, Number(block.timestamp));
         }
       },

@@ -5,7 +5,7 @@ import { formatUnits, getAddress, zeroAddress, type Address, type Hash } from "v
 import { ADMIN_ADDRESS, SUPER_ADMIN_ADDRESS, feePercentToBps, nominateFeeController, readFactoryFunds, readFeeDefaults, submitFeeUpdate, type FactoryFunds, type FeeAuthority } from "../lib/adminFees";
 import { readableError } from "../lib/errors";
 import { formatAddress } from "../lib/format.js";
-import { activeChainId, activeContractVersion, activeExplorerUrl, launchpadAddress, wagmiConfig } from "../lib/web3";
+import { activeChainId, activeExplorerUrl, launchpadAddress, wagmiConfig } from "../lib/web3";
 import feeEnabledV2 from "../../deployments/11155931/curveball-v2-permissionless.json";
 import { RISE_TESTNET_CHAIN_ID } from "../sdk/curveballSdk";
 
@@ -74,7 +74,7 @@ export function AdminPage() {
   const [fieldError, setFieldError] = useState("");
   const [message, setMessage] = useState("");
   const [hash, setHash] = useState<Hash | null>(null);
-  const configured = activeContractVersion === "v2" && activeChainId === RISE_TESTNET_CHAIN_ID &&
+  const configured = activeChainId === RISE_TESTNET_CHAIN_ID &&
     launchpadAddress?.toLowerCase() === feeEnabledV2.factory.toLowerCase();
   const isAdmin = address?.toLowerCase() === ADMIN_ADDRESS.toLowerCase();
   const correctChain = chainId === activeChainId;

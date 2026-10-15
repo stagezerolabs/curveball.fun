@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
-import { Theme as RadixTheme } from "@radix-ui/themes";
 import {
   Header,
   LandingFooter,
@@ -67,8 +66,7 @@ export function App() {
   const isLanding = route.id === "landing";
 
   return (
-    <RadixTheme appearance={theme} accentColor="lime" grayColor="olive" radius="medium" scaling="100%" className="curveball-theme">
-    <div className="site-shell">
+    <div className="site-shell curveball-theme">
       {isLanding ? (
         <LandingHeader address={address} navigate={navigate} theme={theme} onThemeToggle={toggleTheme} />
       ) : (
@@ -83,6 +81,5 @@ export function App() {
       {page}
       {isLanding && <LandingFooter navigate={navigate} />}
     </div>
-    </RadixTheme>
   );
 }

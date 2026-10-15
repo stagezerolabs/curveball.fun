@@ -8,14 +8,13 @@ import {
 } from "../creatorTokens";
 import {
   activeChainId,
-  activeContractVersion,
   launchpadAddress,
   requireCurveballSdk,
 } from "../lib/web3";
 import { readableError } from "../lib/errors";
-import { PendingTransactionError } from "../sdk/wagmiSdk";
+import { PendingTransactionError } from "../sdk/v2Sdk";
 import { hasPublishedArtwork } from "../lib/launchForm";
-import { sdkForMarket } from "../lib/marketSdk";
+import { sdkForMarket } from "../lib/marketFactories";
 
 const MARKET_CACHE_TTL_MS = 30_000;
 let marketsRequest = null;
@@ -289,7 +288,7 @@ export const useStore = create(persist((set, get) => ({
       const initialBuy = String(form.get("initialBuy") ?? "").trim();
       const sdk = requireCurveballSdk();
       const onProgress = (phase, hash = null) => set({ launchProgress: { phase, hash, error: "" } });
-      const result = activeContractVersion === "v2" && initialBuy && Number(initialBuy) > 0 && "launchAndBuy" in sdk
+      const result = initialBuy && Number(initialBuy) > 0
         ? await sdk.launchAndBuy(input, parseEther(initialBuy), onProgress)
         : await sdk.createToken(input, onProgress);
 
@@ -366,7 +365,7 @@ export const useStore = create(persist((set, get) => ({
       set({ tradeMessage: "Claiming pool fees…" });
       await sdkForMarket(factory).claimPoolFees(locker, pool);
       set({
-        tradeMessage: activeContractVersion === "v2" ? "Pool fees credited to creator, treasury, and buyback vault." : "Pool fees sent to the creator and treasury.",
+        tradeMessage: "Pool fees credited to creator, treasury, and buyback vault.",
         marketsFetchedAt: 0,
       });
     } catch (error) {
@@ -381,7 +380,6 @@ export const useStore = create(persist((set, get) => ({
     startAction();
     try {
       const sdk = sdkForMarket(factory);
-      if (!("claimEscrow" in sdk)) throw Error("V2 fee escrow is unavailable.");
       await sdk.claimEscrow(token, asset, recipient);
       set({ tradeMessage: "Accrued fees sent to the registered recipient." });
     } catch (error) { handleActionError(error); }
@@ -392,9 +390,7 @@ export const useStore = create(persist((set, get) => ({
     const { startAction, endAction, handleActionError } = get();
     startAction();
     try {
-      if (activeContractVersion !== "v2") throw Error("This market uses the previous graduation flow.");
       const sdk = sdkForMarket(token.factory);
-      if (!sdk || !("graduateToIcarus" in sdk)) throw Error("V2 factory is unavailable.");
       const result = await sdk.graduateToIcarus(token.address);
       const poolSuffix = result.pool ? ` — Icarus pool ${result.pool}` : ".";
       const tradeMessage = result.status === "deferred"
@@ -429,7 +425,7 @@ export const useStore = create(persist((set, get) => ({
       tradeMessage: "",
     }),
 }), {
-  name: `curveball-chain-cache:${activeChainId}:${launchpadAddress ?? "unconfigured"}:${activeContractVersion}`,
+  name: `curveball-chain-cache:${activeChainId}:${launchpadAddress ?? "unconfigured"}:v2`,
   version: 4,
   storage: createJSONStorage(() => localStorage),
   partialize: (state) => ({

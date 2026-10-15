@@ -1,23 +1,20 @@
 import { useEffect, useState } from "react";
-import { Button } from "@radix-ui/themes";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { Collapsible } from "@base-ui/react/collapsible";
 import type { ReactNode } from "react";
 import { formatEther, parseEther } from "viem";
 import { useBalance, useReadContract } from "wagmi";
-import { launchpadAbi } from "../sdk/contracts";
-import { v2FactoryAbi } from "../sdk/v2Contracts";
-import { activeChainId, activeContractVersion, activeExplorerUrl, launchpadAddress } from "../lib/web3";
+import { erc20Abi, v2FactoryAbi } from "../sdk/v2Contracts";
+import { activeChainId, activeExplorerUrl, launchpadAddress } from "../lib/web3";
 import { factoryForToken } from "../lib/marketFactories";
 import { getBetaReadEnabled, selectMarketState } from "../lib/marketState";
 import { useStore } from "../app/useStore.js";
-import { useTokenBalance } from "../sdk/react";
 import { formatEthAmount, formatPercent } from "../lib/format.js";
 import {
   getBuyFundingState,
   TradeFundingStatus,
 } from "./TradeFundingStatus";
-import { NATIVE_GAS_RESERVE } from "../sdk/wagmiSdk";
+import { NATIVE_GAS_RESERVE } from "../sdk/v2Sdk";
 import type { Address } from "viem";
 import type { Token } from "../types";
 import { UsdAmount } from "./UsdAmount";
@@ -67,31 +64,27 @@ export function TradePanel({
   const { openConnectModal } = useConnectModal();
   const marketFactory = launchpadAddress ? factoryForToken(token.factory) : undefined;
   const betaReadEnabled = getBetaReadEnabled({
-    contractVersion: activeContractVersion,
-    chainId: activeChainId,
     walletConnected: Boolean(address),
     hasLaunchpadAddress: Boolean(marketFactory),
   });
   const { data: publicOpen } = useReadContract({
-    address: marketFactory, abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi,
+    address: marketFactory, abi: v2FactoryAbi,
     functionName: "publicLaunchOpen", chainId: activeChainId,
     query: { enabled: betaReadEnabled.publicLaunchOpen },
   });
   const { data: invited } = useReadContract({
-    address: marketFactory, abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi,
+    address: marketFactory, abi: v2FactoryAbi,
     functionName: "invited", args: [address!], chainId: activeChainId,
     query: { enabled: betaReadEnabled.invited },
   });
   const { data: quoteToken } = useReadContract({
     address: marketFactory,
-    abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi,
+    abi: v2FactoryAbi,
     functionName: "quote",
     chainId: activeChainId,
     query: { enabled: Boolean(marketFactory) },
   });
   const { state, hasBetaAccess, canBuy } = selectMarketState({
-    contractVersion: activeContractVersion,
-    chainId: activeChainId,
     walletConnected: Boolean(address),
     publicLaunchOpen: publicOpen,
     invited,
@@ -106,10 +99,13 @@ export function TradePanel({
 
   // Buying spends the quote token, selling spends the token itself.
   const balanceOf = side === "buy" ? quoteToken : token.address;
-  const { data: assetBalance } = useTokenBalance(
-    (balanceOf ?? undefined) as Address | undefined,
-    address,
-  );
+  const { data: assetBalance } = useReadContract({
+    address: balanceOf ?? undefined,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: address ? [address] : undefined,
+    query: { enabled: Boolean(balanceOf && address), refetchInterval: 5_000, refetchOnWindowFocus: true },
+  });
   const { data: nativeBalance } = useBalance({ address });
 
   useEffect(() => {
@@ -195,23 +191,21 @@ export function TradePanel({
       </div>
 
       {token.pending && <p className="notice" role="status">Graduation is ready. Anyone can create the Icarus pool. Selling remains available until then.</p>}
-      {activeContractVersion === "v2" && !token.pending && (token.progress ?? 0) >= 100 && side === "buy" && <p className="notice" role="status">This curve is sold out. Buying will resume in the graduated pool; selling remains available for now.</p>}
+      {!token.pending && (token.progress ?? 0) >= 100 && side === "buy" && <p className="notice" role="status">This curve is sold out. Buying will resume in the graduated pool; selling remains available for now.</p>}
       {!hasBetaAccess && side === "buy" && publicOpen === false && invited === false && <p className="notice" role="status">This deployed factory is still invite-only. Selling remains open.</p>}
 
       <div className="amount-head">
         <label htmlFor="trade-amount">Amount</label>
         <div className="amount-presets">
           {PRESETS.map((percent) => (
-            <Button
+            <button
               key={percent}
               type="button"
-              variant="ghost"
-              size="1"
               disabled={presetBalance === undefined}
               onClick={() => applyPreset(percent)}
             >
               {percent === 100 ? "Max" : `${percent}%`}
-            </Button>
+            </button>
           ))}
         </div>
       </div>
@@ -251,7 +245,7 @@ export function TradePanel({
         <Row label="At least" value={atLeast === null ? "—" : `${formatEthAmount(atLeast)} ${receiving}`} />
         <Row label="Price" value={<UsdAmount weth={token.price} />} />
         <Row label="Slippage limit" value={`${SLIPPAGE_BPS / 100}%`} />
-        {activeContractVersion === "v2" && <Row label="Curve fee + creator tax" value={token.feeBps == null ? "—" : `${((token.feeBps + (token.creatorTaxBps ?? 0)) / 100).toFixed(2)}%`} />}
+        <Row label="Curve fee + creator tax" value={token.feeBps == null ? "—" : `${((token.feeBps + (token.creatorTaxBps ?? 0)) / 100).toFixed(2)}%`} />
         <Row
           label="Price impact"
           value={priceImpact === null ? "—" : formatPercent(priceImpact)}
@@ -260,20 +254,19 @@ export function TradePanel({
       </div>
 
       {address ? (
-        <Button
+        <button
           type="button"
           className={`trade-submit ${tradeProgress?.side ?? side}${tradeProgress ? " processing" : ""}`}
-          size="3"
           aria-busy={Boolean(tradeProgress)}
           disabled={isPending || inputWei <= 0n || buyFunding?.canFund === false || (side === "buy" && !canBuy)}
           onClick={() => trade(side, token)}
         >
           <span aria-live="polite" aria-atomic="true">{tradeProgress ? tradeButtonLabel(tradeProgress.side, tradeProgress.phase) : tradeButtonLabel(side, null)}</span>
-        </Button>
+        </button>
       ) : (
-        <Button className={`trade-submit ${side}`} type="button" size="3" onClick={() => openConnectModal?.()}>
+        <button className={`trade-submit ${side}`} type="button" onClick={() => openConnectModal?.()}>
           Connect wallet to trade
-        </Button>
+        </button>
       )}
       {tradeMessage && !isPending && (
         <p className="trade-hint success" role="status">

@@ -3,9 +3,8 @@ import { formatPercent } from "../lib/format.js";
 import type { Address } from "viem";
 import { formatEther } from "viem";
 import { useReadContract } from "wagmi";
-import { launchpadAbi, lockerAbi } from "../sdk/contracts";
 import { v2EscrowAbi, v2FactoryAbi } from "../sdk/v2Contracts";
-import { activeChainId, activeContractVersion, launchpadAddress } from "../lib/web3";
+import { activeChainId, launchpadAddress } from "../lib/web3";
 import { factoryForToken } from "../lib/marketFactories";
 import type { Token } from "../types";
 import { UsdAmount } from "./UsdAmount";
@@ -26,25 +25,21 @@ export function MilestonePanel({
 
   const progress = token.graduated ? 100 : (token.progress ?? 0);
   const marketFactory = launchpadAddress ? factoryForToken(token.factory) : undefined;
-  const { data: locker } = useReadContract({ address: marketFactory, abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi, functionName: "locker", chainId: activeChainId, query: { enabled: Boolean(marketFactory) } });
-  const { data: escrow } = useReadContract({ address: marketFactory, abi: v2FactoryAbi, functionName: "escrow", chainId: activeChainId, query: { enabled: activeContractVersion === "v2" && Boolean(marketFactory) } });
-  const { data: quote } = useReadContract({ address: marketFactory, abi: activeContractVersion === "v2" ? v2FactoryAbi : launchpadAbi, functionName: "quote", chainId: activeChainId, query: { enabled: Boolean(marketFactory) } });
-  const { data: v1CreatorShareBps } = useReadContract({ address: locker, abi: lockerAbi, functionName: "creatorShareBps", chainId: activeChainId, query: { enabled: activeContractVersion === "v1" && Boolean(locker) } });
-  const creatorShareBps = token.creatorShareBps ?? v1CreatorShareBps;
-  const creatorShare = creatorShareBps == null ? null : Number(creatorShareBps) / 100;
-  const buybackShare = activeContractVersion === "v2"
-    ? token.buybackShareBps == null ? null : token.buybackShareBps / 100
-    : 0;
+  const { data: locker } = useReadContract({ address: marketFactory, abi: v2FactoryAbi, functionName: "locker", chainId: activeChainId, query: { enabled: Boolean(marketFactory) } });
+  const { data: escrow } = useReadContract({ address: marketFactory, abi: v2FactoryAbi, functionName: "escrow", chainId: activeChainId, query: { enabled: Boolean(marketFactory) } });
+  const { data: quote } = useReadContract({ address: marketFactory, abi: v2FactoryAbi, functionName: "quote", chainId: activeChainId, query: { enabled: Boolean(marketFactory) } });
+  const creatorShare = token.creatorShareBps == null ? null : token.creatorShareBps / 100;
+  const buybackShare = token.buybackShareBps == null ? null : token.buybackShareBps / 100;
   const treasuryShare = creatorShare === null || buybackShare === null ? null : 100 - creatorShare - buybackShare;
   const { data: quoteOwed } = useReadContract({
     address: escrow, abi: v2EscrowAbi, functionName: "claimable",
     args: [token.address, quote!, token.creator], chainId: activeChainId,
-    query: { enabled: activeContractVersion === "v2" && Boolean(escrow && quote) },
+    query: { enabled: Boolean(escrow && quote) },
   });
   const { data: tokenOwed } = useReadContract({
     address: escrow, abi: v2EscrowAbi, functionName: "claimable",
     args: [token.address, token.address, token.creator], chainId: activeChainId,
-    query: { enabled: activeContractVersion === "v2" && Boolean(escrow) },
+    query: { enabled: Boolean(escrow) },
   });
 
   return (
@@ -82,7 +77,7 @@ export function MilestonePanel({
         </div>
       </dl>
 
-      {activeContractVersion === "v2" && !token.graduated && progress >= 100 && <div className="claim-block">
+      {!token.graduated && progress >= 100 && <div className="claim-block">
         <p className="panel-note">{token.pending ? "Curve reserves are ready for an Icarus pool." : "The curve is sold out and ready to prepare graduation."}</p>
         <button type="button" className="primary-button claim-button" disabled={!address || isPending} onClick={() => advanceGraduation(token)}>
           Graduate to Icarus
@@ -121,9 +116,7 @@ export function MilestonePanel({
         <div className="claim-block">
           <h3 className="panel-subhead">Pool fees</h3>
           <p className="panel-note">
-            {activeContractVersion === "v2"
-              ? "Trading fees collect in the locked LP position. Anyone can route them to the creator, treasury, and buyback vault."
-              : "Trading fees collect in the locked LP position. Anyone can release them to the creator and treasury."}
+            Trading fees collect in the locked LP position. Anyone can route them to the creator, treasury, and buyback vault.
           </p>
           {address ? (
             <button
@@ -140,7 +133,7 @@ export function MilestonePanel({
         </div>
       )}
 
-      {activeContractVersion === "v2" && <div className="claim-block">
+      <div className="claim-block">
         <h3 className="panel-subhead">Creator fee credits</h3>
         <p className="panel-note">Claims always pay the launch creator. Anyone may trigger them.</p>
         {quoteOwed !== undefined && quoteOwed > 0n && quote && <button type="button" className="primary-button claim-button" disabled={!address || isPending} onClick={() => claimEscrow(token.address, quote, token.creator, marketFactory)}>
@@ -149,7 +142,7 @@ export function MilestonePanel({
         {tokenOwed !== undefined && tokenOwed > 0n && <button type="button" className="primary-button claim-button" disabled={!address || isPending} onClick={() => claimEscrow(token.address, token.address, token.creator, marketFactory)}>
           Claim {formatEther(tokenOwed)} {token.symbol}
         </button>}
-      </div>}
+      </div>
     </section>
   );
 }

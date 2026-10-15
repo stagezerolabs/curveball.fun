@@ -6,7 +6,6 @@ import { App } from "./app/App";
 import { ErrorBoundary } from "./app/ErrorBoundary";
 import { wagmiConfig } from "./lib/web3";
 import { walletThemeCss } from "./lib/walletTheme";
-import "@radix-ui/themes/styles.css";
 import "./style.css";
 import "@rainbow-me/rainbowkit/styles.css";
 

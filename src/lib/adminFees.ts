@@ -1,8 +1,7 @@
-import { getAccount, getBytecode, readContract, simulateContract, waitForTransactionReceipt, writeContract, getTransactionReceipt } from "@wagmi/core";
+import { getAccount, getBytecode, readContract, simulateContract, waitForTransactionReceipt, writeContract, getTransactionReceipt } from "wagmi/actions";
 import { getAddress, keccak256, zeroAddress, type Address, type Hash, type Hex } from "viem";
 import type { Config } from "wagmi";
-import { factoryFeeControllerAbi, v2FactoryAbi } from "../sdk/v2Contracts";
-import { erc20Abi } from "../sdk/contracts";
+import { erc20Abi, factoryFeeControllerAbi, v2FactoryAbi } from "../sdk/v2Contracts";
 import { FEE_CONTROLLER_CODE_HASH } from "./feeControllerCodeHash";
 
 export const ADMIN_ADDRESS = getAddress("0x5cc42e772f67089b4670eec4dcd904be2f2d511c");

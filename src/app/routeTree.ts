@@ -15,13 +15,6 @@ const routes: Route[] = [
   { id: "notFound", path: "*", title: "Page not found — Curveball" },
 ];
 
-export function canonicalPathname(pathname: string) {
-  if (pathname === "/migration" || pathname === "/migration/") return "/markets";
-  const legacyMarket = /^\/beta\/markets\/([^/]+)\/?$/.exec(pathname);
-  if (legacyMarket) return `/markets/${legacyMarket[1]}`;
-  return pathname === "/app" || pathname === "/app/" || pathname === "/beta" || pathname.startsWith("/beta/") ? "/markets" : pathname;
-}
-
 function matchPath(
   pattern: string,
   pathname: string,
@@ -48,7 +41,6 @@ function matchPath(
 }
 
 export function resolveRoute(pathname: string) {
-  pathname = canonicalPathname(pathname);
   const normalized =
     pathname.length > 1 ? pathname.replace(/\/$/, "") : pathname;
   for (const route of routes) {

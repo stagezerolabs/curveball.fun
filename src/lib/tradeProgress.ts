@@ -1,4 +1,4 @@
-import type { TradePhase, TradeSide } from "../sdk/wagmiSdk";
+import type { TradePhase, TradeSide } from "../sdk/v2Sdk";
 
 export function tradeButtonLabel(side: TradeSide, phase: TradePhase | null): string {
   if (!phase) return side === "buy" ? "Buy" : "Sell";

@@ -5,7 +5,6 @@ import {
   parseCreatedBlock,
   tradeLogToPoint,
   tradeLogToActivity,
-  withRetry,
 } from "./marketChart";
 
 describe("buildCandles", () => {
@@ -59,28 +58,8 @@ describe("buildBlockRanges", () => {
 });
 
 describe("chart RPC helpers", () => {
-  test("retries transient failures", async () => {
-    let attempts = 0;
-    const value = await withRetry(
-      async () => {
-        attempts += 1;
-        if (attempts < 3) throw new Error("temporary");
-        return "ok";
-      },
-      3,
-      0,
-    );
-    expect(value).toBe("ok");
-    expect(attempts).toBe(3);
-  });
-
-  test("decodes both v1 and v2 trade volume fields", () => {
+  test("decodes trade volume from the gross curve quote", () => {
     const reserves = { vQAfter: 4_000000000000000000n, vTAfter: 2_000000000000000000n };
-    expect(tradeLogToPoint({ ...reserves, quoteAmount: 1_000000000000000000n }, 100)).toEqual({
-      timestamp: 100,
-      price: 2,
-      volume: 1,
-    });
     expect(tradeLogToPoint({ ...reserves, grossCurveQuote: 3_000000000000000000n }, 100)).toEqual({
       timestamp: 100,
       price: 2,
@@ -103,7 +82,6 @@ describe("chart RPC helpers", () => {
       quoteAmount: 2_700000000000000000n, timestamp: 100,
       blockNumber: 42n, logIndex: 1, transactionHash,
     });
-    expect(tradeLogToActivity({ ...log, args: { ...log.args, netTraderQuote: undefined, quoteAmount: 3n } }, 100)?.quoteAmount).toBe(3n);
     expect(tradeLogToActivity({ ...log, args: { ...log.args, trader: undefined } }, 100)).toBeNull();
   });
 

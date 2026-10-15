@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
 import { encodeAbiParameters, encodeEventTopics, WaitForTransactionReceiptTimeoutError, type Address, type Hash, type TransactionReceipt } from "viem";
-import type { Config } from "@wagmi/core";
+import type { Config } from "wagmi";
 import { createV2Sdk } from "./v2Sdk";
 import { defineCurveballDeployment, RISE_TESTNET_CHAIN_ID } from "./curveballSdk";
-import type { WagmiActions } from "./wagmiSdk";
+import type { WagmiActions } from "./v2Sdk";
 import { v2CurveAbi, v2FactoryAbi } from "./v2Contracts";
 
 const wallet = "0x0000000000000000000000000000000000000001" as Address;

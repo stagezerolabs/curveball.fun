@@ -13,23 +13,22 @@ export type TradeActivity = {
 
 export function tradeLogToActivity(
   log: {
-    args?: { trader?: string; isBuy?: boolean; tokenAmount?: bigint; netTraderQuote?: bigint; quoteAmount?: bigint };
+    args?: { trader?: string; isBuy?: boolean; tokenAmount?: bigint; netTraderQuote?: bigint };
     blockNumber?: bigint | null;
     logIndex?: number;
     transactionHash?: string;
   },
   timestamp: number | undefined,
 ): TradeActivity | null {
-  const { trader, isBuy, tokenAmount, netTraderQuote, quoteAmount } = log.args ?? {};
-  const actualQuote = netTraderQuote ?? quoteAmount;
+  const { trader, isBuy, tokenAmount, netTraderQuote } = log.args ?? {};
   if (!trader || !isAddress(trader) || typeof isBuy !== "boolean" || tokenAmount === undefined ||
-      actualQuote === undefined || timestamp === undefined ||
+      netTraderQuote === undefined || timestamp === undefined ||
       log.blockNumber == null || log.logIndex === undefined || !log.transactionHash) return null;
   return {
     trader,
     isBuy,
     tokenAmount,
-    quoteAmount: actualQuote,
+    quoteAmount: netTraderQuote,
     timestamp,
     blockNumber: log.blockNumber,
     logIndex: log.logIndex,
@@ -44,32 +43,10 @@ export type TradePoint = {
 };
 
 export type TradeLogValues = {
-  quoteAmount?: bigint;
   grossCurveQuote?: bigint;
   vQAfter?: bigint;
   vTAfter?: bigint;
 };
-
-export async function withRetry<T>(
-  request: () => Promise<T>,
-  attempts = 3,
-  baseDelayMs = 250,
-): Promise<T> {
-  let lastError: unknown;
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    try {
-      return await request();
-    } catch (error) {
-      lastError = error;
-      if (attempt < attempts - 1 && baseDelayMs > 0) {
-        await new Promise((resolve) =>
-          setTimeout(resolve, baseDelayMs * 2 ** attempt),
-        );
-      }
-    }
-  }
-  throw lastError;
-}
 
 export function parseCreatedBlock(value: string | undefined, fallback: bigint) {
   if (!value) return fallback;
@@ -85,7 +62,7 @@ export function tradeLogToPoint(
   timestamp: number | undefined,
 ): TradePoint | null {
   const { vQAfter, vTAfter } = values ?? {};
-  const quoteVolume = values?.grossCurveQuote ?? values?.quoteAmount;
+  const quoteVolume = values?.grossCurveQuote;
   if (!timestamp || !vQAfter || !vTAfter || !quoteVolume) return null;
   const virtualQuote = Number(formatEther(vQAfter));
   const virtualToken = Number(formatEther(vTAfter));

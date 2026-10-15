@@ -1,15 +1,41 @@
 import {
   getAccount, getBalance, getBytecode, getTransactionReceipt, readContract, simulateContract, switchChain,
-  waitForTransactionReceipt, writeContract, type Config,
-} from "@wagmi/core";
-import { decodeAbiParameters, decodeEventLog, getAddress, zeroAddress, type Address, type Hash } from "viem";
+  waitForTransactionReceipt, writeContract,
+} from "wagmi/actions";
+import type { Config } from "wagmi";
+import { decodeAbiParameters, decodeEventLog, getAddress, zeroAddress, type Address, type Hash, type TransactionReceipt } from "viem";
 import { applySlippage, createDeadline, validateTokenInput, type CurveballDeployment, type TokenInput } from "./curveballSdk";
-import { erc20Abi } from "./contracts";
-import { v2CurveAbi, v2EscrowAbi, v2FactoryAbi, v2LaunchAndBuyAbi, v2LockerAbi, v2VaultAbi } from "./v2Contracts";
-import { CurveballSdkError, NATIVE_GAS_RESERVE, PendingTransactionError, type ConfirmedTrade, type ConfirmedWrite, type LaunchProgress, type TradeProgress, type TradeSide, type WagmiActions } from "./wagmiSdk";
+import { erc20Abi, v2CurveAbi, v2EscrowAbi, v2FactoryAbi, v2LaunchAndBuyAbi, v2LockerAbi, v2VaultAbi } from "./v2Contracts";
 import { validateV2Deployment } from "../v2Deployment";
 
-const defaultActions: WagmiActions = { getAccount, getBalance, getBytecode, getTransactionReceipt, readContract, simulateContract, switchChain, waitForTransactionReceipt, writeContract };
+export type TradeSide = "buy" | "sell";
+export type TradePhase = "preparing" | "wrapWallet" | "wrapConfirming" | "approveWallet" | "approveConfirming" | "tradeWallet" | "tradeConfirming";
+export type TradeProgress = (phase: TradePhase) => void;
+export type LaunchProgress = (phase: "preparing" | "wrapWallet" | "wrapConfirming" | "approveWallet" | "approveConfirming" | "wallet" | "confirming", hash?: Hash) => void;
+export type ConfirmedWrite = Readonly<{ hash: Hash; receipt: TransactionReceipt }>;
+export type ConfirmedTrade = ConfirmedWrite & Readonly<{ side: TradeSide; input: bigint; quotedOutput: bigint; minimumOutput: bigint; wrappedAmount: bigint }>;
+
+const defaultActions = { getAccount, getBalance, getBytecode, getTransactionReceipt, readContract, simulateContract, switchChain, waitForTransactionReceipt, writeContract };
+export type WagmiActions = Readonly<typeof defaultActions>;
+
+// Wrapping, approval, and the buy each consume native gas. Keep a small RISE
+// gas buffer instead of allowing the wrap to drain the wallet completely.
+export const NATIVE_GAS_RESERVE = 10_000_000_000_000n; // 0.00001 ETH
+
+export class CurveballSdkError extends Error {
+  constructor(message: string, readonly cause?: unknown) {
+    super(message);
+    this.name = "CurveballSdkError";
+  }
+}
+
+export class PendingTransactionError extends Error {
+  constructor(readonly hash: Hash, readonly cause?: unknown) {
+    super("Could not verify this transaction. Check its explorer status before retrying.");
+    this.name = "PendingTransactionError";
+  }
+}
+
 const CONFIRMATION_TIMEOUT_MS = 120_000;
 
 // Some RPC endpoints briefly serve the pre-approval block after confirming the approval receipt.
