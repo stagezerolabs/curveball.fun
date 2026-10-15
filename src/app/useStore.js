@@ -122,7 +122,13 @@ export const useStore = create(persist((set, get) => ({
     if (marketsRequest) return marketsRequest;
 
     set({ loading: true, marketError: "" });
-    marketsRequest = discoverAllTokens(client)
+    marketsRequest = discoverAllTokens(client, (discovered) => {
+      if (!discovered.length) return;
+      set((current) => ({
+        tokens: mergeTokenLists(current.tokens, discovered),
+        ...cacheTokens(current, discovered),
+      }));
+    })
       .then((discovered) => {
         const fetchedAt = Date.now();
         set((current) => ({

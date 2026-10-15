@@ -27,12 +27,17 @@ test("discovery and market access use each token's factory", async () => {
   const creator = getAddress("0x0000000000000000000000000000000000000055");
   const oldFactory = getAddress("0x36628AbAC7B2cdcde1A8fa21868AfeCB74660ECf");
   const newFactory = launchpadAddress!;
+  let releaseLegacy!: () => void;
+  const legacyScan = new Promise<void>((resolve) => { releaseLegacy = resolve; });
   const client = {
     getBlockNumber: async () => activeDeploymentBlock,
     getContractEvents: async ({ address, fromBlock }: { address: Address; fromBlock: bigint }) => {
       if (address.toLowerCase() === newFactory.toLowerCase() && fromBlock === activeDeploymentBlock)
         return [{ args: { token: newToken, curve: newCurve, creator, name: "New", symbol: "NEW" }, blockNumber: fromBlock }];
-      if (legacyFactories.some((entry) => entry.address.toLowerCase() === address.toLowerCase())) return [];
+      if (legacyFactories.some((entry) => entry.address.toLowerCase() === address.toLowerCase())) {
+        await legacyScan;
+        return [];
+      }
       throw new Error(`Unexpected factory ${address}`);
     },
     readContract: async ({ functionName }: { functionName: string }) => {
@@ -48,7 +53,14 @@ test("discovery and market access use each token's factory", async () => {
     },
     getBlock: async ({ blockNumber }: { blockNumber: bigint }) => ({ timestamp: blockNumber }),
   } as unknown as CreatorTokenClient;
-  const tokens = await discoverAllTokens(client);
+  let showNewToken!: (tokens: Awaited<ReturnType<typeof discoverAllTokens>>) => void;
+  const firstBatch = new Promise<Awaited<ReturnType<typeof discoverAllTokens>>>((resolve) => { showNewToken = resolve; });
+  const discovery = discoverAllTokens(client, (batch) => {
+    if (batch.length) showNewToken(batch);
+  });
+  expect((await firstBatch).map(({ address }) => address)).toEqual([newToken]);
+  releaseLegacy();
+  const tokens = await discovery;
   expect(tokens.map(({ factory, feeBps }) => [factory, feeBps])).toEqual([[newFactory, 75]]);
   expect(factoryForToken(tokens[0].factory)).toBe(newFactory);
   expect(legacyFactories.some((entry) => entry.address === oldFactory)).toBe(true);

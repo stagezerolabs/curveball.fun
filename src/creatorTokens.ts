@@ -34,9 +34,10 @@ export async function discoverCreatorTokens(
 }
 
 export async function discoverAllTokens(
-  client: CreatorTokenClient
+  client: CreatorTokenClient,
+  onFactoryTokens?: (tokens: Token[]) => void,
 ): Promise<Token[]> {
-  return discoverTokens(client);
+  return discoverTokens(client, undefined, onFactoryTokens);
 }
 
 export async function discoverToken(
@@ -50,11 +51,18 @@ export async function discoverToken(
 async function discoverTokens(
   client: CreatorTokenClient,
   args?: { creator: Address } | { token: Address },
+  onFactoryTokens?: (tokens: Token[]) => void,
 ): Promise<Token[]> {
   if (!launchpadAddress) return [];
   const deployments = [{ address: launchpadAddress, deploymentBlock: activeDeploymentBlock }, ...legacyFactories];
-  const batches = await Promise.all(deployments.map((deployment) => discoverTokensForFactory(client, deployment.address, deployment.deploymentBlock, args)));
-  return batches.flat().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const scanFactory = async (deployment: typeof deployments[number]) => {
+    const tokens = await discoverTokensForFactory(client, deployment.address, deployment.deploymentBlock, args);
+    onFactoryTokens?.(tokens);
+    return tokens;
+  };
+  const current = await scanFactory(deployments[0]);
+  const legacyBatches = await Promise.all(deployments.slice(1).map(scanFactory));
+  return [current, ...legacyBatches].flat().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
 async function discoverTokensForFactory(
