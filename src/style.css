@@ -3340,7 +3340,7 @@ select:focus-visible {
   border-color: var(--orange);
   color: var(--orange-ink);
 }
-.landing-hero ascii-art[piece="planet"] {
+.landing-hero ascii-art {
   align-self: center;
   color: var(--orange);
   container-type: inline-size;
@@ -3348,7 +3348,7 @@ select:focus-visible {
   max-width: 100%;
   width: 100%;
 }
-.landing-hero ascii-art[piece="planet"] > pre {
+.landing-hero ascii-art > pre {
   font-size: min(14px, 2.5cqw);
   margin-inline: auto;
   width: max-content;
