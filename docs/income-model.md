@@ -1,53 +1,26 @@
-# Curveball — how fees and income work now (V2)
+# Curveball fee and income model
 
-Status: updated 2026-10-13. The deployed fee-enabled testnet factory still reads 50 bps until the separately approved on-chain update is confirmed. The 75 bps figures below describe the intended new-launch setting after that update. Two important frames up front:
+Current deployment: fresh V1 on RISE Testnet, using a mock graduation venue. These are testnet accounting flows, not realized mainnet income. Historical V2 and V2.1 deployments are documented in the root `README.md`.
 
-- **Nothing earns real money today.** Everything runs on RISE testnet / a local fork. This is the model, not income.
-- **Creators earn and the protocol earns from the same fee** — the split is fixed per token at launch.
+## Bonding-curve trades
 
-## The main income source: bonding-curve trading fees
+Each launch snapshots its trading fee, fee split, creator tax, and treasury address from the factory. The active V1 factory defaults to a **75 bps (0.75%)** trading fee. Of that fee, **50% is credited to the creator, 25% funds the per-market buyback vault, and 25% is credited to the protocol treasury**. At the default rate, the treasury share is 18.75 bps of the trade's curve quote amount. Later factory policy changes affect new launches only.
 
-Curveball is a launchpad. Its income is **a fee on every trade** (buy and sell), charged on the quote leg (WETH), taken at the point of trade on the bonding curve.
+The creator may select a separate **0–50 bps creator tax** at launch, subject to the current factory cap. The tax is added to the creator's fee credit; **it is not protocol revenue**. Buys pay the curve quote amount plus fee and tax. Sells receive the curve quote amount less fee and tax. `CurveBondingCurve._routeFees` transfers backed credits to `CurveFeeEscrow` and buyback funds to `CurveBuybackVault`.
 
-**Default split (per launch, snapshotted at creation):**
-- Curve fee: **75 bps** (0.75% of a trade) for new launches after the factory update. Earlier markets retain their launch-time fee.
-- Split: **50% creator · 25% buyback · 25% protocol (treasury)**
+Anyone can trigger an escrow claim, but the escrow pays the recorded recipient. Buyback funds stay assigned to their launch. A permitted sweep buys that launch's token on its curve, or on a compatible pool after graduation, subject to price and impact checks. Bought tokens vest over five years in lots; only the current factory owner can claim the vested amount. The mock graduation pool has no swaps, so it does not provide a usable post-graduation buyback venue.
 
-At 75 bps, the **protocol's / operator's share = 25% of the fee = 18.75 bps (0.1875%) of curve trading volume**, in WETH. The creator gets half the fee; a quarter is forced into buyback of the token.
+## Launches and graduation
 
-**Why the "buyback 25%" matters:** buyback is the second lever. The protocol owns and claims the **vested** buyback lots (each lot vests over 5 years; only the current protocol owner claims the vested portion). So buyback is both a token-supporting tool and a longer-term asset/authority the protocol controls rather than immediate income.
+The deployed V1 mock factory has **no launch fee** (`launchFee == 0`). Its curve sells 80% of a fixed 1,000,000-token supply. Creators choose a 0–5% holder reserve (5% by default); that reserve reduces tokens assigned to the pool, not curve-sale tokens. The reserve is for creator-initiated, snapshot-based holder claims after graduation. It is not fee income.
 
-## How a token's split is fixed
+When the curve sells out, the backend keeper prepares graduation and creates a pool at the venue snapshotted for that launch. The current mock venue creates an explorer-visible pool and locks LP tokens, but cannot execute swaps or earn swap fees. A future real venue may route collected pool fees to creator, treasury, and buyback recipients through the locker and hook; **no pool-swap income should be attributed to this mock release**.
 
-At each launch the contract **snapshots** the fee, the three-way share, the **creator tax**, and the **treasury address** for that token. Nothing drifts after launch:
-- `feeBps` — curve trade fee (new-deployment default 75 bps; each market snapshots the live factory value)
-- `creatorShareBps` / `buybackShareBps` — creator and buyback cut of the fee (sum to the trade fee with the protocol's share)
-- `creatorTaxBps` — a separate tax on the **creator**, default **0**, capped at **50 bps** (income only if Curveball sets a creator tax)
-- treasury = the protocol address that receives the protocol share
+The frontend's fee split graphic shows the configured allocation. It does not prove that fees have been paid or claimed. Testnet treasury and vault balances are balances, not lifetime revenue.
 
-The UI shows the same picture ("Where pool fees go" in the milestone panel: creator / treasury / buyback bars).
+## Code sources
 
-## Where fees land and who may claim
-
-- **Pre-graduation:** fees collect on the curve as quote credits (`CurveFeeEscrow`) and buyback (`CurveBuybackVault`). **Claims are permissionless** — anyone can trigger one, but it **always pays the recorded recipient** (creator, treasury, or buyback vault).
-- **Post-graduation (the Icarus pool = the AMM as the token graduates to free trading):** pool fees are claimed by the **LP locker** (the venue's liquidity controller), measured as real balance deltas, routed **in kind**.
-- **Buybacks** are constrained (own curve/pool, 30-min price ref, 5% spot deviation, 2% impact) — the mechanic is bounded by design.
-
-## Who has authority (why the protocol is the one earning)
-
-On the currently deployed V2 factory, creators have no mint or token-reserve authority. The new, undeployed reserve-enabled factory keeps minting fixed and fee policy under protocol control, but lets each creator select a 0–5% holder airdrop reserve at launch. After graduation, the creator can allocate that reserve across snapshot-based claim rounds. They cannot withdraw it or redirect a holder's claim. The reserve is separate from trading fees and reduces token liquidity sent to the graduation pool.
-
-## Income summary (ranked)
-
-1. **Protocol share of trading fees** — 25% of each market's curve fee. At 75 bps, this is 18.75 bps of curve trading volume. *The main income source.*
-2. **Creator tax** — a protocol-chosen tax on creators, off by default, up to 50 bps — pure protocol income when enabled.
-3. **Buyback vested-lot ownership** — a locked, 5-year-vesting asset the protocol owns, claimable only by the current protocol owner (authority/asset, not near-term cash).
-4. (Secondary) **LP locker claim** on post-graduation pool fees routed in kind.
-
-## Honest caveat
-
-This is the **code's** model — and the headline number (12.5 bps protocol share on all trades) is only real once there is mainnet volume. Today: RISE testnet and forks only, no public income, and launch is still permissionless/invitation-controlled per the recent V2 work.
-
----
-
-_Sources: `docs/security/curveball-v2-review.md` (fee+buyback invariants, factory authority), `src/creatorTokens.ts` (markets tuple: feeBps/creatorShare/buybackShare/creatorTax), `src/components/MilestonePanel.tsx` (pool-fee split display), `src/sdk/contracts.ts` (treasury)._
+- `contracts/contracts/CurveV1Factory.sol`: active factory defaults, per-launch policy snapshot, reserve, and graduation.
+- `contracts/contracts/CurveBondingCurve.sol`: buy/sell fee calculations and recipient routing.
+- `contracts/contracts/CurveFeeEscrow.sol` and `CurveBuybackVault.sol`: claims, buybacks, and vesting.
+- `contracts/scripts/DeployV1Mock.s.sol` and `deployments/11155931/curveball-v1-mock.json`: deployed mock configuration.

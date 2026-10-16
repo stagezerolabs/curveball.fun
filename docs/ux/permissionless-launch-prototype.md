@@ -1,5 +1,7 @@
 # Permissionless launch UX prototype
 
+Historical design sketch for the permissionless V2 flow. The active V1 launch page in `src/pages/LaunchPage.tsx` uses artwork upload and server-published IPFS metadata, offers a 0–5% holder reserve, and currently has no launch fee. The wireframe below is design history, not a current field-by-field specification.
+
 ## Launch page
 
 ```text

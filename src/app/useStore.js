@@ -362,8 +362,8 @@ export const useStore = create(persist((set, get) => ({
     }
   },
 
-  // LpLocker.claim is permissionless: the caller pays gas, the creator and
-  // treasury receive the fees. Nothing is routed to whoever clicks this.
+  // Locker claims are permissionless: the caller pays gas; fee recipients
+  // receive the routed assets. Nothing is paid to whoever clicks this.
   claimPoolFees: async (locker, pool, factory) => {
     const { startAction, endAction, handleActionError } = get();
     startAction();

@@ -1,13 +1,13 @@
-# Beta and market states
+# Launch and market states
 
-The shipped interface uses these states to select launch and trade availability. The pure selector in `src/lib/marketState.ts` supplies the beta and market decisions used by `src/pages/LaunchPage.tsx` and `src/components/TradePanel.tsx`. `src/components/MarketHeader.tsx` and `src/components/MilestonePanel.tsx` display the corresponding curve and graduation status labels.
+The active V1 factory opens launch creation to any connected wallet after initialization. `src/lib/marketState.ts` still supports invited-beta state for historical factories, but the active V1 factory reports `publicLaunchOpen() == true` and `invited(address) == false`. The UI reads those methods in the launch and trade flows.
 
-| State | Launch form | Trade panel | Market header / milestone |
+| Market state | Buy on curve | Sell on curve | Display |
 | --- | --- | --- | --- |
-| Invited beta | Enabled for invited wallet | Buy and sell enabled | “On the curve” |
-| Uninvited beta | Disabled, invitation required | Buy disabled; sell enabled for holders | “On the curve” |
-| Ready, graduation deferred | Creation unaffected | Buy disabled; sell remains enabled | “Graduation pending”; explain pool creation can be retried by anyone after upstream recovers |
-| Graduated | Creation unaffected | Curve trade replaced by Icarus app link | Verified pool explorer link; “basic volatile CURVE/WETH pool”; no gauge or emissions claim |
-| Public | Creation enabled for any wallet | Buy and sell enabled | Standard curve status |
+| Bonding (`sold < curveSupply`) | Available to an eligible connected wallet | Available to a holder | Live / On the curve |
+| Bonding complete (`sold == curveSupply`, pool not confirmed) | Disabled | Available; a sale can reopen the curve | Bonding complete; pool preparation is automatic |
+| Graduated (`graduated == true`) | Unavailable on curve | Unavailable on curve | Graduated; explorer link to the confirmed pool address |
 
-The pool address comes from the `Graduated` event or live `market(token)` curve state. An empty pool address never creates a link. External swap navigation goes to the official Icarus app home because its route scheme is not part of the published integration contract; users must check the token address in the app.
+The backend keeper handles V1 graduation in two transactions: `graduate(token)` marks a sold-out curve ready, then `createGraduatedPool(token)` creates the venue pool. Users do not sign these calls. Until the second transaction confirms, the UI keeps the market out of the Live category and shows Bonding complete. The current venue is a mock: its pool has an address and locked LP tokens but no swaps. For a future real Icarus venue, the trade panel links to the Icarus app after graduation.
+
+The pool link uses the curve's nonzero `pool()` address after `graduated()` is true. `src/creatorTokens.ts` derives the market status from on-chain sold, ready, and graduated state; `src/pages/MarketPage.tsx` polls while awaiting graduation so an open page updates after confirmation.

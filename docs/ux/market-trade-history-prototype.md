@@ -1,5 +1,7 @@
 # Market trade history prototype
 
+Implemented in `src/components/MarketActivity.tsx` with paginated on-chain `Trade` events, an empty/error state, and explorer links. This document records the original layout brief; the component is the source for current column and interaction behavior.
+
 Place a trade history table directly below the chart in the left workspace column. Keep the buy and milestone controls in the right column. The table shows every curve `Trade` event, newest first, with Date, Type, USD, market token symbol, Price, Trader, and Txn columns. Buy is green and Sell is red. Keep a single "Trade history" heading. Align numeric values with their headers. USD uses the current ETH/USD rate, and Price is the effective fill per token.
 
 On desktop, stretch the history panel to the bottom of the Milestone panel. Keep rows at a readable height and anchor pagination at the panel bottom. A long page of history scrolls inside the panel.

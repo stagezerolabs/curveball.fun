@@ -52,7 +52,7 @@ export function HolderAirdropPanel({ token }: { token: Token }) {
       setSnapshot((current) => current || (latestBlock > 0n ? String(latestBlock - 1n) : ""));
       setError("");
     } catch (cause) {
-      // Older factories have no reserve method. They simply have no airdrop panel.
+      // Until reserve support is confirmed, any read failure leaves this panel hidden.
       setError(cause instanceof Error ? cause.message : "Could not load airdrops.");
     }
   }, [client, token.address, token.factory, visible, wallet]);

@@ -1,5 +1,7 @@
 # Browser-safe IPFS metadata uploads
 
+Implementation status: `src/pages/LaunchPage.tsx` calls the same-origin `/api/artwork` endpoint. `api/artwork.js` validates and uploads the image to Pinata using a server-only `PINATA_JWT`, then creates and uploads JSON metadata containing the image's `ipfs://` URI. The browser submits the returned metadata `ipfs://` URI with the launch transaction. The endpoint uploads on behalf of the browser; it does **not** issue a signed upload URL. The findings and recommendation below are the original research notes.
+
 ## Goal
 
 Upload a token image and JSON metadata from the launch flow, then submit the
@@ -12,15 +14,14 @@ metadata CID on-chain as an `ipfs://` URI.
 - The canonical on-chain value should be the metadata URI, such as
   `ipfs://<metadata-cid>`. The metadata JSON should reference the image as
   `ipfs://<image-cid>`. [IPFS metadata guidance](https://docs.ipfs.tech/how-to/best-practices-for-nft-data/)
-- Pinata supports a free plan, but its API key must stay server-side. Browser
+- Pinata's API key must stay server-side. Browser
   uploads should use a short-lived signed URL created by a secure server.
   [Pinata signed uploads](https://pinata.cloud/blog/how-to-upload-to-ipfs-with-presigned-urls/)
-  [Pinata pricing](https://pinata.cloud/pricing)
 - Storacha can calculate CIDs and upload directly in the browser without an app
   secret, but each user must authorize the browser agent and use a storage
   space. [Storacha upload service](https://github.com/storacha/upload-service)
 
-## Recommendation
+## Original recommendation (historical)
 
 Use Pinata signed uploads for the shortest launch UX. Add one authenticated
 serverless endpoint that returns a short-lived upload URL; never expose the

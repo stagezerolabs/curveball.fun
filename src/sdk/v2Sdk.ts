@@ -49,7 +49,7 @@ async function simulateAfterApproval<T>(simulate: () => Promise<T>, approved: bo
   }
 }
 
-// GraduationDeferred carries the graduation guard's raw revert data; surface the human part when it is an Error(string).
+// GraduationDeferred carries venue preflight revert data; decode Error(string) when present.
 function decodeDeferredReason(reason: string): string | null {
   if (reason.startsWith("0x08c379a0")) {
     try {

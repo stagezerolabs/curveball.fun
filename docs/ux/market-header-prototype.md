@@ -1,5 +1,7 @@
 # Market header prototype
 
+Design reference from an earlier UI pass. The current header implementation is `src/components/MarketHeader.tsx`; status now distinguishes Live, Bonding complete, and Graduated, and the active V1 venue is a mock.
+
 The header answers three questions in order: which token is this, what does it cost now, and how close is its curve to graduation? The token name and live state anchor the left side. Price is the first metric on the right; market cap is secondary; curve sold uses a measured bar rather than a bare percentage.
 
 ```text

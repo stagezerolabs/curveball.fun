@@ -5,12 +5,12 @@
 help:
 	@echo "make dev                 Run the static frontend"
 	@echo "make build               Build the static frontend"
-	@echo "make test                Run frontend tests and typecheck"
+	@echo "make test                Run typecheck and contract tests"
 	@echo "make contracts-test      Run Foundry contract tests"
 	@echo "make deploy-v1-mock-testnet   Deploy fresh V1 with a mock venue using dot"
 	@echo "make deploy-v2-testnet   Open the guarded V2 deployment flow"
 	@echo "make deploy-holder-reserve-testnet   Open the guarded holder-reserve deployment flow"
-	@echo "make set-fee-testnet     Set the live RISE Testnet V2 fee to 0.75%"
+	@echo "make set-fee-testnet     Set the historical V2 factory trading fee"
 	@echo "make deploy-fee-controller-testnet  Deploy dot-owned fee controller"
 	@echo "make accept-fee-controller-testnet CONTROLLER=0x...  Complete controller ownership"
 

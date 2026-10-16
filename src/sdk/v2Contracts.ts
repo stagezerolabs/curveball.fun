@@ -59,8 +59,6 @@ export const factoryFeeControllerAbi = parseAbi([
   "function setTradingFeeBps(uint16 newFee)",
 ]);
 
-// The recorded first V2 testnet release predates the launch fee.
-
 export const v2CurveAbi = parseAbi([
   "function quoteBuy(uint256 maxSpend) view returns (uint256 tokensOut,uint256 spent,uint256 curveQuote,uint256 fee,uint256 creatorTax)",
   "function quoteSell(uint256 amount) view returns (uint256 net,uint256 gross,uint256 fee,uint256 creatorTax)",

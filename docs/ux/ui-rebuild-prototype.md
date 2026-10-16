@@ -1,5 +1,7 @@
 # Curveball UI rebuild prototype
 
+Historical design proposal. The shipped app uses Base UI, ECharts, RainbowKit, and custom CSS; it does not use Radix Themes or Lightweight Charts. Consult `src/components/` and `src/style.css` for current UI behavior and tokens. The screen map below records the proposed hierarchy, not the current navigation contract.
+
 ## Design contract
 
 Keep Curveball's dark ink, lime action, orange market movement, and editorial serif accent. Use compact, readable market surfaces rather than equal-sized marketing cards. The product is a token discovery and trading app; prices, status, liquidity, and actions must be legible before decoration.
