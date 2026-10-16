@@ -37,7 +37,10 @@ contract PermissionlessDeploymentTest {
         require(factory.initialVQ() == 10 ether, "wrong virtual quote");
         require(factory.owner() == address(this), "wrong owner");
         require(factory.launchFee() == 0.0004 ether, "wrong launch fee");
-        require(CurveLaunchFeeTreasury(payable(factory.launchFeeTreasury())).owner() == address(this), "wrong fee treasury owner");
+        require(
+            CurveLaunchFeeTreasury(payable(factory.launchFeeTreasury())).owner() == address(this),
+            "wrong fee treasury owner"
+        );
         require(address(factory.deployer()).code.length > 0, "deployer not initialized");
         require(address(factory.launchAndBuy()).code.length > 0, "launch wrapper not initialized");
     }

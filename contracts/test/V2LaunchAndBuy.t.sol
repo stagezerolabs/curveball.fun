@@ -24,8 +24,14 @@ contract V2LaunchAndBuyTest is TestBase {
         quote.approve(address(wrapper), 50 ether);
         vm.prank(CREATOR);
         CurveLaunchAndBuy.LaunchRequest memory request = CurveLaunchAndBuy.LaunchRequest({
-            name: "Atomic", symbol: "ATM", uri: "", creatorTaxBps: 0, holderReserveBps: 500,
-            maxSpend: 50 ether, minOut: 800_000 ether, deadline: DEADLINE
+            name: "Atomic",
+            symbol: "ATM",
+            uri: "",
+            creatorTaxBps: 0,
+            holderReserveBps: 500,
+            maxSpend: 50 ether,
+            minOut: 800_000 ether,
+            deadline: DEADLINE
         });
         (address token, address curve, uint256 bought) = wrapper.launchAndBuy(request);
         assertEq(CurveLauncherToken(token).balanceOf(CREATOR), bought, "creator did not receive bought tokens");

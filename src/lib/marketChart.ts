@@ -42,6 +42,30 @@ export type TradePoint = {
   volume: number;
 };
 
+export type MarketPriceChange = {
+  percent: number;
+  period: "24h" | "since first trade";
+};
+
+export function calculatePriceChange(
+  points: readonly TradePoint[],
+  currentPrice: number | null | undefined,
+  now = Date.now() / 1000,
+): MarketPriceChange | null {
+  if (currentPrice == null || !Number.isFinite(currentPrice) || currentPrice <= 0) return null;
+  const ordered = points
+    .filter((point) => Number.isFinite(point.timestamp) && Number.isFinite(point.price) && point.price > 0)
+    .sort((a, b) => a.timestamp - b.timestamp);
+  if (!ordered.length) return null;
+
+  const cutoff = now - 86_400;
+  const prior = ordered.findLast((point) => point.timestamp <= cutoff);
+  const baseline = prior ?? ordered[0];
+  const percent = (currentPrice / baseline.price - 1) * 100;
+  if (!Number.isFinite(percent)) return null;
+  return { percent, period: prior ? "24h" : "since first trade" };
+}
+
 export type TradeLogValues = {
   grossCurveQuote?: bigint;
   vQAfter?: bigint;

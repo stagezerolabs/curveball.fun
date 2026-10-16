@@ -20,11 +20,13 @@ export type Token = {
   createdAt: string;
   price?: number | null;
   targetPrice?: number | null;
+  graduationTargetWeth?: string | null;
   marketCap?: number | null;
   progress?: number | null;
   imageUrl?: string | null;
   metadataUri?: string | null;
   pool?: Address | null;
+  mockVenue?: boolean;
   quoteSymbol?: string | null;
   description?: string | null;
   website?: string | null;

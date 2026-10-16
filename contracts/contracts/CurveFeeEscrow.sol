@@ -28,7 +28,10 @@ contract CurveFeeEscrow is ReentrancyGuard {
     }
 
     function credit(address launch, address asset, address recipient, uint256 amount) external {
-        require(authorized[msg.sender] && launch != address(0) && asset != address(0) && recipient != address(0), "unauthorized credit");
+        require(
+            authorized[msg.sender] && launch != address(0) && asset != address(0) && recipient != address(0),
+            "unauthorized credit"
+        );
         require(amount > 0, "zero credit");
         require(IERC20(asset).balanceOf(address(this)) >= totalLiability[asset] + amount, "unbacked credit");
         totalLiability[asset] += amount;
@@ -44,7 +47,6 @@ contract CurveFeeEscrow is ReentrancyGuard {
         IERC20(asset).safeTransfer(recipient, amount);
         emit FeeClaimed(launch, asset, recipient, amount);
     }
-
 
     function rescueTokens(address asset, uint256 amount, address recipient) external nonReentrant {
         require(msg.sender == ICurveEscrowOwner(factory).owner() && recipient != address(0), "owner only");

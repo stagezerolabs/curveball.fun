@@ -15,11 +15,20 @@ contract CurveLauncherToken is ERC20, ERC20Permit {
     string public metadataURI;
     bool public tradingEnabled;
 
-    constructor(string memory name_, string memory symbol_, string memory uri_, uint256 supply_, address curve_, address factory_, address reserve_, uint256 reserveAmount_)
-        ERC20(name_, symbol_)
-        ERC20Permit(name_)
-    {
-        require(curve_ != address(0) && factory_ != address(0) && reserve_ != address(0) && supply_ > reserveAmount_, "bad launch");
+    constructor(
+        string memory name_,
+        string memory symbol_,
+        string memory uri_,
+        uint256 supply_,
+        address curve_,
+        address factory_,
+        address reserve_,
+        uint256 reserveAmount_
+    ) ERC20(name_, symbol_) ERC20Permit(name_) {
+        require(
+            curve_ != address(0) && factory_ != address(0) && reserve_ != address(0) && supply_ > reserveAmount_,
+            "bad launch"
+        );
         curve = curve_;
         factory = factory_;
         metadataURI = uri_;

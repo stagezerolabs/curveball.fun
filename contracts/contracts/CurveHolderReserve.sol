@@ -38,7 +38,9 @@ contract CurveHolderReserve is ReentrancyGuard {
 
     event ReserveRegistered(address indexed token, address indexed creator, uint256 amount);
     event GraduationRecorded(address indexed token, address indexed pool, uint256 blockNumber);
-    event RoundCreated(address indexed token, uint256 indexed roundId, uint256 snapshotBlock, uint256 amount, uint256 eligibleSupply);
+    event RoundCreated(
+        address indexed token, uint256 indexed roundId, uint256 snapshotBlock, uint256 amount, uint256 eligibleSupply
+    );
     event Claimed(address indexed token, uint256 indexed roundId, address indexed holder, uint256 amount);
 
     constructor(address factory_) {
@@ -47,15 +49,24 @@ contract CurveHolderReserve is ReentrancyGuard {
     }
 
     function register(address token, address creator, address curve, address vault, uint256 amount) external {
-        require(msg.sender == factory && token != address(0) && creator != address(0) && curve != address(0) && vault != address(0), "factory only");
-        require(launches[token].creator == address(0) && IERC20(token).balanceOf(address(this)) >= amount, "bad reserve");
+        require(
+            msg.sender == factory && token != address(0) && creator != address(0) && curve != address(0)
+                && vault != address(0),
+            "factory only"
+        );
+        require(
+            launches[token].creator == address(0) && IERC20(token).balanceOf(address(this)) >= amount, "bad reserve"
+        );
         launches[token] = Launch(creator, curve, address(0), vault, amount, 0, 0, 0);
         emit ReserveRegistered(token, creator, amount);
     }
 
     function recordGraduation(address token, address pool) external {
         Launch storage launch = launches[token];
-        require(msg.sender == factory && launch.creator != address(0) && launch.graduationBlock == 0 && pool != address(0), "bad graduation");
+        require(
+            msg.sender == factory && launch.creator != address(0) && launch.graduationBlock == 0 && pool != address(0),
+            "bad graduation"
+        );
         launch.pool = pool;
         launch.graduationBlock = block.number;
         emit GraduationRecorded(token, pool, block.number);
@@ -64,12 +75,14 @@ contract CurveHolderReserve is ReentrancyGuard {
     function createRound(address token, uint256 snapshotBlock, uint256 amount) external returns (uint256 roundId) {
         Launch storage launch = launches[token];
         require(msg.sender == launch.creator && launch.creator != address(0), "creator only");
-        require(launch.graduationBlock != 0 && snapshotBlock >= launch.graduationBlock && snapshotBlock < block.number, "bad snapshot");
+        require(
+            launch.graduationBlock != 0 && snapshotBlock >= launch.graduationBlock && snapshotBlock < block.number,
+            "bad snapshot"
+        );
         require(amount > 0 && amount <= launch.reserve - launch.committed, "bad amount");
         ICheckpointToken asset = ICheckpointToken(token);
         uint256 excluded = asset.getPastBalance(address(this), snapshotBlock)
-            + asset.getPastBalance(launch.curve, snapshotBlock)
-            + asset.getPastBalance(launch.pool, snapshotBlock)
+            + asset.getPastBalance(launch.curve, snapshotBlock) + asset.getPastBalance(launch.pool, snapshotBlock)
             + asset.getPastBalance(launch.vault, snapshotBlock);
         uint256 eligible = asset.totalSupply() - excluded;
         require(eligible > 0, "no holders");
@@ -81,8 +94,10 @@ contract CurveHolderReserve is ReentrancyGuard {
 
     function claimable(address token, uint256 roundId, address holder) public view returns (uint256) {
         Launch storage launch = launches[token];
-        if (roundId >= launch.roundCount || claimed[token][roundId][holder] || holder == address(0)
-            || holder == address(this) || holder == launch.curve || holder == launch.pool || holder == launch.vault) return 0;
+        if (
+            roundId >= launch.roundCount || claimed[token][roundId][holder] || holder == address(0)
+                || holder == address(this) || holder == launch.curve || holder == launch.pool || holder == launch.vault
+        ) return 0;
         Round storage round = rounds[token][roundId];
         return round.amount * ICheckpointToken(token).getPastBalance(holder, round.snapshotBlock) / round.eligibleSupply;
     }

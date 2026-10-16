@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { formatEther, parseEther } from "viem";
 import { useBalance, useReadContract } from "wagmi";
 import { erc20Abi, v2FactoryAbi } from "../sdk/v2Contracts";
-import { activeChainId, activeExplorerUrl, launchpadAddress } from "../lib/web3";
+import { activeChainId, launchpadAddress } from "../lib/web3";
 import { factoryForToken } from "../lib/marketFactories";
 import { getBetaReadEnabled, selectMarketState } from "../lib/marketState";
 import { useStore } from "../app/useStore.js";
@@ -154,17 +154,18 @@ export function TradePanel({
     return (
       <section className="trade-panel">
         <p className="trade-graduated">
-          <strong>This curve is complete.</strong> A basic volatile {token.symbol}/WETH pool was created on Icarus. Pool creation does not grant a gauge or IRS emissions.
+          <strong>This curve is complete.</strong> {token.mockVenue
+            ? `A mock ${token.symbol}/WETH pool was created to exercise graduation. Swaps are not available on the mock venue.`
+            : `A basic volatile ${token.symbol}/WETH pool was created on Icarus. Pool creation does not grant a gauge or IRS emissions.`}
         </p>
-        {token.pool && <a href={`${activeExplorerUrl}/address/${token.pool}`} target="_blank" rel="noreferrer">View Icarus pool {token.pool}</a>}
-        <a
+        {!token.mockVenue && <a
           className="primary-button trade-submit"
           href="https://icarus.finance/"
           target="_blank"
           rel="noreferrer"
         >
           Open Icarus to swap
-        </a>
+        </a>}
       </section>
     );
   }
@@ -190,8 +191,7 @@ export function TradePanel({
         </button>
       </div>
 
-      {token.pending && <p className="notice" role="status">Graduation is ready. Anyone can create the Icarus pool. Selling remains available until then.</p>}
-      {!token.pending && (token.progress ?? 0) >= 100 && side === "buy" && <p className="notice" role="status">This curve is sold out. Buying will resume in the graduated pool; selling remains available for now.</p>}
+      {(token.pending || (token.progress ?? 0) >= 100) && <p className="notice" role="status">Bonding is complete. The pool is being prepared; selling remains available until graduation is confirmed.</p>}
       {!hasBetaAccess && side === "buy" && publicOpen === false && invited === false && <p className="notice" role="status">This deployed factory is still invite-only. Selling remains open.</p>}
 
       <div className="amount-head">

@@ -26,11 +26,7 @@ contract CurveFactoryFeeController is Ownable2Step {
     function setTradingFeeBps(uint16 newFee) external onlyFeeEditor {
         require(factory.owner() == address(this), "controller is not factory owner");
         factory.setFeeDefaults(
-            newFee,
-            factory.creatorShareBps(),
-            factory.buybackShareBps(),
-            factory.creatorTaxCapBps(),
-            factory.treasury()
+            newFee, factory.creatorShareBps(), factory.buybackShareBps(), factory.creatorTaxCapBps(), factory.treasury()
         );
     }
 

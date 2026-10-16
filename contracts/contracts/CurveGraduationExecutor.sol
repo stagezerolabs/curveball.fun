@@ -14,14 +14,20 @@ contract CurveGraduationExecutor {
     address public immutable quote;
 
     constructor(address factory_, address icarusFactory_, address quote_, address locker_) {
-        require(factory_ != address(0) && icarusFactory_ != address(0) && quote_ != address(0) && locker_ != address(0), "bad dependency");
+        require(
+            factory_ != address(0) && icarusFactory_ != address(0) && quote_ != address(0) && locker_ != address(0),
+            "bad dependency"
+        );
         factory = factory_;
         icarusFactory = IIcarusFactory(icarusFactory_);
         quote = quote_;
         locker = CurveLpLocker(locker_);
     }
 
-    function execute(address token, address curve, address creator) external returns (address pool, uint256 liquidity, uint256 quoteLiquidity) {
+    function execute(address token, address curve, address creator)
+        external
+        returns (address pool, uint256 liquidity, uint256 quoteLiquidity)
+    {
         require(msg.sender == factory, "factory only");
         pool = icarusFactory.getPool(token, quote, false);
         if (pool == address(0)) pool = icarusFactory.createPool(token, quote, false);

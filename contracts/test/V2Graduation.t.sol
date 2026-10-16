@@ -15,8 +15,15 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract WrongPairFactory is IIcarusFactory {
     mapping(address => bool) public isPool;
-    function isPaused() external pure returns (bool) { return false; }
-    function getPool(address, address, bool) external pure returns (address) { return address(0); }
+
+    function isPaused() external pure returns (bool) {
+        return false;
+    }
+
+    function getPool(address, address, bool) external pure returns (address) {
+        return address(0);
+    }
+
     function createPool(address, address quote, bool) external returns (address pool) {
         pool = address(new MockPool(quote, address(0xBAD)));
         isPool[pool] = true;
@@ -95,10 +102,12 @@ contract V2GraduationTest is TestBase {
     }
 
     function _market(address icarus)
-        private returns (MockWETH quote, CurveLaunchFactory factory, CurveLauncherToken token, CurveBondingCurve curve)
+        private
+        returns (MockWETH quote, CurveLaunchFactory factory, CurveLauncherToken token, CurveBondingCurve curve)
     {
         quote = new MockWETH();
-        factory = CurveV2Deployment.deploy(address(quote), icarus, address(this), 1_000_000 ether, 800_000 ether, 10 ether);
+        factory =
+            CurveV2Deployment.deploy(address(quote), icarus, address(this), 1_000_000 ether, 800_000 ether, 10 ether);
         vm.prank(TRADER);
         (address t, address c) = factory.createToken("V2", "V2", "", 0);
         token = CurveLauncherToken(t);

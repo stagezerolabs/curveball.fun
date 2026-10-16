@@ -393,35 +393,6 @@ export const useStore = create(persist((set, get) => ({
     finally { endAction(); }
   },
 
-  advanceGraduation: async (token) => {
-    const { startAction, endAction, handleActionError } = get();
-    startAction();
-    try {
-      const sdk = sdkForMarket(token.factory);
-      const result = await sdk.graduateToIcarus(token.address);
-      const poolSuffix = result.pool ? ` — Icarus pool ${result.pool}` : ".";
-      const tradeMessage = result.status === "deferred"
-        ? result.deferredReason
-          ? `Graduation deferred: ${result.deferredReason}. Trading remains open; try again later.`
-          : "Graduation deferred. Trading remains open; try again later."
-        : result.already
-          ? `This market already graduated${poolSuffix}`
-          : `Graduated to Icarus${poolSuffix}`;
-      set((state) => ({
-        tradeMessage,
-        marketsFetchedAt: 0,
-        tokenFetchedAt: {
-          ...state.tokenFetchedAt,
-          [cacheKey(token.address)]: 0,
-        },
-      }));
-    } catch (error) {
-      handleActionError(error);
-    } finally {
-      endAction();
-    }
-  },
-
   startAction: () =>
     set({ isPending: true, actionError: "", tradeMessage: "", tradeProgress: null }),
   endAction: () => set({ isPending: false, tradeProgress: null }),

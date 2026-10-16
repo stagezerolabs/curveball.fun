@@ -36,8 +36,8 @@ export function StatsPage({ navigate }: { navigate: Navigate }) {
       <section aria-label="Protocol totals">
         <dl className="protocol-stats-grid" aria-busy={loading || claimLoading}>
           <div><dt>Tokens created</dt><dd>{loading ? "…" : data ? total.toLocaleString() : "—"}</dd><small>From this factory</small></div>
-          <div><dt>Live curves</dt><dd>{loading ? "…" : data ? live.toLocaleString() : "—"}</dd><small>Not yet graduated</small></div>
-          <div><dt>Graduated markets</dt><dd>{loading ? "…" : data ? graduated.toLocaleString() : "—"}</dd><small>Icarus pool created</small></div>
+          <div><dt>Not yet graduated</dt><dd>{loading ? "…" : data ? live.toLocaleString() : "—"}</dd><small>Includes completed bonding curves</small></div>
+          <div><dt>Graduated markets</dt><dd>{loading ? "…" : data ? graduated.toLocaleString() : "—"}</dd><small>Pool created</small></div>
           <div><dt>Curve fees claimed by creators</dt><dd>{claimLoading ? "…" : claimed ?? "—"}<span className="protocol-stats-unit">{claimed !== null ? " WETH" : ""}</span></dd><small>Confirmed escrow claims</small></div>
         </dl>
       </section>
@@ -51,7 +51,7 @@ export function StatsPage({ navigate }: { navigate: Navigate }) {
           <div className="protocol-stats-track" role="progressbar" aria-label="Share of launched markets graduated" aria-valuenow={data ? Number(graduationRate.toFixed(1)) : undefined} aria-valuemin={0} aria-valuemax={100}>
             <span style={{ width: `${graduationRate}%` }} />
           </div>
-          <p>{data ? `${graduated} of ${total} launches have completed graduation.` : "Launch data is unavailable."} A market graduates after its curve sells out and an Icarus pool is created.</p>
+          <p>{data ? `${graduated} of ${total} launches have completed graduation.` : "Launch data is unavailable."} A market graduates after its curve sells out and a pool is created at its selected venue.</p>
         </section>
 
         <section className="protocol-stats-recent" aria-labelledby="stats-recent-title">
@@ -65,7 +65,7 @@ export function StatsPage({ navigate }: { navigate: Navigate }) {
                 <li key={token.address}>
                   <AppLink route="market" params={{ address: token.address }} navigate={navigate}>
                     <span><strong>{token.name || formatAddress(token.address)}</strong><small>{token.symbol ? `$${token.symbol}` : formatAddress(token.address)}</small></span>
-                    <span className={token.graduated ? "protocol-stats-status graduated" : "protocol-stats-status"}>{token.graduated ? "Graduated" : "On the curve"}</span>
+                    <span className={token.graduated ? "protocol-stats-status graduated" : "protocol-stats-status"}>{token.graduated ? "Graduated" : "Not graduated"}</span>
                     <span aria-hidden="true">↗</span>
                   </AppLink>
                 </li>

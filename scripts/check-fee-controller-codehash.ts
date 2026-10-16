@@ -2,13 +2,13 @@ import { readFileSync } from "node:fs";
 import { keccak256, type Hex } from "viem";
 import { FEE_CONTROLLER_CODE_HASH, V21_FEE_CONTROLLER_CODE_HASH } from "../src/lib/feeControllerCodeHash";
 
-// The old controller remains deployed with FEE_CONTROLLER_CODE_HASH. Recompiling
-// against the reserve-enabled factory changes Solidity's metadata hash, so the
-// current source build has its own pin while the live code pin stays unchanged.
-const CURRENT_SOURCE_CODE_HASH = "0x52f788e87cd2dad777103fd066cf66569f571fbfd1cd899cfd92aa183e8ff597";
+// Live controller code hashes stay pinned in the UI. Recompiling against the
+// changed factory updates Solidity metadata, so source builds have separate pins.
+const CURRENT_SOURCE_CODE_HASH = "0x3dedac614dce85cda02816bd7cfa52c1eb58a9a15e370a4580dae109a57dc689";
+const CURRENT_SOURCE_V21_CODE_HASH = "0xe21bd1e1e6985a2104cc7f8a7968d70e6753cb58cff3e581327090d71336802a";
 const factories = [
   ["0xD0f0cf4fd5Aa9D391477B3B9CF3B77Dc96705056", CURRENT_SOURCE_CODE_HASH],
-  ["0x6c12CCE962944EbB6A28536eD23baeFAa15c79cD", V21_FEE_CONTROLLER_CODE_HASH],
+  ["0x6c12CCE962944EbB6A28536eD23baeFAa15c79cD", CURRENT_SOURCE_V21_CODE_HASH],
 ] as const;
 const artifact = JSON.parse(readFileSync(new URL("../contracts/out/CurveFactoryFeeController.sol/CurveFactoryFeeController.json", import.meta.url), "utf8"));
 for (const [factory, expected] of factories) {

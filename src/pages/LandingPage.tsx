@@ -144,7 +144,7 @@ export function LandingPage({ navigate }: { navigate: Navigate }) {
           <article>
             <span className="landing-step-number">03</span>
             <h3>Graduate</h3>
-            <p>When the curve sells out, liquidity moves to an open pool so trading can continue.</p>
+            <p>When the curve sells out, liquidity moves to that market's selected venue.</p>
           </article>
         </div>
       </section>
@@ -158,7 +158,7 @@ export function LandingPage({ navigate }: { navigate: Navigate }) {
           <details><summary>How does the market work?</summary><p>Each token starts on its own curve. Buyers trade WETH for tokens, sellers trade tokens for WETH, and the price moves with each trade. Market progress shows how much of the curve supply has sold.</p></details>
           <details><summary>What do creators choose at launch?</summary><p>A name, ticker, artwork, and optional initial buy. The launch form shows any creator tax and launch fee before your wallet confirms.</p></details>
           <details><summary>Where do trading fees go?</summary><p>Curve fees are split between the creator, buyback vault, and protocol treasury. Each market shows its exact fee and split; buybacks happen separately from trades.</p></details>
-          <details><summary>What happens after the curve sells out?</summary><p>Anyone can start graduation. Once the pool is ready, remaining tokens and WETH move to Icarus so trading can continue. If pool checks fail, graduation can be retried.</p></details>
+          <details><summary>What happens after the curve sells out?</summary><p>Bonding completes and the backend keeper prepares the venue pool. Remaining tokens and WETH move to the venue selected when the token launched. The pool address appears on the market page after confirmation. Mock venues let us test graduation but do not offer swaps.</p></details>
           <details><summary>Do I need WETH to buy or launch?</summary><p>Curve markets use WETH. The app can wrap ETH for a buy or a paid launch and will ask for wallet approval when required. Keep some ETH for network gas.</p></details>
         </div>
       </section>

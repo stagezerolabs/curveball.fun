@@ -2,6 +2,7 @@ import { AppLink } from "./Navigation";
 import { TokenAvatar } from "./TokenAvatar";
 import { UsdAmount } from "./UsdAmount";
 import { formatAddress, formatPercent } from "../lib/format.js";
+import { getMarketDisplayStatus } from "../lib/marketState";
 import type { Navigate, Token } from "../types";
 
 export function DiscoveryCard({
@@ -14,6 +15,7 @@ export function DiscoveryCard({
   navigate: Navigate;
 }) {
   const progress = token.graduated ? 100 : Math.min(100, Math.max(0, token.progress ?? 0));
+  const status = getMarketDisplayStatus(token);
 
   return (
     <li>
@@ -25,8 +27,8 @@ export function DiscoveryCard({
       >
         <span className="discovery-card-art">
           <TokenAvatar token={token} index={index} />
-          <span className={`discovery-card-status ${token.graduated ? "graduated" : ""}`}>
-            {token.graduated ? "Graduated" : "Live"}
+          <span className={`discovery-card-status ${status.kind}`}>
+            {status.label}
           </span>
         </span>
         <span className="discovery-card-info">

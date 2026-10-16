@@ -26,7 +26,11 @@ contract HolderReserveTest is TestBase {
         assertEq(factory.reserveBps(token), 0, "wrong zero setting");
         vm.prank(CREATOR);
         (address partialToken,) = factory.createToken("Partial", "PART", "", 0, 250);
-        assertEq(CurveLauncherToken(partialToken).balanceOf(address(factory.holderReserve())), 25_000 ether, "wrong partial reserve");
+        assertEq(
+            CurveLauncherToken(partialToken).balanceOf(address(factory.holderReserve())),
+            25_000 ether,
+            "wrong partial reserve"
+        );
     }
 
     function testSnapshotRoundsAndPermissionlessClaims() external {
@@ -73,8 +77,16 @@ contract HolderReserveTest is TestBase {
         vm.roll(block.number + 1);
         vm.prank(CREATOR);
         uint256 second = reserve.createRound(tokenAddress, secondSnapshot, 30_000 ether);
-        assertEq(reserve.claimable(tokenAddress, second, HOLDER), uint256(30_000 ether) * 420_000 / 820_000, "holder split wrong");
-        assertEq(reserve.claimable(tokenAddress, second, OTHER), uint256(30_000 ether) * 400_000 / 820_000, "other split wrong");
+        assertEq(
+            reserve.claimable(tokenAddress, second, HOLDER),
+            uint256(30_000 ether) * 420_000 / 820_000,
+            "holder split wrong"
+        );
+        assertEq(
+            reserve.claimable(tokenAddress, second, OTHER),
+            uint256(30_000 ether) * 400_000 / 820_000,
+            "other split wrong"
+        );
         assertEq(reserve.claimable(tokenAddress, second, pool), 0, "pool can claim");
         assertEq(reserve.claimable(tokenAddress, second, address(reserve)), 0, "reserve can claim");
         vm.prank(CREATOR);
@@ -87,6 +99,8 @@ contract HolderReserveTest is TestBase {
 
     function _factory() private returns (CurveLaunchFactory factory, MockWETH quote) {
         quote = new MockWETH();
-        factory = CurveV2Deployment.deploy(address(quote), address(new MockIcarusFactory()), address(this), 1_000_000 ether, 800_000 ether, 10 ether);
+        factory = CurveV2Deployment.deploy(
+            address(quote), address(new MockIcarusFactory()), address(this), 1_000_000 ether, 800_000 ether, 10 ether
+        );
     }
 }

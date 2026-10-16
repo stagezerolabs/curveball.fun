@@ -58,12 +58,14 @@ contract DeployPermissionlessV2 {
         vm.startBroadcast(deployer);
         CurveLaunchFeeTreasury feeTreasury = new CurveLaunchFeeTreasury(deployer);
         factory = CurveV2Deployment.deployWithFee(
-            quote, icarus, treasury, address(feeTreasury), LAUNCH_FEE,
-            1_000_000 ether, 800_000 ether, 10 ether
+            quote, icarus, treasury, address(feeTreasury), LAUNCH_FEE, 1_000_000 ether, 800_000 ether, 10 ether
         );
         vm.stopBroadcast();
         require(feeTreasury.owner() == deployer, "fee treasury authority mismatch");
-        require(factory.launchFee() == LAUNCH_FEE && factory.launchFeeTreasury() == address(feeTreasury), "launch fee mismatch");
+        require(
+            factory.launchFee() == LAUNCH_FEE && factory.launchFeeTreasury() == address(feeTreasury),
+            "launch fee mismatch"
+        );
         require(factory.owner() == deployer && factory.treasury() == treasury, "factory authority mismatch");
         require(factory.quote() == quote && factory.icarusFactory() == icarus, "factory dependencies mismatch");
         require(

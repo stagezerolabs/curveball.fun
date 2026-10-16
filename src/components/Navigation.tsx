@@ -1,9 +1,9 @@
-import { forwardRef, useEffect, useState } from "react";
+import { forwardRef, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useQuery } from "@tanstack/react-query";
+import { usePublicClient } from "wagmi";
 import type { AnchorHTMLAttributes, MouseEvent, ReactNode } from "react";
 import type { Address } from "viem";
-import { NavSearch } from "./NavSearch";
 import { routeHref } from "../app/routeTree";
 import { formatAddress } from "../lib/format.js";
 import type { Navigate } from "../types";
@@ -11,6 +11,12 @@ import { activeExplorerUrl, launchpadAddress } from "../lib/web3";
 import { fetchRnsPrimaryName } from "../lib/rnsPrimary";
 import type { Theme } from "../lib/theme";
 import { ADMIN_ADDRESS } from "../lib/adminFees";
+import { useStore } from "../app/useStore.js";
+import { activeChainId } from "../lib/web3";
+import type { CreatorTokenClient } from "../creatorTokens";
+import type { Token } from "../types";
+
+const RISK_NOTICE_DISMISSED_KEY = "curveball:risk-notice-dismissed";
 
 type AppLinkProps = AnchorHTMLAttributes<HTMLAnchorElement> & {
   route: string;
@@ -144,6 +150,58 @@ function WalletNavButton({ address, displayName }: { address?: Address; displayN
   </ConnectButton.Custom>;
 }
 
+function HeaderSearch({ navigate }: { navigate: Navigate }) {
+  const client = usePublicClient({ chainId: activeChainId });
+  const { tokens, loadMarkets } = useStore() as {
+    tokens: Token[];
+    loadMarkets: (client?: CreatorTokenClient) => Promise<Token[]>;
+  };
+  const [query, setQuery] = useState("");
+  const [focused, setFocused] = useState(false);
+  const results = query.trim()
+    ? tokens.filter((token) => `${token.name} ${token.symbol} ${token.address}`.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 6)
+    : [];
+  const select = (token: Token) => {
+    setQuery("");
+    setFocused(false);
+    navigate("market", { address: token.address });
+  };
+
+  return (
+    <div className="header-search" onBlur={(event) => {
+      if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false);
+    }}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+        <circle cx="10.5" cy="10.5" r="6.5" /><path d="m15.5 15.5 5 5" />
+      </svg>
+      <input
+        type="search"
+        aria-label="Search coins"
+        placeholder="Search coins"
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        onFocus={() => {
+          setFocused(true);
+          void loadMarkets(client as unknown as CreatorTokenClient | undefined).catch(() => undefined);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") { setFocused(false); event.currentTarget.blur(); }
+          if (event.key === "Enter" && results[0]) select(results[0]);
+        }}
+      />
+      {focused && query.trim() && (
+        <div className="header-search-results" role="status">
+          {results.length ? results.map((token) => (
+            <button key={token.address} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => select(token)}>
+              <strong>{token.name}</strong><span>${token.symbol}</span>
+            </button>
+          )) : <p>No matching coins</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Header({
   address,
   navigate,
@@ -158,6 +216,49 @@ export function Header({
   onThemeToggle: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [announcementVisible, setAnnouncementVisible] = useState(() => {
+    try {
+      return window.sessionStorage.getItem(RISK_NOTICE_DISMISSED_KEY) !== "true";
+    } catch {
+      return true;
+    }
+  });
+  const primaryNavRef = useRef<HTMLElement>(null);
+  const activePillRef = useRef<HTMLSpanElement>(null);
+  const pillReadyRef = useRef(false);
+
+  useLayoutEffect(() => {
+    const nav = primaryNavRef.current;
+    const pill = activePillRef.current;
+    if (!nav || !pill) return;
+    const positionPill = () => {
+      const selected = nav.querySelector<HTMLElement>(".nav-link.active");
+      if (!selected || nav.clientWidth === 0) {
+        pill.style.opacity = "0";
+        return;
+      }
+      const navBox = nav.getBoundingClientRect();
+      const selectedBox = selected.getBoundingClientRect();
+      pill.style.width = `${selectedBox.width}px`;
+      pill.style.height = `${selectedBox.height}px`;
+      pill.style.transform = `translate3d(${selectedBox.left - navBox.left}px, ${selectedBox.top - navBox.top}px, 0)`;
+      pill.style.opacity = "1";
+    };
+    if (!pillReadyRef.current) pill.style.transition = "none";
+    positionPill();
+    const frame = requestAnimationFrame(() => {
+      pill.style.removeProperty("transition");
+      pillReadyRef.current = true;
+    });
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(positionPill);
+    observer?.observe(nav);
+    window.addEventListener("resize", positionPill);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer?.disconnect();
+      window.removeEventListener("resize", positionPill);
+    };
+  }, [routeId, address]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -171,6 +272,12 @@ export function Header({
   const go: Navigate = (route, params) => {
     setMenuOpen(false);
     navigate(route, params);
+  };
+  const dismissAnnouncement = () => {
+    setAnnouncementVisible(false);
+    try {
+      window.sessionStorage.setItem(RISK_NOTICE_DISMISSED_KEY, "true");
+    } catch { /* The notice stays hidden until this page is reloaded. */ }
   };
   const marketsClass = ["markets", "market"].includes(routeId) ? "active" : "";
   const statsClass = routeId === "stats" ? "active" : "";
@@ -202,15 +309,26 @@ export function Header({
 
   return (
     <>
+      {announcementVisible && <aside className="announcement-bar" aria-label="Trading risk notice">
+        <div className="announcement-inner">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" strokeLinecap="round" aria-hidden="true"><path d="M12 3 22 20H2L12 3Z" /><path d="M12 9v5" /><circle cx="12" cy="17" r=".8" fill="currentColor" stroke="none" /></svg>
+          <p><span className="announcement-desktop-copy">Coin prices can move fast. Trade carefully and only risk what you can afford to lose.</span><span className="announcement-mobile-copy">Prices move fast. Trade carefully.</span></p>
+          <button className="announcement-close" type="button" aria-label="Dismiss announcement" onClick={dismissAnnouncement}>×</button>
+        </div>
+      </aside>}
       <header className="nav wrap">
         <Brand navigate={go} />
-        <nav className="nav-primary" aria-label="Main navigation">
-          {primaryLinks}
+        <HeaderSearch navigate={go} />
+        <nav ref={primaryNavRef} className="nav-primary" aria-label="Main navigation">
+          <span ref={activePillRef} className="nav-active-pill" aria-hidden="true" />
+          <AppLink className={`nav-link ${marketsClass}`} route="markets" navigate={go} aria-current={marketsClass ? "page" : undefined}>Explore</AppLink>
+          <AppLink className={`nav-link ${statsClass}`} route="stats" navigate={go} aria-current={statsClass ? "page" : undefined}>Stats</AppLink>
+          {address?.toLowerCase() === ADMIN_ADDRESS.toLowerCase() && <AppLink className={`nav-link ${adminClass}`} route="admin" navigate={go} aria-current={adminClass ? "page" : undefined}>Admin</AppLink>}
         </nav>
         <div className="nav-actions">
-          <NavSearch navigate={go} />
           <ThemeToggle theme={theme} onToggle={onThemeToggle} />
-          <AppLink className="nav-create" route="launch" navigate={go}>Create token</AppLink>
+          <AppLink className="nav-create" route="launch" navigate={go} aria-current={routeId === "launch" ? "page" : undefined}><span aria-hidden="true">＋</span> Create</AppLink>
+          <AppLink className="nav-profile" route="profile" navigate={go} aria-label="Profile" aria-current={profileClass ? "page" : undefined} title="Profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5" /><path d="M5.5 20a6.5 6.5 0 0 1 13 0" /></svg></AppLink>
           <WalletNavButton address={address} displayName={address ? `${address.slice(0, 5)}…${address.slice(-4)}` : null} />
         </div>
         <button

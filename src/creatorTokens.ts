@@ -1,6 +1,6 @@
 import { formatEther, getAddress, zeroAddress, type Address } from "viem";
-import { v2CurveAbi, v2FactoryAbi } from "./sdk/v2Contracts";
-import { activeDeploymentBlock, launchpadAddress, legacyFactories } from "./lib/web3";
+import { v1VenueAbi, v2CurveAbi, v2FactoryAbi } from "./sdk/v2Contracts";
+import { activeDeploymentBlock, activeFactoryVersion, launchpadAddress } from "./lib/web3";
 import { buildBlockRanges } from "./lib/marketChart";
 import type { Token } from "./types";
 
@@ -54,15 +54,9 @@ async function discoverTokens(
   onFactoryTokens?: (tokens: Token[]) => void,
 ): Promise<Token[]> {
   if (!launchpadAddress) return [];
-  const deployments = [{ address: launchpadAddress, deploymentBlock: activeDeploymentBlock }, ...legacyFactories];
-  const scanFactory = async (deployment: typeof deployments[number]) => {
-    const tokens = await discoverTokensForFactory(client, deployment.address, deployment.deploymentBlock, args);
-    onFactoryTokens?.(tokens);
-    return tokens;
-  };
-  const current = await scanFactory(deployments[0]);
-  const legacyBatches = await Promise.all(deployments.slice(1).map(scanFactory));
-  return [current, ...legacyBatches].flat().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const tokens = await discoverTokensForFactory(client, launchpadAddress, activeDeploymentBlock, args);
+  onFactoryTokens?.(tokens);
+  return tokens.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
 async function discoverTokensForFactory(
@@ -93,19 +87,11 @@ async function discoverTokensForFactory(
   }));
   if (!logs.length) return [];
 
-  const [curveSupply, supply, initialVQ] = await Promise.all([
+  const [curveSupply, supply] = await Promise.all([
     client.readContract({ address: factoryAddress, abi: v2FactoryAbi, functionName: "curveSupply" }) as Promise<bigint>,
     client.readContract({ address: factoryAddress, abi: v2FactoryAbi, functionName: "supply" }) as Promise<bigint>,
-    client.readContract({ address: factoryAddress, abi: v2FactoryAbi, functionName: "initialVQ" }) as Promise<bigint>,
   ]);
   const terminalVirtualToken = supply - curveSupply;
-  const invariant = supply * initialVQ;
-  const terminalVirtualQuote = terminalVirtualToken === 0n
-    ? 0n
-    : (invariant + terminalVirtualToken - 1n) / terminalVirtualToken;
-  const targetPrice = terminalVirtualToken === 0n
-    ? null
-    : Number(formatEther(terminalVirtualQuote)) / Number(formatEther(terminalVirtualToken));
 
   const tokens = await Promise.all(
     logs.map(async (log) => {
@@ -120,15 +106,24 @@ async function discoverTokensForFactory(
       ]);
       const curve = market[0];
       if (curve === zeroAddress || (log.args?.curve && getAddress(log.args.curve) !== getAddress(curve))) throw new Error("Launch event does not match factory market.");
-      const [sold, ready, graduated, pool, virtualQuote, virtualToken] = await Promise.all([
+      const isV1 = activeFactoryVersion === "V1" && factoryAddress.toLowerCase() === launchpadAddress?.toLowerCase();
+      const [sold, ready, graduated, pool, virtualQuote, virtualToken, initialVQ, venue] = await Promise.all([
         client.readContract({ address: curve, abi: v2CurveAbi, functionName: "sold" }) as Promise<bigint>,
         client.readContract({ address: curve, abi: v2CurveAbi, functionName: "ready" }) as Promise<boolean>,
         client.readContract({ address: curve, abi: v2CurveAbi, functionName: "graduated" }) as Promise<boolean>,
         client.readContract({ address: curve, abi: v2CurveAbi, functionName: "pool" }) as Promise<Address>,
         client.readContract({ address: curve, abi: v2CurveAbi, functionName: "virtualQuote" }) as Promise<bigint>,
         client.readContract({ address: curve, abi: v2CurveAbi, functionName: "virtualToken" }) as Promise<bigint>,
+        client.readContract({ address: curve, abi: v2CurveAbi, functionName: "initialVQ" }) as Promise<bigint>,
+        isV1 ? client.readContract({ address: factoryAddress, abi: v2FactoryAbi, functionName: "venueOf", args: [token] }) as Promise<Address> : Promise.resolve(zeroAddress),
       ]);
+      const mockVenue = venue === zeroAddress ? false
+        : await client.readContract({ address: venue, abi: v1VenueAbi, functionName: "isMock" }) as boolean;
       const price = virtualToken === 0n ? null : Number(formatEther(virtualQuote)) / Number(formatEther(virtualToken));
+      const terminalVirtualQuote = terminalVirtualToken === 0n ? 0n
+        : (supply * initialVQ + terminalVirtualToken - 1n) / terminalVirtualToken;
+      const targetPrice = terminalVirtualToken === 0n ? null
+        : Number(formatEther(terminalVirtualQuote)) / Number(formatEther(terminalVirtualToken));
       return {
         address: getAddress(token), factory: factoryAddress, creator: getAddress(eventCreator), name, symbol, graduated,
         metadataUri: uri ?? null,
@@ -137,7 +132,9 @@ async function discoverTokensForFactory(
         createdBlock: log.blockNumber.toString(),
         progress: curveSupply === 0n ? 0 : Number((sold * 10_000n) / curveSupply) / 100,
         price, targetPrice, marketCap: price === null ? null : price * Number(formatEther(supply)),
+        graduationTargetWeth: terminalVirtualToken === 0n ? null : formatEther(initialVQ * curveSupply / terminalVirtualToken),
         pool: pool === zeroAddress ? null : getAddress(pool), quoteSymbol: "WETH",
+        mockVenue,
       } satisfies Token;
     }),
   );

@@ -5,8 +5,10 @@ import {
   formatRelativeTime,
 } from "../lib/format.js";
 import type { Token } from "../types";
+import { getMarketDisplayStatus } from "../lib/marketState";
 import { activeExplorerUrl, factoryVersion } from "../lib/web3";
 import { UsdAmount } from "./UsdAmount";
+import type { MarketPriceChange } from "../lib/marketChart";
 
 const EXPLORER = `${activeExplorerUrl}/address/`;
 
@@ -71,9 +73,15 @@ function Socials({ token }: { token: Token }) {
   );
 }
 
-export function MarketHeader({ token }: { token: Token }) {
+export function MarketHeader({ token, priceChange }: { token: Token; priceChange?: MarketPriceChange | null }) {
   const quoteSymbol = token.quoteSymbol ?? "WETH";
   const soldPercent = token.graduated ? 100 : Math.min(100, Math.max(0, token.progress ?? 0));
+  const status = getMarketDisplayStatus(token);
+  const direction = priceChange?.percent == null ? "unavailable" : priceChange.percent > 0 ? "up" : priceChange.percent < 0 ? "down" : "flat";
+  const magnitude = Math.abs(priceChange?.percent ?? 0);
+  const formattedChange = magnitude > 0 && magnitude < 0.01
+    ? "<0.01"
+    : magnitude.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return (
     <header className="market-header">
       <div className="market-header-left">
@@ -85,8 +93,8 @@ export function MarketHeader({ token }: { token: Token }) {
                 <h1>{token.name}</h1>
                 <span className="market-ticker">${token.symbol}</span>
                 <span className="market-data-chip" title="Factory release">{factoryVersion(token.factory)}</span>
-                <span className={`market-status ${token.graduated ? "graduated" : token.pending ? "pending" : "live"}`}>
-                  {token.graduated ? "Graduated" : token.pending ? "Pending" : "live"}
+                <span className={`market-status ${status.kind}`}>
+                  {status.label}
                 </span>
               </div>
               <div className="market-identity-row">
@@ -98,7 +106,15 @@ export function MarketHeader({ token }: { token: Token }) {
                   <span className="market-data-chip">Creator tax <strong>{(token.creatorTaxBps / 100).toFixed(2)}%</strong></span>
                 )}
               </div>
-              <p className="market-identity-price"><span className="visually-hidden">Price: </span><UsdAmount weth={token.price} /></p>
+              <div className="market-price-row">
+                <p className="market-identity-price"><span className="visually-hidden">Price: </span><UsdAmount weth={token.price} /></p>
+                <span
+                  className={`market-price-change ${direction}`}
+                  aria-label={priceChange ? `Price ${direction} ${formattedChange} percent ${priceChange.period === "24h" ? "in the last 24 hours" : "since the first trade"}` : "Price change unavailable until trade history loads"}
+                >
+                  <strong aria-hidden="true">{direction === "up" ? "↗ " : direction === "down" ? "↘ " : direction === "flat" ? "→ " : ""}{priceChange ? `${formattedChange}%` : "—"}</strong>
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -132,7 +148,7 @@ export function MarketHeader({ token }: { token: Token }) {
             <dt>Bonding status</dt>
             <dd>{token.graduated ? "100%" : formatPercent(token.progress)}</dd>
             <dd className="market-stat-progress-track"><progress aria-label="Curve sold" value={soldPercent} max={100} /></dd>
-            <dd className="market-stat-note">{token.graduated ? "Graduated" : "To graduation"}</dd>
+            <dd className="market-stat-note">{status.kind === "live" ? "To graduation" : status.label}</dd>
           </div>
         </dl>
       </div>

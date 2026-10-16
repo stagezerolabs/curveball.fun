@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useAccount, useSwitchChain } from "wagmi";
-import { formatUnits, getAddress, zeroAddress, type Address, type Hash } from "viem";
+import { readContract, simulateContract, waitForTransactionReceipt, writeContract } from "wagmi/actions";
+import { formatEther, formatUnits, getAddress, parseEther, zeroAddress, type Address, type Hash } from "viem";
 import { ADMIN_ADDRESS, SUPER_ADMIN_ADDRESS, feePercentToBps, nominateFeeController, readFactoryFunds, readFeeDefaults, submitFeeUpdate, type FactoryFunds, type FeeAuthority } from "../lib/adminFees";
 import { readableError } from "../lib/errors";
 import { formatAddress } from "../lib/format.js";
-import { activeChainId, activeExplorerUrl, launchpadAddress, wagmiConfig } from "../lib/web3";
+import { activeChainId, activeExplorerUrl, activeFactoryVersion, launchpadAddress, wagmiConfig } from "../lib/web3";
+import { v2FactoryAbi } from "../sdk/v2Contracts";
 import { RISE_TESTNET_CHAIN_ID } from "../sdk/curveballSdk";
 
 type Settings = FeeAuthority;
@@ -73,8 +75,14 @@ export function AdminPage() {
   const [fieldError, setFieldError] = useState("");
   const [message, setMessage] = useState("");
   const [hash, setHash] = useState<Hash | null>(null);
+  const [target, setTarget] = useState<bigint | null>(null);
+  const [targetDraft, setTargetDraft] = useState("");
+  const [targetReview, setTargetReview] = useState<bigint | null>(null);
+  const [targetError, setTargetError] = useState("");
   const configured = activeChainId === RISE_TESTNET_CHAIN_ID && Boolean(launchpadAddress);
-  const isAdmin = address?.toLowerCase() === ADMIN_ADDRESS.toLowerCase() || address?.toLowerCase() === SUPER_ADMIN_ADDRESS.toLowerCase();
+  const isAdmin = address?.toLowerCase() === settings?.owner.toLowerCase()
+    || address?.toLowerCase() === ADMIN_ADDRESS.toLowerCase()
+    || address?.toLowerCase() === SUPER_ADMIN_ADDRESS.toLowerCase();
   const correctChain = chainId === activeChainId;
 
   const refresh = useCallback(async (resetDraft = false) => {
@@ -88,6 +96,11 @@ export function AdminPage() {
       setSettings(latest);
       setFunds(latestFunds);
       if (resetDraft) setDraft((latest.feeBps / 100).toFixed(2));
+      if (activeFactoryVersion === "V1") {
+        const nextTarget = await readContract(wagmiConfig, { address: launchpadAddress, abi: v2FactoryAbi, functionName: "graduationTarget", chainId: activeChainId });
+        setTarget(nextTarget);
+        if (resetDraft) setTargetDraft(formatEther(nextTarget));
+      }
       setError("");
     } catch (cause) {
       setError(readableError(cause, "Could not read factory settings or balances."));
@@ -153,11 +166,36 @@ export function AdminPage() {
     } finally { setPending(false); }
   };
 
+  const runTarget = async () => {
+    if (!launchpadAddress || !address || targetReview === null || pending) return;
+    setPending(true);
+    setHash(null);
+    setError("");
+    setMessage("Confirm the graduation target update in your wallet.");
+    try {
+      const simulation = await simulateContract(wagmiConfig, {
+        address: launchpadAddress, abi: v2FactoryAbi, functionName: "setGraduationTarget",
+        args: [targetReview], account: address, chainId: activeChainId,
+      });
+      const tx = await writeContract(wagmiConfig, simulation.request);
+      setHash(tx);
+      const receipt = await waitForTransactionReceipt(wagmiConfig, { hash: tx, chainId: activeChainId });
+      if (receipt.status !== "success") throw new Error("Graduation target transaction reverted.");
+      setTarget(targetReview);
+      setTargetDraft(formatEther(targetReview));
+      setTargetReview(null);
+      setMessage("Graduation target updated for future launches.");
+    } catch (cause) {
+      setError(readableError(cause, "Graduation target update failed."));
+      setMessage("");
+    } finally { setPending(false); }
+  };
+
   return <main className="page-main admin-page wrap">
     <h1 className="visually-hidden">Admin controls</h1>
     {!address ? <section className="admin-panel admin-state"><h2>Connect your wallet</h2><p>Connect the admin wallet to manage the factory fee.</p><button type="button" className="primary-button" onClick={() => openConnectModal?.()}>Connect wallet</button></section>
       : !isAdmin ? <section className="admin-panel admin-state"><h2>Access restricted</h2><p>This dashboard is available to the designated fee admin or dot wallet.</p></section>
-      : !configured ? <section className="admin-panel admin-state"><h2>Factory unavailable</h2><p>Configure the active V2 factory before managing fees.</p></section>
+      : !configured ? <section className="admin-panel admin-state"><h2>Factory unavailable</h2><p>Configure the active factory before managing settings.</p></section>
       : <>
         {!correctChain && <div className="notice admin-notice" role="status">Switch to the configured network to submit transactions. <button type="button" onClick={() => switchChain({ chainId: activeChainId })}>Switch network</button></div>}
         {error && <p className="notice admin-notice" role="alert">{error}</p>}
@@ -165,6 +203,25 @@ export function AdminPage() {
         {loading && !settings ? <section className="admin-panel admin-state" aria-busy="true">Reading factory settings…</section>
           : settings && <>
           <div className="admin-grid">
+            {activeFactoryVersion === "V1" && target !== null && settings.owner.toLowerCase() === address.toLowerCase() && <section className="admin-panel admin-fee-panel" aria-labelledby="admin-target-title">
+              <div className="admin-panel-head"><h2 id="admin-target-title">Graduation target</h2><div className="admin-current-fee"><span>Current target</span><strong>{formatEther(target)} WETH</strong></div></div>
+              <p className="admin-description">Collected WETH sent to the pool when the curve sells out. Changes apply to future launches only.</p>
+              <form onSubmit={(event) => {
+                event.preventDefault();
+                try {
+                  const next = parseEther(targetDraft.trim());
+                  if (next <= 0n || next === target) throw new Error("Enter a new positive WETH amount.");
+                  setTargetReview(next);
+                  setTargetError("");
+                } catch (cause) { setTargetError(readableError(cause)); }
+              }}>
+                <label className="admin-label" htmlFor="admin-target">New graduation target in WETH</label>
+                <div className="admin-fee-input"><input id="admin-target" type="text" inputMode="decimal" value={targetDraft} disabled={pending || !correctChain} aria-invalid={Boolean(targetError)} aria-describedby={targetError ? "admin-target-error" : undefined} onChange={(event) => { setTargetDraft(event.target.value); setTargetReview(null); setTargetError(""); }} /><span>WETH</span></div>
+                {targetError && <p id="admin-target-error" className="notice" role="alert">{targetError}</p>}
+                {targetReview === null ? <button type="submit" className="primary-button" disabled={pending || !correctChain}>Review target</button>
+                  : <div className="admin-review"><p>Set the target for future launches to <strong>{formatEther(targetReview)} WETH</strong>?</p><div className="admin-actions"><button type="button" className="primary-button" disabled={pending || !correctChain} onClick={() => void runTarget()}>{pending ? "Waiting for confirmation…" : "Confirm in wallet"}</button><button type="button" className="admin-secondary" disabled={pending} onClick={() => setTargetReview(null)}>Cancel</button></div></div>}
+              </form>
+            </section>}
             <section className="admin-panel admin-fee-panel" aria-labelledby="admin-fee-title">
               <div className="admin-panel-head"><h2 id="admin-fee-title">Curve trading fee</h2><div className="admin-fee-metrics"><div className="admin-current-fee"><span>Current fee</span><strong>{(settings.feeBps / 100).toFixed(2)}%</strong></div><button type="button" className="market-refresh admin-refresh" disabled={pending || loading} aria-label={loading ? "Refreshing chain data" : "Refresh chain data"} aria-busy={loading} title={loading ? "Refreshing chain data" : "Refresh chain data"} onClick={() => void refresh(false)}><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M16.8 8A7 7 0 1 0 17 11" /><path d="M17 3.5V8h-4.5" /></svg></button></div></div>
               <p className="admin-description">Future launches only. Existing market fees stay fixed.</p>
@@ -176,7 +233,7 @@ export function AdminPage() {
                 {reviewBps === null ? <button type="submit" className="primary-button" disabled={pending || !correctChain || loading}>Review change</button>
                   : <div className="admin-review" role="group" aria-label="Review fee update"><p>Change future launch fees from <strong>{(settings.feeBps / 100).toFixed(2)}%</strong> to <strong>{(reviewBps / 100).toFixed(2)}%</strong>?</p><div className="admin-actions"><button ref={confirmRef} type="button" className="primary-button" disabled={pending || !correctChain} onClick={() => void run()}>{pending ? "Waiting for confirmation…" : "Confirm in wallet"}</button><button type="button" className="admin-secondary" disabled={pending} onClick={() => { setReviewBps(null); feeInputRef.current?.focus(); }}>Cancel</button></div></div>}
               </form> : <p className="admin-help">Fee editing unavailable for this wallet.</p>}
-              {settings.owner.toLowerCase() === address.toLowerCase() && (settings.pendingOwner === zeroAddress ? <form className="admin-controller-form" onSubmit={(event) => {
+              {activeFactoryVersion !== "V1" && settings.owner.toLowerCase() === address.toLowerCase() && (settings.pendingOwner === zeroAddress ? <form className="admin-controller-form" onSubmit={(event) => {
                 event.preventDefault();
                 try { setControllerReview(getAddress(controllerDraft.trim())); setControllerError(""); }
                 catch { setControllerError("Enter a valid controller contract address."); }

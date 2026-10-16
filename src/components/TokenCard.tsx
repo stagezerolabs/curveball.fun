@@ -6,6 +6,7 @@ import {
   formatPercent,
   formatRelativeTime,
 } from "../lib/format.js";
+import { getMarketDisplayStatus } from "../lib/marketState";
 import type { Navigate, Token } from "../types";
 
 export function TokenCard({
@@ -17,6 +18,7 @@ export function TokenCard({
   index: number;
   navigate: Navigate;
 }) {
+  const status = getMarketDisplayStatus(token);
   return (
     <li>
       <AppLink
@@ -34,8 +36,8 @@ export function TokenCard({
           {token.quoteSymbol && (
             <span className="tcard-paired">{token.quoteSymbol}</span>
           )}
-          <span className={`tcard-status ${token.graduated ? "graduated" : "live"}`}>
-            {token.graduated ? "Graduated" : "Live"}
+          <span className={`tcard-status ${status.kind}`}>
+            {status.label}
           </span>
         </span>
 

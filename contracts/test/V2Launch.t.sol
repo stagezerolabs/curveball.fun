@@ -22,11 +22,23 @@ contract V2LaunchTest is TestBase {
 
         assertEq(CurveLauncherToken(token).totalSupply(), SUPPLY, "wrong fixed supply");
         assertEq(CurveLauncherToken(token).balanceOf(curve), SUPPLY - 50_000 ether, "wrong curve allocation");
-        assertEq(CurveLauncherToken(token).balanceOf(address(factory.holderReserve())), 50_000 ether, "missing holder reserve");
+        assertEq(
+            CurveLauncherToken(token).balanceOf(address(factory.holderReserve())),
+            50_000 ether,
+            "missing holder reserve"
+        );
         assertEq(CurveLauncherToken(token).balanceOf(CREATOR), 0, "creator received mint authority");
         assertEq(CurveBondingCurve(curve).token(), token, "token not bound to curve");
         assertEq(CurveBondingCurve(curve).deployer(), address(deployer), "wrong deployer");
-        (address recordedCurve, address recordedCreator, uint16 feeBps, uint16 creatorShareBps, uint16 buybackShareBps, uint16 creatorTaxBps, address treasury) = factory.market(token);
+        (
+            address recordedCurve,
+            address recordedCreator,
+            uint16 feeBps,
+            uint16 creatorShareBps,
+            uint16 buybackShareBps,
+            uint16 creatorTaxBps,
+            address treasury
+        ) = factory.market(token);
         assertEq(recordedCurve, curve, "wrong registered curve");
         assertEq(recordedCreator, CREATOR, "wrong creator");
         assertEq(feeBps, 75, "wrong fee snapshot");
@@ -53,9 +65,8 @@ contract V2LaunchTest is TestBase {
 
     function testPermissionlessLaunchBoundsUntrustedMetadata() external {
         (CurveLaunchFactory factory,) = _setup();
-        string memory longName = string.concat(
-            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "A"
-        );
+        string memory longName =
+            string.concat("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "A");
         assertEq(bytes(longName).length, 65, "bad test name");
         vm.prank(CREATOR);
         vm.expectRevert();
@@ -70,16 +81,31 @@ contract V2LaunchTest is TestBase {
 
     function testFactoryCannotLaunchUninitializedOrReplaceBoundServices() external {
         MockWETH quote = new MockWETH();
-        CurveLaunchFactory raw = new CurveLaunchFactory(address(quote), address(new MockIcarusFactory()), address(this), address(0), 0, SUPPLY, CURVE_SUPPLY, 10 ether);
+        CurveLaunchFactory raw = new CurveLaunchFactory(
+            address(quote),
+            address(new MockIcarusFactory()),
+            address(this),
+            address(0),
+            0,
+            SUPPLY,
+            CURVE_SUPPLY,
+            10 ether
+        );
         assertTrue(!raw.publicLaunchOpen(), "uninitialized factory reports public access");
         vm.expectRevert();
         raw.createToken("Uninitialized", "NO", "", 0);
 
         (CurveLaunchFactory factory,) = _setup();
         CurveLaunchFactory.Services memory services = CurveLaunchFactory.Services({
-            deployer: address(factory.deployer()), escrow: address(factory.escrow()), vault: address(factory.vault()),
-            guard: address(factory.guard()), executor: address(factory.executor()), locker: address(factory.locker()),
-            hook: address(factory.hook()), launchAndBuy: address(factory.launchAndBuy()), holderReserve: address(factory.holderReserve())
+            deployer: address(factory.deployer()),
+            escrow: address(factory.escrow()),
+            vault: address(factory.vault()),
+            guard: address(factory.guard()),
+            executor: address(factory.executor()),
+            locker: address(factory.locker()),
+            hook: address(factory.hook()),
+            launchAndBuy: address(factory.launchAndBuy()),
+            holderReserve: address(factory.holderReserve())
         });
         vm.expectRevert();
         factory.initialize(services);
@@ -113,11 +139,15 @@ contract V2LaunchTest is TestBase {
         vm.prank(CREATOR);
         vm.expectRevert();
         factory.setFeeDefaults(75, 5_000, 2_500, 50, address(this));
-        factory.setFeeDefaults(50, factory.creatorShareBps(), factory.buybackShareBps(), factory.creatorTaxCapBps(), factory.treasury());
+        factory.setFeeDefaults(
+            50, factory.creatorShareBps(), factory.buybackShareBps(), factory.creatorTaxCapBps(), factory.treasury()
+        );
         vm.prank(CREATOR);
         (address second,) = factory.createToken("Second", "TWO", "", 0);
-        (,, uint16 firstFee, uint16 firstCreatorShare, uint16 firstBuybackShare,, address firstTreasury) = factory.market(first);
-        (,, uint16 secondFee, uint16 secondCreatorShare, uint16 secondBuybackShare,, address secondTreasury) = factory.market(second);
+        (,, uint16 firstFee, uint16 firstCreatorShare, uint16 firstBuybackShare,, address firstTreasury) =
+            factory.market(first);
+        (,, uint16 secondFee, uint16 secondCreatorShare, uint16 secondBuybackShare,, address secondTreasury) =
+            factory.market(second);
         assertEq(firstFee, 75, "first fee changed");
         assertEq(secondFee, 50, "second fee missing");
         assertEq(firstCreatorShare, secondCreatorShare, "creator share changed");
@@ -128,7 +158,8 @@ contract V2LaunchTest is TestBase {
     function _setup() private returns (CurveLaunchFactory factory, CurveLaunchDeployer deployer) {
         MockWETH quote = new MockWETH();
         MockIcarusFactory icarus = new MockIcarusFactory();
-        factory = CurveV2Deployment.deploy(address(quote), address(icarus), address(this), SUPPLY, CURVE_SUPPLY, 10 ether);
+        factory =
+            CurveV2Deployment.deploy(address(quote), address(icarus), address(this), SUPPLY, CURVE_SUPPLY, 10 ether);
         deployer = factory.deployer();
     }
 }

@@ -9,6 +9,7 @@
     "dev": "vite",
     "dev:web": "vite",
     "build": "vite build",
+    "keeper:graduation": "node keeper/graduation-keeper.mjs",
     "test": "make -C contracts test",
     "typecheck": "tsc --noEmit",
     "verify:icarus": "make -C contracts verify-icarus-testnet"

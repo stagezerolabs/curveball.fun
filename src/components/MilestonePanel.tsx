@@ -4,7 +4,8 @@ import type { Address } from "viem";
 import { formatEther } from "viem";
 import { useReadContract } from "wagmi";
 import { v2EscrowAbi, v2FactoryAbi } from "../sdk/v2Contracts";
-import { activeChainId, launchpadAddress } from "../lib/web3";
+import { activeChainId, activeExplorerUrl, launchpadAddress } from "../lib/web3";
+import { getMarketDisplayStatus } from "../lib/marketState";
 import { factoryForToken } from "../lib/marketFactories";
 import type { Token } from "../types";
 import { UsdAmount } from "./UsdAmount";
@@ -16,14 +17,14 @@ export function MilestonePanel({
   token: Token;
   address?: Address;
 }) {
-  const { isPending, claimPoolFees, claimEscrow, advanceGraduation } = useStore() as {
+  const { isPending, claimPoolFees, claimEscrow } = useStore() as {
     isPending: boolean;
     claimPoolFees: (locker: string, pool: string, factory?: Address) => Promise<void>;
     claimEscrow: (token: Address, asset: Address, recipient: Address, factory?: Address) => Promise<void>;
-    advanceGraduation: (token: Token) => Promise<void>;
   };
 
   const progress = token.graduated ? 100 : (token.progress ?? 0);
+  const marketStatus = getMarketDisplayStatus(token);
   const marketFactory = launchpadAddress ? factoryForToken(token.factory) : undefined;
   const { data: locker } = useReadContract({ address: marketFactory, abi: v2FactoryAbi, functionName: "locker", chainId: activeChainId, query: { enabled: Boolean(marketFactory) } });
   const { data: escrow } = useReadContract({ address: marketFactory, abi: v2FactoryAbi, functionName: "escrow", chainId: activeChainId, query: { enabled: Boolean(marketFactory) } });
@@ -47,7 +48,7 @@ export function MilestonePanel({
       <header className="panel-head">
         <h2>Milestone</h2>
         <span className={token.graduated ? "milestone-tag done" : "milestone-tag"}>
-          {token.graduated ? "Graduated" : token.pending ? "Graduation pending" : "On the curve"}
+          {marketStatus.kind === "live" ? "On the curve" : marketStatus.label}
         </span>
       </header>
 
@@ -67,6 +68,7 @@ export function MilestonePanel({
       </div>
 
       <dl className="milestone-figures">
+        {token.graduationTargetWeth && <div><dt>Pool WETH at graduation</dt><dd>{token.graduationTargetWeth} WETH</dd></div>}
         <div>
           <dt>Target price</dt>
           <dd><UsdAmount weth={token.targetPrice} /></dd>
@@ -78,10 +80,14 @@ export function MilestonePanel({
       </dl>
 
       {!token.graduated && progress >= 100 && <div className="claim-block">
-        <p className="panel-note">{token.pending ? "Curve reserves are ready for an Icarus pool." : "The curve is sold out and ready to prepare graduation."}</p>
-        <button type="button" className="primary-button claim-button" disabled={!address || isPending} onClick={() => advanceGraduation(token)}>
-          Graduate to Icarus
-        </button>
+        <p className="panel-note">Bonding is complete. The pool is being prepared automatically. Its address will appear here after graduation is confirmed.</p>
+      </div>}
+
+      {token.graduated && token.pool && <div className="claim-block">
+        <h3 className="panel-subhead">{token.mockVenue ? "Mock venue pool" : "Venue pool"}</h3>
+        <a className="milestone-pool-link" href={`${activeExplorerUrl}/address/${token.pool}`} target="_blank" rel="noreferrer" aria-label={`View pool ${token.pool} on the explorer`}>
+          <code>{token.pool}</code> <span aria-hidden="true">↗</span>
+        </a>
       </div>}
 
       <h3 className="panel-subhead">Where pool fees go</h3>
@@ -112,7 +118,7 @@ export function MilestonePanel({
         </>
       )}
 
-      {token.graduated && (
+      {token.graduated && !token.mockVenue && (
         <div className="claim-block">
           <h3 className="panel-subhead">Pool fees</h3>
           <p className="panel-note">

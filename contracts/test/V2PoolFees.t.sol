@@ -39,7 +39,11 @@ contract V2PoolFeesTest is TestBase {
         uint256 creatorQuoteBefore = factory.escrow().claimable(tokenAddress, address(quote), CREATOR);
         uint256 buybackQuoteBefore = factory.vault().quoteBalance(tokenAddress);
         locker.claim(pool);
-        assertEq(factory.escrow().claimable(tokenAddress, address(quote), CREATOR) - creatorQuoteBefore, 0.1 ether, "creator quote fee");
+        assertEq(
+            factory.escrow().claimable(tokenAddress, address(quote), CREATOR) - creatorQuoteBefore,
+            0.1 ether,
+            "creator quote fee"
+        );
         assertEq(factory.escrow().claimable(tokenAddress, tokenAddress, CREATOR), 50 ether, "creator meme fee");
         assertEq(factory.vault().quoteBalance(tokenAddress) - buybackQuoteBefore, 0.05 ether, "vault quote fee");
         assertEq(factory.vault().memeBalance(tokenAddress), 25 ether, "vault meme fee");

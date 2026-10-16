@@ -2,13 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Tabs } from "@base-ui/react/tabs";
 import { usePublicClient } from "wagmi";
 import { Featured } from "../components/Featured";
-import { AppLink } from "../components/Navigation";
 import { MarketList } from "../components/MarketList";
 import { UsdAmount } from "../components/UsdAmount";
 import { formatPercent } from "../lib/format.js";
 import { useStore } from "../app/useStore.js";
 import type { CreatorTokenClient } from "../creatorTokens";
-import { activeChainId, factoryVersion } from "../lib/web3";
+import { activeChainId } from "../lib/web3";
 import type { Navigate, Token } from "../types";
 
 const TABS: { id: Tab; label: string }[] = [
@@ -50,11 +49,10 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
     loadMarkets: (client?: CreatorTokenClient, options?: { force?: boolean }) => Promise<Token[]>;
   };
   const [tab, setTab] = useState<Tab>(lastCreatedToken ? "new" : "trending");
-  const [versionFilter, setVersionFilter] = useState("all");
-  const versions = useMemo(() => [...new Set(tokens.map((token) => factoryVersion(token.factory)))], [tokens]);
-  const visible = useMemo(() => selectTokens(tokens, tab).filter((token) => versionFilter === "all" || factoryVersion(token.factory) === versionFilter), [tokens, tab, versionFilter]);
+  const visible = useMemo(() => selectTokens(tokens, tab), [tokens, tab]);
   const tickerTokens = useMemo(() => selectTokens(tokens, "new").slice(0, 12), [tokens]);
   const initialLoading = !marketsFetchedAt && !tokens.length && !error;
+  const awaitingPool = tokens.some((token) => !token.graduated && (token.pending || (token.progress ?? 0) >= 100));
 
   useEffect(() => {
     const client = publicClient as unknown as CreatorTokenClient | undefined;
@@ -69,6 +67,16 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
       document.removeEventListener("visibilitychange", refresh);
     };
   }, [loadMarkets, publicClient]);
+
+  useEffect(() => {
+    if (!awaitingPool) return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void loadMarkets(publicClient as unknown as CreatorTokenClient | undefined, { force: true }).catch(() => undefined);
+      }
+    }, 10_000);
+    return () => window.clearInterval(timer);
+  }, [awaitingPool, loadMarkets, publicClient]);
 
   const refreshMarkets = () => {
     void loadMarkets(publicClient as unknown as CreatorTokenClient | undefined, { force: true }).catch(() => undefined);
@@ -99,32 +107,26 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
               ))}
               <Tabs.Indicator className="market-tabs-indicator" />
             </Tabs.List>
-            <label className="market-version-filter" htmlFor="market-version-filter">Factory version
-              <select id="market-version-filter" value={versionFilter} onChange={(event) => setVersionFilter(event.target.value)}>
-                <option value="all">All versions</option>
-                {versions.map((version) => <option key={version} value={version}>{version}</option>)}
-              </select>
-            </label>
-            <button
-              type="button"
-              className="market-refresh"
-              onClick={refreshMarkets}
-              disabled={loading || !publicClient}
-              aria-label={loading ? "Refreshing markets" : "Refresh markets"}
-              aria-busy={loading}
-              title={loading ? "Refreshing markets" : "Refresh markets"}
-            >
-              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M16.8 8A7 7 0 1 0 17 11" />
-                <path d="M17 3.5V8h-4.5" />
-              </svg>
-            </button>
+            <div className="market-tabs-actions">
+              <button
+                type="button"
+                className="market-refresh"
+                onClick={refreshMarkets}
+                disabled={loading || !publicClient}
+                aria-label={loading ? "Refreshing markets" : "Refresh markets"}
+                aria-busy={loading}
+                title={loading ? "Refreshing markets" : "Refresh markets"}
+              >
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M16.8 8A7 7 0 1 0 17 11" />
+                  <path d="M17 3.5V8h-4.5" />
+                </svg>
+              </button>
+            </div>
           </div>
           {loading && tokens.length > 0 && <p className="market-refresh-status" role="status">Checking for new markets…</p>}
           <Tabs.Panel key={tab} value={tab} className="market-tab-panel">
-            {versionFilter !== "all" && tokens.length > 0 && visible.length === 0
-              ? <div className="empty-state"><strong>No {versionFilter} markets in this view.</strong><button type="button" className="market-version-reset" onClick={() => setVersionFilter("all")}>Show all versions</button></div>
-              : <MarketList tokens={visible} loading={initialLoading} navigate={navigate} highlightedToken={lastCreatedToken} />}
+            <MarketList tokens={visible} loading={initialLoading} navigate={navigate} highlightedToken={lastCreatedToken} />
           </Tabs.Panel>
         </Tabs.Root>
       </section>

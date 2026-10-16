@@ -17,8 +17,14 @@ contract V2LaunchFeeTest is TestBase {
         MockWETH quote = new MockWETH();
         CurveLaunchFeeTreasury treasury = new CurveLaunchFeeTreasury(address(this));
         CurveLaunchFactory factory = CurveV2Deployment.deployWithFee(
-            address(quote), address(new MockIcarusFactory()), address(this), address(treasury), FEE,
-            1_000_000 ether, 800_000 ether, 10 ether
+            address(quote),
+            address(new MockIcarusFactory()),
+            address(this),
+            address(treasury),
+            FEE,
+            1_000_000 ether,
+            800_000 ether,
+            10 ether
         );
         quote.mint(CREATOR, FEE);
         vm.prank(CREATOR);
@@ -34,8 +40,14 @@ contract V2LaunchFeeTest is TestBase {
         MockWETH quote = new MockWETH();
         CurveLaunchFeeTreasury treasury = new CurveLaunchFeeTreasury(address(this));
         CurveLaunchFactory factory = CurveV2Deployment.deployWithFee(
-            address(quote), address(new MockIcarusFactory()), address(this), address(treasury), FEE,
-            1_000_000 ether, 800_000 ether, 10 ether
+            address(quote),
+            address(new MockIcarusFactory()),
+            address(this),
+            address(treasury),
+            FEE,
+            1_000_000 ether,
+            800_000 ether,
+            10 ether
         );
         quote.mint(CREATOR, FEE);
         vm.prank(CREATOR);
@@ -74,18 +86,32 @@ contract V2LaunchFeeTest is TestBase {
         MockWETH quote = new MockWETH();
         CurveLaunchFeeTreasury treasury = new CurveLaunchFeeTreasury(address(this));
         CurveLaunchFactory factory = CurveV2Deployment.deployWithFee(
-            address(quote), address(new MockIcarusFactory()), address(this), address(treasury), FEE,
-            1_000_000 ether, 800_000 ether, 10 ether
+            address(quote),
+            address(new MockIcarusFactory()),
+            address(this),
+            address(treasury),
+            FEE,
+            1_000_000 ether,
+            800_000 ether,
+            10 ether
         );
         CurveLaunchAndBuy wrapper = factory.launchAndBuy();
         quote.mint(CREATOR, 50 ether + FEE);
         vm.prank(CREATOR);
         quote.approve(address(wrapper), 50 ether + FEE);
         vm.prank(CREATOR);
-        wrapper.launchAndBuy(CurveLaunchAndBuy.LaunchRequest({
-            name: "Atomic", symbol: "ATM", uri: "", creatorTaxBps: 0, holderReserveBps: 500,
-            maxSpend: 50 ether, minOut: 800_000 ether, deadline: DEADLINE
-        }));
+        wrapper.launchAndBuy(
+            CurveLaunchAndBuy.LaunchRequest({
+                name: "Atomic",
+                symbol: "ATM",
+                uri: "",
+                creatorTaxBps: 0,
+                holderReserveBps: 500,
+                maxSpend: 50 ether,
+                minOut: 800_000 ether,
+                deadline: DEADLINE
+            })
+        );
         assertEq(quote.balanceOf(address(treasury)), FEE, "fee charged incorrectly");
         assertEq(quote.balanceOf(address(wrapper)), 0, "wrapper retained WETH");
     }

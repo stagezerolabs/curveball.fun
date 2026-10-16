@@ -81,7 +81,9 @@ contract PoCFactory is IIcarusFactory {
     mapping(bytes32 => address) p;
     mapping(address => bool) public override isPool;
 
-    function isPaused() external pure returns (bool) { return false; }
+    function isPaused() external pure returns (bool) {
+        return false;
+    }
 
     function getPool(address a, address b, bool) external view returns (address) {
         return p[_k(a, b)];
@@ -104,7 +106,9 @@ contract PoCBrokenFactory is IIcarusFactory {
     mapping(address => bool) public override isPool;
     bool public broken = true;
 
-    function isPaused() external view returns (bool) { return broken; }
+    function isPaused() external view returns (bool) {
+        return broken;
+    }
 
     function setBroken(bool v) external {
         broken = v;

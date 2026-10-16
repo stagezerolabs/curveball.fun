@@ -4,6 +4,7 @@ import { useAccount, usePublicClient } from "wagmi";
 import type { Address } from "viem";
 import { useStore } from "../app/useStore.js";
 import { AppLink } from "../components/Navigation";
+import { getMarketDisplayStatus } from "../lib/marketState";
 import { TokenCard } from "../components/TokenCard";
 import type { CreatorTokenClient } from "../creatorTokens";
 import { activeChainId } from "../lib/web3";
@@ -26,12 +27,14 @@ export function ProfilePage({
     loadCreatorTokens: (
       client: CreatorTokenClient | undefined,
       creator: Address,
+      options?: { force?: boolean },
     ) => Promise<Token[]>;
   };
   const hasCachedResult = Object.prototype.hasOwnProperty.call(creatorTokens, key);
   const tokens = creatorTokens[key] ?? [];
   const error = creatorErrors[key];
   const initialLoading = Boolean(address) && !hasCachedResult && !error;
+  const awaitingPool = tokens.some((token) => !token.graduated && (token.pending || (token.progress ?? 0) >= 100));
 
   useEffect(() => {
     if (!address) return;
@@ -41,10 +44,21 @@ export function ProfilePage({
     ).catch(() => undefined);
   }, [address, loadCreatorTokens, publicClient]);
 
-  const graduated = useMemo(
-    () => tokens.filter((token) => token.graduated).length,
-    [tokens],
-  );
+  useEffect(() => {
+    if (!address || !awaitingPool) return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void loadCreatorTokens(publicClient as unknown as CreatorTokenClient | undefined, address, { force: true }).catch(() => undefined);
+      }
+    }, 10_000);
+    return () => window.clearInterval(timer);
+  }, [address, awaitingPool, loadCreatorTokens, publicClient]);
+
+  const counts = useMemo(() => ({
+    live: tokens.filter((token) => getMarketDisplayStatus(token).kind === "live").length,
+    ready: tokens.filter((token) => getMarketDisplayStatus(token).kind === "ready").length,
+    graduated: tokens.filter((token) => token.graduated).length,
+  }), [tokens]);
 
   if (!address) {
     return (
@@ -72,15 +86,16 @@ export function ProfilePage({
 
       {initialLoading ? (
         <section className="profile-stats profile-stats-skeleton" aria-busy="true" aria-label="Loading launch summary">
-          {Array.from({ length: 3 }, (_, index) => (
+          {Array.from({ length: 4 }, (_, index) => (
             <div key={index}><span className="skeleton skeleton-line" /><span className="skeleton skeleton-number" /></div>
           ))}
         </section>
       ) : (
         <section className="profile-stats" aria-label="Launch summary">
           <div><small>Tokens launched</small><strong>{tokens.length}</strong></div>
-          <div><small>Live</small><strong>{tokens.length - graduated}</strong></div>
-          <div><small>Graduated</small><strong>{graduated}</strong></div>
+          <div><small>Bonding</small><strong>{counts.live}</strong></div>
+          <div><small>Bonding complete</small><strong>{counts.ready}</strong></div>
+          <div><small>Graduated</small><strong>{counts.graduated}</strong></div>
         </section>
       )}
 

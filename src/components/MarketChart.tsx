@@ -13,10 +13,12 @@ import {
 import {
   buildBlockRanges,
   buildCandles,
+  calculatePriceChange,
   parseCreatedBlock,
   tradeLogToActivity,
   tradeLogToPoint,
   type TradeActivity,
+  type MarketPriceChange,
   type TradePoint,
 } from "../lib/marketChart";
 import { buildMarketChartOptions } from "../lib/marketChartOptions";
@@ -160,9 +162,11 @@ function formatChartValue(value: number) {
 export function MarketChart({
   token,
   refreshKey,
+  onPriceChange,
 }: {
   token: Token;
   refreshKey?: number;
+  onPriceChange?: (change: MarketPriceChange | null) => void;
 }) {
   const publicClient = usePublicClient({ chainId: activeChainId });
   const chartRef = useRef<HTMLDivElement>(null);
@@ -189,15 +193,20 @@ export function MarketChart({
     setPoints([]);
     setTrades([]);
     setHover(null);
+    onPriceChange?.(null);
     void loadTradePoints(publicClient as unknown as ChartClient, token)
       .then(({ points: nextPoints, trades }) => {
         if (!cancelled) {
           setPoints(nextPoints);
           setTrades(trades);
+          onPriceChange?.(calculatePriceChange(nextPoints, token.price));
         }
       })
       .catch(() => {
-        if (!cancelled) setError("Chart unavailable");
+        if (!cancelled) {
+          setError("Chart unavailable");
+          onPriceChange?.(null);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -205,7 +214,7 @@ export function MarketChart({
     return () => {
       cancelled = true;
     };
-  }, [publicClient, refreshKey, token.address, token.curve]);
+  }, [publicClient, refreshKey, token.address, token.curve, token.price, onPriceChange]);
 
   useEffect(() => {
     const container = chartRef.current;

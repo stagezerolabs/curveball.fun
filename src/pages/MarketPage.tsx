@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useAccount, usePublicClient } from "wagmi";
 import { getAddress, isAddress, type Address } from "viem";
 import { useStore } from "../app/useStore.js";
@@ -9,6 +9,8 @@ import { HolderAirdropPanel } from "../components/HolderAirdropPanel";
 import { TradePanel } from "../components/TradePanel";
 import type { CreatorTokenClient } from "../creatorTokens";
 import { activeChainId } from "../lib/web3";
+import type { MarketPriceChange } from "../lib/marketChart";
+import { v2CurveAbi } from "../sdk/v2Contracts";
 import type { Navigate, Token } from "../types";
 
 const MarketChart = lazy(() =>
@@ -47,7 +49,7 @@ export function MarketPage({
     tokenFetchedAt: Record<string, number>;
     tokenErrors: Record<string, string>;
     actionError: string;
-    loadToken: (client: CreatorTokenClient | undefined, address: Address) => Promise<Token | null>;
+    loadToken: (client: CreatorTokenClient | undefined, address: Address, options?: { force?: boolean }) => Promise<Token | null>;
   };
   const { address: walletAddress } = useAccount();
   const hasCachedResult = Object.prototype.hasOwnProperty.call(tokenCache, key);
@@ -55,6 +57,9 @@ export function MarketPage({
   const fetchedAt = tokenFetchedAt[key];
   const discoveryError = tokenErrors[key];
   const error = actionError || discoveryError;
+  const [priceChange, setPriceChange] = useState<MarketPriceChange | null>(null);
+
+  useEffect(() => setPriceChange(null), [key]);
 
   useEffect(() => {
     if (!address) return;
@@ -63,6 +68,31 @@ export function MarketPage({
       address,
     ).catch(() => undefined);
   }, [address, fetchedAt, loadToken, publicClient]);
+
+  useEffect(() => {
+    if (!address || !resolvedToken?.curve || resolvedToken.graduated || !publicClient) return;
+    const curve = resolvedToken.curve;
+    const shownSoldOut = Boolean(resolvedToken.pending || (resolvedToken.progress ?? 0) >= 100);
+    let checking = false;
+    let active = true;
+    const refreshStatus = async () => {
+      if (checking || document.visibilityState !== "visible") return;
+      checking = true;
+      try {
+        const [sold, curveSupply, graduated] = await Promise.all([
+          publicClient.readContract({ address: curve, abi: v2CurveAbi, functionName: "sold" }),
+          publicClient.readContract({ address: curve, abi: v2CurveAbi, functionName: "curveSupply" }),
+          publicClient.readContract({ address: curve, abi: v2CurveAbi, functionName: "graduated" }),
+        ]);
+        if (active && (graduated || (sold === curveSupply) !== shownSoldOut)) {
+          await loadToken(publicClient as unknown as CreatorTokenClient, address, { force: true });
+        }
+      } catch { /* The next poll will retry a temporary RPC failure. */ }
+      finally { checking = false; }
+    };
+    const timer = window.setInterval(() => { void refreshStatus(); }, 10_000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [address, resolvedToken?.curve, resolvedToken?.graduated, resolvedToken?.pending, resolvedToken?.progress, publicClient, loadToken]);
 
   if (validAddress && !hasCachedResult && !discoveryError) {
     return <MarketPageSkeleton />;
@@ -82,7 +112,7 @@ export function MarketPage({
 
   return (
     <main className="market-page wrap">
-      <MarketHeader token={resolvedToken} />
+      <MarketHeader token={resolvedToken} priceChange={priceChange} />
 
       <div className="market-workspace">
         <Suspense
@@ -93,7 +123,7 @@ export function MarketPage({
             />
           }
         >
-          <MarketChart token={resolvedToken} refreshKey={fetchedAt} />
+          <MarketChart token={resolvedToken} refreshKey={fetchedAt} onPriceChange={setPriceChange} />
         </Suspense>
         <aside className="market-sidebar" aria-label="Market actions">
           <TradePanel

@@ -51,7 +51,11 @@ contract CurveBondingCurve is ReentrancyGuard {
     bool public ready;
     bool public graduated;
     address public pool;
-    struct Observation { uint64 timestamp; uint256 cumulativePrice; }
+
+    struct Observation {
+        uint64 timestamp;
+        uint256 cumulativePrice;
+    }
     Observation[64] public observations;
     uint8 public observationCount;
     uint8 public nextObservation;
@@ -59,19 +63,38 @@ contract CurveBondingCurve is ReentrancyGuard {
     uint256 public priceCumulative;
 
     event Trade(
-        address indexed token, address indexed trader, bool isBuy,
-        uint256 grossCurveQuote, uint256 netTraderQuote, uint256 feeQuote,
-        uint256 creatorTaxQuote, uint256 tokenAmount,
-        uint256 vQAfter, uint256 vTAfter, uint256 soldAfter
+        address indexed token,
+        address indexed trader,
+        bool isBuy,
+        uint256 grossCurveQuote,
+        uint256 netTraderQuote,
+        uint256 feeQuote,
+        uint256 creatorTaxQuote,
+        uint256 tokenAmount,
+        uint256 vQAfter,
+        uint256 vTAfter,
+        uint256 soldAfter
     );
     event TokensRescued(address indexed asset, uint256 amount, address indexed recipient);
     event NativeRescued(uint256 amount, address indexed recipient);
 
     constructor(
-        address factory_, address quote_, address escrow_, address vault_, address executor_,
-        uint256 supply_, uint256 curveSupply_, uint256 reserveAmount_, uint256 initialVQ_, Policy memory policy
+        address factory_,
+        address quote_,
+        address escrow_,
+        address vault_,
+        address executor_,
+        uint256 supply_,
+        uint256 curveSupply_,
+        uint256 reserveAmount_,
+        uint256 initialVQ_,
+        Policy memory policy
     ) {
-        require(factory_ != address(0) && quote_ != address(0) && escrow_ != address(0) && vault_ != address(0) && executor_ != address(0), "bad dependency");
+        require(
+            factory_ != address(0) && quote_ != address(0) && escrow_ != address(0) && vault_ != address(0)
+                && executor_ != address(0),
+            "bad dependency"
+        );
         require(supply_ > curveSupply_ + reserveAmount_ && curveSupply_ > 0 && initialVQ_ > 0, "bad curve");
         require(supply_ <= type(uint128).max && initialVQ_ <= type(uint128).max, "curve too large");
         require(policy.creator != address(0) && policy.treasury != address(0), "bad recipient");
@@ -107,7 +130,9 @@ contract CurveBondingCurve is ReentrancyGuard {
 
     /// @notice A gross WETH budget includes every fee and creator tax.
     function quoteBuy(uint256 maxSpend)
-        public view returns (uint256 tokensOut, uint256 spent, uint256 curveQuote, uint256 fee, uint256 creatorTax)
+        public
+        view
+        returns (uint256 tokensOut, uint256 spent, uint256 curveQuote, uint256 fee, uint256 creatorTax)
     {
         require(token != address(0) && !graduated && maxSpend > 0 && maxSpend <= type(uint128).max, "bad spend");
         require(sold < curveSupply, "sold out");
@@ -153,7 +178,9 @@ contract CurveBondingCurve is ReentrancyGuard {
     }
 
     function quoteSell(uint256 amount)
-        public view returns (uint256 net, uint256 gross, uint256 fee, uint256 creatorTax)
+        public
+        view
+        returns (uint256 net, uint256 gross, uint256 fee, uint256 creatorTax)
     {
         require(token != address(0) && !graduated && amount > 0 && amount <= sold, "bad amount");
         uint256 k = uint256(virtualToken) * virtualQuote;
@@ -165,21 +192,22 @@ contract CurveBondingCurve is ReentrancyGuard {
         net = gross - fee - creatorTax;
     }
 
-    function buyTokens(uint256 maxSpend, uint256 minOut, uint256 deadline)
-        external nonReentrant returns (uint256 out)
-    {
+    function buyTokens(uint256 maxSpend, uint256 minOut, uint256 deadline) external nonReentrant returns (uint256 out) {
         out = _buy(msg.sender, msg.sender, maxSpend, minOut, deadline);
     }
 
     function buyTokensFor(address recipient, uint256 maxSpend, uint256 minOut, uint256 deadline)
-        external nonReentrant returns (uint256 out)
+        external
+        nonReentrant
+        returns (uint256 out)
     {
         require(msg.sender == ICurveFactoryAccess(factory).launchAndBuy() && recipient != address(0), "wrapper only");
         out = _buy(msg.sender, recipient, maxSpend, minOut, deadline);
     }
 
     function _buy(address payer, address recipient, uint256 maxSpend, uint256 minOut, uint256 deadline)
-        private returns (uint256 out)
+        private
+        returns (uint256 out)
     {
         require(block.timestamp <= deadline, "expired");
         uint256 spent;
@@ -199,9 +227,7 @@ contract CurveBondingCurve is ReentrancyGuard {
         emit Trade(token, recipient, true, curveQuote, spent, fee, tax, out, virtualQuote, virtualToken, sold);
     }
 
-    function sellTokens(uint256 amount, uint256 minOut, uint256 deadline)
-        external nonReentrant returns (uint256 net)
-    {
+    function sellTokens(uint256 amount, uint256 minOut, uint256 deadline) external nonReentrant returns (uint256 net) {
         require(block.timestamp <= deadline, "expired");
         uint256 gross;
         uint256 fee;
@@ -239,8 +265,14 @@ contract CurveBondingCurve is ReentrancyGuard {
         ready = true;
     }
 
-    function releaseForGraduation(address pool_) external nonReentrant returns (uint256 tokenLiquidity, uint256 quoteLiquidity) {
-        require(msg.sender == executor && ready && !graduated && sold == curveSupply && pool_ != address(0), "not prepared");
+    function releaseForGraduation(address pool_)
+        external
+        nonReentrant
+        returns (uint256 tokenLiquidity, uint256 quoteLiquidity)
+    {
+        require(
+            msg.sender == executor && ready && !graduated && sold == curveSupply && pool_ != address(0), "not prepared"
+        );
         tokenLiquidity = supply - reserveAmount - sold;
         quoteLiquidity = realQuote;
         realQuote = 0;

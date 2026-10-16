@@ -34,3 +34,11 @@ test("market cards show artwork, identity, market data, and curve progress", () 
   expect(html).toContain("10.0%");
   expect(html).toContain('/markets/');
 });
+
+test("a filled curve waiting for graduation is not marked live", () => {
+  for (const pending of [true, false]) {
+    const html = renderToStaticMarkup(<MarketList tokens={[{ ...tokens[0], progress: 100, pending }]} loading={false} navigate={() => undefined} />);
+    expect(html).toContain("Bonding complete");
+    expect(html).not.toContain("Live");
+  }
+});

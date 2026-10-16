@@ -14,17 +14,30 @@ import {CurveHolderReserve} from "./CurveHolderReserve.sol";
 
 /// @notice Deployment helper executed by scripts/tests. Each `new` is a separate broadcast transaction.
 library CurveV2Deployment {
-    function deploy(address quote, address icarusFactory, address treasury, uint256 supply, uint256 curveSupply, uint256 initialVQ)
-        internal returns (CurveLaunchFactory factory)
-    {
+    function deploy(
+        address quote,
+        address icarusFactory,
+        address treasury,
+        uint256 supply,
+        uint256 curveSupply,
+        uint256 initialVQ
+    ) internal returns (CurveLaunchFactory factory) {
         return deployWithFee(quote, icarusFactory, treasury, address(0), 0, supply, curveSupply, initialVQ);
     }
 
     function deployWithFee(
-        address quote, address icarusFactory, address treasury, address feeTreasury, uint256 launchFee,
-        uint256 supply, uint256 curveSupply, uint256 initialVQ
+        address quote,
+        address icarusFactory,
+        address treasury,
+        address feeTreasury,
+        uint256 launchFee,
+        uint256 supply,
+        uint256 curveSupply,
+        uint256 initialVQ
     ) internal returns (CurveLaunchFactory factory) {
-        factory = new CurveLaunchFactory(quote, icarusFactory, treasury, feeTreasury, launchFee, supply, curveSupply, initialVQ);
+        factory = new CurveLaunchFactory(
+            quote, icarusFactory, treasury, feeTreasury, launchFee, supply, curveSupply, initialVQ
+        );
         address f = address(factory);
         CurveLaunchFactory.Services memory s;
         s.deployer = address(new CurveLaunchDeployer(f));

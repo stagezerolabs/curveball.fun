@@ -1,5 +1,11 @@
 export type MarketState = "public" | "invited-beta" | "uninvited-beta" | "ready" | "graduated";
 
+export function getMarketDisplayStatus(input: { graduated: boolean; pending?: boolean; progress?: number | null }) {
+  if (input.graduated) return { kind: "graduated", label: "Graduated" } as const;
+  if (input.pending || (input.progress ?? 0) >= 100) return { kind: "ready", label: "Bonding complete" } as const;
+  return { kind: "live", label: "Live" } as const;
+}
+
 type BetaContext = {
   walletConnected: boolean;
 };

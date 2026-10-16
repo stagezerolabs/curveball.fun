@@ -11,10 +11,18 @@ interface IVaultFactoryOwner {
 }
 
 interface IVaultFactoryMarket {
-    function market(address token) external view returns (
-        address curve, address creator, uint16 feeBps, uint16 creatorShareBps,
-        uint16 buybackShareBps, uint16 creatorTaxBps, address treasury
-    );
+    function market(address token)
+        external
+        view
+        returns (
+            address curve,
+            address creator,
+            uint16 feeBps,
+            uint16 creatorShareBps,
+            uint16 buybackShareBps,
+            uint16 creatorTaxBps,
+            address treasury
+        );
 }
 
 interface IVaultCurve {
@@ -23,7 +31,10 @@ interface IVaultCurve {
     function pool() external view returns (address);
     function spotPrice() external view returns (uint256);
     function twapPrice() external view returns (uint256);
-    function quoteBuy(uint256 maxSpend) external view returns (uint256 out, uint256 spent, uint256 curveQuote, uint256 fee, uint256 creatorTax);
+    function quoteBuy(uint256 maxSpend)
+        external
+        view
+        returns (uint256 out, uint256 spent, uint256 curveQuote, uint256 fee, uint256 creatorTax);
     function buyTokens(uint256 maxSpend, uint256 minOut, uint256 deadline) external returns (uint256 out);
 }
 
@@ -41,7 +52,12 @@ interface IVaultPool {
 contract CurveBuybackVault is ReentrancyGuard {
     using SafeERC20 for IERC20;
     using SafeCast for uint256;
-    struct Lot { uint128 amount; uint128 claimed; uint64 start; }
+
+    struct Lot {
+        uint128 amount;
+        uint128 claimed;
+        uint64 start;
+    }
     uint256 public constant VESTING_WINDOW = 5 * 365 days;
     address public immutable factory;
     address public immutable quote;
@@ -84,14 +100,21 @@ contract CurveBuybackVault is ReentrancyGuard {
         emit MemeCredited(launch, amount);
     }
 
-    function lotCount(address launch) external view returns (uint256) { return lots[launch].length; }
+    function lotCount(address launch) external view returns (uint256) {
+        return lots[launch].length;
+    }
 
     function sweepCurve(address launch, uint256 maxSpend, uint256 minOut, uint256 deadline)
-        external nonReentrant returns (uint256 received)
+        external
+        nonReentrant
+        returns (uint256 received)
     {
         require(block.timestamp <= deadline && maxSpend > 0 && maxSpend <= quoteBalance[launch], "bad sweep");
         (address curve,,,,,,) = IVaultFactoryMarket(factory).market(launch);
-        require(curve != address(0) && IVaultCurve(curve).token() == launch && !IVaultCurve(curve).graduated(), "wrong venue");
+        require(
+            curve != address(0) && IVaultCurve(curve).token() == launch && !IVaultCurve(curve).graduated(),
+            "wrong venue"
+        );
         uint256 spot = IVaultCurve(curve).spotPrice();
         uint256 referencePrice = IVaultCurve(curve).twapPrice();
         require(spot > 0 && _withinBps(spot, referencePrice, 500), "price deviated");
@@ -119,11 +142,15 @@ contract CurveBuybackVault is ReentrancyGuard {
     }
 
     function sweepPool(address launch, uint256 maxSpend, uint256 minOut, uint256 deadline)
-        external nonReentrant returns (uint256 received)
+        external
+        nonReentrant
+        returns (uint256 received)
     {
         require(block.timestamp <= deadline && maxSpend > 0 && maxSpend <= quoteBalance[launch], "bad sweep");
         (address curve,,,,,,) = IVaultFactoryMarket(factory).market(launch);
-        require(curve != address(0) && IVaultCurve(curve).token() == launch && IVaultCurve(curve).graduated(), "wrong venue");
+        require(
+            curve != address(0) && IVaultCurve(curve).token() == launch && IVaultCurve(curve).graduated(), "wrong venue"
+        );
         address pool = IVaultCurve(curve).pool();
         require(pool != address(0) && IVaultPool(pool).observationLength() >= 2, "pool history too short");
         (uint256 expected, address asset0) = _checkedPoolQuote(pool, launch, maxSpend, minOut);
@@ -141,7 +168,9 @@ contract CurveBuybackVault is ReentrancyGuard {
     }
 
     function _checkedPoolQuote(address pool, address launch, uint256 maxSpend, uint256 minOut)
-        private view returns (uint256 expected, address asset0)
+        private
+        view
+        returns (uint256 expected, address asset0)
     {
         asset0 = IVaultPool(pool).token0();
         address asset1 = IVaultPool(pool).token1();

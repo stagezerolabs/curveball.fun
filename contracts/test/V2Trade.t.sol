@@ -17,16 +17,19 @@ contract ReenteringQuote is MockWETH {
     bool public attempted;
     bool public blockedByGuard;
 
-    function arm(CurveBondingCurve curve) external { target = curve; }
+    function arm(CurveBondingCurve curve) external {
+        target = curve;
+    }
 
     function transferFrom(address from, address to, uint256 amount) public override returns (bool) {
         if (!attempted && address(target) != address(0) && msg.sender == address(target)) {
             attempted = true;
-            (bool succeeded, bytes memory result) = address(target).call(
-                abi.encodeCall(target.buyTokens, (1, 0, type(uint256).max))
-            );
+            (bool succeeded, bytes memory result) =
+                address(target).call(abi.encodeCall(target.buyTokens, (1, 0, type(uint256).max)));
             bytes4 selector;
-            if (result.length >= 4) assembly { selector := mload(add(result, 32)) }
+            if (result.length >= 4) {
+                assembly { selector := mload(add(result, 32)) }
+            }
             blockedByGuard = !succeeded && selector == ReentrancyGuard.ReentrancyGuardReentrantCall.selector;
         }
         return super.transferFrom(from, to, amount);
@@ -45,7 +48,8 @@ contract V2TradeTest is TestBase {
 
         uint256 bought;
         {
-            (uint256 expectedTokens, uint256 spent, uint256 curveQuote, uint256 fee, uint256 tax) = curve.quoteBuy(10 ether);
+            (uint256 expectedTokens, uint256 spent, uint256 curveQuote, uint256 fee, uint256 tax) =
+                curve.quoteBuy(10 ether);
             assertTrue(expectedTokens > 0 && spent <= 10 ether && fee > 0 && tax > 0, "bad buy quote");
             vm.prank(TRADER);
             bought = curve.buyTokens(10 ether, expectedTokens, DEADLINE);
@@ -53,7 +57,11 @@ contract V2TradeTest is TestBase {
             assertEq(token.balanceOf(TRADER), bought, "buyer did not receive tokens");
             assertEq(quote.balanceOf(address(curve)), curveQuote, "curve reserve not backed");
             assertEq(curve.virtualQuote(), curve.initialVQ() + curve.realQuote(), "virtual quote mismatch");
-            assertEq(factory.escrow().claimable(address(token), address(quote), CREATOR), fee / 2 + tax, "creator fee missing");
+            assertEq(
+                factory.escrow().claimable(address(token), address(quote), CREATOR),
+                fee / 2 + tax,
+                "creator fee missing"
+            );
             assertEq(factory.vault().quoteBalance(address(token)), fee / 4, "buyback fee missing");
         }
 
@@ -122,8 +130,16 @@ contract V2TradeTest is TestBase {
         curve.rescueTokens(address(quote), 1 ether, address(this));
         curve.rescueTokens(address(token), 1 ether, address(this));
         assertEq(quote.balanceOf(address(curve)), curve.realQuote(), "reserve drained by rescue");
-        assertEq(token.balanceOf(address(curve)), curve.supply() - curve.reserveAmount() - curve.sold(), "unsold token drained by rescue");
-        assertEq(factory.escrow().totalLiability(address(quote)), quote.balanceOf(address(factory.escrow())), "escrow liability changed");
+        assertEq(
+            token.balanceOf(address(curve)),
+            curve.supply() - curve.reserveAmount() - curve.sold(),
+            "unsold token drained by rescue"
+        );
+        assertEq(
+            factory.escrow().totalLiability(address(quote)),
+            quote.balanceOf(address(factory.escrow())),
+            "escrow liability changed"
+        );
     }
 
     function testServiceRescuesKeepFeeAndVestingLiabilitiesBacked() external {
@@ -163,7 +179,9 @@ contract V2TradeTest is TestBase {
 
     function testQuoteTransferCallbackCannotReenterBuy() external {
         ReenteringQuote quote = new ReenteringQuote();
-        CurveLaunchFactory factory = CurveV2Deployment.deploy(address(quote), address(new MockIcarusFactory()), address(this), 1_000_000 ether, 800_000 ether, 10 ether);
+        CurveLaunchFactory factory = CurveV2Deployment.deploy(
+            address(quote), address(new MockIcarusFactory()), address(this), 1_000_000 ether, 800_000 ether, 10 ether
+        );
         vm.prank(CREATOR);
         (, address curveAddress) = factory.createToken("V2", "V2", "", 0);
         CurveBondingCurve curve = CurveBondingCurve(curveAddress);
@@ -178,10 +196,13 @@ contract V2TradeTest is TestBase {
     }
 
     function _market(uint16 tax)
-        private returns (MockWETH quote, CurveLaunchFactory factory, CurveLauncherToken token, CurveBondingCurve curve)
+        private
+        returns (MockWETH quote, CurveLaunchFactory factory, CurveLauncherToken token, CurveBondingCurve curve)
     {
         quote = new MockWETH();
-        factory = CurveV2Deployment.deploy(address(quote), address(new MockIcarusFactory()), address(this), 1_000_000 ether, 800_000 ether, 10 ether);
+        factory = CurveV2Deployment.deploy(
+            address(quote), address(new MockIcarusFactory()), address(this), 1_000_000 ether, 800_000 ether, 10 ether
+        );
         vm.prank(CREATOR);
         (address tokenAddress, address curveAddress) = factory.createToken("V2", "V2", "", tax);
         token = CurveLauncherToken(tokenAddress);

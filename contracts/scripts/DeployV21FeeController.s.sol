@@ -25,6 +25,9 @@ contract DeployV21FeeController {
         factory.transferOwnership(address(controller));
         controller.acceptFactoryOwnership();
         vm.stopBroadcast();
-        require(factory.owner() == address(controller) && controller.owner() == DOT && controller.feeAdmin() == FEE_ADMIN, "handoff failed");
+        require(
+            factory.owner() == address(controller) && controller.owner() == DOT && controller.feeAdmin() == FEE_ADMIN,
+            "handoff failed"
+        );
     }
 }

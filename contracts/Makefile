@@ -2,11 +2,18 @@ ENV_FILE := $(shell dirname "$$(git rev-parse --path-format=absolute --git-commo
 -include $(ENV_FILE)
 
 ACCOUNT ?= dot
-TESTNET_RPC_URL ?= $(RISE_TESTNET_RPC_URL)
+TESTNET_RPC_URL ?= $(if $(RISE_TESTNET_RPC_URL),$(RISE_TESTNET_RPC_URL),https://testnet.riselabs.xyz)
 
 export QUOTE_TOKEN ICARUS_FACTORY BLOCKSCOUT_API RISE_TESTNET_RPC_URL RISE_RPC_URL
 
-.PHONY: test test-fork-strict verify-icarus verify-icarus-testnet deploy-v2-launch-fee-testnet deploy-holder-reserve-testnet deploy-v21-fee-controller-testnet set-fee-testnet deploy-fee-controller-testnet accept-fee-controller-testnet
+.PHONY: test test-fork-strict verify-icarus verify-icarus-testnet deploy-v1-mock-testnet deploy-v2-launch-fee-testnet deploy-holder-reserve-testnet deploy-v21-fee-controller-testnet set-fee-testnet deploy-fee-controller-testnet accept-fee-controller-testnet
+
+# Fresh V1: dot signs, mock venue receives graduation, 0.005 WETH target.
+deploy-v1-mock-testnet:
+	@DEPLOYER_ADDRESS=0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3 \
+	forge script scripts/DeployV1Mock.s.sol:DeployV1Mock \
+		--rpc-url "$(TESTNET_RPC_URL)" --broadcast --slow \
+		--account "$(ACCOUNT)" --sender 0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3
 
 test:
 	forge test --threads 1

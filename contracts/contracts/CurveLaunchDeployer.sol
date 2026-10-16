@@ -31,9 +31,20 @@ contract CurveLaunchDeployer {
 
     function deployLaunch(bytes32 salt, LaunchParams calldata p) external returns (address token, address curve) {
         require(msg.sender == factory, "factory only");
-        curve = address(new CurveBondingCurve{salt: salt}(
-            factory, p.quote, p.escrow, p.vault, p.executor, p.supply, p.curveSupply, p.reserveAmount, p.initialVQ, p.policy
-        ));
+        curve = address(
+            new CurveBondingCurve{salt: salt}(
+                factory,
+                p.quote,
+                p.escrow,
+                p.vault,
+                p.executor,
+                p.supply,
+                p.curveSupply,
+                p.reserveAmount,
+                p.initialVQ,
+                p.policy
+            )
+        );
         token = address(
             new CurveLauncherToken{salt: keccak256(abi.encode(salt, "token"))}(
                 p.name, p.symbol, p.uri, p.supply, curve, factory, p.reserve, p.reserveAmount

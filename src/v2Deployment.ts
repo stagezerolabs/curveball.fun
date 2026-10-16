@@ -7,16 +7,22 @@ export type V2DeploymentClient = {
 };
 
 export async function validateV2Deployment(client: V2DeploymentClient, factory: Address, expectedQuote?: Address) {
-  const names = ["quote", "deployer", "escrow", "vault", "guard", "executor", "locker", "hook", "launchAndBuy"] as const;
+  let v1 = false;
+  try {
+    v1 = (await client.readContract({ address: factory, abi: v2FactoryAbi, functionName: "graduationTarget" }) as bigint) > 0n;
+  } catch { /* Historical factories do not expose a graduation target. */ }
+  const names = v1
+    ? ["quote", "deployer", "escrow", "vault", "locker", "hook", "launchAndBuy", "venue"] as const
+    : ["quote", "deployer", "escrow", "vault", "guard", "executor", "locker", "hook", "launchAndBuy"] as const;
   const [factoryCode, values] = await Promise.all([
     client.getBytecode({ address: factory }),
     Promise.all(names.map((functionName) => client.readContract({ address: factory, abi: v2FactoryAbi, functionName }))),
   ]);
-  if (!factoryCode || factoryCode === "0x") throw new Error("V2 factory has no deployed code.");
+  if (!factoryCode || factoryCode === "0x") throw new Error("Factory has no deployed code.");
   const addresses = Object.fromEntries(names.map((name, index) => [name, getAddress(values[index] as string)])) as Record<typeof names[number], Address>;
-  if (expectedQuote && addresses.quote !== getAddress(expectedQuote)) throw new Error("V2 quote token mismatch.");
-  if (names.slice(1).some((name) => addresses[name] === zeroAddress)) throw new Error("V2 factory is not initialized.");
+  if (expectedQuote && addresses.quote !== getAddress(expectedQuote)) throw new Error("Quote token mismatch.");
+  if (names.slice(1).some((name) => addresses[name] === zeroAddress)) throw new Error("Factory is not initialized.");
   const codes = await Promise.all(names.slice(1).map((name) => client.getBytecode({ address: addresses[name] })));
-  if (codes.some((code) => !code || code === "0x")) throw new Error("V2 service has no deployed code.");
+  if (codes.some((code) => !code || code === "0x")) throw new Error("Factory service has no deployed code.");
   return addresses;
 }

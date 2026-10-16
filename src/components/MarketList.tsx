@@ -3,6 +3,7 @@ import { TokenAvatar } from "./TokenAvatar";
 import { UsdAmount } from "./UsdAmount";
 import { formatAddress, formatPercent } from "../lib/format.js";
 import { factoryVersion } from "../lib/web3";
+import { getMarketDisplayStatus } from "../lib/marketState";
 import type { Navigate, Token } from "../types";
 
 export function MarketList({
@@ -51,8 +52,8 @@ export function MarketList({
               >
                 <span className="market-card-art">
                   <TokenAvatar token={token} index={index} />
-                  <span className={`market-card-status ${token.graduated ? "graduated" : "live"}`}>
-                    {token.graduated ? "Graduated" : "Live"}
+                  <span className={`market-card-status ${getMarketDisplayStatus(token).kind}`}>
+                    {getMarketDisplayStatus(token).label}
                   </span>
                 </span>
                 <span className="market-card-content">

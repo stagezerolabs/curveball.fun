@@ -5,6 +5,11 @@ export const v2FactoryAbi = parseAbi([
   "function launchFee() view returns (uint256)",
   "function launchFeeTreasury() view returns (address)",
   "function icarusFactory() view returns (address)",
+  "function graduationTarget() view returns (uint256)",
+  "function setGraduationTarget(uint256 nextTarget)",
+  "function venue() view returns (address)",
+  "function venueOf(address token) view returns (address)",
+  "function setVenue(address nextVenue)",
   "function locker() view returns (address)",
   "function deployer() view returns (address)",
   "function guard() view returns (address)",
@@ -45,6 +50,8 @@ export const v2FactoryAbi = parseAbi([
   "event Graduated(address indexed token,address indexed pool,uint256 tokenLiquidity,uint256 quoteLiquidity,uint256 liquidity)",
 ]);
 
+export const v1VenueAbi = parseAbi(["function isMock() view returns (bool)"]);
+
 export const factoryFeeControllerAbi = parseAbi([
   "function factory() view returns (address)",
   "function owner() view returns (address)",
@@ -60,6 +67,7 @@ export const v2CurveAbi = parseAbi([
   "function buyTokens(uint256 maxSpend,uint256 minOut,uint256 deadline) returns (uint256 out)",
   "function sellTokens(uint256 amount,uint256 minOut,uint256 deadline) returns (uint256 net)",
   "function virtualToken() view returns (uint128)",
+  "function initialVQ() view returns (uint256)",
   "function virtualQuote() view returns (uint128)",
   "function realQuote() view returns (uint128)",
   "function sold() view returns (uint128)",

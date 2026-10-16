@@ -10,7 +10,10 @@ import {CurveBondingCurve} from "../contracts/CurveBondingCurve.sol";
 import {MockIcarusFactory} from "../contracts/mocks/MockIcarus.sol";
 
 contract V2BuybackVaultTest is TestBase {
-    function owner() external view returns (address) { return address(this); }
+    function owner() external view returns (address) {
+        return address(this);
+    }
+
     function testIndependentLotsVestAndCanBeClaimedInBoundedRanges() external {
         MockWETH quote = new MockWETH();
         MockWETH meme = new MockWETH();

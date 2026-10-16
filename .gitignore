@@ -22,3 +22,4 @@ contracts/crytic-export/
 # Local backup of verified deployment artifacts; canonical copies live in deployments/
 deployments.local-backup/
 .env*
+!keeper/.env.example

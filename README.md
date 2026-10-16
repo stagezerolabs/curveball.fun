@@ -1,12 +1,34 @@
 # Curveball
 
-Curveball is a React/Vite dApp connected directly to V2.1 Curveball contracts on RISE Testnet. Contract state and events remain the source for markets and transactions. The navbar also reads a connected wallet's primary `.rise` name from Stage0's RISE Mainnet API through a narrow same-origin proxy, with the address as a fallback.
+Curveball is a React/Vite dApp connected directly to Curveball contracts on RISE Testnet. Contract state and events remain the source for markets and transactions. The navbar also reads a connected wallet's primary `.rise` name from Stage0's RISE Mainnet API through a narrow same-origin proxy, with the address as a fallback.
 
-## Testnet deployment
+## Fresh V1 with a mock graduation venue
+
+The active `CurveV1Factory` is deployed at `0x3F1eaFBfa954936b4671CC40c89871808C12f392` on RISE Testnet, starting at block `57060749`. It starts with a **0.005 WETH graduation target**, sells 800,000 of 1,000,000 tokens on the curve, and sends the collected WETH plus remaining pool tokens to a mock venue. The mock creates and locks LP tokens but offers no swaps. Its 0.005 WETH target is pool proceeds; buyers also pay the curve fee and any selected creator tax. The deployment record is `deployments/11155931/curveball-v1-mock.json`.
+
+Each launch records its own virtual reserve and venue adapter. Dot can call `setGraduationTarget(uint256)` and `setVenue(address)` on the V1 factory; changes affect future launches only. The adapter must match the factory, WETH, and LP locker. A later adapter can point at the real Icarus factory. The factory uses two-step ownership transfer for a future multisig.
+
+The initial V1 deployment used the local Foundry `dot` keystore with:
+
+```bash
+make deploy-v1-mock-testnet
+```
+
+The app uses `VITE_LAUNCHPAD_ADDRESS`, `VITE_DEPLOYMENT_BLOCK`, and `VITE_FACTORY_VERSION=V1` to select this factory. It excludes historical factories from market discovery. Do not rerun the V1 deployment command against this release.
+
+### Automatic graduation keeper
+
+The standalone Node.js worker is in [`keeper/`](keeper/README.md). Deploy that folder to a VPS, configure the server-only `KEEPER_*` variables in `keeper/.env.example`, and run one continuously running instance with a dedicated wallet funded for gas. It does not start with the Vite app or the Vercel frontend deployment.
+
+The keeper scans `LaunchCreated` events from `KEEPER_DEPLOYMENT_BLOCK`, then checks active curves every `KEEPER_POLL_INTERVAL_MS` (10 seconds by default). When `sold == curveSupply`, it calls `graduate(token)` and, once the venue is ready, `createGraduatedPool(token)`. It rechecks chain state before pool creation, waits for receipts, and retries deferred graduations after a cooldown. Monitor its logs for repeated deferrals or RPC failures.
+
+Users see **Bonding complete** while the pool is being prepared. The market page checks for the on-chain transition and shows a link to the confirmed pool address when `graduated` becomes true. This release uses a mock venue: its pool is an explorer-visible test artifact and does not support swaps.
+
+## Historical V2.1 testnet deployment
 
 - Chain: RISE Testnet (`11155931`)
 - RPC: `https://testnet.riselabs.xyz`
-- Active V2.1 factory: `0x6c12CCE962944EbB6A28536eD23baeFAa15c79cD`
+- Historical V2.1 factory: `0x6c12CCE962944EbB6A28536eD23baeFAa15c79cD`
 - Holder reserve: `0x06791a55D94B7EA697C00E2B33bA2F16A9160999`
 - Fee controller: `0x5f4a91DC59ed15fFEf30dbf3c591089132Df8831`
 - Deployment block: `56985934`
@@ -14,12 +36,11 @@ Curveball is a React/Vite dApp connected directly to V2.1 Curveball contracts on
 - Launch fee treasury: `0x5Dd6890a17c8652DA24A0Aff5746f0A996B95BE4`
 - Canonical deployment record: `deployments/11155931/curveball-v2.1-holder-reserve.json`
 
-The frontend discovers launches from factory events, reads market state from the factory and curve contracts, and sends wallet-signed launch, trade, graduation, and fee-claim transactions through the SDK in `src/sdk`.
-New launches use V2.1. Market discovery, trading, and graduation still work for tokens from the original V2 factory (`0x36628AbAC7B2cdcde1A8fa21868AfeCB74660ECf`) and the fee-enabled V2 factory (`0xD0f0cf4fd5Aa9D391477B3B9CF3B77Dc96705056`). The market list shows and filters by factory version. Each market action uses the factory that launched that token.
+The frontend discovers launches from the active factory's events, reads market state from the factory and curve contracts, and sends wallet-signed transactions through the SDK in `src/sdk`. Historical V2 deployment records remain for reference; V1 market discovery and trading exclude those factories.
 
 ## Holder airdrop reserve (V2.1)
 
-V2.1 is deployed on RISE Testnet. Existing V2 tokens retain their original supply and cannot gain a holder reserve. On another chain, set `VITE_LEGACY_LAUNCHPAD_ADDRESS` and `VITE_LEGACY_DEPLOYMENT_BLOCK` to keep a previous factory in discovery.
+V2.1 is deployed on RISE Testnet as a historical release. Existing V2 tokens retain their original supply and cannot gain a holder reserve.
 
 New launches default to a 5% holder reserve; creators can choose 0–5%. The 80% curve sale remains fixed, and the chosen reserve reduces the 20% otherwise provided to the graduation pool. Reserve tokens remain in `CurveHolderReserve`. After graduation, the recorded creator can commit them across multiple rounds using a past block after graduation. Claims are proportional to checkpointed balances at that block. The curve, liquidity pool, reserve contract, and buyback vault are excluded; the creator qualifies if their wallet holds tokens. Any wallet can submit a claim, but tokens always go to the eligible holder. Claims have no expiry. Rounding dust remains in the reserve contract. Balance checkpoint writes add gas to token transfers.
 
