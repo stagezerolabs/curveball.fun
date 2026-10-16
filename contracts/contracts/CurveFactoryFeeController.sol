@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
-import {CurveLaunchFactory} from "./CurveLaunchFactory.sol";
+import {CurveLaunchFactory} from "../historical/CurveLaunchFactory.sol";
 
 /// @notice Owns one factory. Dot retains full authority; the fee admin can change only its trading fee.
 contract CurveFactoryFeeController is Ownable2Step {

@@ -4,11 +4,11 @@ pragma solidity ^0.8.24;
 import {TestBase} from "./TestBase.sol";
 import {MockWETH} from "../contracts/mocks/MockWETH.sol";
 import {MockIcarusFactory} from "../contracts/mocks/MockIcarus.sol";
-import {CurveLaunchFactory} from "../contracts/CurveLaunchFactory.sol";
-import {CurveV2Deployment} from "../contracts/CurveV2Deployment.sol";
+import {CurveLaunchFactory} from "../historical/CurveLaunchFactory.sol";
+import {CurveV2Deployment} from "../historical/CurveV2Deployment.sol";
 import {CurveBondingCurve} from "../contracts/CurveBondingCurve.sol";
-import {CurveLauncherToken} from "../contracts/CurveLauncherToken.sol";
-import {CurveFeeEscrow} from "../contracts/CurveFeeEscrow.sol";
+import {CurveLauncherToken} from "../historical/CurveLauncherToken.sol";
+import {CurveFeeEscrow} from "../historical/CurveFeeEscrow.sol";
 import {CurveBuybackVault} from "../contracts/CurveBuybackVault.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 

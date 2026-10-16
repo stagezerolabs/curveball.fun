@@ -5,7 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
-import {CurveFeeEscrow} from "./CurveFeeEscrow.sol";
+import {CurveFeeEscrow} from "../historical/CurveFeeEscrow.sol";
 import {CurveBuybackVault} from "./CurveBuybackVault.sol";
 
 interface ICurveFactoryAccess {

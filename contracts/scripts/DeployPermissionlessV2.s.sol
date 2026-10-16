@@ -2,9 +2,9 @@
 pragma solidity ^0.8.24;
 
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import {CurveLaunchFactory} from "../contracts/CurveLaunchFactory.sol";
-import {CurveV2Deployment} from "../contracts/CurveV2Deployment.sol";
-import {CurveLaunchFeeTreasury} from "../contracts/CurveLaunchFeeTreasury.sol";
+import {CurveLaunchFactory} from "../historical/CurveLaunchFactory.sol";
+import {CurveV2Deployment} from "../historical/CurveV2Deployment.sol";
+import {CurveLaunchFeeTreasury} from "../historical/CurveLaunchFeeTreasury.sol";
 
 interface IPermissionlessDeployVm {
     function envAddress(string calldata name) external returns (address);

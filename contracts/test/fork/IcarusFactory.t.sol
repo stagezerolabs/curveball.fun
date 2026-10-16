@@ -4,8 +4,8 @@ pragma solidity ^0.8.24;
 import {ThrowawayERC20} from "../../contracts/test/ThrowawayERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {TestBase} from "../TestBase.sol";
-import {CurveLaunchFactory} from "../../contracts/CurveLaunchFactory.sol";
-import {CurveV2Deployment} from "../../contracts/CurveV2Deployment.sol";
+import {CurveLaunchFactory} from "../../historical/CurveLaunchFactory.sol";
+import {CurveV2Deployment} from "../../historical/CurveV2Deployment.sol";
 import {CurveBondingCurve} from "../../contracts/CurveBondingCurve.sol";
 
 interface IIcarusFactoryFork {

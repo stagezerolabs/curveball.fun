@@ -4,10 +4,10 @@ pragma solidity ^0.8.24;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {MockWETH} from "../contracts/mocks/MockWETH.sol";
 import {MockIcarusFactory} from "../contracts/mocks/MockIcarus.sol";
-import {CurveLaunchFactory} from "../contracts/CurveLaunchFactory.sol";
-import {CurveV2Deployment} from "../contracts/CurveV2Deployment.sol";
+import {CurveLaunchFactory} from "../historical/CurveLaunchFactory.sol";
+import {CurveV2Deployment} from "../historical/CurveV2Deployment.sol";
 import {CurveBondingCurve} from "../contracts/CurveBondingCurve.sol";
-import {CurveLauncherToken} from "../contracts/CurveLauncherToken.sol";
+import {CurveLauncherToken} from "../historical/CurveLauncherToken.sol";
 
 contract V2CreatorActor {
     function create(CurveLaunchFactory factory) external returns (address token, address curve) {

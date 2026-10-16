@@ -4,8 +4,8 @@ import { FEE_CONTROLLER_CODE_HASH, V21_FEE_CONTROLLER_CODE_HASH } from "../src/l
 
 // Live controller code hashes stay pinned in the UI. Recompiling against the
 // changed factory updates Solidity metadata, so source builds have separate pins.
-const CURRENT_SOURCE_CODE_HASH = "0x3dedac614dce85cda02816bd7cfa52c1eb58a9a15e370a4580dae109a57dc689";
-const CURRENT_SOURCE_V21_CODE_HASH = "0xe21bd1e1e6985a2104cc7f8a7968d70e6753cb58cff3e581327090d71336802a";
+const CURRENT_SOURCE_CODE_HASH = "0x331c2fc46d4ef192ee924eeee8bdf903caacdabc3a256ebe55bf6d8d665616cf";
+const CURRENT_SOURCE_V21_CODE_HASH = "0x5e4551db39d24b670ac1f67ce98291019e5c4bb67b2b3e5ce1537e9e6d4aed0f";
 const factories = [
   ["0xD0f0cf4fd5Aa9D391477B3B9CF3B77Dc96705056", CURRENT_SOURCE_CODE_HASH],
   ["0x6c12CCE962944EbB6A28536eD23baeFAa15c79cD", CURRENT_SOURCE_V21_CODE_HASH],

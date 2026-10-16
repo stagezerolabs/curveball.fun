@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {CurveFeeEscrow} from "./CurveFeeEscrow.sol";
-import {CurveBuybackVault} from "./CurveBuybackVault.sol";
+import {CurveBuybackVault} from "../contracts/CurveBuybackVault.sol";
 
 interface IHookFactory {
     function market(address token)

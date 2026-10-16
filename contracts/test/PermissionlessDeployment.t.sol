@@ -2,10 +2,10 @@
 pragma solidity ^0.8.24;
 
 import {DeployPermissionlessV2} from "../scripts/DeployPermissionlessV2.s.sol";
-import {CurveLaunchFactory} from "../contracts/CurveLaunchFactory.sol";
+import {CurveLaunchFactory} from "../historical/CurveLaunchFactory.sol";
 import {MockWETH} from "../contracts/mocks/MockWETH.sol";
 import {MockIcarusFactory} from "../contracts/mocks/MockIcarus.sol";
-import {CurveLaunchFeeTreasury} from "../contracts/CurveLaunchFeeTreasury.sol";
+import {CurveLaunchFeeTreasury} from "../historical/CurveLaunchFeeTreasury.sol";
 
 interface IPermissionlessTestVm {
     function chainId(uint256 newChainId) external;
