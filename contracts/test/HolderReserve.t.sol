@@ -4,9 +4,9 @@ pragma solidity ^0.8.24;
 import {TestBase} from "./TestBase.sol";
 import {MockWETH} from "../contracts/mocks/MockWETH.sol";
 import {MockIcarusFactory} from "../contracts/mocks/MockIcarus.sol";
-import {CurveV2Deployment} from "../contracts/CurveV2Deployment.sol";
-import {CurveLaunchFactory} from "../contracts/CurveLaunchFactory.sol";
-import {CurveLauncherToken} from "../contracts/CurveLauncherToken.sol";
+import {CurveV2Deployment} from "../historical/CurveV2Deployment.sol";
+import {CurveLaunchFactory} from "../historical/CurveLaunchFactory.sol";
+import {CurveLauncherToken} from "../historical/CurveLauncherToken.sol";
 import {CurveBondingCurve} from "../contracts/CurveBondingCurve.sol";
 import {CurveHolderReserve} from "../contracts/CurveHolderReserve.sol";
 

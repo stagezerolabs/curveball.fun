@@ -6,7 +6,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {IIcarusPool} from "./interfaces/IIcarus.sol";
-import {CurveMemeHook} from "./CurveMemeHook.sol";
+import {CurveMemeHook} from "../historical/CurveMemeHook.sol";
 
 contract LpLocker is ReentrancyGuard, Ownable2Step {
     using SafeERC20 for IERC20;

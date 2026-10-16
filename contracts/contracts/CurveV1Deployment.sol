@@ -3,12 +3,12 @@ pragma solidity ^0.8.24;
 
 import {CurveV1Factory} from "./CurveV1Factory.sol";
 import {CurveLaunchDeployer} from "./CurveLaunchDeployer.sol";
-import {CurveFeeEscrow} from "./CurveFeeEscrow.sol";
+import {CurveFeeEscrow} from "../historical/CurveFeeEscrow.sol";
 import {CurveBuybackVault} from "./CurveBuybackVault.sol";
 import {CurveV1Locker} from "./CurveV1Locker.sol";
 import {CurveV1PoolAdapter} from "./CurveV1PoolAdapter.sol";
-import {CurveMemeHook} from "./CurveMemeHook.sol";
-import {CurveLaunchAndBuy} from "./CurveLaunchAndBuy.sol";
+import {CurveMemeHook} from "../historical/CurveMemeHook.sol";
+import {CurveLaunchAndBuy} from "../historical/CurveLaunchAndBuy.sol";
 import {CurveHolderReserve} from "./CurveHolderReserve.sol";
 
 library CurveV1Deployment {

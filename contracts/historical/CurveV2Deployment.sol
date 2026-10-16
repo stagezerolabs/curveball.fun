@@ -2,15 +2,15 @@
 pragma solidity ^0.8.24;
 
 import {CurveLaunchFactory} from "./CurveLaunchFactory.sol";
-import {CurveLaunchDeployer} from "./CurveLaunchDeployer.sol";
+import {CurveLaunchDeployer} from "../contracts/CurveLaunchDeployer.sol";
 import {CurveFeeEscrow} from "./CurveFeeEscrow.sol";
-import {CurveBuybackVault} from "./CurveBuybackVault.sol";
-import {CurveGraduationGuard} from "./CurveGraduationGuard.sol";
-import {CurveGraduationExecutor} from "./CurveGraduationExecutor.sol";
-import {CurveLpLocker} from "./LpLocker.sol";
+import {CurveBuybackVault} from "../contracts/CurveBuybackVault.sol";
+import {CurveGraduationGuard} from "../contracts/CurveGraduationGuard.sol";
+import {CurveGraduationExecutor} from "../contracts/CurveGraduationExecutor.sol";
+import {CurveLpLocker} from "../contracts/LpLocker.sol";
 import {CurveMemeHook} from "./CurveMemeHook.sol";
 import {CurveLaunchAndBuy} from "./CurveLaunchAndBuy.sol";
-import {CurveHolderReserve} from "./CurveHolderReserve.sol";
+import {CurveHolderReserve} from "../contracts/CurveHolderReserve.sol";
 
 /// @notice Deployment helper executed by scripts/tests. Each `new` is a separate broadcast transaction.
 library CurveV2Deployment {

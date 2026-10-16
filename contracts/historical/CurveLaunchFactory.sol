@@ -6,17 +6,17 @@ import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {CurveLaunchDeployer} from "./CurveLaunchDeployer.sol";
-import {CurveBondingCurve} from "./CurveBondingCurve.sol";
+import {CurveLaunchDeployer} from "../contracts/CurveLaunchDeployer.sol";
+import {CurveBondingCurve} from "../contracts/CurveBondingCurve.sol";
 import {CurveFeeEscrow} from "./CurveFeeEscrow.sol";
-import {CurveBuybackVault} from "./CurveBuybackVault.sol";
-import {CurveGraduationGuard} from "./CurveGraduationGuard.sol";
-import {CurveGraduationExecutor} from "./CurveGraduationExecutor.sol";
-import {CurveLpLocker} from "./LpLocker.sol";
+import {CurveBuybackVault} from "../contracts/CurveBuybackVault.sol";
+import {CurveGraduationGuard} from "../contracts/CurveGraduationGuard.sol";
+import {CurveGraduationExecutor} from "../contracts/CurveGraduationExecutor.sol";
+import {CurveLpLocker} from "../contracts/LpLocker.sol";
 import {CurveLauncherToken} from "./CurveLauncherToken.sol";
 import {CurveMemeHook} from "./CurveMemeHook.sol";
 import {CurveLaunchAndBuy} from "./CurveLaunchAndBuy.sol";
-import {CurveHolderReserve} from "./CurveHolderReserve.sol";
+import {CurveHolderReserve} from "../contracts/CurveHolderReserve.sol";
 
 /// @notice V2 registry and policy authority. Existing markets retain their launch snapshot.
 contract CurveLaunchFactory is Ownable2Step, ReentrancyGuard {

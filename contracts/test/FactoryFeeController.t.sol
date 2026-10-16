@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {TestBase} from "./TestBase.sol";
-import {CurveLaunchFactory} from "../contracts/CurveLaunchFactory.sol";
+import {CurveLaunchFactory} from "../historical/CurveLaunchFactory.sol";
 import {CurveFactoryFeeController} from "../contracts/CurveFactoryFeeController.sol";
 
 contract FactoryFeeControllerTest is TestBase {

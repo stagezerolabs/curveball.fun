@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {CurveLaunchFactory} from "../contracts/CurveLaunchFactory.sol";
+import {CurveLaunchFactory} from "../historical/CurveLaunchFactory.sol";
 import {CurveFactoryFeeController} from "../contracts/CurveFactoryFeeController.sol";
 
 interface IV21ControllerVm {

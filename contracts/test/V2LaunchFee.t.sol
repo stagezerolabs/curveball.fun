@@ -4,10 +4,10 @@ pragma solidity ^0.8.24;
 import {TestBase} from "./TestBase.sol";
 import {MockWETH} from "../contracts/mocks/MockWETH.sol";
 import {MockIcarusFactory} from "../contracts/mocks/MockIcarus.sol";
-import {CurveLaunchFactory} from "../contracts/CurveLaunchFactory.sol";
-import {CurveV2Deployment} from "../contracts/CurveV2Deployment.sol";
-import {CurveLaunchAndBuy} from "../contracts/CurveLaunchAndBuy.sol";
-import {CurveLaunchFeeTreasury} from "../contracts/CurveLaunchFeeTreasury.sol";
+import {CurveLaunchFactory} from "../historical/CurveLaunchFactory.sol";
+import {CurveV2Deployment} from "../historical/CurveV2Deployment.sol";
+import {CurveLaunchAndBuy} from "../historical/CurveLaunchAndBuy.sol";
+import {CurveLaunchFeeTreasury} from "../historical/CurveLaunchFeeTreasury.sol";
 
 contract V2LaunchFeeTest is TestBase {
     uint256 private constant FEE = 0.0004 ether;

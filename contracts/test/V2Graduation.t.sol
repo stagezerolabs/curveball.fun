@@ -6,10 +6,10 @@ import {MockWETH} from "../contracts/mocks/MockWETH.sol";
 import {MockIcarusFactory, MockPool} from "../contracts/mocks/MockIcarus.sol";
 import {IIcarusFactory} from "../contracts/interfaces/IIcarus.sol";
 import {PoCBrokenFactory} from "../contracts/test/PoCIcarus.sol";
-import {CurveLaunchFactory} from "../contracts/CurveLaunchFactory.sol";
-import {CurveV2Deployment} from "../contracts/CurveV2Deployment.sol";
+import {CurveLaunchFactory} from "../historical/CurveLaunchFactory.sol";
+import {CurveV2Deployment} from "../historical/CurveV2Deployment.sol";
 import {CurveBondingCurve} from "../contracts/CurveBondingCurve.sol";
-import {CurveLauncherToken} from "../contracts/CurveLauncherToken.sol";
+import {CurveLauncherToken} from "../historical/CurveLauncherToken.sol";
 import {CurveLpLocker} from "../contracts/LpLocker.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 

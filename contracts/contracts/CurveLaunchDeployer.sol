@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {CurveBondingCurve} from "./CurveBondingCurve.sol";
-import {CurveLauncherToken} from "./CurveLauncherToken.sol";
+import {CurveLauncherToken} from "../historical/CurveLauncherToken.sol";
 
 /// @notice Deploys a curve first, then mints its fixed token supply directly to it.
 contract CurveLaunchDeployer {
