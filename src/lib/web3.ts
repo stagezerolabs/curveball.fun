@@ -11,7 +11,7 @@ import {
   RISE_TESTNET_RPC_URL,
   defineCurveballDeployment,
 } from "../sdk/curveballSdk";
-import { createV2Sdk } from "../sdk/v2Sdk";
+import { createCurveballSdk } from "../sdk/sdk";
 
 const env = import.meta.env;
 if (!env.VITE_LAUNCHPAD_ADDRESS) throw new Error("VITE_LAUNCHPAD_ADDRESS is required.");
@@ -50,18 +50,8 @@ export const wagmiConfig = walletConnectProjectId
 
 const configuredLaunchpad = env.VITE_LAUNCHPAD_ADDRESS.trim();
 export const launchpadAddress: Address | null = isAddress(configuredLaunchpad) ? getAddress(configuredLaunchpad) : null;
-export const legacyFactories: ReadonlyArray<{ address: Address; deploymentBlock: bigint }> = [];
-export const activeFactoryIsLegacy = false;
-export const activeFactoryVersion = (typeof env.VITE_FACTORY_VERSION === "string" && env.VITE_FACTORY_VERSION.trim())
-  || "V1";
-
-export function factoryVersion(factory?: Address | null): string {
-  if (!factory) return activeFactoryVersion;
-  return factory.toLowerCase() === launchpadAddress?.toLowerCase() ? activeFactoryVersion : "Unsupported";
-}
-
 export const curveballSdk = launchpadAddress
-  ? createV2Sdk(wagmiConfig, defineCurveballDeployment({
+  ? createCurveballSdk(wagmiConfig, defineCurveballDeployment({
       chainId: activeChainId,
       launchpad: launchpadAddress,
       slippageBps: 300,

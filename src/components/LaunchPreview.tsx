@@ -10,7 +10,6 @@ type LaunchPreviewProps = {
   curveSupply?: bigint;
   reserveBps: number;
   supplyUnavailable: boolean;
-  version: string;
 };
 
 function formatSupply(supply: bigint) {
@@ -19,7 +18,7 @@ function formatSupply(supply: bigint) {
   return `${BigInt(whole).toLocaleString("en-US")}${decimal ? `.${decimal}` : ""}`;
 }
 
-export function LaunchPreview({ name, symbol, creatorTaxBps, initialBuy, imageUrl, supply, curveSupply, reserveBps, supplyUnavailable, version }: LaunchPreviewProps) {
+export function LaunchPreview({ name, symbol, creatorTaxBps, initialBuy, imageUrl, supply, curveSupply, reserveBps, supplyUnavailable }: LaunchPreviewProps) {
   const displayName = name.trim() || "Your token";
   const displaySymbol = symbol.trim().replace(/^\$/, "").toUpperCase() || "TOKEN";
   const buy = Number(initialBuy);
@@ -32,7 +31,7 @@ export function LaunchPreview({ name, symbol, creatorTaxBps, initialBuy, imageUr
   return (
     <aside className="launch-preview" aria-label="Token preview">
       <div className="launch-preview-heading">
-        <span>Preview · {version}</span>
+        <span>Preview</span>
       </div>
       <div className={`launch-preview-card${showTax || showBuy || showAllocation ? " has-options" : ""}`}>
         <div className="launch-preview-art">

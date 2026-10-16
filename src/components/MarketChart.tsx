@@ -6,7 +6,7 @@ import { CanvasRenderer } from "echarts/renderers";
 import { usePublicClient } from "wagmi";
 import { MarketActivity } from "./MarketActivity";
 import { UsdAmount } from "./UsdAmount";
-import { v2CurveAbi } from "../sdk/v2Contracts";
+import { curveAbi } from "../sdk/contracts";
 import {
   activeChainId,
   activeDeploymentBlock,
@@ -82,7 +82,7 @@ async function queryTradeLogs(client: ChartClient, token: Token) {
 
   const eventQuery = {
     address,
-    abi: v2CurveAbi,
+    abi: curveAbi,
     eventName: "Trade",
     args: { token: token.address },
     strict: true,

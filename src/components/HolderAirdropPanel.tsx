@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAccount, usePublicClient } from "wagmi";
 import { switchChain, waitForTransactionReceipt, writeContract } from "wagmi/actions";
 import { formatEther, parseEther, zeroAddress, type Address } from "viem";
-import { holderReserveAbi, v2FactoryAbi } from "../sdk/v2Contracts";
+import { holderReserveAbi, factoryAbi } from "../sdk/contracts";
 import { activeChainId, activeExplorerUrl, wagmiConfig } from "../lib/web3";
 import { readHolderSnapshot } from "../lib/holderSnapshot";
 import type { Token } from "../types";
@@ -44,8 +44,8 @@ export function HolderAirdropPanel({ token }: { token: Token }) {
     enabled: Boolean(client && token.factory),
     queryFn: async () => {
       if (!client || !token.factory) throw new Error("No chain client available.");
-      const reserve = await client.readContract({ address: token.factory, abi: v2FactoryAbi, functionName: "holderReserve" });
-      if (reserve === zeroAddress) return null;
+      const reserve = await client.readContract({ address: token.factory, abi: factoryAbi, functionName: "holderReserve" });
+      if (reserve === zeroAddress) throw new Error("Holder reserve is not configured.");
       const [launch, latestBlock] = await Promise.all([
         client.readContract({ address: reserve, abi: holderReserveAbi, functionName: "launches", args: [token.address] }),
         client.getBlockNumber(),

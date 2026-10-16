@@ -1,10 +1,10 @@
 import { expect, test } from "bun:test";
 import { encodeAbiParameters, encodeEventTopics, WaitForTransactionReceiptTimeoutError, type Address, type Hash, type TransactionReceipt } from "viem";
 import type { Config } from "wagmi";
-import { createV2Sdk } from "./v2Sdk";
+import { createCurveballSdk } from "./sdk";
 import { defineCurveballDeployment, RISE_TESTNET_CHAIN_ID } from "./curveballSdk";
-import type { WagmiActions } from "./v2Sdk";
-import { v2CurveAbi, v2FactoryAbi } from "./v2Contracts";
+import type { WagmiActions } from "./sdk";
+import { curveAbi, factoryAbi } from "./contracts";
 
 const wallet = "0x0000000000000000000000000000000000000001" as Address;
 const hash = `0x${"ab".repeat(32)}` as Hash;
@@ -40,7 +40,7 @@ test("buy progress follows each wallet prompt and its network confirmation", asy
     waitForTransactionReceipt: async () => ({ status: "success", logs: [] }),
   } as unknown as WagmiActions;
 
-  await createV2Sdk({} as Config, deployment, actions).trade("buy", token, 100n, (phase) => phases.push(phase));
+  await createCurveballSdk({} as Config, deployment, actions).trade("buy", token, 100n, (phase) => phases.push(phase));
   expect(phases).toEqual([
     "preparing", "wrapWallet", "wrapConfirming", "approveWallet", "approveConfirming", "tradeWallet", "tradeConfirming",
   ]);
@@ -58,7 +58,7 @@ test("sell all for ETH approves the full balance, sells, then unwraps only the s
     status: "success",
     logs: [{
       address: curve,
-      topics: encodeEventTopics({ abi: v2CurveAbi, eventName: "Trade", args: { token, trader: wallet } }),
+      topics: encodeEventTopics({ abi: curveAbi, eventName: "Trade", args: { token, trader: wallet } }),
       data: encodeAbiParameters([
         { type: "bool" }, { type: "uint256" }, { type: "uint256" }, { type: "uint256" },
         { type: "uint256" }, { type: "uint256" }, { type: "uint256" }, { type: "uint256" },
@@ -88,7 +88,7 @@ test("sell all for ETH approves the full balance, sells, then unwraps only the s
       calls.some((call) => call.functionName === "withdraw") ? { status: "success", logs: [] } : request.hash === hash && calls.some((call) => call.functionName === "sellTokens") ? saleReceipt : { status: "success", logs: [] },
   } as unknown as WagmiActions;
 
-  const result = await createV2Sdk({} as Config, deployment, actions).sellAllForEth(token, quote);
+  const result = await createCurveballSdk({} as Config, deployment, actions).sellAllForEth(token, quote);
   expect(result.amount).toBe(net);
   expect(result.sale.marketState).toEqual({ sold: 0n, virtualQuote: 100n, virtualToken: 100n });
   expect(calls.map((call) => call.functionName)).toEqual(["approve", "sellTokens", "withdraw"]);
@@ -110,7 +110,7 @@ test("a rejected unwrap reports the confirmed sale and can be retried without se
     status: "success",
     logs: [{
       address: curve,
-      topics: encodeEventTopics({ abi: v2CurveAbi, eventName: "Trade", args: { token, trader: wallet } }),
+      topics: encodeEventTopics({ abi: curveAbi, eventName: "Trade", args: { token, trader: wallet } }),
       data: encodeAbiParameters([
         { type: "bool" }, { type: "uint256" }, { type: "uint256" }, { type: "uint256" },
         { type: "uint256" }, { type: "uint256" }, { type: "uint256" }, { type: "uint256" },
@@ -136,7 +136,7 @@ test("a rejected unwrap reports the confirmed sale and can be retried without se
     },
     waitForTransactionReceipt: async () => writes.at(-1) === "sellTokens" ? saleReceipt : { status: "success", logs: [] },
   } as unknown as WagmiActions;
-  const sdk = createV2Sdk({} as Config, deployment, actions);
+  const sdk = createCurveballSdk({} as Config, deployment, actions);
   let saleAmount: bigint | undefined;
   await expect(sdk.sellAllForEth(token, quote, (phase, amount) => {
     phases.push(phase);
@@ -155,7 +155,7 @@ test("a missing launch transaction cannot leave confirmation waiting forever", a
   let requestedTimeout: number | undefined;
   const actions = {
     getAccount: () => ({ address: wallet, chainId: RISE_TESTNET_CHAIN_ID }),
-    readContract: async () => 0n,
+    readContract: async (_config: unknown, request: { functionName: string }) => request.functionName === "holderReserve" ? "0x0000000000000000000000000000000000000007" : 0n,
     simulateContract: async () => ({ request: {} }),
     writeContract: async () => hash,
     waitForTransactionReceipt: async (_config: unknown, options: { timeout?: number }) => {
@@ -168,7 +168,7 @@ test("a missing launch transaction cannot leave confirmation waiting forever", a
       throw new Error("Transaction not found");
     },
   } as unknown as WagmiActions;
-  const sdk = createV2Sdk({} as Config, deployment, actions);
+  const sdk = createCurveballSdk({} as Config, deployment, actions);
 
   const outcome = await Promise.race([
     sdk.createToken({ name: "Test", symbol: "TST", uri: "" }).then(() => "confirmed", (error: Error) => error.name),
@@ -187,20 +187,20 @@ test("a receipt found after the waiter fails still completes the launch", async 
     status: "success",
     logs: [{
       address: deployment.launchpad,
-      topics: encodeEventTopics({ abi: v2FactoryAbi, eventName: "LaunchCreated", args: { token, curve, creator: wallet } }),
+      topics: encodeEventTopics({ abi: factoryAbi, eventName: "LaunchCreated", args: { token, curve, creator: wallet } }),
       data: encodeAbiParameters([{ type: "string" }, { type: "string" }, { type: "string" }], ["Test", "TST", ""]),
     }],
   } as TransactionReceipt;
   const actions = {
     getAccount: () => ({ address: wallet, chainId: RISE_TESTNET_CHAIN_ID }),
-    readContract: async () => 0n,
+    readContract: async (_config: unknown, request: { functionName: string }) => request.functionName === "holderReserve" ? "0x0000000000000000000000000000000000000007" : 0n,
     simulateContract: async () => ({ request: {} }),
     writeContract: async () => hash,
     waitForTransactionReceipt: async () => { throw new WaitForTransactionReceiptTimeoutError({ hash }); },
     getTransactionReceipt: async () => receipt,
   } as unknown as WagmiActions;
 
-  const result = await createV2Sdk({} as Config, deployment, actions).createToken({ name: "Test", symbol: "TST", uri: "" });
+  const result = await createCurveballSdk({} as Config, deployment, actions).createToken({ name: "Test", symbol: "TST", uri: "" });
   expect(result.token).toBe(token);
   expect(result.hash).toBe(hash);
 });
@@ -208,14 +208,14 @@ test("a receipt found after the waiter fails still completes the launch", async 
 test("a reverted receipt found after the waiter fails is reported as a failure", async () => {
   const actions = {
     getAccount: () => ({ address: wallet, chainId: RISE_TESTNET_CHAIN_ID }),
-    readContract: async () => 0n,
+    readContract: async (_config: unknown, request: { functionName: string }) => request.functionName === "holderReserve" ? "0x0000000000000000000000000000000000000007" : 0n,
     simulateContract: async () => ({ request: {} }),
     writeContract: async () => hash,
     waitForTransactionReceipt: async () => { throw new WaitForTransactionReceiptTimeoutError({ hash }); },
     getTransactionReceipt: async () => ({ status: "reverted", logs: [] }),
   } as unknown as WagmiActions;
 
-  await expect(createV2Sdk({} as Config, deployment, actions).createToken({ name: "Test", symbol: "TST", uri: "" }))
+  await expect(createCurveballSdk({} as Config, deployment, actions).createToken({ name: "Test", symbol: "TST", uri: "" }))
     .rejects.toThrow(`Transaction ${hash} reverted.`);
 });
 
@@ -230,7 +230,7 @@ test("a paid launch wraps and approves only the exact fee before creation", asyn
     status: "success",
     logs: [{
       address: deployment.launchpad,
-      topics: encodeEventTopics({ abi: v2FactoryAbi, eventName: "LaunchCreated", args: { token, curve, creator: wallet } }),
+      topics: encodeEventTopics({ abi: factoryAbi, eventName: "LaunchCreated", args: { token, curve, creator: wallet } }),
       data: encodeAbiParameters([{ type: "string" }, { type: "string" }, { type: "string" }], ["Test", "TST", ""]),
     }],
   } as TransactionReceipt;
@@ -238,6 +238,7 @@ test("a paid launch wraps and approves only the exact fee before creation", asyn
     getAccount: () => ({ address: wallet, chainId: RISE_TESTNET_CHAIN_ID }),
     getBalance: async () => ({ value: 1n * 10n ** 18n }),
     readContract: async (_config: unknown, request: { functionName: string }) => {
+      if (request.functionName === "holderReserve") return "0x0000000000000000000000000000000000000007";
       if (request.functionName === "launchFee") return fee;
       if (request.functionName === "quote") return quote;
       if (request.functionName === "balanceOf") return 0n;
@@ -255,7 +256,7 @@ test("a paid launch wraps and approves only the exact fee before creation", asyn
     waitForTransactionReceipt: async () => receipt,
   } as unknown as WagmiActions;
 
-  await createV2Sdk({} as Config, deployment, actions).createToken({ name: "Test", symbol: "TST", uri: "" });
+  await createCurveballSdk({} as Config, deployment, actions).createToken({ name: "Test", symbol: "TST", uri: "" });
   expect(simulations.map((request) => request.functionName)).toEqual(["deposit", "approve", "createToken"]);
   expect(simulations[0].value).toBe(fee);
   expect(simulations[1].args).toEqual([deployment.launchpad, fee]);
@@ -272,7 +273,7 @@ test("reserve-enabled direct and atomic launches carry the selected percentage",
     status: "success",
     logs: [{
       address: deployment.launchpad,
-      topics: encodeEventTopics({ abi: v2FactoryAbi, eventName: "LaunchCreated", args: { token, curve, creator: wallet } }),
+      topics: encodeEventTopics({ abi: factoryAbi, eventName: "LaunchCreated", args: { token, curve, creator: wallet } }),
       data: encodeAbiParameters([{ type: "string" }, { type: "string" }, { type: "string" }], ["Test", "TST", ""]),
     }],
   } as TransactionReceipt;
@@ -298,7 +299,7 @@ test("reserve-enabled direct and atomic launches carry the selected percentage",
     writeContract: async () => hash,
     waitForTransactionReceipt: async () => receipt,
   } as unknown as WagmiActions;
-  const sdk = createV2Sdk({} as Config, deployment, actions);
+  const sdk = createCurveballSdk({} as Config, deployment, actions);
   await sdk.createToken({ name: "Test", symbol: "TST", uri: "", holderReserveBps: 250 });
   await sdk.launchAndBuy({ name: "Test", symbol: "TST", uri: "", holderReserveBps: 500 }, 50n * 10n ** 18n);
   expect(requests[0].args).toEqual(["Test", "TST", "", 0, 250]);

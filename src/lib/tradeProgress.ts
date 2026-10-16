@@ -1,4 +1,4 @@
-import type { TradePhase, TradeSide } from "../sdk/v2Sdk";
+import type { TradePhase, TradeSide } from "../sdk/sdk";
 
 export function tradeButtonLabel(side: TradeSide, phase: TradePhase | null): string {
   if (!phase) return side === "buy" ? "Buy" : "Sell";

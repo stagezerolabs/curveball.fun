@@ -12,7 +12,7 @@ import {
   requireCurveballSdk,
 } from "../lib/web3";
 import { readableError } from "../lib/errors";
-import { PendingTransactionError } from "../sdk/v2Sdk";
+import { PendingTransactionError } from "../sdk/sdk";
 import { hasPublishedArtwork } from "../lib/launchForm";
 import { sdkForMarket } from "../lib/marketFactories";
 
@@ -49,7 +49,11 @@ function mergeTokenLists(current, discovered) {
 }
 
 export function rehydrateMarketCache(persisted, current) {
-  return { ...current, ...persisted, marketsFetchedAt: 0 };
+  const configured = (token) => token?.factory?.toLowerCase() === launchpadAddress?.toLowerCase();
+  const tokens = validCachedTokens(persisted?.tokens).filter(configured);
+  const tokenCache = Object.fromEntries(Object.entries(persisted?.tokenCache ?? {}).filter(([, token]) => configured(token)));
+  const creatorTokens = Object.fromEntries(Object.entries(persisted?.creatorTokens ?? {}).map(([creator, entries]) => [creator, validCachedTokens(entries).filter(configured)]));
+  return { ...current, ...persisted, tokens, tokenCache, creatorTokens, marketsFetchedAt: 0 };
 }
 
 const validCachedTokens = (tokens) => Array.isArray(tokens)
@@ -206,7 +210,7 @@ export const useStore = create(persist((set, get) => ({
       .then((discovered) => {
         const fetchedAt = Date.now();
         set((current) => ({
-          tokens: mergeTokenLists(current.tokens, discovered),
+          tokens: discovered,
           ...cacheTokens(current, discovered, fetchedAt),
           loading: false,
           marketsFetchedAt: fetchedAt,
@@ -465,8 +469,8 @@ export const useStore = create(persist((set, get) => ({
       tradeMessage: "",
     }),
 }), {
-  name: `curveball-chain-cache:${activeChainId}:${launchpadAddress ?? "unconfigured"}:v2`,
-  version: 4,
+  name: `curveball-chain-cache:${activeChainId}:${launchpadAddress ?? "unconfigured"}:current`,
+  version: 5,
   storage: createJSONStorage(() => localStorage),
   partialize: (state) => ({
     tokens: state.tokens,
