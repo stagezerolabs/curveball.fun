@@ -128,7 +128,7 @@ contract CurveBondingCurve is ReentrancyGuard {
         token = token_;
     }
 
-    /// @notice A gross WETH budget includes every fee and creator tax.
+    /// @notice A gross quote-token budget includes every trading fee and creator tax.
     function quoteBuy(uint256 maxSpend)
         public
         view
@@ -158,7 +158,7 @@ contract CurveBondingCurve is ReentrancyGuard {
         return uint256(virtualQuote) * 1e18 / virtualToken;
     }
 
-    /// @notice Time-weighted WETH per token; requires at least 30 minutes of observations.
+    /// @notice Time-weighted quote-token price per token; requires at least 30 minutes of observations.
     function twapPrice() external view returns (uint256 average) {
         require(block.timestamp >= 30 minutes, "price history too short");
         uint256 target = block.timestamp - 30 minutes;

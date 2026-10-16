@@ -5,7 +5,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {CurveLaunchFactory} from "./CurveLaunchFactory.sol";
 
-/// @notice Owns one factory. Dot retains full authority; the fee admin can change only its trading fee.
+/// @notice Owns one V2 factory. Its owner retains full authority; the fee admin can change only the trading fee.
 contract CurveFactoryFeeController is Ownable2Step {
     CurveLaunchFactory public immutable factory;
     address public feeAdmin;
@@ -47,7 +47,7 @@ contract CurveFactoryFeeController is Ownable2Step {
         revert("renounce disabled");
     }
 
-    /// @notice Dot can exercise any factory-owner capability, including rescue and full policy updates.
+    /// @notice The controller owner can exercise any factory-owner capability, including rescue and policy updates.
     function executeFactory(bytes calldata data) external onlyOwner returns (bytes memory result) {
         require(factory.owner() == address(this), "controller is not factory owner");
         (bool success, bytes memory response) = address(factory).call(data);

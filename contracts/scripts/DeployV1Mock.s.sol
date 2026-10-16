@@ -11,7 +11,7 @@ interface IV1DeployVm {
     function stopBroadcast() external;
 }
 
-/// @notice Initial mock-venue release on RISE testnet, signed by the local dot keystore.
+/// @notice Deploys the V1 mock-venue release on RISE testnet from the configured Dot address.
 contract DeployV1Mock {
     IV1DeployVm private constant vm = IV1DeployVm(address(uint160(uint256(keccak256("hevm cheat code")))));
     address public constant DOT = 0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3;

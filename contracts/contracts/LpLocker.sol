@@ -89,7 +89,7 @@ contract LpLocker is ReentrancyGuard, Ownable2Step {
     }
 }
 
-/// @notice V2 LP custody. Fee forwarding is added with the pool-fee slice.
+/// @notice V2 LP custody; claimed pool fees are forwarded to the launch's routing hook.
 contract CurveLpLocker is ReentrancyGuard {
     using SafeERC20 for IERC20;
     address public immutable factory;

@@ -6,7 +6,7 @@ import {CurveBondingCurve} from "./CurveBondingCurve.sol";
 import {CurveLpLocker} from "./LpLocker.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-/// @notice Sole boundary that creates an Icarus pool and mints its LP.
+/// @notice V2 factory's boundary for creating an Icarus pool and minting its LP.
 contract CurveGraduationExecutor {
     address public immutable factory;
     IIcarusFactory public immutable icarusFactory;
