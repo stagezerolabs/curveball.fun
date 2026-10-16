@@ -4,7 +4,7 @@ import { Collapsible } from "@base-ui/react/collapsible";
 import type { ReactNode } from "react";
 import { formatEther, parseEther } from "viem";
 import { useBalance, useReadContract } from "wagmi";
-import { erc20Abi, v2FactoryAbi } from "../sdk/v2Contracts";
+import { erc20Abi, factoryAbi } from "../sdk/contracts";
 import { activeChainId, launchpadAddress } from "../lib/web3";
 import { factoryForToken } from "../lib/marketFactories";
 import { getBetaReadEnabled, selectMarketState } from "../lib/marketState";
@@ -14,7 +14,7 @@ import {
   getBuyFundingState,
   TradeFundingStatus,
 } from "./TradeFundingStatus";
-import { NATIVE_GAS_RESERVE } from "../sdk/v2Sdk";
+import { NATIVE_GAS_RESERVE } from "../sdk/sdk";
 import type { Address } from "viem";
 import type { Token } from "../types";
 import { UsdAmount } from "./UsdAmount";
@@ -68,18 +68,18 @@ export function TradePanel({
     hasLaunchpadAddress: Boolean(marketFactory),
   });
   const { data: publicOpen } = useReadContract({
-    address: marketFactory, abi: v2FactoryAbi,
+    address: marketFactory, abi: factoryAbi,
     functionName: "publicLaunchOpen", chainId: activeChainId,
     query: { enabled: betaReadEnabled.publicLaunchOpen },
   });
   const { data: invited } = useReadContract({
-    address: marketFactory, abi: v2FactoryAbi,
+    address: marketFactory, abi: factoryAbi,
     functionName: "invited", args: [address!], chainId: activeChainId,
     query: { enabled: betaReadEnabled.invited },
   });
   const { data: quoteToken } = useReadContract({
     address: marketFactory,
-    abi: v2FactoryAbi,
+    abi: factoryAbi,
     functionName: "quote",
     chainId: activeChainId,
     query: { enabled: Boolean(marketFactory) },

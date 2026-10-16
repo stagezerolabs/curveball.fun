@@ -1,10 +1,10 @@
 import { expect, test } from "bun:test";
 import { discoverAllTokens, type CreatorTokenClient } from "./creatorTokens";
-import { activeDeploymentBlock, factoryVersion, launchpadAddress, legacyFactories } from "./lib/web3";
+import { activeDeploymentBlock, launchpadAddress } from "./lib/web3";
 import { factoryForToken } from "./lib/marketFactories";
 import { getAddress, zeroAddress, type Address } from "viem";
 
-test("discovery scans only the V1 factory from its deployment block", async () => {
+test("discovery scans only the configured factory from its deployment block", async () => {
   const deploymentBlock = activeDeploymentBlock;
   expect(launchpadAddress).not.toBeNull();
   const ranges: { address: string; fromBlock: bigint; toBlock: bigint }[] = [];
@@ -18,15 +18,14 @@ test("discovery scans only the V1 factory from its deployment block", async () =
 
   expect(await discoverAllTokens(client)).toEqual([]);
   expect(ranges).toContainEqual({ address: launchpadAddress!, fromBlock: deploymentBlock, toBlock: deploymentBlock });
-  expect(legacyFactories).toEqual([]);
   expect(ranges).toHaveLength(1);
 });
 
-test("discovery and market access use the V1 factory and launch venue", async () => {
+test("discovery and market access use the configured factory and launch venue", async () => {
   const newToken = getAddress("0x0000000000000000000000000000000000000022");
   const newCurve = getAddress("0x0000000000000000000000000000000000000044");
   const creator = getAddress("0x0000000000000000000000000000000000000055");
-  const oldFactory = getAddress("0x36628AbAC7B2cdcde1A8fa21868AfeCB74660ECf");
+  const unrelatedFactory = getAddress("0x2222222222222222222222222222222222222222");
   const newFactory = launchpadAddress!;
   const venue = getAddress("0x0000000000000000000000000000000000000066");
   const client = {
@@ -61,6 +60,5 @@ test("discovery and market access use the V1 factory and launch venue", async ()
   expect(tokens.map(({ factory, feeBps }) => [factory, feeBps])).toEqual([[newFactory, 75]]);
   expect(tokens[0].mockVenue).toBe(true);
   expect(factoryForToken(tokens[0].factory)).toBe(newFactory);
-  expect(() => factoryForToken(oldFactory)).toThrow("retired factory");
-  expect(factoryVersion(newFactory)).toBe("V1");
+  expect(() => factoryForToken(unrelatedFactory)).toThrow("configured factory");
 });

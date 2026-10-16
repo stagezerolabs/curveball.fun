@@ -3,10 +3,10 @@ import {
   waitForTransactionReceipt, writeContract,
 } from "wagmi/actions";
 import type { Config } from "wagmi";
-import { decodeAbiParameters, decodeEventLog, getAddress, zeroAddress, type Address, type Hash, type TransactionReceipt } from "viem";
+import { decodeEventLog, getAddress, zeroAddress, type Address, type Hash, type TransactionReceipt } from "viem";
 import { applySlippage, createDeadline, validateTokenInput, type CurveballDeployment, type TokenInput } from "./curveballSdk";
-import { erc20Abi, legacyLaunchAndBuyAbi, v2CurveAbi, v2EscrowAbi, v2FactoryAbi, v2LaunchAndBuyAbi, v2LockerAbi, v2VaultAbi } from "./v2Contracts";
-import { validateV2Deployment } from "../v2Deployment";
+import { erc20Abi, curveAbi, escrowAbi, factoryAbi, launchAndBuyAbi, lockerAbi, vaultAbi } from "./contracts";
+import { validateDeployment as validateConfiguredDeployment } from "../deployment";
 
 export type TradeSide = "buy" | "sell";
 export type TradePhase = "preparing" | "wrapWallet" | "wrapConfirming" | "approveWallet" | "approveConfirming" | "tradeWallet" | "tradeConfirming";
@@ -49,34 +49,7 @@ async function simulateAfterApproval<T>(simulate: () => Promise<T>, approved: bo
   }
 }
 
-// GraduationDeferred carries the graduation guard's raw revert data; surface the human part when it is an Error(string).
-function decodeDeferredReason(reason: string): string | null {
-  if (reason.startsWith("0x08c379a0")) {
-    try {
-      const [message] = decodeAbiParameters([{ type: "string" }], `0x${reason.slice(10)}` as `0x${string}`);
-      if (message) return message;
-    } catch { /* Fall through to the raw bytes. */ }
-  }
-  return reason === "" || reason === "0x" ? null : reason;
-}
-
-export type GraduationResult = {
-  status: "graduated" | "deferred";
-  /** True when the curve had already graduated and no transaction was sent. */
-  already: boolean;
-  pool: Address | null;
-  tokenLiquidity: bigint | null;
-  quoteLiquidity: bigint | null;
-  liquidity: bigint | null;
-  deferredReason: string | null;
-  /** Confirmed transaction hashes sent by this call, in order. */
-  transactions: Hash[];
-};
-
-type GraduationPreparation = ConfirmedWrite & { deferred: boolean; deferredReason: string | null };
-type GraduationExecution = ConfirmedWrite & { pool: Address; tokenLiquidity: bigint; quoteLiquidity: bigint; liquidity: bigint };
-
-export function createV2Sdk(config: Config, deployment: CurveballDeployment, actions: WagmiActions = defaultActions) {
+export function createCurveballSdk(config: Config, deployment: CurveballDeployment, actions: WagmiActions = defaultActions) {
   const factory = deployment.launchpad;
 
   async function ensureWallet(): Promise<Address> {
@@ -124,13 +97,13 @@ export function createV2Sdk(config: Config, deployment: CurveballDeployment, act
   }
 
   async function readMarket(token: Address) {
-    const market = await actions.readContract(config, { address: factory, abi: v2FactoryAbi, functionName: "market", args: [getAddress(token)], chainId: deployment.chainId });
+    const market = await actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "market", args: [getAddress(token)], chainId: deployment.chainId });
     if (market[0] === zeroAddress) throw new CurveballSdkError("Unknown Curveball market.");
     return { curve: getAddress(market[0]), creator: getAddress(market[1]), feeBps: market[2], creatorShareBps: market[3], buybackShareBps: market[4], creatorTaxBps: market[5], treasury: getAddress(market[6]) };
   }
 
   async function readLaunchFee(): Promise<bigint> {
-    return actions.readContract(config, { address: factory, abi: v2FactoryAbi, functionName: "launchFee", chainId: deployment.chainId });
+    return actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "launchFee", chainId: deployment.chainId });
   }
 
   async function ensureQuoteApproval(account: Address, quote: Address, spender: Address, amount: bigint, onProgress?: LaunchProgress): Promise<boolean> {
@@ -160,13 +133,13 @@ export function createV2Sdk(config: Config, deployment: CurveballDeployment, act
   async function quoteTrade(side: TradeSide, token: Address, input: bigint): Promise<bigint> {
     if (input <= 0n) throw new CurveballSdkError("Trade amount must be greater than zero.");
     const market = await readMarket(token);
-    const result = await actions.readContract(config, { address: market.curve, abi: v2CurveAbi, functionName: side === "buy" ? "quoteBuy" : "quoteSell", args: [input], chainId: deployment.chainId });
+    const result = await actions.readContract(config, { address: market.curve, abi: curveAbi, functionName: side === "buy" ? "quoteBuy" : "quoteSell", args: [input], chainId: deployment.chainId });
     return result[0];
   }
 
   async function reserveSupported(): Promise<boolean> {
     try {
-      const address = await actions.readContract(config, { address: factory, abi: v2FactoryAbi, functionName: "holderReserve", chainId: deployment.chainId });
+      const address = await actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "holderReserve", chainId: deployment.chainId });
       return typeof address === "string" && address !== zeroAddress;
     } catch { return false; }
   }
@@ -179,15 +152,14 @@ export function createV2Sdk(config: Config, deployment: CurveballDeployment, act
     if (!Number.isInteger(tax) || tax < 0 || tax > 50) throw new CurveballSdkError("Creator tax must be 0–0.5%.");
     const reserveBps = input.holderReserveBps ?? 0;
     if (!Number.isInteger(reserveBps) || reserveBps < 0 || reserveBps > 500) throw new CurveballSdkError("Holder reserve must be 0–5%.");
-    const hasReserve = await reserveSupported();
-    if (!hasReserve && reserveBps !== 0) throw new CurveballSdkError("This factory does not support holder reserves.");
+    if (!await reserveSupported()) throw new CurveballSdkError("Holder reserve is unavailable on the configured factory.");
     const fee = await readLaunchFee();
     let approved = false;
     if (fee > 0n) {
-      const quote = await actions.readContract(config, { address: factory, abi: v2FactoryAbi, functionName: "quote", chainId: deployment.chainId });
+      const quote = await actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "quote", chainId: deployment.chainId });
       approved = await ensureQuoteApproval(account, quote, factory, fee, onProgress);
     }
-    const simulation = await simulateAfterApproval(() => actions.simulateContract(config, { account, address: factory, abi: v2FactoryAbi, functionName: "createToken", args: hasReserve ? [token.name, token.symbol, token.uri, tax, reserveBps] : [token.name, token.symbol, token.uri, tax], chainId: deployment.chainId }), approved);
+    const simulation = await simulateAfterApproval(() => actions.simulateContract(config, { account, address: factory, abi: factoryAbi, functionName: "createToken", args: [token.name, token.symbol, token.uri, tax, reserveBps], chainId: deployment.chainId }), approved);
     onProgress?.("wallet");
     const hash = await actions.writeContract(config, simulation.request);
     onProgress?.("confirming", hash);
@@ -199,7 +171,7 @@ export function createV2Sdk(config: Config, deployment: CurveballDeployment, act
     for (const log of receipt.logs) {
       if (log.address.toLowerCase() !== factory.toLowerCase()) continue;
       try {
-        const decoded = decodeEventLog({ abi: v2FactoryAbi, eventName: "LaunchCreated", data: log.data, topics: log.topics, strict: true });
+        const decoded = decodeEventLog({ abi: factoryAbi, eventName: "LaunchCreated", data: log.data, topics: log.topics, strict: true });
         return { token: decoded.args.token, curve: decoded.args.curve, creator: decoded.args.creator, name: decoded.args.name, symbol: decoded.args.symbol };
       } catch { /* Another factory event may be in the receipt. */ }
     }
@@ -214,16 +186,15 @@ export function createV2Sdk(config: Config, deployment: CurveballDeployment, act
     if (!Number.isInteger(tax) || tax < 0 || tax > 50 || maxSpend <= 0n) throw new CurveballSdkError("Invalid initial buy or creator tax.");
     const reserveBps = input.holderReserveBps ?? 0;
     if (!Number.isInteger(reserveBps) || reserveBps < 0 || reserveBps > 500) throw new CurveballSdkError("Holder reserve must be 0–5%.");
-    const hasReserve = await reserveSupported();
-    if (!hasReserve && reserveBps !== 0) throw new CurveballSdkError("This factory does not support holder reserves.");
+    if (!await reserveSupported()) throw new CurveballSdkError("Holder reserve is unavailable on the configured factory.");
     const [quote, wrapper, supply, curveSupply, initialVQ, feeBps, taxCap, launchFee] = await Promise.all([
-      actions.readContract(config, { address: factory, abi: v2FactoryAbi, functionName: "quote", chainId: deployment.chainId }),
-      actions.readContract(config, { address: factory, abi: v2FactoryAbi, functionName: "launchAndBuy", chainId: deployment.chainId }),
-      actions.readContract(config, { address: factory, abi: v2FactoryAbi, functionName: "supply", chainId: deployment.chainId }),
-      actions.readContract(config, { address: factory, abi: v2FactoryAbi, functionName: "curveSupply", chainId: deployment.chainId }),
-      actions.readContract(config, { address: factory, abi: v2FactoryAbi, functionName: "initialVQ", chainId: deployment.chainId }),
-      actions.readContract(config, { address: factory, abi: v2FactoryAbi, functionName: "feeBps", chainId: deployment.chainId }),
-      actions.readContract(config, { address: factory, abi: v2FactoryAbi, functionName: "creatorTaxCapBps", chainId: deployment.chainId }),
+      actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "quote", chainId: deployment.chainId }),
+      actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "launchAndBuy", chainId: deployment.chainId }),
+      actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "supply", chainId: deployment.chainId }),
+      actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "curveSupply", chainId: deployment.chainId }),
+      actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "initialVQ", chainId: deployment.chainId }),
+      actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "feeBps", chainId: deployment.chainId }),
+      actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "creatorTaxCapBps", chainId: deployment.chainId }),
       readLaunchFee(),
     ]);
     if (tax > taxCap) throw new CurveballSdkError("Creator tax exceeds the factory cap.");
@@ -234,17 +205,10 @@ export function createV2Sdk(config: Config, deployment: CurveballDeployment, act
     if (minOut <= 0n) throw new CurveballSdkError("Initial buy is too small.");
     const total = maxSpend + launchFee;
     const approved = await ensureQuoteApproval(account, quote, wrapper, total, onProgress);
-    const request = { name: token.name, symbol: token.symbol, uri: token.uri, creatorTaxBps: tax, maxSpend, minOut, deadline: createDeadline(Date.now(), deployment.deadlineSeconds) };
-    let hash: Hash;
-    if (hasReserve) {
-      const simulation = await simulateAfterApproval(() => actions.simulateContract(config, { account, address: wrapper, abi: v2LaunchAndBuyAbi, functionName: "launchAndBuy", args: [{ ...request, holderReserveBps: reserveBps }], chainId: deployment.chainId }), approved);
-      onProgress?.("wallet");
-      hash = await actions.writeContract(config, simulation.request);
-    } else {
-      const simulation = await simulateAfterApproval(() => actions.simulateContract(config, { account, address: wrapper, abi: legacyLaunchAndBuyAbi, functionName: "launchAndBuy", args: [request], chainId: deployment.chainId }), approved);
-      onProgress?.("wallet");
-      hash = await actions.writeContract(config, simulation.request);
-    }
+    const request = { name: token.name, symbol: token.symbol, uri: token.uri, creatorTaxBps: tax, holderReserveBps: reserveBps, maxSpend, minOut, deadline: createDeadline(Date.now(), deployment.deadlineSeconds) };
+    const simulation = await simulateAfterApproval(() => actions.simulateContract(config, { account, address: wrapper, abi: launchAndBuyAbi, functionName: "launchAndBuy", args: [request], chainId: deployment.chainId }), approved);
+    onProgress?.("wallet");
+    const hash = await actions.writeContract(config, simulation.request);
     onProgress?.("confirming", hash);
     const confirmed = await confirm(hash);
     return { ...confirmed, ...createdFromReceipt(confirmed.receipt), minimumOutput: minOut };
@@ -255,7 +219,7 @@ export function createV2Sdk(config: Config, deployment: CurveballDeployment, act
     if (input <= 0n) throw new CurveballSdkError("Trade amount must be greater than zero.");
     const account = await ensureWallet();
     const market = await readMarket(token);
-    const quote = await actions.readContract(config, { address: factory, abi: v2FactoryAbi, functionName: "quote", chainId: deployment.chainId });
+    const quote = await actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "quote", chainId: deployment.chainId });
     const asset = side === "buy" ? quote : getAddress(token);
     const balance = await actions.readContract(config, { address: asset, abi: erc20Abi, functionName: "balanceOf", args: [account], chainId: deployment.chainId });
     let wrappedAmount = 0n;
@@ -283,7 +247,7 @@ export function createV2Sdk(config: Config, deployment: CurveballDeployment, act
     const quotedOutput = await quoteTrade(side, token, input);
     const minimumOutput = applySlippage(quotedOutput, deployment.slippageBps);
     if (minimumOutput <= 0n) throw new CurveballSdkError("Trade output is too small.");
-    const simulation = await simulateAfterApproval(() => actions.simulateContract(config, { account, address: market.curve, abi: v2CurveAbi, functionName: side === "buy" ? "buyTokens" : "sellTokens", args: [input, minimumOutput, createDeadline(Date.now(), deployment.deadlineSeconds)], chainId: deployment.chainId }), approved);
+    const simulation = await simulateAfterApproval(() => actions.simulateContract(config, { account, address: market.curve, abi: curveAbi, functionName: side === "buy" ? "buyTokens" : "sellTokens", args: [input, minimumOutput, createDeadline(Date.now(), deployment.deadlineSeconds)], chainId: deployment.chainId }), approved);
     onProgress?.("tradeWallet");
     const tradeHash = await actions.writeContract(config, simulation.request);
     onProgress?.("tradeConfirming");
@@ -294,8 +258,8 @@ export function createV2Sdk(config: Config, deployment: CurveballDeployment, act
   async function unwrapWeth(amount: bigint, expectedWeth: Address): Promise<ConfirmedWrite> {
     if (amount <= 0n) throw new CurveballSdkError("WETH amount must be greater than zero.");
     const account = await ensureWallet();
-    const quote = await actions.readContract(config, { address: factory, abi: v2FactoryAbi, functionName: "quote", chainId: deployment.chainId });
-    if (getAddress(quote) !== getAddress(expectedWeth)) throw new CurveballSdkError("This previous market does not use the expected WETH token.");
+    const quote = await actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "quote", chainId: deployment.chainId });
+    if (getAddress(quote) !== getAddress(expectedWeth)) throw new CurveballSdkError("This market does not use the expected WETH token.");
     const balance = await actions.readContract(config, { address: quote, abi: erc20Abi, functionName: "balanceOf", args: [account], chainId: deployment.chainId });
     if (balance < amount) throw new CurveballSdkError("The WETH from this sale is no longer in your wallet.");
     const simulation = await actions.simulateContract(config, { account, address: quote, abi: erc20Abi, functionName: "withdraw", args: [amount], chainId: deployment.chainId });
@@ -304,8 +268,8 @@ export function createV2Sdk(config: Config, deployment: CurveballDeployment, act
 
   async function sellAllForEth(token: Address, expectedWeth: Address, onProgress?: (phase: "approving" | "selling" | "sold" | "unwrapping", amount?: bigint, hash?: Hash) => void) {
     const account = await ensureWallet();
-    const quote = await actions.readContract(config, { address: factory, abi: v2FactoryAbi, functionName: "quote", chainId: deployment.chainId });
-    if (getAddress(quote) !== getAddress(expectedWeth)) throw new CurveballSdkError("This previous market does not use the expected WETH token.");
+    const quote = await actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "quote", chainId: deployment.chainId });
+    if (getAddress(quote) !== getAddress(expectedWeth)) throw new CurveballSdkError("This market does not use the expected WETH token.");
     const tokenAddress = getAddress(token);
     const balance = await actions.readContract(config, { address: tokenAddress, abi: erc20Abi, functionName: "balanceOf", args: [account], chainId: deployment.chainId });
     if (balance <= 0n) throw new CurveballSdkError("There are no tokens left to sell in this wallet.");
@@ -318,7 +282,7 @@ export function createV2Sdk(config: Config, deployment: CurveballDeployment, act
     for (const log of sale.receipt.logs) {
       if (log.address.toLowerCase() !== market.curve.toLowerCase()) continue;
       try {
-        const event = decodeEventLog({ abi: v2CurveAbi, eventName: "Trade", data: log.data, topics: log.topics, strict: true });
+        const event = decodeEventLog({ abi: curveAbi, eventName: "Trade", data: log.data, topics: log.topics, strict: true });
         if (!event.args.isBuy && getAddress(event.args.token) === tokenAddress && getAddress(event.args.trader) === account) {
           received = event.args.netTraderQuote;
           break;
@@ -332,100 +296,37 @@ export function createV2Sdk(config: Config, deployment: CurveballDeployment, act
     return { sale, unwrap, amount: received };
   }
 
-  async function writeFactory(functionName: "graduate", token: Address): Promise<GraduationPreparation>;
-  async function writeFactory(functionName: "createGraduatedPool", token: Address): Promise<GraduationExecution>;
-  async function writeFactory(functionName: "graduate" | "createGraduatedPool", token: Address): Promise<GraduationPreparation | GraduationExecution> {
-    const account = await ensureWallet();
-    await readMarket(token);
-    const simulation = await actions.simulateContract(config, { account, address: factory, abi: v2FactoryAbi, functionName, args: [token], chainId: deployment.chainId });
-    const confirmed = await confirm(await actions.writeContract(config, simulation.request));
-    for (const log of confirmed.receipt.logs) {
-      if (log.address.toLowerCase() !== factory.toLowerCase()) continue;
-      if (functionName === "graduate") {
-        try {
-          const deferred = decodeEventLog({ abi: v2FactoryAbi, eventName: "GraduationDeferred", data: log.data, topics: log.topics, strict: true });
-          if (getAddress(deferred.args.token) === getAddress(token)) return { ...confirmed, deferred: true, deferredReason: decodeDeferredReason(deferred.args.reason) };
-        } catch { /* A different factory event. */ }
-        try {
-          const started = decodeEventLog({ abi: v2FactoryAbi, eventName: "GraduationStarted", data: log.data, topics: log.topics, strict: true });
-          if (getAddress(started.args.token) === getAddress(token)) return { ...confirmed, deferred: false, deferredReason: null };
-        } catch { /* A different factory event. */ }
-        continue;
-      }
-      try {
-        const graduated = decodeEventLog({ abi: v2FactoryAbi, eventName: "Graduated", data: log.data, topics: log.topics, strict: true });
-        if (getAddress(graduated.args.token) === getAddress(token)) {
-          return { ...confirmed, pool: getAddress(graduated.args.pool), tokenLiquidity: graduated.args.tokenLiquidity, quoteLiquidity: graduated.args.quoteLiquidity, liquidity: graduated.args.liquidity };
-        }
-      } catch { /* A different factory event. */ }
-    }
-    throw functionName === "graduate"
-      ? new CurveballSdkError("Confirmed graduation emitted neither GraduationStarted nor GraduationDeferred.")
-      : new CurveballSdkError("Confirmed pool creation did not emit Graduated.");
-  }
-
-  async function graduateToIcarus(token: Address): Promise<GraduationResult> {
-    await ensureWallet();
-    const market = await readMarket(token);
-    const [sold, curveSupply, ready, graduated, pool] = await Promise.all([
-      actions.readContract(config, { address: market.curve, abi: v2CurveAbi, functionName: "sold", chainId: deployment.chainId }) as Promise<bigint>,
-      actions.readContract(config, { address: market.curve, abi: v2CurveAbi, functionName: "curveSupply", chainId: deployment.chainId }) as Promise<bigint>,
-      actions.readContract(config, { address: market.curve, abi: v2CurveAbi, functionName: "ready", chainId: deployment.chainId }) as Promise<boolean>,
-      actions.readContract(config, { address: market.curve, abi: v2CurveAbi, functionName: "graduated", chainId: deployment.chainId }) as Promise<boolean>,
-      actions.readContract(config, { address: market.curve, abi: v2CurveAbi, functionName: "pool", chainId: deployment.chainId }) as Promise<Address>,
-    ]);
-    const resolvedPool = pool === zeroAddress ? null : getAddress(pool);
-    if (graduated) {
-      return { status: "graduated", already: true, pool: resolvedPool, tokenLiquidity: null, quoteLiquidity: null, liquidity: null, deferredReason: null, transactions: [] };
-    }
-    if (sold < curveSupply) {
-      const progress = curveSupply === 0n ? 0 : Number((sold * 10_000n) / curveSupply) / 100;
-      throw new CurveballSdkError(`This curve is ${progress}% sold — graduation unlocks at 100%.`);
-    }
-    const transactions: Hash[] = [];
-    if (!ready) {
-      const prepared = await writeFactory("graduate", token);
-      transactions.push(prepared.hash);
-      if (prepared.deferred) {
-        return { status: "deferred", already: false, pool: null, tokenLiquidity: null, quoteLiquidity: null, liquidity: null, deferredReason: prepared.deferredReason, transactions };
-      }
-    }
-    const executed = await writeFactory("createGraduatedPool", token);
-    transactions.push(executed.hash);
-    return { status: "graduated", already: false, pool: executed.pool, tokenLiquidity: executed.tokenLiquidity, quoteLiquidity: executed.quoteLiquidity, liquidity: executed.liquidity, deferredReason: null, transactions };
-  }
-
   async function claimPoolFees(locker: Address, pool: Address) {
     const account = await ensureWallet();
-    const configured = await actions.readContract(config, { address: factory, abi: v2FactoryAbi, functionName: "locker", chainId: deployment.chainId });
+    const configured = await actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "locker", chainId: deployment.chainId });
     if (getAddress(locker) !== getAddress(configured)) throw new CurveballSdkError("Fee claim rejected: locker does not belong to Curveball.");
-    const token = await actions.readContract(config, { address: configured, abi: v2LockerAbi, functionName: "tokenOfPool", args: [pool], chainId: deployment.chainId });
+    const token = await actions.readContract(config, { address: configured, abi: lockerAbi, functionName: "tokenOfPool", args: [pool], chainId: deployment.chainId });
     if (token === zeroAddress) throw new CurveballSdkError("Fee claim rejected: pool is not registered.");
-    const simulation = await actions.simulateContract(config, { account, address: configured, abi: v2LockerAbi, functionName: "claim", args: [pool], chainId: deployment.chainId });
+    const simulation = await actions.simulateContract(config, { account, address: configured, abi: lockerAbi, functionName: "claim", args: [pool], chainId: deployment.chainId });
     return confirm(await actions.writeContract(config, simulation.request));
   }
 
   async function claimEscrow(token: Address, asset: Address, recipient: Address) {
     const account = await ensureWallet();
     await readMarket(token);
-    const escrow = await actions.readContract(config, { address: factory, abi: v2FactoryAbi, functionName: "escrow", chainId: deployment.chainId });
-    const simulation = await actions.simulateContract(config, { account, address: escrow, abi: v2EscrowAbi, functionName: "claim", args: [token, asset, recipient], chainId: deployment.chainId });
+    const escrow = await actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "escrow", chainId: deployment.chainId });
+    const simulation = await actions.simulateContract(config, { account, address: escrow, abi: escrowAbi, functionName: "claim", args: [token, asset, recipient], chainId: deployment.chainId });
     return confirm(await actions.writeContract(config, simulation.request));
   }
 
   async function sweepBuyback(token: Address, maxSpend: bigint, minOut: bigint) {
     const account = await ensureWallet();
     const market = await readMarket(token);
-    const graduated = await actions.readContract(config, { address: market.curve, abi: v2CurveAbi, functionName: "graduated", chainId: deployment.chainId });
-    const vault = await actions.readContract(config, { address: factory, abi: v2FactoryAbi, functionName: "vault", chainId: deployment.chainId });
-    const simulation = await actions.simulateContract(config, { account, address: vault, abi: v2VaultAbi, functionName: graduated ? "sweepPool" : "sweepCurve", args: [token, maxSpend, minOut, createDeadline(Date.now(), deployment.deadlineSeconds)], chainId: deployment.chainId });
+    const graduated = await actions.readContract(config, { address: market.curve, abi: curveAbi, functionName: "graduated", chainId: deployment.chainId });
+    const vault = await actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "vault", chainId: deployment.chainId });
+    const simulation = await actions.simulateContract(config, { account, address: vault, abi: vaultAbi, functionName: graduated ? "sweepPool" : "sweepCurve", args: [token, maxSpend, minOut, createDeadline(Date.now(), deployment.deadlineSeconds)], chainId: deployment.chainId });
     return confirm(await actions.writeContract(config, simulation.request));
   }
 
-  const validateDeployment = (expectedQuote?: Address) => validateV2Deployment({
+  const validateDeployment = (expectedQuote?: Address) => validateConfiguredDeployment({
     getBytecode: ({ address }) => actions.getBytecode(config, { address, chainId: deployment.chainId }),
-    readContract: ({ address, abi, functionName }) => actions.readContract(config, { address, abi: abi as typeof v2FactoryAbi, functionName: functionName as "quote", chainId: deployment.chainId }),
+    readContract: ({ address, abi, functionName }) => actions.readContract(config, { address, abi: abi as typeof factoryAbi, functionName: functionName as "quote", chainId: deployment.chainId }),
   }, factory, expectedQuote);
 
-  return Object.freeze({ deployment, validateDeployment, readMarket, quoteTrade, createToken, launchAndBuy, trade, sellAllForEth, unwrapWeth, graduate: (token: Address) => writeFactory("graduate", token), createGraduatedPool: (token: Address) => writeFactory("createGraduatedPool", token), graduateToIcarus, claimPoolFees, claimEscrow, sweepBuyback });
+  return Object.freeze({ deployment, validateDeployment, readMarket, quoteTrade, createToken, launchAndBuy, trade, sellAllForEth, unwrapWeth, claimPoolFees, claimEscrow, sweepBuyback });
 }

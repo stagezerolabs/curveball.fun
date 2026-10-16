@@ -10,7 +10,7 @@ import { TradePanel } from "../components/TradePanel";
 import type { CreatorTokenClient } from "../creatorTokens";
 import { activeChainId } from "../lib/web3";
 import type { MarketPriceChange } from "../lib/marketChart";
-import { v2CurveAbi } from "../sdk/v2Contracts";
+import { curveAbi } from "../sdk/contracts";
 import type { Navigate, Token } from "../types";
 
 const MarketChart = lazy(() =>
@@ -80,9 +80,9 @@ export function MarketPage({
       checking = true;
       try {
         const [sold, curveSupply, graduated] = await Promise.all([
-          publicClient.readContract({ address: curve, abi: v2CurveAbi, functionName: "sold" }),
-          publicClient.readContract({ address: curve, abi: v2CurveAbi, functionName: "curveSupply" }),
-          publicClient.readContract({ address: curve, abi: v2CurveAbi, functionName: "graduated" }),
+          publicClient.readContract({ address: curve, abi: curveAbi, functionName: "sold" }),
+          publicClient.readContract({ address: curve, abi: curveAbi, functionName: "curveSupply" }),
+          publicClient.readContract({ address: curve, abi: curveAbi, functionName: "graduated" }),
         ]);
         if (active && (graduated || (sold === curveSupply) !== shownSoldOut)) {
           await loadToken(publicClient as unknown as CreatorTokenClient, address, { force: true });

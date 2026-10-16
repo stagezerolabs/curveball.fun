@@ -14,7 +14,7 @@ export function useProtocolStats() {
   const client = usePublicClient({ chainId: activeChainId });
   const loadMarkets = useStore((state) => state.loadMarkets) as (client?: CreatorTokenClient) => Promise<Token[]>;
   const factoryKey = launchpadAddress ? `${launchpadAddress.toLowerCase()}:${activeDeploymentBlock}` : "";
-  const cacheKey = `curveball:landing-stats:v3:v2:${activeChainId}:${factoryKey}`;
+  const cacheKey = `curveball:landing-stats:current:${activeChainId}:${factoryKey}`;
   const [cachedLaunches] = useState(() => readCachedLaunches(cacheKey));
   const [cachedPayout] = useState(() => readCachedPayout(cacheKey));
   const statsEnabled = Boolean(client && launchpadAddress);

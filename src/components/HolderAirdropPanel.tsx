@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAccount, usePublicClient } from "wagmi";
 import { switchChain, waitForTransactionReceipt, writeContract } from "wagmi/actions";
 import { formatEther, parseEther, zeroAddress, type Address } from "viem";
-import { holderReserveAbi, v2FactoryAbi } from "../sdk/v2Contracts";
+import { holderReserveAbi, factoryAbi } from "../sdk/contracts";
 import { activeChainId, wagmiConfig } from "../lib/web3";
 import type { Token } from "../types";
 
@@ -26,14 +26,12 @@ export function HolderAirdropPanel({ token }: { token: Token }) {
   const [snapshot, setSnapshot] = useState("");
   const [busy, setBusy] = useState(false);
   const [visible, setVisible] = useState(10);
-  const [supportsReserve, setSupportsReserve] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!client || !token.factory) return;
     try {
-      const reserve = await client.readContract({ address: token.factory, abi: v2FactoryAbi, functionName: "holderReserve" });
-      if (reserve === zeroAddress) return;
-      setSupportsReserve(true);
+      const reserve = await client.readContract({ address: token.factory, abi: factoryAbi, functionName: "holderReserve" });
+      if (reserve === zeroAddress) throw new Error("Holder reserve is not configured.");
       const [launch, latestBlock] = await Promise.all([
         client.readContract({ address: reserve, abi: holderReserveAbi, functionName: "launches", args: [token.address] }),
         client.getBlockNumber(),
@@ -52,17 +50,16 @@ export function HolderAirdropPanel({ token }: { token: Token }) {
       setSnapshot((current) => current || (latestBlock > 0n ? String(latestBlock - 1n) : ""));
       setError("");
     } catch (cause) {
-      // Older factories have no reserve method. They simply have no airdrop panel.
       setError(cause instanceof Error ? cause.message : "Could not load airdrops.");
     }
   }, [client, token.address, token.factory, visible, wallet]);
 
-  useEffect(() => { setState(null); setSupportsReserve(false); setVisible(10); }, [token.address]);
+  useEffect(() => { setState(null); setVisible(10); }, [token.address]);
   useEffect(() => { void refresh(); }, [refresh]);
 
-  if (!state) return supportsReserve ? <section className="holder-airdrop" aria-label="Holder airdrops" aria-busy={!error}>
+  if (!state) return <section className="holder-airdrop" aria-label="Holder airdrops" aria-busy={!error}>
     {error ? <><p role="alert">Could not load holder airdrops: {error}</p><button type="button" className="market-refresh" onClick={() => void refresh()}>Retry</button></> : <p>Loading holder airdrops…</p>}
-  </section> : null;
+  </section>;
   const isCreator = wallet?.toLowerCase() === token.creator.toLowerCase();
   const available = state.total - state.committed;
 

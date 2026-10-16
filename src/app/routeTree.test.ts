@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { resolveRoute, routeHref } from "./routeTree";
 
-test("unknown routes throw and retired URLs fall through to not found", () => {
+test("unknown routes fall through to not found", () => {
   expect(routeHref("markets")).toBe("/markets");
   expect(() => routeHref("home")).toThrow("Unknown route: home");
   expect(resolveRoute("/app").id).toBe("notFound");

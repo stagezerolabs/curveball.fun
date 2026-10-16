@@ -1,10 +1,11 @@
 import { expect, test } from "bun:test";
 import { createdTokenCacheUpdate, rehydrateMarketCache } from "./useStore.js";
+import { launchpadAddress } from "../lib/web3";
 
-test("saved markets display immediately but are revalidated after page load", () => {
-  const token = { address: "0x2114E56B6D3524022D0E4812F2523120C3BC94Aa", name: "CASH" };
+test("only configured factory markets rehydrate and are revalidated after page load", () => {
+  const token = { address: "0x2114E56B6D3524022D0E4812F2523120C3BC94Aa", factory: launchpadAddress, name: "CASH" };
   const restored = rehydrateMarketCache(
-    { tokens: [token], marketsFetchedAt: Date.now(), tokenCache: {} },
+    { tokens: [token, { address: "0x3333333333333333333333333333333333333333", factory: "0x4444444444444444444444444444444444444444" }], marketsFetchedAt: Date.now(), tokenCache: {} },
     { tokens: [], marketsFetchedAt: 0, tokenCache: {}, loading: false },
   );
 

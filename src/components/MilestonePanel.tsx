@@ -3,7 +3,7 @@ import { formatPercent } from "../lib/format.js";
 import type { Address } from "viem";
 import { formatEther } from "viem";
 import { useReadContract } from "wagmi";
-import { v2EscrowAbi, v2FactoryAbi } from "../sdk/v2Contracts";
+import { escrowAbi, factoryAbi } from "../sdk/contracts";
 import { activeChainId, activeExplorerUrl, launchpadAddress } from "../lib/web3";
 import { getMarketDisplayStatus } from "../lib/marketState";
 import { factoryForToken } from "../lib/marketFactories";
@@ -26,19 +26,19 @@ export function MilestonePanel({
   const progress = token.graduated ? 100 : (token.progress ?? 0);
   const marketStatus = getMarketDisplayStatus(token);
   const marketFactory = launchpadAddress ? factoryForToken(token.factory) : undefined;
-  const { data: locker } = useReadContract({ address: marketFactory, abi: v2FactoryAbi, functionName: "locker", chainId: activeChainId, query: { enabled: Boolean(marketFactory) } });
-  const { data: escrow } = useReadContract({ address: marketFactory, abi: v2FactoryAbi, functionName: "escrow", chainId: activeChainId, query: { enabled: Boolean(marketFactory) } });
-  const { data: quote } = useReadContract({ address: marketFactory, abi: v2FactoryAbi, functionName: "quote", chainId: activeChainId, query: { enabled: Boolean(marketFactory) } });
+  const { data: locker } = useReadContract({ address: marketFactory, abi: factoryAbi, functionName: "locker", chainId: activeChainId, query: { enabled: Boolean(marketFactory) } });
+  const { data: escrow } = useReadContract({ address: marketFactory, abi: factoryAbi, functionName: "escrow", chainId: activeChainId, query: { enabled: Boolean(marketFactory) } });
+  const { data: quote } = useReadContract({ address: marketFactory, abi: factoryAbi, functionName: "quote", chainId: activeChainId, query: { enabled: Boolean(marketFactory) } });
   const creatorShare = token.creatorShareBps == null ? null : token.creatorShareBps / 100;
   const buybackShare = token.buybackShareBps == null ? null : token.buybackShareBps / 100;
   const treasuryShare = creatorShare === null || buybackShare === null ? null : 100 - creatorShare - buybackShare;
   const { data: quoteOwed } = useReadContract({
-    address: escrow, abi: v2EscrowAbi, functionName: "claimable",
+    address: escrow, abi: escrowAbi, functionName: "claimable",
     args: [token.address, quote!, token.creator], chainId: activeChainId,
     query: { enabled: Boolean(escrow && quote) },
   });
   const { data: tokenOwed } = useReadContract({
-    address: escrow, abi: v2EscrowAbi, functionName: "claimable",
+    address: escrow, abi: escrowAbi, functionName: "claimable",
     args: [token.address, token.address, token.creator], chainId: activeChainId,
     query: { enabled: Boolean(escrow) },
   });

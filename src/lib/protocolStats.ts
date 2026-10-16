@@ -1,5 +1,5 @@
 import { getAddress, type Address } from "viem";
-import { erc20Abi, v2EscrowAbi, v2FactoryAbi } from "../sdk/v2Contracts";
+import { erc20Abi, escrowAbi, factoryAbi } from "../sdk/contracts";
 import type { Token } from "../types";
 
 type Claim = { args?: { launch?: Address; asset?: Address; recipient?: Address; amount?: bigint } };
@@ -32,8 +32,8 @@ export async function getCreatorPayouts(
   fromBlock: bigint,
 ): Promise<{ amount: bigint; decimals: number }> {
   const [escrow, quote, latest] = await Promise.all([
-    client.readContract({ address: factory, abi: v2FactoryAbi, functionName: "escrow" }) as Promise<Address>,
-    client.readContract({ address: factory, abi: v2FactoryAbi, functionName: "quote" }) as Promise<Address>,
+    client.readContract({ address: factory, abi: factoryAbi, functionName: "escrow" }) as Promise<Address>,
+    client.readContract({ address: factory, abi: factoryAbi, functionName: "quote" }) as Promise<Address>,
     client.getBlockNumber(),
   ]);
   const decimals = Number(await client.readContract({ address: quote, abi: erc20Abi, functionName: "decimals" }));
@@ -58,7 +58,7 @@ export async function getCreatorPayouts(
       const range = ranges[nextRange++];
       const claims = await readClaims(client, {
         address: escrow,
-        abi: v2EscrowAbi,
+        abi: escrowAbi,
         eventName: "FeeClaimed",
         args: { asset: quote },
         ...range,
