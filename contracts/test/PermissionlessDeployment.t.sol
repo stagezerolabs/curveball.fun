@@ -14,6 +14,15 @@ interface IPermissionlessTestVm {
     function toString(address value) external pure returns (string memory);
 }
 
+contract DeployPermissionlessV2Harness is DeployPermissionlessV2 {
+    function deployWithConfig(address quote, address icarus, address treasury, address deployer)
+        external
+        returns (CurveLaunchFactory)
+    {
+        return _deploy(quote, icarus, treasury, deployer);
+    }
+}
+
 contract PermissionlessDeploymentTest {
     IPermissionlessTestVm private constant vm =
         IPermissionlessTestVm(address(uint160(uint256(keccak256("hevm cheat code")))));
@@ -49,14 +58,9 @@ contract PermissionlessDeploymentTest {
         vm.chainId(31_337);
         MockWETH quote = new MockWETH();
         MockIcarusFactory icarus = new MockIcarusFactory();
-        vm.setEnv("QUOTE_TOKEN", vm.toString(address(quote)));
-        vm.setEnv("ICARUS_FACTORY", vm.toString(address(icarus)));
-        vm.setEnv("TREASURY", vm.toString(address(this)));
-        vm.setEnv("DEPLOYER_ADDRESS", "0x000000000000000000000000000000000000bEEF");
-        DeployPermissionlessV2 script = new DeployPermissionlessV2();
+        DeployPermissionlessV2Harness script = new DeployPermissionlessV2Harness();
         vm.expectRevert(bytes("deployer must be treasury"));
-        script.run();
-        vm.setEnv("DEPLOYER_ADDRESS", vm.toString(address(this)));
+        script.deployWithConfig(address(quote), address(icarus), address(this), address(0xBEEF));
     }
 
     function testUnsupportedChainReverts() external {

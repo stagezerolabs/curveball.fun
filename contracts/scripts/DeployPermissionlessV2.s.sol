@@ -29,7 +29,6 @@ contract DeployPermissionlessV2 {
         address quote;
         address icarus;
         address treasury;
-        address deployer = vm.envAddress("DEPLOYER_ADDRESS");
         if (block.chainid == TESTNET_CHAIN_ID) {
             require(
                 keccak256(bytes(vm.envString("CONFIRM_PERMISSIONLESS_V2_TESTNET")))
@@ -52,6 +51,13 @@ contract DeployPermissionlessV2 {
             icarus = vm.envAddress("ICARUS_FACTORY");
             treasury = vm.envAddress("TREASURY");
         }
+        return _deploy(quote, icarus, treasury, vm.envAddress("DEPLOYER_ADDRESS"));
+    }
+
+    function _deploy(address quote, address icarus, address treasury, address deployer)
+        internal
+        returns (CurveLaunchFactory factory)
+    {
         require(quote.code.length > 0 && icarus.code.length > 0 && treasury != address(0), "missing dependency");
         require(deployer == treasury, "deployer must be treasury");
 
