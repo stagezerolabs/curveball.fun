@@ -1,22 +1,24 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { Tabs } from "@base-ui/react/tabs";
 import { useAccount, usePublicClient } from "wagmi";
 import type { Address } from "viem";
 import { useStore } from "../app/useStore.js";
 import { AppLink } from "../components/Navigation";
-import { getMarketDisplayStatus } from "../lib/marketState";
-import { TokenCard } from "../components/TokenCard";
+import { CreatorTokenInsights } from "../components/CreatorTokenInsights";
+import { HolderAirdropPanel } from "../components/HolderAirdropPanel";
+import { TokenAvatar } from "../components/TokenAvatar";
+import { UsdAmount } from "../components/UsdAmount";
 import type { CreatorTokenClient } from "../creatorTokens";
-import { activeChainId } from "../lib/web3";
+import { formatAddress, formatRelativeTime } from "../lib/format.js";
+import { getMarketDisplayStatus } from "../lib/marketState";
+import { activeChainId, activeExplorerUrl } from "../lib/web3";
 import type { Navigate, Token } from "../types";
 
-const PROFILE_SKELETON_CARDS = 3;
+type LaunchFilter = "all" | "live" | "ready" | "graduated";
+type ProfileSection = "holders" | "airdrops";
 
-export function ProfilePage({
-  navigate,
-}: {
-  navigate: Navigate;
-}) {
+export function ProfilePage({ navigate }: { navigate: Navigate }) {
   const { address } = useAccount();
   const { openConnectModal } = useConnectModal();
   const publicClient = usePublicClient({ chainId: activeChainId });
@@ -38,10 +40,7 @@ export function ProfilePage({
 
   useEffect(() => {
     if (!address) return;
-    void loadCreatorTokens(
-      publicClient as unknown as CreatorTokenClient | undefined,
-      address,
-    ).catch(() => undefined);
+    void loadCreatorTokens(publicClient as unknown as CreatorTokenClient | undefined, address).catch(() => undefined);
   }, [address, loadCreatorTokens, publicClient]);
 
   useEffect(() => {
@@ -59,75 +58,87 @@ export function ProfilePage({
     ready: tokens.filter((token) => getMarketDisplayStatus(token).kind === "ready").length,
     graduated: tokens.filter((token) => token.graduated).length,
   }), [tokens]);
+  const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
+  const [activeSection, setActiveSection] = useState<ProfileSection>("holders");
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<LaunchFilter>("all");
+  const visibleTokens = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return [...tokens]
+      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+      .filter((token) => (filter === "all" || getMarketDisplayStatus(token).kind === filter) &&
+        (!query || `${token.name} ${token.symbol} ${token.address}`.toLowerCase().includes(query)));
+  }, [tokens, search, filter]);
+  const selectedToken = visibleTokens.find((token) => token.address.toLowerCase() === selectedAddress) ?? visibleTokens[0];
 
   if (!address) {
-    return (
-      <main className="page-main profile-page wrap">
-        <header className="workspace-heading">
-          <h1>Your launches</h1>
-        </header>
-        <section className="profile-connect" aria-labelledby="profile-connect-title">
-          <span className="profile-connect-icon" aria-hidden="true">↗</span>
-          <h2 id="profile-connect-title">Connect your wallet</h2>
-          <p>See the tokens you created on Curveball.</p>
-          <button className="primary-button" type="button" onClick={() => openConnectModal?.()}>
-            Connect wallet
-          </button>
-        </section>
-      </main>
-    );
+    return <main className="page-main profile-page wrap">
+      <h1 className="visually-hidden">Your launches</h1>
+      <section className="profile-connect" aria-labelledby="profile-connect-title">
+        <span className="profile-connect-icon" aria-hidden="true">↗</span>
+        <h2 id="profile-connect-title">Connect your wallet</h2>
+        <p>See the tokens you created on Curveball.</p>
+        <button className="primary-button" type="button" onClick={() => openConnectModal?.()}>Connect wallet</button>
+      </section>
+    </main>;
   }
 
-  return (
-    <main className="page-main profile-page wrap">
-      <header className="workspace-heading">
-        <h1>Your launches</h1>
-      </header>
+  return <main className="page-main profile-page wrap">
+    <h1 className="visually-hidden">Your launches</h1>
 
-      {initialLoading ? (
-        <section className="profile-stats profile-stats-skeleton" aria-busy="true" aria-label="Loading launch summary">
-          {Array.from({ length: 4 }, (_, index) => (
-            <div key={index}><span className="skeleton skeleton-line" /><span className="skeleton skeleton-number" /></div>
-          ))}
-        </section>
-      ) : (
-        <section className="profile-stats" aria-label="Launch summary">
-          <div><small>Tokens launched</small><strong>{tokens.length}</strong></div>
-          <div><small>Bonding</small><strong>{counts.live}</strong></div>
-          <div><small>Bonding complete</small><strong>{counts.ready}</strong></div>
-          <div><small>Graduated</small><strong>{counts.graduated}</strong></div>
-        </section>
-      )}
+    {initialLoading ? <section className="profile-stats profile-stats-skeleton" aria-busy="true" aria-label="Loading launch summary">
+      {Array.from({ length: 4 }, (_, index) => <div key={index}><span className="skeleton skeleton-line" /><span className="skeleton skeleton-number" /></div>)}
+    </section> : <dl className="profile-stats" aria-label="Launch summary">
+      <div><dt>Launched</dt><dd>{tokens.length}</dd></div>
+      <div><dt>Live</dt><dd>{counts.live}</dd></div>
+      <div><dt>Bonding complete</dt><dd>{counts.ready}</dd></div>
+      <div><dt>Graduated</dt><dd>{counts.graduated}</dd></div>
+    </dl>}
 
-      <section className="profile-markets" aria-live="polite">
-        {error && <p className="notice" role="alert">{error}</p>}
-        {initialLoading ? (
-          <ul className="tcard-grid profile-card-skeletons" aria-busy="true" aria-label="Loading launches">
-            {Array.from({ length: PROFILE_SKELETON_CARDS }, (_, index) => (
-              <li key={index} className="tcard skeleton" />
-            ))}
-          </ul>
-        ) : !tokens.length ? (
-          <div className="profile-empty">
-            <strong>No launches from this wallet yet.</strong>
-            <p>Tokens you create will appear here.</p>
-            <AppLink className="primary-button" route="launch" navigate={navigate}>
-              Launch a token
-            </AppLink>
+    {error && <p className="notice" role="alert">{error}</p>}
+    {initialLoading ? <div className="profile-dashboard-loading" aria-busy="true" aria-label="Loading launches"><div className="skeleton" /><div className="skeleton" /></div> : !tokens.length ? <section className="profile-empty">
+      <strong>No launches from this wallet yet.</strong>
+      <p>Tokens you create will appear here.</p>
+      <AppLink className="primary-button" route="launch" navigate={navigate}>Launch a token</AppLink>
+    </section> : <div className="profile-dashboard">
+      <aside className="profile-launch-directory" aria-labelledby="profile-launch-list-title">
+        <div className="profile-directory-heading"><h2 id="profile-launch-list-title">Launches</h2><span>{visibleTokens.length} / {tokens.length}</span></div>
+        <div className="profile-directory-controls">
+          <label className="visually-hidden" htmlFor="profile-launch-search">Search launches</label>
+          <input id="profile-launch-search" type="search" placeholder="Search launches" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <div className="profile-status-filters" role="group" aria-label="Filter launches by status">
+            {([["all", "All", tokens.length], ["live", "Live", counts.live], ["ready", "Bonding complete", counts.ready], ["graduated", "Graduated", counts.graduated]] as const).map(([value, label, count]) => <button key={value} type="button" className={filter === value ? "profile-status-filter active" : "profile-status-filter"} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}<span>{count}</span></button>)}
           </div>
-        ) : (
-          <ul className="tcard-grid">
-            {tokens.map((token, index) => (
-              <TokenCard
-                key={token.address}
-                token={token}
-                index={index}
-                navigate={navigate}
-              />
-            ))}
-          </ul>
-        )}
-      </section>
-    </main>
-  );
+        </div>
+        {visibleTokens.length ? <ul className="profile-launch-list">{visibleTokens.map((token, index) => {
+          const status = getMarketDisplayStatus(token);
+          return <li key={token.address}><button type="button" className={selectedToken?.address === token.address ? "profile-launch-item selected" : "profile-launch-item"} aria-pressed={selectedToken?.address === token.address} onClick={() => setSelectedAddress(token.address.toLowerCase())}>
+            <TokenAvatar token={token} index={index} className="profile-launch-avatar" />
+            <span className="profile-launch-item-copy"><strong>{token.name}</strong><small>${token.symbol} · {formatRelativeTime(token.createdAt)}</small></span>
+            <span className={`profile-launch-status ${status.kind}`}>{status.label}</span>
+          </button></li>;
+        })}</ul> : <p className="profile-directory-empty">No launches match your search or filter.</p>}
+      </aside>
+
+      <div className="profile-detail" aria-live="polite">
+        {selectedToken ? <>
+          <header className="profile-token-header">
+            <div className="profile-token-identity"><TokenAvatar token={selectedToken} className="profile-token-avatar" /><div><h2>{selectedToken.name}</h2><p>${selectedToken.symbol} <span aria-hidden="true">·</span> <a className="profile-token-address" href={`${activeExplorerUrl}/address/${selectedToken.address}`} target="_blank" rel="noreferrer" title={selectedToken.address} aria-label={`View ${selectedToken.name} token address ${selectedToken.address} on explorer`}>{formatAddress(selectedToken.address)} <span aria-hidden="true">↗</span></a></p></div></div>
+            <div className="profile-token-actions"><span className={`profile-launch-status ${getMarketDisplayStatus(selectedToken).kind}`}>{getMarketDisplayStatus(selectedToken).label}</span><AppLink className="profile-market-link" route="market" params={{ address: selectedToken.address }} navigate={navigate}>View market <span aria-hidden="true">↗</span></AppLink></div>
+          </header>
+          <dl className="profile-token-facts"><div><dt>Market cap</dt><dd><UsdAmount weth={selectedToken.marketCap} /></dd></div><div><dt>Stage</dt><dd>{getMarketDisplayStatus(selectedToken).label}</dd></div><div><dt>Launched</dt><dd>{formatRelativeTime(selectedToken.createdAt)}</dd></div></dl>
+          <Tabs.Root value={activeSection} onValueChange={(value) => setActiveSection(value as ProfileSection)}>
+            <Tabs.List className="profile-section-nav" aria-label="Selected token view">
+              <Tabs.Tab value="holders" className={activeSection === "holders" ? "active" : ""}>Holders</Tabs.Tab>
+              <Tabs.Tab value="airdrops" className={activeSection === "airdrops" ? "active" : ""}>Airdrops</Tabs.Tab>
+              <Tabs.Indicator className="profile-section-indicator" />
+            </Tabs.List>
+            <Tabs.Panel key={`${selectedToken.address}-${activeSection}`} value={activeSection} className="profile-token-workspace profile-section-panel">
+              {activeSection === "holders" ? <CreatorTokenInsights token={selectedToken} /> : <HolderAirdropPanel token={selectedToken} />}
+            </Tabs.Panel>
+          </Tabs.Root>
+        </> : <p className="profile-directory-empty">Choose a launch to view its details.</p>}
+      </div>
+    </div>}
+  </main>;
 }
