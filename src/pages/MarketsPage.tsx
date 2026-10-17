@@ -8,6 +8,8 @@ import { formatPercent } from "../lib/format.js";
 import { useStore } from "../app/useStore.js";
 import type { CreatorTokenClient } from "../creatorTokens";
 import { activeChainId } from "../lib/web3";
+import { useMarketPreviewStats } from "../lib/useMarketPreviewStats";
+import type { MarketPreviewStatsClient } from "../lib/marketPreviewStats";
 import type { Navigate, Token } from "../types";
 
 const TABS: { id: Tab; label: string }[] = [
@@ -51,6 +53,11 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
   const [tab, setTab] = useState<Tab>(lastCreatedToken ? "new" : "trending");
   const visible = useMemo(() => selectTokens(tokens, tab), [tokens, tab]);
   const tickerTokens = useMemo(() => selectTokens(tokens, "new").slice(0, 12), [tokens]);
+  const previewStats = useMarketPreviewStats(
+    publicClient as unknown as MarketPreviewStatsClient | undefined,
+    tokens,
+    marketsFetchedAt,
+  );
   const initialLoading = !marketsFetchedAt && !tokens.length && !error;
   const awaitingPool = tokens.some((token) => !token.graduated && (token.pending || (token.progress ?? 0) >= 100));
 
@@ -124,9 +131,14 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
               </button>
             </div>
           </div>
-          {loading && tokens.length > 0 && <p className="market-refresh-status" role="status">Checking for new markets…</p>}
           <Tabs.Panel key={tab} value={tab} className="market-tab-panel">
-            <MarketList tokens={visible} loading={initialLoading} navigate={navigate} highlightedToken={lastCreatedToken} />
+            <MarketList
+              tokens={visible}
+              loading={initialLoading}
+              navigate={navigate}
+              highlightedToken={lastCreatedToken}
+              previewStats={previewStats}
+            />
           </Tabs.Panel>
         </Tabs.Root>
       </section>

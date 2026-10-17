@@ -7,11 +7,12 @@ type ChartColors = {
   orange: string;
 };
 
-function formatPrice(value: number) {
+function formatMarketCap(value: number) {
   if (!Number.isFinite(value)) return "—";
-  return value >= 1
-    ? value.toLocaleString("en-US", { maximumFractionDigits: 4 })
-    : value.toLocaleString("en-US", { maximumFractionDigits: 8 });
+  return `${value.toLocaleString("en-US", {
+    notation: Math.abs(value) >= 1_000 ? "compact" : "standard",
+    maximumFractionDigits: Math.abs(value) >= 1 ? 2 : 4,
+  })} WETH`;
 }
 
 export function buildMarketChartOptions(candles: readonly MarketCandle[], colors: ChartColors, intervalSeconds = 60) {
@@ -64,9 +65,9 @@ export function buildMarketChartOptions(candles: readonly MarketCandle[], colors
         splitNumber: 5,
         axisLine,
         axisTick,
-        axisLabel: { color: colors.text, margin: 14, formatter: (value: number) => formatPrice(value) },
+        axisLabel: { color: colors.text, margin: 14, formatter: (value: number) => formatMarketCap(value) },
         splitLine: { lineStyle: { color: colors.grid } },
-        axisPointer: { show: true, label: { formatter: ({ value }: { value: number }) => formatPrice(value) } },
+        axisPointer: { show: true, label: { formatter: ({ value }: { value: number }) => formatMarketCap(value) } },
       },
       {
         type: "value" as const,
@@ -82,7 +83,7 @@ export function buildMarketChartOptions(candles: readonly MarketCandle[], colors
     series: [
       {
         type: "candlestick" as const,
-        name: "Price",
+        name: "Market cap",
         data: candles.map((candle) => [candle.open, candle.close, candle.low, candle.high]),
         barWidth: "55%",
         itemStyle: {
@@ -98,7 +99,7 @@ export function buildMarketChartOptions(candles: readonly MarketCandle[], colors
           label: {
             show: true,
             position: "end" as const,
-            formatter: formatPrice(latest.close),
+            formatter: formatMarketCap(latest.close),
             color: "#10170f",
             backgroundColor: colors.lime,
             padding: [5, 8],

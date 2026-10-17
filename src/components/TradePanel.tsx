@@ -17,7 +17,6 @@ import {
 import { NATIVE_GAS_RESERVE } from "../sdk/v2Sdk";
 import type { Address } from "viem";
 import type { Token } from "../types";
-import { UsdAmount } from "./UsdAmount";
 import { tradeButtonLabel } from "../lib/tradeProgress";
 
 const SLIPPAGE_BPS = 300; // useStore sends minOut at 97% of the quote.
@@ -118,7 +117,7 @@ export function TradePanel({
   const received = quotePreview !== null ? Number(formatEther(quotePreview)) : null;
   const atLeast = received === null ? null : received * (1 - SLIPPAGE_BPS / 10_000);
 
-  // Execution price vs the current spot price: how far this size moves the curve.
+  // Compare the execution rate with the current curve rate to show order impact.
   const input = Number(amount);
   let inputWei = 0n;
   try { inputWei = parseEther(amount || "0"); } catch { /* Invalid input remains disabled. */ }
@@ -133,15 +132,15 @@ export function TradePanel({
           ? nativeBalance.value - NATIVE_GAS_RESERVE
           : 0n)
       : assetBalance;
-  const executionPrice =
+  const executionRate =
     received && input > 0
       ? side === "buy"
         ? input / received
         : received / input
       : null;
-  const priceImpact =
-    executionPrice && token.price
-      ? Math.abs(executionPrice / token.price - 1) * 100
+  const tradeImpact =
+    executionRate && token.price
+      ? Math.abs(executionRate / token.price - 1) * 100
       : null;
 
   function applyPreset(percent: number) {
@@ -227,13 +226,12 @@ export function TradePanel({
           }
         />
         <Row label="At least" value={atLeast === null ? "—" : `${formatEthAmount(atLeast)} ${receiving}`} />
-        <Row label="Price" value={<UsdAmount weth={token.price} />} />
         <Row label="Slippage limit" value={`${SLIPPAGE_BPS / 100}%`} />
         <Row label="Curve fee + creator tax" value={token.feeBps == null ? "—" : `${((token.feeBps + (token.creatorTaxBps ?? 0)) / 100).toFixed(2)}%`} />
         <Row
-          label="Price impact"
-          value={priceImpact === null ? "—" : formatPercent(priceImpact)}
-          tone={priceImpact !== null && priceImpact > 5 ? "warn" : undefined}
+          label="Trade impact"
+          value={tradeImpact === null ? "—" : formatPercent(tradeImpact)}
+          tone={tradeImpact !== null && tradeImpact > 5 ? "warn" : undefined}
         />
       </div>
 
@@ -260,7 +258,7 @@ export function TradePanel({
 
       <Collapsible.Root open={explain} onOpenChange={setExplain} className="trade-explain">
         <Collapsible.Trigger type="button">
-          How this trade is priced
+          How curve trades work
           <svg viewBox="0 0 20 20" aria-hidden="true">
             <circle cx="10" cy="10" r="7" />
             <path d="M10 9v5M10 6.5v.01" />
@@ -269,8 +267,9 @@ export function TradePanel({
         <Collapsible.Panel>
           <p>
             Every trade runs against a constant-product bonding curve held by the
-            launchpad — no order book and no counterparty. The price moves with
-            each buy and sell, so larger orders pay more. Your transaction
+            launchpad — no order book and no counterparty. The exchange rate
+            changes with each buy and sell, so larger orders move the curve
+            further. Your transaction
             reverts if the result lands below the slippage limit.
           </p>
         </Collapsible.Panel>

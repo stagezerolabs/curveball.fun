@@ -73,12 +73,12 @@ function Socials({ token }: { token: Token }) {
   );
 }
 
-export function MarketHeader({ token, priceChange }: { token: Token; priceChange?: MarketPriceChange | null }) {
+export function MarketHeader({ token, marketCapChange }: { token: Token; marketCapChange?: MarketPriceChange | null }) {
   const quoteSymbol = token.quoteSymbol ?? "WETH";
   const soldPercent = token.graduated ? 100 : Math.min(100, Math.max(0, token.progress ?? 0));
   const status = getMarketDisplayStatus(token);
-  const direction = priceChange?.percent == null ? "unavailable" : priceChange.percent > 0 ? "up" : priceChange.percent < 0 ? "down" : "flat";
-  const magnitude = Math.abs(priceChange?.percent ?? 0);
+  const direction = marketCapChange?.percent == null ? "unavailable" : marketCapChange.percent > 0 ? "up" : marketCapChange.percent < 0 ? "down" : "flat";
+  const magnitude = Math.abs(marketCapChange?.percent ?? 0);
   const formattedChange = magnitude > 0 && magnitude < 0.01
     ? "<0.01"
     : magnitude.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -105,15 +105,6 @@ export function MarketHeader({ token, priceChange }: { token: Token; priceChange
                 {token.creatorTaxBps != null && token.creatorTaxBps > 0 && (
                   <span className="market-data-chip">Creator tax <strong>{(token.creatorTaxBps / 100).toFixed(2)}%</strong></span>
                 )}
-              </div>
-              <div className="market-price-row">
-                <p className="market-identity-price"><span className="visually-hidden">Price: </span><UsdAmount weth={token.price} /></p>
-                <span
-                  className={`market-price-change ${direction}`}
-                  aria-label={priceChange ? `Price ${direction} ${formattedChange} percent ${priceChange.period === "24h" ? "in the last 24 hours" : "since the first trade"}` : "Price change unavailable until trade history loads"}
-                >
-                  <strong aria-hidden="true">{direction === "up" ? "↗ " : direction === "down" ? "↘ " : direction === "flat" ? "→ " : ""}{priceChange ? `${formattedChange}%` : "—"}</strong>
-                </span>
               </div>
             </div>
           </div>
@@ -142,7 +133,13 @@ export function MarketHeader({ token, priceChange }: { token: Token; priceChange
           <div className="market-stat-cap">
             <dt>Market cap</dt>
             <dd><UsdAmount weth={token.marketCap} compact /></dd>
-            <dd className="market-stat-note">Fully diluted</dd>
+            <dd
+              className={`market-cap-change ${direction}`}
+              aria-label={marketCapChange ? `Market cap ${direction} ${formattedChange} percent ${marketCapChange.period === "24h" ? "in the last 24 hours" : "since the first trade"}` : "Market cap change unavailable until trade history loads"}
+            >
+              <strong aria-hidden="true">{direction === "up" ? "↗ " : direction === "down" ? "↘ " : direction === "flat" ? "→ " : ""}{marketCapChange ? `${formattedChange}%` : "—"}</strong>
+              <span>{marketCapChange?.period === "since first trade" ? "since launch" : "24H"}</span>
+            </dd>
           </div>
           <div className="market-stat-progress">
             <dt>Bonding status</dt>

@@ -179,7 +179,7 @@ export function LandingPage({ navigate }: { navigate: Navigate }) {
             <span className="landing-step-number">02</span>
             <h3>Trade</h3>
             <p>
-              Buy and sell as the price moves. Creators can earn a share of
+              Buy and sell as the market cap moves. Creators can earn a share of
               trading fees.
             </p>
           </article>
@@ -207,7 +207,7 @@ export function LandingPage({ navigate }: { navigate: Navigate }) {
             <summary>How does the market work?</summary>
             <p>
               Each token starts on its own curve. Buyers trade WETH for tokens,
-              sellers trade tokens for WETH, and the price moves with each
+              sellers trade tokens for WETH, and the market cap moves with each
               trade. Market progress shows how much of the curve supply has
               sold.
             </p>

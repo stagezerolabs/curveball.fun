@@ -32,7 +32,6 @@ function tokenAmount(value: bigint) {
 function TradeRow({ trade }: { trade: TradeActivity }) {
   const date = new Date(trade.timestamp * 1000);
   const quote = Number(formatEther(trade.quoteAmount));
-  const tokens = Number(formatEther(trade.tokenAmount));
   return <tr className={trade.isBuy ? "market-activity-buy" : "market-activity-sell"}>
     <td className="market-activity-date"><time dateTime={date.toISOString()} title={date.toLocaleString()}>
       <span>{date.toLocaleDateString([], { month: "short", day: "numeric" })}</span>
@@ -41,7 +40,6 @@ function TradeRow({ trade }: { trade: TradeActivity }) {
     <td><span className={`market-activity-side ${trade.isBuy ? "buy" : "sell"}`}>{trade.isBuy ? "Buy" : "Sell"}</span></td>
     <td className="market-activity-number market-activity-usd"><strong><UsdAmount weth={quote} /></strong></td>
     <td className="market-activity-number"><strong>{tokenAmount(trade.tokenAmount)}</strong></td>
-    <td className="market-activity-number market-activity-price"><UsdAmount weth={tokens > 0 ? quote / tokens : null} precision="price" /></td>
     <td><TraderLink address={trade.trader} /></td>
     <td className="market-activity-txn"><a href={`${activeExplorerUrl}/tx/${trade.transactionHash}`} target="_blank" rel="noreferrer" title="View transaction on explorer" aria-label={`View ${trade.isBuy ? "buy" : "sell"} transaction on explorer`}>
       <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M11 4h5v5M16 4l-8 8M15 12v3.5A1.5 1.5 0 0 1 13.5 17h-9A1.5 1.5 0 0 1 3 15.5v-9A1.5 1.5 0 0 1 4.5 5H8" /></svg>
@@ -74,7 +72,6 @@ export function MarketActivity({ token, trades, loading, error }: {
             <th scope="col">Date</th><th scope="col">Type</th>
             <th scope="col">USD</th>
             <th scope="col">{token.symbol}</th>
-            <th scope="col">Price</th>
             <th scope="col">Trader</th><th scope="col">Txn</th>
           </tr></thead>
           <tbody>{visibleTrades.map((trade) => <TradeRow key={`${trade.transactionHash}-${trade.logIndex}`} trade={trade} />)}</tbody>

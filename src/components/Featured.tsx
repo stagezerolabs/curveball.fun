@@ -22,11 +22,8 @@ export function Featured({ tokens, loading, navigate }: { tokens: Token[]; loadi
             <span className="king-rank" aria-hidden="true">01</span>
             <TokenAvatar token={leader} className="king-avatar" />
             <span className="king-id"><strong>${leader.symbol}</strong><small>{leader.name}</small></span>
+            <span className="king-market-cap"><small>MCAP</small><strong><UsdAmount weth={leader.marketCap} /></strong></span>
             <span className="king-value"><strong>{formatPercent(leader.progress)}</strong><small>curve sold</small></span>
-          </span>
-          <span className="king-stats">
-            <span><small>Price</small><strong><UsdAmount weth={leader.price} /></strong></span>
-            <span><small>Market cap</small><strong><UsdAmount weth={leader.marketCap} /></strong></span>
           </span>
         </AppLink>
         {contenders.length > 0 && <aside className="contenders"><ol>{contenders.map((token, index) => <li key={token.address}>

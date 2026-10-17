@@ -3,18 +3,58 @@ import { TokenAvatar } from "./TokenAvatar";
 import { UsdAmount } from "./UsdAmount";
 import { formatPercent } from "../lib/format.js";
 import { getMarketDisplayStatus } from "../lib/marketState";
+import type { MarketPreviewStats, MarketPreviewStatsByToken } from "../lib/marketPreviewStats";
 import type { Navigate, Token } from "../types";
+
+function formatAge(createdAt: string) {
+  const timestamp = Date.parse(createdAt);
+  if (!Number.isFinite(timestamp)) return "—";
+  const seconds = Math.max(0, (Date.now() - timestamp) / 1_000);
+  if (seconds >= 31_536_000) return `${Math.floor(seconds / 31_536_000)}y`;
+  if (seconds >= 86_400) return `${Math.floor(seconds / 86_400)}d`;
+  if (seconds >= 3_600) return `${Math.floor(seconds / 3_600)}h`;
+  if (seconds >= 60) return `${Math.floor(seconds / 60)}m`;
+  return "now";
+}
+
+function formatCount(value: number | undefined) {
+  if (value === undefined) return "—";
+  return new Intl.NumberFormat("en-US", {
+    notation: value >= 10_000 ? "compact" : "standard",
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
+function MarketCapChange({ label, value }: { label: string; value: number | null | undefined }) {
+  const trend = value == null || Math.abs(value) < 0.05 ? "neutral" : value > 0 ? "positive" : "negative";
+  const display = value == null ? "—" : `${value > 0 ? "+" : ""}${value.toFixed(1)}%`;
+  return <div className={`market-card-change ${trend}`}><dt>{label}</dt><dd>{display}</dd></div>;
+}
+
+function MarketFacts({ token, stats }: { token: Token; stats?: MarketPreviewStats }) {
+  return (
+    <dl className="market-card-facts" aria-label="Market activity">
+      <div><dt>ATH</dt><dd><UsdAmount weth={stats?.athMarketCap} compact /></dd></div>
+      <div><dt>24HR VOL</dt><dd><UsdAmount weth={stats?.volume24h} compact /></dd></div>
+      <div><dt>AGE</dt><dd>{formatAge(token.createdAt)}</dd></div>
+      <div><dt>TXNS</dt><dd>{formatCount(stats?.transactions)}</dd></div>
+      <div><dt>TRADERS</dt><dd>{formatCount(stats?.traders)}</dd></div>
+    </dl>
+  );
+}
 
 export function MarketList({
   tokens,
   loading,
   navigate,
   highlightedToken,
+  previewStats = {},
 }: {
   tokens: Token[];
   loading: boolean;
   navigate: Navigate;
   highlightedToken?: string | null;
+  previewStats?: MarketPreviewStatsByToken;
 }) {
   return (
     <div className="market-list" aria-live="polite">
@@ -46,15 +86,15 @@ export function MarketList({
               <article
                 className={`market-card ${highlightedToken?.toLowerCase() === token.address.toLowerCase() ? "market-card-created" : ""}`}
               >
-              <AppLink
-                route="market"
-                params={{ address: token.address }}
-                navigate={navigate}
-                className="market-card-link"
-                aria-label={`View ${token.name} market`}
-              >
-                <span className="visually-hidden">View {token.name} market</span>
-              </AppLink>
+                <AppLink
+                  route="market"
+                  params={{ address: token.address }}
+                  navigate={navigate}
+                  className="market-card-link"
+                  aria-label={`View ${token.name} market`}
+                >
+                  <span className="visually-hidden">View {token.name} market</span>
+                </AppLink>
                 <span className="market-card-art">
                   <TokenAvatar token={token} index={index} />
                   <span className={`market-card-status ${getMarketDisplayStatus(token).kind}`}>
@@ -62,30 +102,24 @@ export function MarketList({
                   </span>
                 </span>
                 <span className="market-card-content">
-                  <span className="market-card-identity">
-                    <span className="market-card-identity-copy">
-                      <strong className="market-card-name">{token.name}</strong>
-                      <span className="market-card-symbol">${token.symbol}</span>
+                  <span className="market-card-overview">
+                    <span className="market-card-identity">
+                      <span className="market-card-identity-copy">
+                        <strong className="market-card-name">{token.name}</strong>
+                        <span className="market-card-symbol">${token.symbol}</span>
+                      </span>
                     </span>
-                    <span className="market-card-social-preview">
-                      <a href="#" aria-label={`${token.name} website`}>
-                        <svg className="market-card-social-globe" viewBox="0 0 24 24" aria-hidden="true">
-                          <circle cx="12" cy="12" r="9" />
-                          <path d="M3.6 9h16.8M3.6 15h16.8M12 3c2.4 2.5 3.75 5.6 3.75 9S14.4 18.5 12 21M12 3C9.6 5.5 8.25 8.6 8.25 12S9.6 18.5 12 21" />
-                        </svg>
-                      </a>
-                      <a href="#" aria-label={`${token.name} Telegram`}>
-                        <svg className="market-card-social-telegram" viewBox="170 280 590 500" aria-hidden="true">
-                          <path d="M226.328 494.722c145.761-63.505 242.957-105.372 291.589-125.6 138.855-57.755 167.708-67.787 186.514-68.119 4.137-.072 13.385.953 19.375 5.814 5.059 4.104 6.451 9.648 7.117 13.54.666 3.891 1.495 12.756.836 19.683-7.525 79.062-40.084 270.925-56.648 359.475-7.009 37.469-20.81 50.032-34.17 51.262-29.036 2.672-51.085-19.189-79.208-37.624-44.006-28.847-68.867-46.804-111.583-74.953-49.366-32.531-17.364-50.411 10.769-79.631 7.363-7.647 135.296-124.012 137.772-134.568.31-1.32.597-6.242-2.326-8.841-2.924-2.598-7.239-1.71-10.353-1.003-4.413 1.002-74.714 47.468-210.902 139.399-19.955 13.703-38.029 20.379-54.223 20.029-17.853-.386-52.194-10.094-77.723-18.393-31.313-10.178-56.199-15.56-54.032-32.846 1.128-9.004 13.527-18.212 37.197-27.624Z" />
-                        </svg>
-                      </a>
-                    </span>
+                    <dl className="market-card-primary-metrics" aria-label="Market cap">
+                      <div><dt>MCAP</dt><dd><UsdAmount weth={token.marketCap} compact /></dd></div>
+                    </dl>
+                    <dl className="market-card-changes" aria-label="Market cap change">
+                      <MarketCapChange label="1H" value={previewStats[token.address.toLowerCase()]?.change1h} />
+                      <MarketCapChange label="6H" value={previewStats[token.address.toLowerCase()]?.change6h} />
+                      <MarketCapChange label="24H" value={previewStats[token.address.toLowerCase()]?.change24h} />
+                    </dl>
                   </span>
                   {highlightedToken?.toLowerCase() === token.address.toLowerCase() && <span className="market-new-tag">Just launched</span>}
-                  <span className="market-card-metrics">
-                    <span><strong><UsdAmount weth={token.marketCap} compact /></strong></span>
-                    <span><strong><UsdAmount weth={token.price} /></strong></span>
-                  </span>
+                  <MarketFacts token={token} stats={previewStats[token.address.toLowerCase()]} />
                   <span className="market-card-progress-label">
                     <span>{token.graduated ? "Graduated" : "Curve sold"}</span>
                     <strong>{token.graduated ? "100%" : formatPercent(token.progress)}</strong>

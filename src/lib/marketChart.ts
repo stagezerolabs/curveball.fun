@@ -42,6 +42,16 @@ export type TradePoint = {
   volume: number;
 };
 
+export function toMarketCapPoints(
+  points: readonly TradePoint[],
+  currentRate: number | null | undefined,
+  currentMarketCap: number | null | undefined,
+) {
+  if (currentRate == null || currentMarketCap == null || currentRate <= 0 || !Number.isFinite(currentRate) || !Number.isFinite(currentMarketCap)) return [];
+  const supply = currentMarketCap / currentRate;
+  return points.map((point) => ({ ...point, price: point.price * supply }));
+}
+
 export type MarketPriceChange = {
   percent: number;
   period: "24h" | "since first trade";

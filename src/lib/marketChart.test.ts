@@ -5,7 +5,16 @@ import {
   parseCreatedBlock,
   tradeLogToPoint,
   tradeLogToActivity,
+  toMarketCapPoints,
 } from "./marketChart";
+
+test("converts trade history into market-cap history using fixed supply", () => {
+  expect(toMarketCapPoints(
+    [{ timestamp: 60, price: 0.5, volume: 2 }],
+    1,
+    1_000,
+  )).toEqual([{ timestamp: 60, price: 500, volume: 2 }]);
+});
 
 describe("buildCandles", () => {
   test("groups trades into OHLC candles and sums volume", () => {

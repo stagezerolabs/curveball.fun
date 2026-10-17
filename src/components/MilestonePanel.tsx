@@ -10,6 +10,20 @@ import { factoryForToken } from "../lib/marketFactories";
 import type { Token } from "../types";
 import { UsdAmount } from "./UsdAmount";
 
+function getTargetMarketCap(token: Token) {
+  if (token.targetPrice == null) return null;
+  try {
+    const supply = token.supply
+      ? Number(formatEther(BigInt(token.supply)))
+      : token.price && token.marketCap != null
+        ? token.marketCap / token.price
+        : null;
+    return supply == null || !Number.isFinite(supply) ? null : token.targetPrice * supply;
+  } catch {
+    return null;
+  }
+}
+
 export function MilestonePanel({
   token,
   address,
@@ -46,6 +60,7 @@ export function MilestonePanel({
   const hasTokenPayment = tokenOwed !== undefined && tokenOwed > 0n;
   const creatorPaymentChecked = quoteOwed !== undefined && tokenOwed !== undefined;
   const creatorPaid = creatorPaymentChecked && !hasQuotePayment && !hasTokenPayment;
+  const targetMarketCap = getTargetMarketCap(token);
 
   return (
     <section className="milestone-panel" aria-label="Graduation and fees">
@@ -74,12 +89,12 @@ export function MilestonePanel({
       <dl className="milestone-figures">
         {token.graduationTargetWeth && <div><dt>Pool WETH at graduation</dt><dd>{token.graduationTargetWeth} WETH</dd></div>}
         <div>
-          <dt>Target price</dt>
-          <dd><UsdAmount weth={token.targetPrice} /></dd>
+          <dt>Graduation market cap</dt>
+          <dd><UsdAmount weth={targetMarketCap} compact /></dd>
         </div>
         <div>
-          <dt>Now trading at</dt>
-          <dd><UsdAmount weth={token.price} /></dd>
+          <dt>Current market cap</dt>
+          <dd><UsdAmount weth={token.marketCap} compact /></dd>
         </div>
       </dl>
 

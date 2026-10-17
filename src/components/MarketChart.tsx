@@ -5,6 +5,7 @@ import { DataZoomComponent, GridComponent, MarkLineComponent, TooltipComponent }
 import { CanvasRenderer } from "echarts/renderers";
 import { usePublicClient } from "wagmi";
 import { MarketActivity } from "./MarketActivity";
+import { UsdAmount } from "./UsdAmount";
 import { v2CurveAbi } from "../sdk/v2Contracts";
 import {
   activeChainId,
@@ -15,6 +16,7 @@ import {
   buildCandles,
   calculatePriceChange,
   parseCreatedBlock,
+  toMarketCapPoints,
   tradeLogToActivity,
   tradeLogToPoint,
   type TradeActivity,
@@ -152,21 +154,14 @@ async function loadTradePoints(client: ChartClient, token: Token) {
   return { points, trades };
 }
 
-function formatChartValue(value: number) {
-  if (!Number.isFinite(value)) return "—";
-  return value >= 1
-    ? value.toLocaleString("en-US", { maximumFractionDigits: 4 })
-    : value.toLocaleString("en-US", { maximumFractionDigits: 8 });
-}
-
 export function MarketChart({
   token,
   refreshKey,
-  onPriceChange,
+  onMarketCapChange,
 }: {
   token: Token;
   refreshKey?: number;
-  onPriceChange?: (change: MarketPriceChange | null) => void;
+  onMarketCapChange?: (change: MarketPriceChange | null) => void;
 }) {
   const publicClient = usePublicClient({ chainId: activeChainId });
   const chartRef = useRef<HTMLDivElement>(null);
@@ -177,7 +172,11 @@ export function MarketChart({
   const [error, setError] = useState("");
   const [themeVersion, setThemeVersion] = useState(0);
   const [hover, setHover] = useState<{ close: number; volume: number } | null>(null);
-  const candles = useMemo(() => buildCandles(points, interval), [points, interval]);
+  const marketCapPoints = useMemo(
+    () => toMarketCapPoints(points, token.price, token.marketCap),
+    [points, token.marketCap, token.price],
+  );
+  const candles = useMemo(() => buildCandles(marketCapPoints, interval), [marketCapPoints, interval]);
 
   useEffect(() => {
     const observer = new MutationObserver(() => setThemeVersion((value) => value + 1));
@@ -193,19 +192,19 @@ export function MarketChart({
     setPoints([]);
     setTrades([]);
     setHover(null);
-    onPriceChange?.(null);
+    onMarketCapChange?.(null);
     void loadTradePoints(publicClient as unknown as ChartClient, token)
       .then(({ points: nextPoints, trades }) => {
         if (!cancelled) {
           setPoints(nextPoints);
           setTrades(trades);
-          onPriceChange?.(calculatePriceChange(nextPoints, token.price));
+          onMarketCapChange?.(calculatePriceChange(nextPoints, token.price));
         }
       })
       .catch(() => {
         if (!cancelled) {
           setError("Chart unavailable");
-          onPriceChange?.(null);
+          onMarketCapChange?.(null);
         }
       })
       .finally(() => {
@@ -214,7 +213,7 @@ export function MarketChart({
     return () => {
       cancelled = true;
     };
-  }, [publicClient, refreshKey, token.address, token.curve, token.price, onPriceChange]);
+  }, [publicClient, refreshKey, token.address, token.curve, token.price, onMarketCapChange]);
 
   useEffect(() => {
     const container = chartRef.current;
@@ -252,11 +251,11 @@ export function MarketChart({
 
   return (
     <div className="market-main">
-    <section className="market-chart-panel" aria-label={`${token.symbol} price chart`}>
+    <section className="market-chart-panel" aria-label={`${token.symbol} market cap chart`}>
       <header className="market-chart-head">
         <div>
-          <strong>{hover ? formatChartValue(hover.close) : "—"}</strong>
-          {hover && <small>Volume {formatChartValue(hover.volume)}</small>}
+          <strong><UsdAmount weth={hover?.close} compact /></strong>
+          {hover && <small>Market cap · Volume <UsdAmount weth={hover.volume} compact /></small>}
         </div>
         <div className="chart-intervals" role="group" aria-label="Chart interval">
           {INTERVALS.map((item) => (

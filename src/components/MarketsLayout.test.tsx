@@ -22,19 +22,41 @@ test("graduation feature shows only the top three live coins", () => {
   expect(html).toContain("$C3");
   expect(html).toContain("$C2");
   expect(html).not.toContain("$C1");
+  expect(html).toContain("MCAP");
 });
 
 test("market cards show artwork, identity, market data, and curve progress", () => {
-  const html = renderToStaticMarkup(<MarketList tokens={[tokens[0]]} loading={false} navigate={() => undefined} />);
+  const html = renderToStaticMarkup(<MarketList
+    tokens={[tokens[0]]}
+    loading={false}
+    navigate={() => undefined}
+    previewStats={{
+      [tokens[0].address.toLowerCase()]: {
+        athMarketCap: 1_500,
+        transactions: 128,
+        traders: 42,
+        volume24h: 8.25,
+        change1h: 10,
+        change6h: -3.2,
+        change24h: 0,
+      },
+    }}
+  />);
   expect(html).toContain('class="market-card-grid"');
   expect(html).toContain('class="market-card-art"');
-  expect(html).toContain('class="market-card-social-preview"');
-  expect(html).toContain('class="market-card-social-globe"');
-  expect(html).not.toContain('class="market-card-social-x"');
-  expect(html.match(/href="#"/g)).toHaveLength(2);
+  expect(html).not.toContain('class="market-card-social-preview"');
   expect(html).toContain("Coin 1");
-  expect(html).not.toContain("Market cap");
-  expect(html).not.toContain("Price");
+  expect(html).toContain("MCAP");
+  expect(html).not.toContain("PRICE");
+  expect(html).toContain("ATH");
+  expect(html).toContain("24HR VOL");
+  expect(html).toContain("AGE");
+  expect(html).toContain("TXNS");
+  expect(html).toContain("128");
+  expect(html).toContain("TRADERS");
+  expect(html).toContain("42");
+  expect(html).toContain("+10.0%");
+  expect(html).toContain("-3.2%");
   expect(html).toContain("10.0%");
   expect(html).toContain('/markets/');
   expect(html).not.toContain("V1");

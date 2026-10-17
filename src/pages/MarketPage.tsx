@@ -24,7 +24,7 @@ function MarketPageSkeleton() {
       <div className="market-header-skeleton">
         <span className="skeleton skeleton-circle" />
         <span className="skeleton skeleton-line skeleton-title" />
-        <span className="skeleton skeleton-line skeleton-price" />
+        <span className="skeleton skeleton-line skeleton-cap" />
       </div>
       <div className="skeleton market-panel-skeleton" />
       <div className="skeleton market-panel-skeleton" />
@@ -56,9 +56,9 @@ export function MarketPage({
   const fetchedAt = tokenFetchedAt[key];
   const discoveryError = tokenErrors[key];
   const error = actionError || discoveryError;
-  const [priceChange, setPriceChange] = useState<MarketPriceChange | null>(null);
+  const [marketCapChange, setMarketCapChange] = useState<MarketPriceChange | null>(null);
 
-  useEffect(() => setPriceChange(null), [key]);
+  useEffect(() => setMarketCapChange(null), [key]);
 
   useEffect(() => {
     if (!address) return;
@@ -111,7 +111,7 @@ export function MarketPage({
 
   return (
     <main className="market-page wrap">
-      <MarketHeader token={resolvedToken} priceChange={priceChange} />
+      <MarketHeader token={resolvedToken} marketCapChange={marketCapChange} />
 
       <div className="market-workspace">
         <Suspense
@@ -122,7 +122,7 @@ export function MarketPage({
             />
           }
         >
-          <MarketChart token={resolvedToken} refreshKey={fetchedAt} onPriceChange={setPriceChange} />
+          <MarketChart token={resolvedToken} refreshKey={fetchedAt} onMarketCapChange={setMarketCapChange} />
         </Suspense>
         <aside className="market-sidebar" aria-label="Market actions">
           <TradePanel

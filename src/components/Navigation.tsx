@@ -312,7 +312,7 @@ export function Header({
       {announcementVisible && <aside className="announcement-bar" aria-label="Trading risk notice">
         <div className="announcement-inner">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" strokeLinecap="round" aria-hidden="true"><path d="M12 3 22 20H2L12 3Z" /><path d="M12 9v5" /><circle cx="12" cy="17" r=".8" fill="currentColor" stroke="none" /></svg>
-          <p><span className="announcement-desktop-copy">Coin prices can move fast. Trade carefully.</span><span className="announcement-mobile-copy">Prices move fast. Trade carefully.</span></p>
+          <p><span className="announcement-desktop-copy">Token market caps can move fast. Trade carefully.</span><span className="announcement-mobile-copy">Market caps move fast. Trade carefully.</span></p>
           <button className="announcement-close" type="button" aria-label="Dismiss announcement" onClick={dismissAnnouncement}>×</button>
         </div>
       </aside>}
