@@ -4,15 +4,21 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IIcarusFactory, IIcarusPool} from "../interfaces/IIcarus.sol";
 
+contract MockFeeHolder {}
+
 contract MockPool is ERC20("LP", "LP"), IIcarusPool {
     address public a;
     address public b;
+    address public poolFees;
+    address public gaugeFees;
     uint256 r0;
     uint256 r1;
 
     constructor(address x, address y) {
         a = x;
         b = y;
+        poolFees = address(new MockFeeHolder());
+        gaugeFees = address(new MockFeeHolder());
     }
 
     function totalSupply() public view override(ERC20, IIcarusPool) returns (uint256) {

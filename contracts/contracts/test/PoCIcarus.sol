@@ -4,11 +4,15 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IIcarusFactory, IIcarusPool} from "../interfaces/IIcarus.sol";
 
+contract PoCFeeHolder {}
+
 // Solidly-style pool whose accrued-fee figure can be set, to emulate a pool
 // whose creator wash-traded it into a large fee balance.
 contract PoCFeePool is ERC20("LP", "LP"), IIcarusPool {
     address public a;
     address public b;
+    address public poolFees;
+    address public gaugeFees;
     uint256 r0;
     uint256 r1;
     uint256 public f0; // fees reported by claimFees()
@@ -19,6 +23,8 @@ contract PoCFeePool is ERC20("LP", "LP"), IIcarusPool {
     constructor(address x, address y) {
         a = x;
         b = y;
+        poolFees = address(new PoCFeeHolder());
+        gaugeFees = address(new PoCFeeHolder());
     }
 
     /// A pool may report more than it delivers -- callers must not trust the returned tuple.

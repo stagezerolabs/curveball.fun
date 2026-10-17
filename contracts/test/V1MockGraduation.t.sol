@@ -9,6 +9,8 @@ import {CurveV1Factory} from "../contracts/CurveV1Factory.sol";
 import {CurveV1Deployment} from "../contracts/CurveV1Deployment.sol";
 import {CurveV1PoolAdapter} from "../contracts/CurveV1PoolAdapter.sol";
 import {CurveBondingCurve} from "../contracts/CurveBondingCurve.sol";
+import {CurveHolderReserve} from "../contracts/CurveHolderReserve.sol";
+import {IIcarusPool} from "../contracts/interfaces/IIcarus.sol";
 
 contract V1MockGraduationTest is TestBase {
     address private constant TRADER = address(0xBEEF);
@@ -16,7 +18,7 @@ contract V1MockGraduationTest is TestBase {
     function testMockGraduationAndFuturePolicySnapshot() external {
         MockWETH weth = new MockWETH();
         MockIcarusFactory mock = new MockIcarusFactory();
-        CurveV1Factory factory = CurveV1Deployment.deploy(address(weth), address(mock), address(this), address(0), 0);
+        CurveV1Factory factory = _deploy(weth, mock);
         (address token, address curveAddress) = factory.createToken("V1", "V1", "", 0);
         CurveBondingCurve curve = CurveBondingCurve(curveAddress);
         assertEq(curve.initialVQ(), 0.00125 ether, "wrong initial reserve");
@@ -48,7 +50,7 @@ contract V1MockGraduationTest is TestBase {
     function testBuySellRoutesFeesAndKeepsQuoteBacked() external {
         MockWETH weth = new MockWETH();
         MockIcarusFactory mock = new MockIcarusFactory();
-        CurveV1Factory factory = CurveV1Deployment.deploy(address(weth), address(mock), address(this), address(0), 0);
+        CurveV1Factory factory = _deploy(weth, mock);
         (address token, address curveAddress) = factory.createToken("V1 Trade", "V1T", "", 0);
         CurveBondingCurve curve = CurveBondingCurve(curveAddress);
         weth.mint(TRADER, 0.001 ether);
@@ -72,11 +74,87 @@ contract V1MockGraduationTest is TestBase {
     function testLaunchRegistersChosenHolderReserve() external {
         MockWETH weth = new MockWETH();
         MockIcarusFactory mock = new MockIcarusFactory();
-        CurveV1Factory factory = CurveV1Deployment.deploy(address(weth), address(mock), address(this), address(0), 0);
+        CurveV1Factory factory = _deploy(weth, mock);
         (address token, address curveAddress) = factory.createToken("V1 Reserve", "V1R", "", 0, 250);
         uint256 reserved = factory.supply() * 250 / 10_000;
         assertEq(factory.reserveBps(token), 250, "reserve selection not recorded");
         assertEq(IERC20(token).balanceOf(address(factory.holderReserve())), reserved, "reserve tokens missing");
         assertEq(IERC20(token).balanceOf(curveAddress), factory.supply() - reserved, "curve allocation changed");
+    }
+
+    function testReadyCurveRejectsSalesUntilGraduationCompletes() external {
+        MockWETH weth = new MockWETH();
+        MockIcarusFactory mock = new MockIcarusFactory();
+        CurveV1Factory factory = _deploy(weth, mock);
+        (address token, address curveAddress) = factory.createToken("V1 Ready", "V1R", "", 0);
+        CurveBondingCurve curve = CurveBondingCurve(curveAddress);
+        uint256 curveSupply = factory.curveSupply();
+
+        weth.mint(TRADER, 0.006 ether);
+        vm.prank(TRADER);
+        weth.approve(curveAddress, 0.006 ether);
+        vm.prank(TRADER);
+        curve.buyTokens(0.006 ether, curveSupply, DEADLINE);
+        factory.graduate(token);
+        assertTrue(curve.ready(), "curve not ready");
+
+        vm.prank(TRADER);
+        IERC20(token).approve(curveAddress, 1 ether);
+        vm.prank(TRADER);
+        vm.expectRevert();
+        curve.sellTokens(1 ether, 1, DEADLINE);
+        assertTrue(curve.ready(), "ready flag changed");
+        assertEq(curve.sold(), curveSupply, "sold amount changed");
+    }
+
+    function testHolderReserveExcludesFeeServiceContracts() external {
+        MockWETH weth = new MockWETH();
+        MockIcarusFactory mock = new MockIcarusFactory();
+        CurveV1Factory factory = _deploy(weth, mock);
+        (address token, address curveAddress) = factory.createToken("V1 Holders", "V1H", "", 0);
+        CurveBondingCurve curve = CurveBondingCurve(curveAddress);
+        uint256 curveSupply = factory.curveSupply();
+
+        weth.mint(TRADER, 0.006 ether);
+        vm.prank(TRADER);
+        weth.approve(curveAddress, 0.006 ether);
+        vm.prank(TRADER);
+        curve.buyTokens(0.006 ether, curveSupply, DEADLINE);
+        factory.graduate(token);
+        address pool = factory.createGraduatedPool(token);
+        address escrow = address(factory.escrow());
+        address poolFees = IIcarusPool(pool).poolFees();
+        address gaugeFees = IIcarusPool(pool).gaugeFees();
+
+        vm.prank(TRADER);
+        IERC20(token).transfer(escrow, 100_000 ether);
+        vm.prank(TRADER);
+        IERC20(token).transfer(poolFees, 100_000 ether);
+        vm.prank(TRADER);
+        IERC20(token).transfer(gaugeFees, 100_000 ether);
+        uint256 snapshot = block.number;
+        vm.roll(block.number + 1);
+
+        CurveHolderReserve reserve = factory.holderReserve();
+        uint256 roundId = reserve.createRound(token, snapshot, 50_000 ether);
+        assertEq(reserve.claimable(token, roundId, TRADER), 50_000 ether, "holder allocation diluted");
+        assertEq(reserve.claimable(token, roundId, escrow), 0, "escrow can claim");
+        assertEq(reserve.claimable(token, roundId, poolFees), 0, "pool fees can claim");
+        assertEq(reserve.claimable(token, roundId, gaugeFees), 0, "gauge fees can claim");
+    }
+
+    function _deploy(MockWETH weth, MockIcarusFactory mock) private returns (CurveV1Factory) {
+        return CurveV1Deployment.deploy(
+            CurveV1Deployment.Config({
+                quote: address(weth),
+                poolFactory: address(mock),
+                owner: address(this),
+                treasury: address(this),
+                launchFeeTreasury: address(0),
+                launchFee: 0,
+                graduationTarget: 0.005 ether,
+                isMock: true
+            })
+        );
     }
 }

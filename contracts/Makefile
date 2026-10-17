@@ -2,33 +2,33 @@ ENV_FILE := $(shell dirname "$$(git rev-parse --path-format=absolute --git-commo
 -include $(ENV_FILE)
 
 ACCOUNT ?= dot
-TESTNET_RPC_URL ?= $(if $(RISE_TESTNET_RPC_URL),$(RISE_TESTNET_RPC_URL),https://testnet.riselabs.xyz)
+MAINNET_RPC_URL := $(RISE_MAINNET_RPC_URL)
 
-export QUOTE_TOKEN ICARUS_FACTORY BLOCKSCOUT_API RISE_TESTNET_RPC_URL RISE_RPC_URL
+export QUOTE_TOKEN ICARUS_FACTORY BLOCKSCOUT_API RISE_MAINNET_RPC_URL RISE_RPC_URL
 
-.PHONY: test test-fork-strict verify-icarus verify-icarus-testnet deploy-v1-mock-testnet
-
-# Fresh V1: dot signs, mock venue receives graduation, 0.005 WETH target.
-deploy-v1-mock-testnet:
-	@DEPLOYER_ADDRESS=0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3 \
-	forge script scripts/DeployV1Mock.s.sol:DeployV1Mock \
-		--rpc-url "$(TESTNET_RPC_URL)" --broadcast --slow \
-		--account "$(ACCOUNT)" --sender 0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3
+.PHONY: test test-fork-strict verify-icarus require-production-config production-preflight deploy-production
 
 test:
 	forge test --threads 1
 	bun scripts/check-bytecode.ts
 
 test-fork-strict:
-	@test -n "$(RISE_TESTNET_RPC_URL)" || { echo "RISE_TESTNET_RPC_URL is required for strict fork tests."; exit 2; }
+	@test -n "$(RISE_MAINNET_RPC_URL)" || { echo "RISE_MAINNET_RPC_URL is required for strict fork tests."; exit 2; }
 	forge test --match-path 'test/fork/IcarusFactory.t.sol'
 
 verify-icarus:
 	bash scripts/verify-icarus.sh
 
-verify-icarus-testnet:
-	ICARUS_FACTORY=0x8221dfB70c9A2dE60253dcfC58231FD529bbF4F9 \
-		QUOTE_TOKEN=0x4200000000000000000000000000000000000006 \
-		BLOCKSCOUT_API=https://explorer.testnet.riselabs.xyz/api \
-		VERIFY_OUTPUT=../deployments/11155931/icarus-verification.json \
-		bash scripts/verify-icarus-testnet.sh
+require-production-config:
+	@test -n "$(MAINNET_RPC_URL)" || { echo "RISE_MAINNET_RPC_URL is required and must use a private provider."; exit 2; }
+	@test -n "$(DEPLOYER_ADDRESS)" -a -n "$(OWNER_ADDRESS)" -a -n "$(TREASURY_ADDRESS)" || { echo "DEPLOYER_ADDRESS, OWNER_ADDRESS, and TREASURY_ADDRESS are required."; exit 2; }
+	@test -n "$(LAUNCH_FEE_TREASURY)" -a -n "$(LAUNCH_FEE_WEI)" -a -n "$(GRADUATION_TARGET_WEI)" || { echo "Launch-fee and graduation policy values are required."; exit 2; }
+	@test "$$(cast chain-id --rpc-url "$(MAINNET_RPC_URL)")" = "4153" || { echo "RISE_MAINNET_RPC_URL is not chain 4153."; exit 2; }
+
+production-preflight: require-production-config test test-fork-strict
+	forge script scripts/DeployProduction.s.sol:DeployProduction --rpc-url "$(MAINNET_RPC_URL)" --sender "$(DEPLOYER_ADDRESS)"
+
+deploy-production: production-preflight
+	forge script scripts/DeployProduction.s.sol:DeployProduction \
+		--rpc-url "$(MAINNET_RPC_URL)" --broadcast --slow \
+		--account "$(ACCOUNT)" --sender "$(DEPLOYER_ADDRESS)"

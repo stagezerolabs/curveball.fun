@@ -60,7 +60,7 @@ function marketStateFromTradeReceipt(
   for (const log of receipt.logs) {
     if (log.address.toLowerCase() !== curve.toLowerCase()) continue;
     try {
-      const event = decodeEventLog({ abi: v2CurveAbi, eventName: "Trade", data: log.data, topics: log.topics, strict: true });
+      const event = decodeEventLog({ abi: curveAbi, eventName: "Trade", data: log.data, topics: log.topics, strict: true });
       if (
         getAddress(event.args.token) === getAddress(token) &&
         getAddress(event.args.trader) === trader &&

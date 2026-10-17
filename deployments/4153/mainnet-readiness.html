@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Curveball Mainnet Readiness — 2026-10-17</title>
+  <style>
+    :root { color-scheme: dark; font: 16px/1.55 system-ui, sans-serif; background: #10120f; color: #eef2e9; }
+    body { max-width: 920px; margin: 0 auto; padding: 48px 24px 80px; }
+    h1, h2 { line-height: 1.15; }
+    h1 { font-size: clamp(2rem, 6vw, 4rem); margin-bottom: 8px; }
+    h2 { margin-top: 40px; }
+    code { color: #c7f36b; overflow-wrap: anywhere; }
+    .status { display: inline-block; padding: 6px 10px; border: 1px solid #f0b95c; border-radius: 999px; color: #f0cf8f; }
+    .card { margin: 16px 0; padding: 18px 20px; border: 1px solid #343a30; border-radius: 12px; background: #181b16; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 10px; border-bottom: 1px solid #343a30; text-align: left; vertical-align: top; }
+    .pass { color: #bce66c; }
+    .pending { color: #f0cf8f; }
+  </style>
+</head>
+<body>
+  <p class="status">Deployment pending explicit production policy</p>
+  <h1>Curveball mainnet readiness</h1>
+  <p>Prepared 17 October 2026 for RISE Mainnet (chain 4153) from <code>release/mainnet-readiness</code>.</p>
+
+  <h2>Resolved launch blockers</h2>
+  <div class="card">
+    <ul>
+      <li>Sells now stop after a curve is marked ready, so a holder cannot repeatedly cancel graduation.</li>
+      <li>Holder rounds exclude the Curveball fee escrow and the Icarus pool and gauge fee contracts.</li>
+      <li>The obsolete V2.1 controller path, contracts, scripts, deployment records, and frontend fallbacks were removed.</li>
+      <li>The frontend and keeper use one configured factory and one fresh cache namespace.</li>
+    </ul>
+  </div>
+
+  <h2>Verification</h2>
+  <table>
+    <thead><tr><th>Gate</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>Frontend and keeper</td><td class="pass">70 tests passed; TypeScript passed; production build passed</td></tr>
+      <tr><td>Contracts</td><td class="pass">6 Foundry tests passed; all 11 deployable contracts below bytecode limits</td></tr>
+      <tr><td>RISE/Icarus lifecycle</td><td class="pass">Full launch, sellout, graduation, pool creation, and fee-holder checks passed on a fresh mainnet fork</td></tr>
+      <tr><td>Deployment simulation</td><td class="pass">Nine contracts/services wired successfully; 21,967,023 estimated gas</td></tr>
+      <tr><td>Live dependency state</td><td class="pass">Icarus unpaused; verified factory and implementation hashes unchanged</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Pinned dependencies</h2>
+  <div class="card">
+    <p>WETH: <code>0x4200000000000000000000000000000000000006</code><br>
+      Code hash: <code>0xe354d52f6267708b1b69faf84795aaf6abfa01e623ca8f912023399888e58fdb</code></p>
+    <p>Icarus PoolFactory: <code>0xEe10C6a0f158bFEeef3d48Dc0D26130Cf6115615</code><br>
+      Code hash: <code>0x6c1342d984ac76dfe9ec5b20d4657e68390078c6747ccc0b6bbaafbe1379e628</code></p>
+    <p>Icarus Pool implementation: <code>0xA24Bdf8ee26658c822796a30770F23c2425de966</code><br>
+      Code hash: <code>0x86d3cb4be9f4f211f6df84b9cc262297750aaa84dcd26fa034e80010aad5055e</code></p>
+  </div>
+
+  <h2>Remaining go-live gates</h2>
+  <ol>
+    <li class="pending">Choose and record the deployer/owner, protocol treasury, launch fee, launch-fee treasury, and graduation target.</li>
+    <li class="pending">Provide a private production RPC endpoint and fund the deployer.</li>
+    <li class="pending">Broadcast, record, and independently verify the live deployment.</li>
+    <li class="pending">Set the verified factory and deployment block in Vercel and the monitored graduation keeper.</li>
+    <li class="pending">Complete a small live launch/trade/graduation smoke test before public launch.</li>
+  </ol>
+
+  <p>The deployment script refuses non-4153 chains, paused/missing dependencies, incomplete policy, and mismatched post-deploy wiring. No mainnet transaction had been broadcast when this report was generated.</p>
+</body>
+</html>

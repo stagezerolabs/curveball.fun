@@ -46,9 +46,10 @@ export function HolderAirdropPanel({ token }: { token: Token }) {
       if (!client || !token.factory) throw new Error("No chain client available.");
       const reserve = await client.readContract({ address: token.factory, abi: factoryAbi, functionName: "holderReserve" });
       if (reserve === zeroAddress) throw new Error("Holder reserve is not configured.");
-      const [launch, latestBlock] = await Promise.all([
+      const [launch, latestBlock, feeEscrow] = await Promise.all([
         client.readContract({ address: reserve, abi: holderReserveAbi, functionName: "launches", args: [token.address] }),
         client.getBlockNumber(),
+        client.readContract({ address: reserve, abi: holderReserveAbi, functionName: "feeEscrow" }),
       ]);
       const count = launch[7];
       const start = count > BigInt(visible) ? count - BigInt(visible) : 0n;
@@ -60,7 +61,7 @@ export function HolderAirdropPanel({ token }: { token: Token }) {
         ]);
         return { id, snapshot: round[0], amount: round[1], claimable };
       }));
-      return { address: reserve, total: launch[4], committed: launch[5], graduationBlock: launch[6], excluded: [reserve, launch[1], launch[2], launch[3]], roundCount: count, latestBlock, rounds };
+      return { address: reserve, total: launch[4], committed: launch[5], graduationBlock: launch[6], excluded: [reserve, launch[1], launch[2], launch[3], feeEscrow, launch[8], launch[9]], roundCount: count, latestBlock, rounds };
     },
     staleTime: 60_000,
     gcTime: 15 * 60_000,

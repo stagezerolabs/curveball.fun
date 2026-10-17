@@ -16,7 +16,7 @@ require() {
 
 for command in cast curl diff jq; do require "$command"; done
 [[ "$factory" =~ ^0x[0-9a-fA-F]{40}$ ]] || {
-  echo "Set ICARUS_FACTORY to the candidate Icarus V2 factory address; it is deliberately not hardcoded." >&2
+  echo "Set ICARUS_FACTORY to the candidate Icarus factory address; it is deliberately not hardcoded." >&2
   exit 1
 }
 [[ "$weth" == "0x4200000000000000000000000000000000000006" ]] || {
@@ -112,7 +112,7 @@ weth_decimals="$(cast call "$weth" 'decimals()(uint8)' --rpc-url "$rpc_url")"
   exit 1
 }
 echo "Running RISE fork lifecycle..." >&2
-RISE_RPC_URL="$rpc_url" forge test --match-path test/fork/IcarusFactory.t.sol >/dev/null
+RISE_MAINNET_RPC_URL="$rpc_url" forge test --match-path test/fork/IcarusFactory.t.sol >/dev/null
 echo "Writing verification evidence..." >&2
 decision="STOP_FOR_HUMAN_REVIEW"
 [[ "$human_review" == "ICARUS_DIFF_REVIEWED_2026_09_19" ]] && decision="PASS_MAINNET_INTEGRATION_GATE"

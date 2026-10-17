@@ -54,7 +54,7 @@ export async function processMarket({ token, curveSupply, readState, canPrepare 
     if (!state.ready) return { status: "deferred" };
   }
 
-  // A sale can reopen the curve between preparation and pool creation.
+  // Re-read before pool creation in case another keeper completed graduation.
   state = await readState();
   if (state.graduated) return { status: "graduated", pool: state.pool };
   if (state.sold !== curveSupply || !state.ready) return { status: "bonding" };

@@ -128,7 +128,7 @@ contract CurveBondingCurve is ReentrancyGuard {
         token = token_;
     }
 
-    /// @notice A gross WETH budget includes every fee and creator tax.
+    /// @notice A gross quote-token budget includes every trading fee and creator tax.
     function quoteBuy(uint256 maxSpend)
         public
         view
@@ -158,7 +158,7 @@ contract CurveBondingCurve is ReentrancyGuard {
         return uint256(virtualQuote) * 1e18 / virtualToken;
     }
 
-    /// @notice Time-weighted WETH per token; requires at least 30 minutes of observations.
+    /// @notice Time-weighted quote-token price per token; requires at least 30 minutes of observations.
     function twapPrice() external view returns (uint256 average) {
         require(block.timestamp >= 30 minutes, "price history too short");
         uint256 target = block.timestamp - 30 minutes;
@@ -182,6 +182,7 @@ contract CurveBondingCurve is ReentrancyGuard {
         view
         returns (uint256 net, uint256 gross, uint256 fee, uint256 creatorTax)
     {
+        require(!ready, "graduating");
         require(token != address(0) && !graduated && amount > 0 && amount <= sold, "bad amount");
         uint256 k = uint256(virtualToken) * virtualQuote;
         uint256 newVq = _ceilDiv(k, uint256(virtualToken) + amount);
@@ -239,7 +240,6 @@ contract CurveBondingCurve is ReentrancyGuard {
         virtualQuote = (uint256(virtualQuote) - gross).toUint128();
         realQuote = (uint256(realQuote) - gross).toUint128();
         sold = (uint256(sold) - amount).toUint128();
-        if (ready) ready = false;
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
         _routeFees(fee, tax);
         IERC20(quote).safeTransfer(msg.sender, net);

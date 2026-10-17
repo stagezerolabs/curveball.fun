@@ -1,30 +1,31 @@
 # Curveball
 
-Curveball is a React/Vite dApp connected directly to the configured Curveball contracts on RISE. Contract state and events remain the source for markets and transactions. The navbar also reads a connected wallet's primary `.rise` name from Stage0's RISE Mainnet API through a narrow same-origin proxy, with the address as a fallback.
+Curveball is a React/Vite launchpad for RISE Mainnet. The app reads one configured `CurveV1Factory`; deprecated factory versions, fallback deployments, and historical market discovery are not bundled.
 
-## Previous testnet deployment (reference)
+## Production contracts
 
-The previous `CurveV1Factory` was deployed at `0x3F1eaFBfa954936b4671CC40c89871808C12f392` on RISE Testnet, starting at block `57060749`. It starts with a **0.005 WETH graduation target**, sells 800,000 of 1,000,000 tokens on the curve, and sends the collected WETH plus remaining pool tokens to a mock venue. The mock creates and locks LP tokens but offers no swaps. Its 0.005 WETH target is pool proceeds; buyers also pay the curve fee and any selected creator tax. The deployment record is `deployments/11155931/curveball-v1-mock.json`.
+The current contracts launch a fixed 1,000,000-token supply, sell 800,000 tokens on a bonding curve, optionally reserve 0–5% for post-graduation holder rounds, and send the remaining tokens plus collected WETH to a volatile Icarus pool. LP tokens are permanently held by `CurveV1Locker`. Curve fees are split among the creator, protocol treasury, and per-market buyback vault.
 
-Each launch records its own virtual reserve and venue adapter. Dot can call `setGraduationTarget(uint256)` and `setVenue(address)` on the V1 factory; changes affect future launches only. The adapter must match the factory, WETH, and LP locker. A later adapter can point at the real Icarus factory. The factory uses two-step ownership transfer for a future multisig.
+The production deployment record will live at `deployments/4153/curveball.json`. Until that record exists, `.env.production` intentionally has no factory address or deployment block and the production frontend must not be released.
 
-The initial V1 deployment used the local Foundry `dot` keystore with:
+### Mainnet deployment
+
+Copy `.env.example` to the repository-level `.env` and set the deployment values. Use a private RISE Mainnet RPC endpoint. `OWNER_ADDRESS` must equal `DEPLOYER_ADDRESS` for the initial deployment; ownership can be transferred with the factory's two-step handoff after verification.
 
 ```bash
-make deploy-v1-mock-testnet
+make production-preflight
+make deploy-production
+CONFIRM_RECORD_PRODUCTION=RECORD_CURVEBALL_RISE_MAINNET_4153 make record-production
+make configure-production
 ```
 
-The app reads only the configured `VITE_LAUNCHPAD_ADDRESS` from `VITE_DEPLOYMENT_BLOCK`. Set both values from the fresh deployment before building the frontend. Configure the keeper with the same fresh factory and block. Do not reuse this earlier deployment.
+The preflight runs the full Foundry suite, bytecode limits, a complete launch/graduation lifecycle on a fresh RISE Mainnet fork, and a dry-run of the production deployment. The broadcast script is restricted to chain `4153`, canonical RISE WETH, and the reviewed Icarus factory. Recording re-reads all service wiring and policy from the live chain before writing the deployment artifact. Configuration then points `.env.production` at that verified factory.
 
-### Automatic graduation keeper
+After recording, set the same factory and deployment block in Vercel and the graduation keeper. Do not copy deployment credentials, keystore passwords, or keeper keys into any `VITE_` variable.
 
-The standalone Node.js worker is in [`keeper/`](keeper/README.md). Deploy that folder to a VPS, configure the server-only `KEEPER_*` variables in `keeper/.env.example`, and run one continuously running instance with a dedicated wallet funded for gas. It does not start with the Vite app or the Vercel frontend deployment.
+## Graduation keeper
 
-The keeper scans `LaunchCreated` events from `KEEPER_DEPLOYMENT_BLOCK`, then checks active curves every `KEEPER_POLL_INTERVAL_MS` (10 seconds by default). When `sold == curveSupply`, it calls `graduate(token)` and, once the venue is ready, `createGraduatedPool(token)`. It rechecks chain state before pool creation, waits for receipts, and retries deferred graduations after a cooldown. Monitor its logs for repeated deferrals or RPC failures.
-
-Users see **Bonding complete** while the pool is being prepared. The market page checks for the on-chain transition and shows a link to the confirmed pool address when `graduated` becomes true. This release uses a mock venue: its pool is an explorer-visible test artifact and does not support swaps.
-
-The frontend discovers launches from the configured factory's events, reads market state from that factory and its curves, and sends wallet-signed transactions through the SDK in `src/sdk`. Deprecated factory versions and fallback deployment paths are not bundled into the app.
+The standalone worker in [`keeper/`](keeper/README.md) discovers launches and submits the two permissionless graduation transactions. Run one monitored instance with a dedicated, funded mainnet wallet. Its factory and deployment block must match the production deployment record.
 
 ## Run locally
 
@@ -34,11 +35,9 @@ bun install
 bun run dev
 ```
 
-Set `VITE_WALLETCONNECT_PROJECT_ID` to enable WalletConnect QR/mobile wallets. Injected browser wallets work without it.
+Set `VITE_LAUNCHPAD_ADDRESS` and `VITE_DEPLOYMENT_BLOCK` to the deployment you want to inspect. Set `VITE_WALLETCONNECT_PROJECT_ID` for QR/mobile wallets. Injected browser wallets work without it.
 
-To publish launch artwork, set `PINATA_JWT` in `.env.local` for local development and in the Vercel project's server environment for deployment. The JWT needs Pinata Files write permission. Selecting an image starts a background upload to public IPFS. Once the token name and ticker are valid, the app publishes metadata that points to that image. Launch stays disabled until the metadata URI is ready, and that URI is passed to the launch contract. Artwork publishing does not ask for a wallet signature; the wallet only prompts for launch transactions. The JWT stays on the server, and the endpoint limits images to 2 MB. Markets resolve artwork from the metadata URI recorded in the launch event. Apply a rate limit to `/api/artwork` at the hosting edge before opening public uploads, since origin checks alone do not prevent scripted use of the Pinata allowance.
-
-Vite proxies `/api/rns/primary/:address` to Stage0 during local development. The matching Vercel rewrite handles production. This identity lookup uses RISE Mainnet chain ID `4153` even when Curveball is connected to RISE Testnet; it never changes the wallet or transaction chain.
+Artwork uploads require a server-only `PINATA_JWT` with Pinata Files write permission. Never prefix it with `VITE_`. Apply an edge rate limit to `/api/artwork` before opening public uploads.
 
 ## Checks
 
@@ -49,4 +48,4 @@ bun run build
 make -C contracts test
 ```
 
-Never commit private keys, keystore passwords, or RPC credentials.
+Never commit private keys, seed phrases, keystore passwords, or credential-bearing RPC URLs.

@@ -12,7 +12,10 @@
     "keeper:graduation": "node keeper/graduation-keeper.mjs",
     "test": "make -C contracts test",
     "typecheck": "tsc --noEmit",
-    "verify:icarus": "make -C contracts verify-icarus-testnet"
+    "verify:icarus": "make -C contracts verify-icarus",
+    "deploy:preflight": "make -C contracts production-preflight",
+    "deploy:record": "bun contracts/scripts/record-production.ts",
+    "deploy:configure": "bun contracts/scripts/sync-production-config.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

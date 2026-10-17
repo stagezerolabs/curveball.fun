@@ -93,7 +93,8 @@ export const launchAndBuyAbi = parseAbi([
 ]);
 
 export const holderReserveAbi = parseAbi([
-  "function launches(address) view returns (address creator,address curve,address pool,address vault,uint256 reserve,uint256 committed,uint256 graduationBlock,uint256 roundCount)",
+  "function feeEscrow() view returns (address)",
+  "function launches(address) view returns (address creator,address curve,address pool,address vault,uint256 reserve,uint256 committed,uint256 graduationBlock,uint256 roundCount,address poolFees,address gaugeFees)",
   "function rounds(address,uint256) view returns (uint256 snapshotBlock,uint256 amount,uint256 eligibleSupply)",
   "function claimable(address,uint256,address) view returns (uint256)",
   "function claimed(address,uint256,address) view returns (bool)",

@@ -389,7 +389,7 @@ export function LandingFooter({ navigate }: { navigate: Navigate }) {
 
         <nav className="landing-footer-column" aria-label="Network">
           <h2>Network</h2>
-          <span>RISE Testnet</span>
+          <span>RISE Mainnet</span>
           <a href={activeExplorerUrl} target="_blank" rel="noreferrer">
             Explorer ↗
           </a>
