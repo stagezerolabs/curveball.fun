@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {CurveV1Factory} from "../contracts/CurveV1Factory.sol";
 import {CurveV1Deployment} from "../contracts/CurveV1Deployment.sol";
+import {CurveLaunchFeeTreasury} from "../contracts/CurveLaunchFeeTreasury.sol";
 
 interface IProductionDeployVm {
     function envAddress(string calldata name) external returns (address);
@@ -32,24 +33,21 @@ contract DeployProduction {
         address deployer = vm.envAddress("DEPLOYER_ADDRESS");
         address owner = vm.envAddress("OWNER_ADDRESS");
         address treasury = vm.envAddress("TREASURY_ADDRESS");
-        address launchFeeTreasury = vm.envAddress("LAUNCH_FEE_TREASURY");
         uint256 launchFee = vm.envUint("LAUNCH_FEE_WEI");
         uint256 graduationTarget = vm.envUint("GRADUATION_TARGET_WEI");
         require(deployer == owner, "owner must deploy");
         require(treasury != address(0), "treasury required");
-        require(
-            (launchFee == 0 && launchFeeTreasury == address(0)) || (launchFee > 0 && launchFeeTreasury.code.length > 0),
-            "bad launch fee"
-        );
+        require(launchFee == 0.001 ether, "launch fee must be 0.001 WETH");
 
         vm.startBroadcast(deployer);
+        CurveLaunchFeeTreasury launchFeeTreasury = new CurveLaunchFeeTreasury(owner);
         factory = CurveV1Deployment.deploy(
             CurveV1Deployment.Config({
                 quote: RISE_WETH,
                 poolFactory: ICARUS_FACTORY,
                 owner: owner,
                 treasury: treasury,
-                launchFeeTreasury: launchFeeTreasury,
+                launchFeeTreasury: address(launchFeeTreasury),
                 launchFee: launchFee,
                 graduationTarget: graduationTarget,
                 isMock: false
@@ -59,7 +57,11 @@ contract DeployProduction {
 
         require(factory.owner() == owner && factory.treasury() == treasury, "authority mismatch");
         require(factory.quote() == RISE_WETH && factory.graduationTarget() == graduationTarget, "policy mismatch");
-        require(factory.launchFee() == launchFee && factory.launchFeeTreasury() == launchFeeTreasury, "fee mismatch");
+        require(
+            factory.launchFee() == launchFee && factory.launchFeeTreasury() == address(launchFeeTreasury),
+            "fee mismatch"
+        );
+        require(launchFeeTreasury.owner() == owner, "fee treasury owner mismatch");
         require(address(factory.venue()) != address(0), "venue missing");
     }
 }

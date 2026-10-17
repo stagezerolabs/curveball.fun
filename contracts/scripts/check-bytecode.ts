@@ -4,6 +4,7 @@ const contracts: Record<string, string> = {
   CurveLauncherToken: "CurveLauncherToken",
   CurveBondingCurve: "CurveBondingCurve",
   CurveFeeEscrow: "CurveFeeEscrow",
+  CurveLaunchFeeTreasury: "CurveLaunchFeeTreasury",
   CurveBuybackVault: "CurveBuybackVault",
   CurveMemeHook: "CurveMemeHook",
   CurveLaunchAndBuy: "CurveLaunchAndBuy",

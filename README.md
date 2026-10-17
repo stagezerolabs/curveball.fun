@@ -4,7 +4,7 @@ Curveball is a React/Vite launchpad for RISE Mainnet. The app reads one configur
 
 ## Production contracts
 
-The current contracts launch a fixed 1,000,000-token supply, sell 800,000 tokens on a bonding curve, optionally reserve 0–5% for post-graduation holder rounds, and send the remaining tokens plus collected WETH to a volatile Icarus pool. LP tokens are permanently held by `CurveV1Locker`. Curve fees are split among the creator, protocol treasury, and per-market buyback vault.
+The current contracts launch a fixed 1,000,000-token supply, sell 800,000 tokens on a bonding curve, optionally reserve 0–5% for post-graduation holder rounds, and send the remaining tokens plus collected WETH to a volatile Icarus pool. LP tokens are permanently held by `CurveV1Locker`. Curve fees are split among the creator, protocol treasury, and per-market buyback vault. The 0.001 WETH launch fee is held by an owner-controlled `CurveLaunchFeeTreasury` deployed with the factory.
 
 The production deployment record will live at `deployments/4153/curveball.json`. Until that record exists, `.env.production` intentionally has no factory address or deployment block and the production frontend must not be released.
 
@@ -19,7 +19,7 @@ CONFIRM_RECORD_PRODUCTION=RECORD_CURVEBALL_RISE_MAINNET_4153 make record-product
 make configure-production
 ```
 
-The preflight runs the full Foundry suite, bytecode limits, a complete launch/graduation lifecycle on a fresh RISE Mainnet fork, and a dry-run of the production deployment. The broadcast script is restricted to chain `4153`, canonical RISE WETH, and the reviewed Icarus factory. Recording re-reads all service wiring and policy from the live chain before writing the deployment artifact. Configuration then points `.env.production` at that verified factory.
+The preflight runs the full Foundry suite, bytecode limits, a complete launch/graduation lifecycle on a fresh RISE Mainnet fork, and a dry-run of the production deployment. The broadcast script is restricted to chain `4153`, canonical RISE WETH, the reviewed Icarus factory, and a 0.001 WETH launch fee. It deploys a recoverable launch-fee treasury owned by the deployer and submits all ten contracts for Blockscout verification. Recording re-reads all service wiring and policy from the live chain and requires every deployed source to be verified before writing the deployment artifact. Configuration then points `.env.production` at that verified factory.
 
 After recording, set the same factory and deployment block in Vercel and the graduation keeper. Do not copy deployment credentials, keystore passwords, or keeper keys into any `VITE_` variable.
 

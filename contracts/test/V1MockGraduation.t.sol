@@ -10,10 +10,12 @@ import {CurveV1Deployment} from "../contracts/CurveV1Deployment.sol";
 import {CurveV1PoolAdapter} from "../contracts/CurveV1PoolAdapter.sol";
 import {CurveBondingCurve} from "../contracts/CurveBondingCurve.sol";
 import {CurveHolderReserve} from "../contracts/CurveHolderReserve.sol";
+import {CurveLaunchFeeTreasury} from "../contracts/CurveLaunchFeeTreasury.sol";
 import {IIcarusPool} from "../contracts/interfaces/IIcarus.sol";
 
 contract V1MockGraduationTest is TestBase {
     address private constant TRADER = address(0xBEEF);
+    uint256 private constant LAUNCH_FEE = 0.001 ether;
 
     function testMockGraduationAndFuturePolicySnapshot() external {
         MockWETH weth = new MockWETH();
@@ -141,6 +143,35 @@ contract V1MockGraduationTest is TestBase {
         assertEq(reserve.claimable(token, roundId, escrow), 0, "escrow can claim");
         assertEq(reserve.claimable(token, roundId, poolFees), 0, "pool fees can claim");
         assertEq(reserve.claimable(token, roundId, gaugeFees), 0, "gauge fees can claim");
+    }
+
+    function testLaunchFeeIsHeldInOwnerRecoverableTreasury() external {
+        MockWETH weth = new MockWETH();
+        MockIcarusFactory mock = new MockIcarusFactory();
+        CurveLaunchFeeTreasury feeTreasury = new CurveLaunchFeeTreasury(address(this));
+        CurveV1Factory factory = CurveV1Deployment.deploy(
+            CurveV1Deployment.Config({
+                quote: address(weth),
+                poolFactory: address(mock),
+                owner: address(this),
+                treasury: address(this),
+                launchFeeTreasury: address(feeTreasury),
+                launchFee: LAUNCH_FEE,
+                graduationTarget: 0.005 ether,
+                isMock: true
+            })
+        );
+
+        weth.mint(TRADER, LAUNCH_FEE);
+        vm.prank(TRADER);
+        weth.approve(address(factory), LAUNCH_FEE);
+        vm.prank(TRADER);
+        factory.createToken("Paid V1", "PV1", "", 0);
+        assertEq(weth.balanceOf(address(feeTreasury)), LAUNCH_FEE, "launch fee not held");
+
+        feeTreasury.withdrawToken(address(weth), LAUNCH_FEE, address(this));
+        assertEq(weth.balanceOf(address(feeTreasury)), 0, "launch fee not withdrawn");
+        assertEq(weth.balanceOf(address(this)), LAUNCH_FEE, "owner did not recover fee");
     }
 
     function _deploy(MockWETH weth, MockIcarusFactory mock) private returns (CurveV1Factory) {

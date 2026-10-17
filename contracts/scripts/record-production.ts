@@ -6,6 +6,7 @@ const chainId = 4_153;
 const outputPath = "deployments/4153/curveball.json";
 const broadcastPath = "contracts/broadcast/DeployProduction.s.sol/4153/run-latest.json";
 const expectedNames = [
+  "CurveLaunchFeeTreasury",
   "CurveV1Factory",
   "CurveLaunchDeployer",
   "CurveFeeEscrow",
@@ -23,6 +24,8 @@ const venueAbi = parseAbi([
   "function isMock() view returns (bool)",
 ]);
 const reserveAbi = parseAbi(["function feeEscrow() view returns (address)"]);
+const feeTreasuryAbi = parseAbi(["function owner() view returns (address)"]);
+const explorerApiUrl = "https://explorer.risechain.com/api/v2/smart-contracts";
 
 type BroadcastTransaction = {
   transactionType: string;
@@ -69,7 +72,8 @@ const created = creations.map((transaction, index) => {
   };
 });
 
-const factory = created[0].address;
+const feeTreasury = created[0].address;
+const factory = created[1].address;
 const client = createPublicClient({ transport: http(rpcUrl) });
 if (await client.getChainId() !== chainId) throw new Error("RPC is not RISE mainnet.");
 const services = await validateDeployment(client as unknown as Parameters<typeof validateDeployment>[0], factory, weth);
@@ -83,13 +87,13 @@ const expectedServices: Partial<Record<(typeof expectedNames)[number], Address>>
   CurveHolderReserve: services.holderReserve,
   CurveV1PoolAdapter: services.venue,
 };
-for (const deployment of created.slice(1)) {
+for (const deployment of created.slice(2)) {
   if (expectedServices[deployment.name] !== deployment.address) {
     throw new Error(`${deployment.name} does not match factory wiring.`);
   }
 }
 
-const [owner, treasury, launchFee, launchFeeTreasury, graduationTarget, supply, curveSupply, initialVQ, publicLaunchOpen, venueFactory, isMock, reserveEscrow] = await Promise.all([
+const [owner, treasury, launchFee, launchFeeTreasury, graduationTarget, supply, curveSupply, initialVQ, publicLaunchOpen, venueFactory, isMock, reserveEscrow, feeTreasuryOwner] = await Promise.all([
   client.readContract({ address: factory, abi: factoryAbi, functionName: "owner" }),
   client.readContract({ address: factory, abi: factoryAbi, functionName: "treasury" }),
   client.readContract({ address: factory, abi: factoryAbi, functionName: "launchFee" }),
@@ -102,8 +106,17 @@ const [owner, treasury, launchFee, launchFeeTreasury, graduationTarget, supply, 
   client.readContract({ address: services.venue, abi: venueAbi, functionName: "poolFactory" }),
   client.readContract({ address: services.venue, abi: venueAbi, functionName: "isMock" }),
   client.readContract({ address: services.holderReserve, abi: reserveAbi, functionName: "feeEscrow" }),
+  client.readContract({ address: feeTreasury, abi: feeTreasuryAbi, functionName: "owner" }),
 ]);
-if (!publicLaunchOpen || isMock || venueFactory !== icarusFactory || reserveEscrow !== services.escrow) {
+if (
+  !publicLaunchOpen ||
+  isMock ||
+  venueFactory !== icarusFactory ||
+  reserveEscrow !== services.escrow ||
+  launchFeeTreasury !== feeTreasury ||
+  feeTreasuryOwner !== owner ||
+  launchFee !== 1_000_000_000_000_000n
+) {
   throw new Error("Production service policy mismatch.");
 }
 if (supply !== 1_000_000n * 10n ** 18n || curveSupply !== 800_000n * 10n ** 18n) {
@@ -111,10 +124,29 @@ if (supply !== 1_000_000n * 10n ** 18n || curveSupply !== 800_000n * 10n ** 18n)
 }
 
 const codeHashes: Record<string, Hex> = {};
+const sourceVerification: Record<string, { name: string; url: string }> = {};
 for (const deployment of created) {
   const code = await client.getBytecode({ address: deployment.address });
   if (!code || code === "0x") throw new Error(`${deployment.name} has no live code.`);
   codeHashes[deployment.name] = keccak256(code);
+
+  let verifiedName = "";
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const response = await fetch(`${explorerApiUrl}/${deployment.address}`);
+    if (response.ok) {
+      const result = await response.json() as { is_verified?: boolean; name?: string };
+      if (result.is_verified && result.name === deployment.name) {
+        verifiedName = result.name;
+        break;
+      }
+    }
+    await Bun.sleep(5_000);
+  }
+  if (!verifiedName) throw new Error(`${deployment.name} is not source-verified on the RISE explorer.`);
+  sourceVerification[deployment.name] = {
+    name: verifiedName,
+    url: `https://explorer.risechain.com/address/${deployment.address}?tab=contract`,
+  };
 }
 const gitCommit = Bun.spawnSync(["git", "rev-parse", "HEAD"]).stdout.toString().trim();
 const record = {
@@ -123,7 +155,7 @@ const record = {
   chainId,
   sourceCommit: gitCommit,
   factory,
-  deploymentBlock: created[0].blockNumber.toString(),
+  deploymentBlock: created[1].blockNumber.toString(),
   quote: services.quote,
   icarusFactory,
   owner,
@@ -136,6 +168,7 @@ const record = {
   initialVQ: initialVQ.toString(),
   services,
   codeHashes,
+  sourceVerification,
   transactions: created.map(({ name, address, hash, blockNumber }) => ({
     name,
     address,

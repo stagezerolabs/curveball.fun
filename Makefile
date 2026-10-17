@@ -8,8 +8,8 @@ help:
 	@echo "make test                Run typecheck and contract tests"
 	@echo "make contracts-test      Run Foundry contract tests"
 	@echo "make production-preflight     Run contract, fork, dependency, and deployment simulation gates"
-	@echo "make deploy-production        Broadcast the reviewed deployment to RISE mainnet"
-	@echo "make record-production        Validate and record the confirmed mainnet deployment"
+	@echo "make deploy-production        Broadcast and source-verify the reviewed RISE mainnet deployment"
+	@echo "make record-production        Validate wiring/sources and record the confirmed deployment"
 	@echo "make configure-production     Point the production frontend at the recorded deployment"
 
 dev:
