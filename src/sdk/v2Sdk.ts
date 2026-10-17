@@ -13,7 +13,19 @@ export type TradePhase = "preparing" | "wrapWallet" | "wrapConfirming" | "approv
 export type TradeProgress = (phase: TradePhase) => void;
 export type LaunchProgress = (phase: "preparing" | "wrapWallet" | "wrapConfirming" | "approveWallet" | "approveConfirming" | "wallet" | "confirming", hash?: Hash) => void;
 export type ConfirmedWrite = Readonly<{ hash: Hash; receipt: TransactionReceipt }>;
-export type ConfirmedTrade = ConfirmedWrite & Readonly<{ side: TradeSide; input: bigint; quotedOutput: bigint; minimumOutput: bigint; wrappedAmount: bigint }>;
+export type ConfirmedTradeMarketState = Readonly<{
+  sold: bigint;
+  virtualQuote: bigint;
+  virtualToken: bigint;
+}>;
+export type ConfirmedTrade = ConfirmedWrite & Readonly<{
+  side: TradeSide;
+  input: bigint;
+  quotedOutput: bigint;
+  minimumOutput: bigint;
+  wrappedAmount: bigint;
+  marketState: ConfirmedTradeMarketState | null;
+}>;
 
 const defaultActions = { getAccount, getBalance, getBytecode, getTransactionReceipt, readContract, simulateContract, switchChain, waitForTransactionReceipt, writeContract };
 export type WagmiActions = Readonly<typeof defaultActions>;
@@ -37,6 +49,33 @@ export class PendingTransactionError extends Error {
 }
 
 const CONFIRMATION_TIMEOUT_MS = 120_000;
+
+function marketStateFromTradeReceipt(
+  receipt: TransactionReceipt,
+  curve: Address,
+  token: Address,
+  trader: Address,
+  side: TradeSide,
+): ConfirmedTradeMarketState | null {
+  for (const log of receipt.logs) {
+    if (log.address.toLowerCase() !== curve.toLowerCase()) continue;
+    try {
+      const event = decodeEventLog({ abi: v2CurveAbi, eventName: "Trade", data: log.data, topics: log.topics, strict: true });
+      if (
+        getAddress(event.args.token) === getAddress(token) &&
+        getAddress(event.args.trader) === trader &&
+        event.args.isBuy === (side === "buy")
+      ) {
+        return {
+          sold: event.args.soldAfter,
+          virtualQuote: event.args.vQAfter,
+          virtualToken: event.args.vTAfter,
+        };
+      }
+    } catch { /* Ignore unrelated curve logs. */ }
+  }
+  return null;
+}
 
 // Some RPC endpoints briefly serve the pre-approval block after confirming the approval receipt.
 async function simulateAfterApproval<T>(simulate: () => Promise<T>, approved: boolean): Promise<T> {
@@ -288,7 +327,15 @@ export function createV2Sdk(config: Config, deployment: CurveballDeployment, act
     const tradeHash = await actions.writeContract(config, simulation.request);
     onProgress?.("tradeConfirming");
     const confirmed = await confirm(tradeHash);
-    return { ...confirmed, side, input, quotedOutput, minimumOutput, wrappedAmount };
+    return {
+      ...confirmed,
+      side,
+      input,
+      quotedOutput,
+      minimumOutput,
+      wrappedAmount,
+      marketState: marketStateFromTradeReceipt(confirmed.receipt, market.curve, token, account, side),
+    };
   }
 
   async function unwrapWeth(amount: bigint, expectedWeth: Address): Promise<ConfirmedWrite> {

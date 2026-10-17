@@ -131,6 +131,7 @@ async function discoverTokensForFactory(
         pending: ready, createdAt: new Date(Number(block.timestamp) * 1_000).toISOString(),
         createdBlock: log.blockNumber.toString(),
         progress: curveSupply === 0n ? 0 : Number((sold * 10_000n) / curveSupply) / 100,
+        supply: supply.toString(), curveSupply: curveSupply.toString(),
         price, targetPrice, marketCap: price === null ? null : price * Number(formatEther(supply)),
         graduationTargetWeth: terminalVirtualToken === 0n ? null : formatEther(initialVQ * curveSupply / terminalVirtualToken),
         pool: pool === zeroAddress ? null : getAddress(pool), quoteSymbol: "WETH",

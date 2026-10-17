@@ -32,16 +32,20 @@ export function MilestonePanel({
   const creatorShare = token.creatorShareBps == null ? null : token.creatorShareBps / 100;
   const buybackShare = token.buybackShareBps == null ? null : token.buybackShareBps / 100;
   const treasuryShare = creatorShare === null || buybackShare === null ? null : 100 - creatorShare - buybackShare;
-  const { data: quoteOwed } = useReadContract({
+  const { data: quoteOwed, refetch: refetchQuoteOwed } = useReadContract({
     address: escrow, abi: v2EscrowAbi, functionName: "claimable",
     args: [token.address, quote!, token.creator], chainId: activeChainId,
     query: { enabled: Boolean(escrow && quote) },
   });
-  const { data: tokenOwed } = useReadContract({
+  const { data: tokenOwed, refetch: refetchTokenOwed } = useReadContract({
     address: escrow, abi: v2EscrowAbi, functionName: "claimable",
     args: [token.address, token.address, token.creator], chainId: activeChainId,
     query: { enabled: Boolean(escrow) },
   });
+  const hasQuotePayment = quoteOwed !== undefined && quoteOwed > 0n;
+  const hasTokenPayment = tokenOwed !== undefined && tokenOwed > 0n;
+  const creatorPaymentChecked = quoteOwed !== undefined && tokenOwed !== undefined;
+  const creatorPaid = creatorPaymentChecked && !hasQuotePayment && !hasTokenPayment;
 
   return (
     <section className="milestone-panel" aria-label="Graduation and fees">
@@ -140,13 +144,24 @@ export function MilestonePanel({
       )}
 
       <div className="claim-block">
-        <h3 className="panel-subhead">Creator fee credits</h3>
-        <p className="panel-note">Claims always pay the launch creator. Anyone may trigger them.</p>
-        {quoteOwed !== undefined && quoteOwed > 0n && quote && <button type="button" className="primary-button claim-button" disabled={!address || isPending} onClick={() => claimEscrow(token.address, quote, token.creator, marketFactory)}>
-          Claim {formatEther(quoteOwed)} WETH
+        <h3 className="panel-subhead">Creator fees</h3>
+        {!creatorPaymentChecked && !hasQuotePayment && !hasTokenPayment && (
+          <p className="panel-note" role="status">Checking creator payment…</p>
+        )}
+        {creatorPaid && (
+          <p className="creator-paid-status" role="status"><span aria-hidden="true">✓</span> Creator paid</p>
+        )}
+        {hasQuotePayment && quote && <button type="button" className="primary-button claim-button" disabled={!address || isPending} onClick={async () => {
+          await claimEscrow(token.address, quote, token.creator, marketFactory);
+          await refetchQuoteOwed();
+        }}>
+          {isPending ? "Paying creator…" : `Pay creator ${formatEther(quoteOwed)} WETH`}
         </button>}
-        {tokenOwed !== undefined && tokenOwed > 0n && <button type="button" className="primary-button claim-button" disabled={!address || isPending} onClick={() => claimEscrow(token.address, token.address, token.creator, marketFactory)}>
-          Claim {formatEther(tokenOwed)} {token.symbol}
+        {hasTokenPayment && <button type="button" className="primary-button claim-button" disabled={!address || isPending} onClick={async () => {
+          await claimEscrow(token.address, token.address, token.creator, marketFactory);
+          await refetchTokenOwed();
+        }}>
+          {isPending ? "Paying creator…" : `Pay creator ${formatEther(tokenOwed)} ${token.symbol}`}
         </button>}
       </div>
     </section>

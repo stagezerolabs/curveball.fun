@@ -74,6 +74,80 @@ export function createdTokenCacheUpdate(state, token) {
   };
 }
 
+function cachedBigInt(value) {
+  try {
+    return typeof value === "string" ? BigInt(value) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function confirmedTradeCacheUpdate(state, token, marketState, fetchedAt = Date.now()) {
+  const tokenKey = cacheKey(token.address);
+  const creatorKey = cacheKey(token.creator);
+  const invalidated = {
+    marketsFetchedAt: 0,
+    creatorFetchedAt: { ...state.creatorFetchedAt, [creatorKey]: 0 },
+  };
+
+  if (!marketState) {
+    return {
+      ...invalidated,
+      tokenFetchedAt: { ...state.tokenFetchedAt, [tokenKey]: 0 },
+    };
+  }
+
+  const curveSupply = cachedBigInt(token.curveSupply);
+  const supply = cachedBigInt(token.supply);
+  const price = marketState.virtualToken === 0n
+    ? null
+    : Number(formatEther(marketState.virtualQuote)) / Number(formatEther(marketState.virtualToken));
+  const impliedSupply = token.price && token.marketCap != null
+    ? token.marketCap / token.price
+    : null;
+  const supplyAmount = supply === null ? impliedSupply : Number(formatEther(supply));
+  const marketUpdate = {
+    price,
+    marketCap: price === null || supplyAmount === null ? token.marketCap : price * supplyAmount,
+    progress: curveSupply === null || curveSupply === 0n
+      ? token.progress
+      : Number((marketState.sold * 10_000n) / curveSupply) / 100,
+    pending: curveSupply === null ? token.pending : marketState.sold >= curveSupply,
+  };
+  const updateToken = (cached) => cacheKey(cached.address) === tokenKey
+    ? { ...cached, ...marketUpdate }
+    : cached;
+  const cachedToken = state.tokenCache[tokenKey] ?? token;
+  const creatorTokensByCreator = state.creatorTokens && typeof state.creatorTokens === "object"
+    ? state.creatorTokens
+    : {};
+  const creatorTokens = Object.fromEntries(
+    Object.entries(creatorTokensByCreator).map(([key, tokens]) => [
+      key,
+      validCachedTokens(tokens).map(updateToken),
+    ]),
+  );
+
+  return {
+    ...invalidated,
+    tokens: validCachedTokens(state.tokens).map(updateToken),
+    tokenCache: { ...state.tokenCache, [tokenKey]: updateToken(cachedToken) },
+    tokenFetchedAt: { ...state.tokenFetchedAt, [tokenKey]: fetchedAt },
+    creatorTokens,
+  };
+}
+
+export function confirmedTradeStateUpdate(state, side, token, result) {
+  const received = side === "buy"
+    ? `${formatEther(result.quotedOutput)} ${token.symbol}`
+    : `${formatEther(result.quotedOutput)} WETH`;
+  return {
+    ...confirmedTradeCacheUpdate(state, token, result.marketState),
+    tradeMessage: `${side === "buy" ? "Bought" : "Sold"} ~${received}.`,
+    quotePreview: null,
+  };
+}
+
 export const useStore = create(persist((set, get) => ({
   tokens: [],
   loading: false,
@@ -342,19 +416,7 @@ export const useStore = create(persist((set, get) => ({
         set({ tradeProgress: { side, phase } });
       });
 
-      const received =
-        side === "buy"
-          ? `${formatEther(result.quotedOutput)} ${token.symbol}`
-          : `${formatEther(result.quotedOutput)} WETH`;
-      set({
-        tradeMessage: `${side === "buy" ? "Bought" : "Sold"} ~${received}.`,
-        quotePreview: null,
-        marketsFetchedAt: 0,
-      });
-      set((state) => ({ tokenFetchedAt: {
-        ...state.tokenFetchedAt,
-        [cacheKey(token.address)]: 0,
-      } }));
+      set((state) => confirmedTradeStateUpdate(state, side, token, result));
     } catch (error) {
       handleActionError(error);
     } finally {

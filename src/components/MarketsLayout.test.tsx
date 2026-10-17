@@ -28,11 +28,17 @@ test("market cards show artwork, identity, market data, and curve progress", () 
   const html = renderToStaticMarkup(<MarketList tokens={[tokens[0]]} loading={false} navigate={() => undefined} />);
   expect(html).toContain('class="market-card-grid"');
   expect(html).toContain('class="market-card-art"');
+  expect(html).toContain('class="market-card-social-preview"');
+  expect(html).toContain('class="market-card-social-globe"');
+  expect(html).not.toContain('class="market-card-social-x"');
+  expect(html.match(/href="#"/g)).toHaveLength(2);
   expect(html).toContain("Coin 1");
-  expect(html).toContain("Market cap");
-  expect(html).toContain("Price");
+  expect(html).not.toContain("Market cap");
+  expect(html).not.toContain("Price");
   expect(html).toContain("10.0%");
   expect(html).toContain('/markets/');
+  expect(html).not.toContain("V1");
+  expect(html).not.toContain('class="market-card-address"');
 });
 
 test("a filled curve waiting for graduation is not marked live", () => {

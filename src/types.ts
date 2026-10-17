@@ -23,6 +23,8 @@ export type Token = {
   graduationTargetWeth?: string | null;
   marketCap?: number | null;
   progress?: number | null;
+  supply?: string | null;
+  curveSupply?: string | null;
   imageUrl?: string | null;
   metadataUri?: string | null;
   pool?: Address | null;

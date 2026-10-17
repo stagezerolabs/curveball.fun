@@ -151,23 +151,7 @@ export function TradePanel({
   }
 
   if (state === "graduated") {
-    return (
-      <section className="trade-panel">
-        <p className="trade-graduated">
-          <strong>This curve is complete.</strong> {token.mockVenue
-            ? `A mock ${token.symbol}/WETH pool was created to exercise graduation. Swaps are not available on the mock venue.`
-            : `A basic volatile ${token.symbol}/WETH pool was created on Icarus. Pool creation does not grant a gauge or IRS emissions.`}
-        </p>
-        {!token.mockVenue && <a
-          className="primary-button trade-submit"
-          href="https://icarus.finance/"
-          target="_blank"
-          rel="noreferrer"
-        >
-          Open Icarus to swap
-        </a>}
-      </section>
-    );
+    return null;
   }
 
   return (

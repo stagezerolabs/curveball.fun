@@ -90,6 +90,7 @@ test("sell all for ETH approves the full balance, sells, then unwraps only the s
 
   const result = await createV2Sdk({} as Config, deployment, actions).sellAllForEth(token, quote);
   expect(result.amount).toBe(net);
+  expect(result.sale.marketState).toEqual({ sold: 0n, virtualQuote: 100n, virtualToken: 100n });
   expect(calls.map((call) => call.functionName)).toEqual(["approve", "sellTokens", "withdraw"]);
   expect(calls[0].args).toEqual([curve, balance]);
   expect(calls[1].args?.[0]).toBe(balance);
