@@ -2,9 +2,30 @@ import { createPublicClient, getAddress, http, keccak256, parseAbi, type Address
 import { validateDeployment } from "../../src/deployment";
 import { factoryAbi } from "../../src/sdk/contracts";
 
-const chainId = 4_153;
-const outputPath = "deployments/4153/curveball.json";
-const broadcastPath = "contracts/broadcast/DeployProduction.s.sol/4153/run-latest.json";
+const requestedNetwork = Bun.env.DEPLOYMENT_NETWORK?.trim() || "mainnet";
+if (requestedNetwork !== "mainnet" && requestedNetwork !== "testnet") {
+  throw new Error("DEPLOYMENT_NETWORK must be mainnet or testnet.");
+}
+const network = requestedNetwork === "testnet"
+  ? {
+      name: "testnet",
+      chainId: 11_155_931,
+      outputPath: "deployments/11155931/curveball.json",
+      broadcastPath: "contracts/broadcast/DeployTestnet.s.sol/11155931/run-latest.json",
+      rpcUrl: Bun.env.RISE_TESTNET_RPC_URL?.trim() || Bun.env.VITE_RPC_URL?.trim(),
+      icarusFactory: getAddress("0x8221dfB70c9A2dE60253dcfC58231FD529bbF4F9"),
+      explorerOrigin: "https://explorer.testnet.riselabs.xyz",
+    }
+  : {
+      name: "mainnet",
+      chainId: 4_153,
+      outputPath: "deployments/4153/curveball.json",
+      broadcastPath: "contracts/broadcast/DeployProduction.s.sol/4153/run-latest.json",
+      rpcUrl: Bun.env.RISE_MAINNET_RPC_URL?.trim(),
+      icarusFactory: getAddress("0xEe10C6a0f158bFEeef3d48Dc0D26130Cf6115615"),
+      explorerOrigin: "https://explorer.risechain.com",
+    };
+const { chainId, outputPath, broadcastPath, rpcUrl, icarusFactory } = network;
 const expectedNames = [
   "CurveLaunchFeeTreasury",
   "CurveV1Factory",
@@ -18,14 +39,13 @@ const expectedNames = [
   "CurveV1PoolAdapter",
 ] as const;
 const weth = getAddress("0x4200000000000000000000000000000000000006");
-const icarusFactory = getAddress("0xEe10C6a0f158bFEeef3d48Dc0D26130Cf6115615");
 const venueAbi = parseAbi([
   "function poolFactory() view returns (address)",
   "function isMock() view returns (bool)",
 ]);
 const reserveAbi = parseAbi(["function feeEscrow() view returns (address)"]);
 const feeTreasuryAbi = parseAbi(["function owner() view returns (address)"]);
-const explorerApiUrl = "https://explorer.risechain.com/api/v2/smart-contracts";
+const explorerApiUrl = `${network.explorerOrigin}/api/v2/smart-contracts`;
 
 type BroadcastTransaction = {
   transactionType: string;
@@ -40,9 +60,8 @@ type BroadcastReceipt = {
   blockNumber: string;
 };
 
-const rpcUrl = Bun.env.RISE_MAINNET_RPC_URL?.trim();
-if (!rpcUrl?.startsWith("https://")) throw new Error("RISE_MAINNET_RPC_URL must be a private HTTPS endpoint.");
-if (Bun.env.CONFIRM_RECORD_PRODUCTION !== "RECORD_CURVEBALL_RISE_MAINNET_4153") {
+if (!rpcUrl?.startsWith("https://")) throw new Error(`No HTTPS RPC configured for RISE ${network.name}.`);
+if (network.name === "mainnet" && Bun.env.CONFIRM_RECORD_PRODUCTION !== "RECORD_CURVEBALL_RISE_MAINNET_4153") {
   throw new Error("Production record confirmation missing.");
 }
 if (await Bun.file(outputPath).exists()) throw new Error(`Refusing to overwrite ${outputPath}.`);
@@ -53,7 +72,7 @@ const broadcast = await Bun.file(broadcastPath).json() as {
 };
 const creations = broadcast.transactions.filter((transaction) => transaction.transactionType === "CREATE");
 if (creations.length !== expectedNames.length || creations.some((transaction, index) => transaction.contractName !== expectedNames[index])) {
-  throw new Error("Broadcast does not contain the ordered production deployment.");
+  throw new Error(`Broadcast does not contain the ordered ${network.name} deployment.`);
 }
 const receiptsByHash = new Map(broadcast.receipts.map((receipt) => [receipt.transactionHash.toLowerCase(), receipt]));
 const created = creations.map((transaction, index) => {
@@ -75,7 +94,7 @@ const created = creations.map((transaction, index) => {
 const feeTreasury = created[0].address;
 const factory = created[1].address;
 const client = createPublicClient({ transport: http(rpcUrl) });
-if (await client.getChainId() !== chainId) throw new Error("RPC is not RISE mainnet.");
+if (await client.getChainId() !== chainId) throw new Error(`RPC is not RISE ${network.name}.`);
 const services = await validateDeployment(client as unknown as Parameters<typeof validateDeployment>[0], factory, weth);
 const expectedServices: Partial<Record<(typeof expectedNames)[number], Address>> = {
   CurveLaunchDeployer: services.deployer,
@@ -117,7 +136,7 @@ if (
   feeTreasuryOwner !== owner ||
   launchFee !== 1_000_000_000_000_000n
 ) {
-  throw new Error("Production service policy mismatch.");
+  throw new Error(`${network.name} service policy mismatch.`);
 }
 if (supply !== 1_000_000n * 10n ** 18n || curveSupply !== 800_000n * 10n ** 18n) {
   throw new Error("Supply policy mismatch.");
@@ -145,13 +164,13 @@ for (const deployment of created) {
   if (!verifiedName) throw new Error(`${deployment.name} is not source-verified on the RISE explorer.`);
   sourceVerification[deployment.name] = {
     name: verifiedName,
-    url: `https://explorer.risechain.com/address/${deployment.address}?tab=contract`,
+    url: `${network.explorerOrigin}/address/${deployment.address}?tab=contract`,
   };
 }
 const gitCommit = Bun.spawnSync(["git", "rev-parse", "HEAD"]).stdout.toString().trim();
 const record = {
   version: "current",
-  release: "mainnet",
+  release: network.name,
   chainId,
   sourceCommit: gitCommit,
   factory,

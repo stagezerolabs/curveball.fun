@@ -8,6 +8,19 @@ The current contracts launch a fixed 1,000,000-token supply, sell 800,000 tokens
 
 The production deployment record will live at `deployments/4153/curveball.json`. Until that record exists, `.env.production` intentionally has no factory address or deployment block and the production frontend must not be released.
 
+### Testnet rehearsal
+
+The testnet path deploys the same current contracts and 0.001 WETH launch-fee policy against canonical RISE Testnet WETH and the live Icarus testnet factory. It is restricted to chain `11155931` and the `dot` signer. It does not read or modify production configuration.
+
+```bash
+make testnet-preflight
+make deploy-testnet ACCOUNT=dot
+make record-testnet
+make configure-testnet
+```
+
+The broadcast submits all ten contracts to the RISE Testnet Blockscout verifier. Recording validates every receipt, service address, policy value, bytecode hash, and verified source before writing `deployments/11155931/curveball.json`. Configuration then updates the shared ignored `.env` so the local UI uses the fresh testnet factory and deployment block.
+
 ### Mainnet deployment
 
 Copy `.env.example` to the repository-level `.env` and set the deployment values. Use a private RISE Mainnet RPC endpoint. `OWNER_ADDRESS` must equal `DEPLOYER_ADDRESS` for the initial deployment; ownership can be transferred with the factory's two-step handoff after verification.
