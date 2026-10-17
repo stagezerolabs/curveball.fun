@@ -108,8 +108,8 @@ export function LandingPage({ navigate }: { navigate: Navigate }) {
         </div>
 
         {createElement("ascii-art", {
-          piece: "solar-system",
-          label: "Animated solar system",
+          piece: "planet",
+          label: "Animated ringed planet",
         })}
       </section>
 
