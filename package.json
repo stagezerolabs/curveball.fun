@@ -9,10 +9,18 @@
     "dev": "vite",
     "dev:web": "vite",
     "build": "vite build",
+    "build:testnet": "vite build --mode testnet",
     "keeper:graduation": "node keeper/graduation-keeper.mjs",
     "test": "make -C contracts test",
     "typecheck": "tsc --noEmit",
-    "verify:icarus": "make -C contracts verify-icarus-testnet"
+    "verify:icarus": "make -C contracts verify-icarus",
+    "deploy:testnet:preflight": "make -C contracts testnet-preflight",
+    "deploy:testnet": "make -C contracts deploy-testnet",
+    "deploy:testnet:record": "DEPLOYMENT_NETWORK=testnet bun contracts/scripts/record-production.ts",
+    "deploy:testnet:configure": "DEPLOYMENT_NETWORK=testnet bun contracts/scripts/sync-production-config.ts",
+    "deploy:preflight": "make -C contracts production-preflight",
+    "deploy:record": "bun contracts/scripts/record-production.ts",
+    "deploy:configure": "bun contracts/scripts/sync-production-config.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

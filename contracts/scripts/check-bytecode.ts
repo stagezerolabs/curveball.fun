@@ -1,16 +1,16 @@
 const contracts: Record<string, string> = {
-  CurveLaunchFactory: "CurveLaunchFactory",
+  CurveV1Factory: "CurveV1Factory",
   CurveLaunchDeployer: "CurveLaunchDeployer",
   CurveLauncherToken: "CurveLauncherToken",
   CurveBondingCurve: "CurveBondingCurve",
   CurveFeeEscrow: "CurveFeeEscrow",
+  CurveLaunchFeeTreasury: "CurveLaunchFeeTreasury",
   CurveBuybackVault: "CurveBuybackVault",
-  CurveGraduationGuard: "CurveGraduationGuard",
-  CurveGraduationExecutor: "CurveGraduationExecutor",
   CurveMemeHook: "CurveMemeHook",
   CurveLaunchAndBuy: "CurveLaunchAndBuy",
   CurveHolderReserve: "CurveHolderReserve",
-  CurveLpLocker: "LpLocker",
+  CurveV1Locker: "CurveV1Locker",
+  CurveV1PoolAdapter: "CurveV1PoolAdapter",
 };
 
 for (const [name, source] of Object.entries(contracts)) {

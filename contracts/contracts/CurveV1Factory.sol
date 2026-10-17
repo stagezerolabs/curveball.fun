@@ -127,7 +127,8 @@ contract CurveV1Factory is Ownable2Step, ReentrancyGuard {
                 && address(CurveMemeHook(s.hook).vault()) == s.vault
                 && CurveLaunchAndBuy(s.launchAndBuy).factory() == address(this)
                 && CurveLaunchAndBuy(s.launchAndBuy).quote() == quote
-                && CurveHolderReserve(s.holderReserve).factory() == address(this),
+                && CurveHolderReserve(s.holderReserve).factory() == address(this)
+                && CurveHolderReserve(s.holderReserve).feeEscrow() == s.escrow,
             "service mismatch"
         );
         deployer = CurveLaunchDeployer(s.deployer);
@@ -177,7 +178,7 @@ contract CurveV1Factory is Ownable2Step, ReentrancyGuard {
     function _initialVQ(uint256 target, uint256 total, uint256 soldSupply) private pure returns (uint256 value) {
         require(target > 0 && target <= type(uint128).max, "bad target");
         // A full sale collects initialVQ * curveSupply / (supply - curveSupply).
-        // Require an exact ratio so the configured target is the actual WETH in the pool.
+        // Require an exact ratio so the configured target is the quote asset deposited into the pool.
         uint256 remainder = total - soldSupply;
         require(target <= type(uint256).max / remainder, "target overflow");
         require(target * remainder % soldSupply == 0, "target precision");
@@ -321,7 +322,7 @@ contract CurveV1Factory is Ownable2Step, ReentrancyGuard {
         ICurveV1Venue adapter = ICurveV1Venue(venueOf[token]);
         adapter.check(token, supply - curveSupply - curve.reserveAmount(), curve.realQuote());
         // Icarus may skim even a zero token balance; unlock inside this atomic call.
-        // Any executor failure reverts the unlock with every other state change.
+        // A venue or locker failure reverts the unlock with every other state change.
         CurveLauncherToken(token).enableTrading();
         uint256 liquidity;
         uint256 quoteLiquidity;

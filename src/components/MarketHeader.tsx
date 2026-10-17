@@ -6,7 +6,7 @@ import {
 } from "../lib/format.js";
 import type { Token } from "../types";
 import { getMarketDisplayStatus } from "../lib/marketState";
-import { activeExplorerUrl, factoryVersion } from "../lib/web3";
+import { activeExplorerUrl } from "../lib/web3";
 import { UsdAmount } from "./UsdAmount";
 import type { MarketPriceChange } from "../lib/marketChart";
 
@@ -92,7 +92,6 @@ export function MarketHeader({ token, marketCapChange }: { token: Token; marketC
               <div className="market-title-row">
                 <h1>{token.name}</h1>
                 <span className="market-ticker">${token.symbol}</span>
-                <span className="market-data-chip" title="Factory release">{factoryVersion(token.factory)}</span>
                 <span className={`market-status ${status.kind}`}>
                   {status.label}
                 </span>

@@ -233,8 +233,7 @@ export function LandingPage({ navigate }: { navigate: Navigate }) {
               Bonding completes and the backend keeper prepares the venue pool.
               Remaining tokens and WETH move to the venue selected when the
               token launched. The pool address appears on the market page after
-              confirmation. Mock venues let us test graduation but do not offer
-              swaps.
+              confirmation, and trading continues in the Icarus pool.
             </p>
           </details>
           <details>

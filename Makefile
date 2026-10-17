@@ -1,24 +1,35 @@
+ENV_FILE := $(shell dirname "$$(git rev-parse --path-format=absolute --git-common-dir)")/.env
+-include $(ENV_FILE)
+
+export RISE_MAINNET_RPC_URL RISE_TESTNET_RPC_URL VITE_RPC_URL
+
 .DEFAULT_GOAL := help
 
-.PHONY: help dev build test typecheck contracts-test deploy-v1-mock-testnet deploy-v2-testnet deploy-holder-reserve-testnet set-fee-testnet deploy-fee-controller-testnet accept-fee-controller-testnet
+.PHONY: help dev build build-testnet test typecheck contracts-test testnet-preflight deploy-testnet record-testnet configure-testnet production-preflight deploy-production record-production configure-production
 
 help:
 	@echo "make dev                 Run the static frontend"
 	@echo "make build               Build the static frontend"
-	@echo "make test                Run frontend tests and typecheck"
+	@echo "make build-testnet       Build the frontend against the recorded testnet deployment"
+	@echo "make test                Run typecheck and contract tests"
 	@echo "make contracts-test      Run Foundry contract tests"
-	@echo "make deploy-v1-mock-testnet   Deploy fresh V1 with a mock venue using dot"
-	@echo "make deploy-v2-testnet   Open the guarded V2 deployment flow"
-	@echo "make deploy-holder-reserve-testnet   Open the guarded holder-reserve deployment flow"
-	@echo "make set-fee-testnet     Set the live RISE Testnet V2 fee to 0.75%"
-	@echo "make deploy-fee-controller-testnet  Deploy dot-owned fee controller"
-	@echo "make accept-fee-controller-testnet CONTROLLER=0x...  Complete controller ownership"
+	@echo "make testnet-preflight        Run the real RISE Testnet lifecycle and deployment simulation"
+	@echo "make deploy-testnet           Broadcast and source-verify the current testnet deployment"
+	@echo "make record-testnet           Validate and record the confirmed testnet deployment"
+	@echo "make configure-testnet        Point the local UI at the recorded testnet deployment"
+	@echo "make production-preflight     Run contract, fork, dependency, and deployment simulation gates"
+	@echo "make deploy-production        Broadcast and source-verify the reviewed RISE mainnet deployment"
+	@echo "make record-production        Validate wiring/sources and record the confirmed deployment"
+	@echo "make configure-production     Point the production frontend at the recorded deployment"
 
 dev:
 	bun run dev
 
 build:
 	bun run build
+
+build-testnet:
+	bun run build:testnet
 
 test: typecheck contracts-test
 
@@ -28,20 +39,26 @@ typecheck:
 contracts-test:
 	$(MAKE) -C contracts test
 
-deploy-v1-mock-testnet:
-	$(MAKE) -C contracts deploy-v1-mock-testnet
+testnet-preflight:
+	$(MAKE) -C contracts testnet-preflight
 
-deploy-v2-testnet:
-	@$(MAKE) -C contracts deploy-v2-testnet-interactive
+deploy-testnet:
+	$(MAKE) -C contracts deploy-testnet
 
-deploy-holder-reserve-testnet:
-	@$(MAKE) -C contracts deploy-holder-reserve-testnet
+record-testnet:
+	DEPLOYMENT_NETWORK=testnet bun contracts/scripts/record-production.ts
 
-set-fee-testnet:
-	@$(MAKE) -C contracts set-fee-testnet
+configure-testnet:
+	DEPLOYMENT_NETWORK=testnet bun contracts/scripts/sync-production-config.ts
 
-deploy-fee-controller-testnet:
-	@$(MAKE) -C contracts deploy-fee-controller-testnet
+production-preflight:
+	$(MAKE) -C contracts production-preflight
 
-accept-fee-controller-testnet:
-	@$(MAKE) -C contracts accept-fee-controller-testnet CONTROLLER="$(CONTROLLER)"
+deploy-production:
+	$(MAKE) -C contracts deploy-production
+
+record-production:
+	bun contracts/scripts/record-production.ts
+
+configure-production:
+	bun contracts/scripts/sync-production-config.ts

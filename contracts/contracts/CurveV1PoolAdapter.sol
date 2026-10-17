@@ -6,7 +6,7 @@ import {CurveBondingCurve} from "./CurveBondingCurve.sol";
 import {IIcarusFactory, IIcarusPool} from "./interfaces/IIcarus.sol";
 import {ICurveV1Venue} from "./interfaces/ICurveV1Venue.sol";
 
-/// @notice Works with the mock venue now and an Icarus-compatible factory later.
+/// @notice Graduation adapter for an Icarus-compatible pool factory.
 contract CurveV1PoolAdapter is ICurveV1Venue {
     address public immutable factory;
     address public immutable quote;

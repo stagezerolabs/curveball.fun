@@ -1,13 +1,7 @@
-import { getAccount, getBytecode, readContract, simulateContract, waitForTransactionReceipt, writeContract, getTransactionReceipt } from "wagmi/actions";
-import { getAddress, keccak256, zeroAddress, type Address, type Hash, type Hex } from "viem";
+import { getAccount, readContract, simulateContract, waitForTransactionReceipt, writeContract, getTransactionReceipt } from "wagmi/actions";
+import { getAddress, zeroAddress, type Address, type Hash } from "viem";
 import type { Config } from "wagmi";
-import { erc20Abi, factoryFeeControllerAbi, v2FactoryAbi } from "../sdk/v2Contracts";
-import { FEE_CONTROLLER_CODE_HASH, V21_FEE_CONTROLLER_CODE_HASH } from "./feeControllerCodeHash";
-
-const reviewedControllerHashes: ReadonlySet<Hex> = new Set([FEE_CONTROLLER_CODE_HASH, V21_FEE_CONTROLLER_CODE_HASH]);
-
-export const ADMIN_ADDRESS = getAddress("0x5cc42e772f67089b4670eec4dcd904be2f2d511c");
-export const SUPER_ADMIN_ADDRESS = getAddress("0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3");
+import { erc20Abi, factoryAbi } from "../sdk/contracts";
 
 export type FeeDefaults = {
   feeBps: number;
@@ -20,7 +14,6 @@ export type FeeDefaults = {
 export type FeeAuthority = FeeDefaults & {
   owner: Address;
   pendingOwner: Address;
-  controller: { address: Address; superAdmin: Address; feeAdmin: Address } | null;
 };
 
 export type FactoryFunds = {
@@ -33,7 +26,6 @@ export type FactoryFunds = {
 
 export type AdminActions = {
   getAccount: typeof getAccount;
-  getCodeHash: (config: Config, address: Address, chainId: number) => Promise<Hex | null>;
   readContract: typeof readContract;
   simulateContract: typeof simulateContract;
   writeContract: typeof writeContract;
@@ -43,10 +35,6 @@ export type AdminActions = {
 
 const defaultActions: AdminActions = {
   getAccount,
-  getCodeHash: async (config, address, chainId) => {
-    const code = await getBytecode(config, { address, chainId });
-    return code ? keccak256(code) : null;
-  },
   readContract, simulateContract, writeContract, waitForTransactionReceipt, getTransactionReceipt,
 };
 
@@ -66,7 +54,7 @@ export function feeUpdateArgs(nextFeeBps: number, current: FeeDefaults): readonl
 
 export async function readFactoryFunds(config: Config, factory: Address, chainId: number, actions: AdminActions = defaultActions): Promise<FactoryFunds> {
   const readFactory = (functionName: "quote" | "treasury" | "launchFeeTreasury" | "vault") =>
-    actions.readContract(config, { address: factory, abi: v2FactoryAbi, functionName, chainId });
+    actions.readContract(config, { address: factory, abi: factoryAbi, functionName, chainId });
   const [quoteRaw, tradingRaw, launchRaw, vaultRaw] = await Promise.all([
     readFactory("quote"), readFactory("treasury"), readFactory("launchFeeTreasury"), readFactory("vault"),
   ]);
@@ -92,29 +80,12 @@ export async function readFactoryFunds(config: Config, factory: Address, chainId
 
 export async function readFeeDefaults(config: Config, factory: Address, chainId: number, actions: AdminActions = defaultActions): Promise<FeeAuthority> {
   const read = (functionName: "feeBps" | "creatorShareBps" | "buybackShareBps" | "creatorTaxCapBps" | "treasury" | "owner" | "pendingOwner") =>
-    actions.readContract(config, { address: factory, abi: v2FactoryAbi, functionName, chainId });
+    actions.readContract(config, { address: factory, abi: factoryAbi, functionName, chainId });
   const [feeBps, creatorShareBps, buybackShareBps, creatorTaxCapBps, treasury, owner, pendingOwner] = await Promise.all([
     read("feeBps"), read("creatorShareBps"), read("buybackShareBps"), read("creatorTaxCapBps"), read("treasury"), read("owner"), read("pendingOwner"),
   ]);
   const ownerAddress = getAddress(owner as Address);
-  let controller: FeeAuthority["controller"] = null;
-  if (ownerAddress !== ADMIN_ADDRESS && ownerAddress !== SUPER_ADMIN_ADDRESS) {
-    try {
-      const ownerHash = await actions.getCodeHash(config, ownerAddress, chainId);
-      if (!ownerHash || !reviewedControllerHashes.has(ownerHash)) throw new Error("Unrecognized factory owner code.");
-      const controllerRead = (functionName: "factory" | "owner" | "feeAdmin") =>
-        actions.readContract(config, { address: ownerAddress, abi: factoryFeeControllerAbi, functionName, chainId });
-      const [boundFactory, superAdmin, feeAdmin] = await Promise.all([
-        controllerRead("factory"), controllerRead("owner"), controllerRead("feeAdmin"),
-      ]);
-      if (getAddress(boundFactory as Address) === getAddress(factory)) {
-        controller = { address: ownerAddress, superAdmin: getAddress(superAdmin as Address), feeAdmin: getAddress(feeAdmin as Address) };
-      }
-    } catch {
-      // A factory owner that is not this controller has no delegated fee authority.
-    }
-  }
-  return { feeBps: Number(feeBps), creatorShareBps: Number(creatorShareBps), buybackShareBps: Number(buybackShareBps), creatorTaxCapBps: Number(creatorTaxCapBps), treasury: getAddress(treasury as Address), owner: ownerAddress, pendingOwner: getAddress(pendingOwner as Address), controller };
+  return { feeBps: Number(feeBps), creatorShareBps: Number(creatorShareBps), buybackShareBps: Number(buybackShareBps), creatorTaxCapBps: Number(creatorTaxCapBps), treasury: getAddress(treasury as Address), owner: ownerAddress, pendingOwner: getAddress(pendingOwner as Address) };
 }
 
 async function confirm(config: Config, chainId: number, hash: Hash, actions: AdminActions) {
@@ -148,44 +119,13 @@ export async function submitFeeUpdate(config: Config, factory: Address, chainId:
   if (!account.address || account.chainId !== chainId) throw new Error("Connect the factory owner or fee admin on the configured network.");
   const current = await readFeeDefaults(config, factory, chainId, actions);
   const signer = getAddress(account.address);
-  const controller = current.controller?.superAdmin === SUPER_ADMIN_ADDRESS && current.controller.feeAdmin === signer
-    ? current.controller.address : null;
-  if (current.owner !== signer && !controller) throw new Error("The connected wallet is not the on-chain fee administrator.");
+  if (current.owner !== signer) throw new Error("The connected wallet is not the on-chain fee administrator.");
   if (!Number.isInteger(nextFeeBps) || nextFeeBps < 0 || nextFeeBps > 500 || nextFeeBps + current.creatorTaxCapBps > 550) throw new Error("The fee exceeds the factory limit.");
   if (nextFeeBps === current.feeBps) throw new Error("The fee is already set to this value.");
-  let hash: Hash;
-  if (controller) {
-    const simulation = await actions.simulateContract(config, { address: controller, abi: factoryFeeControllerAbi, functionName: "setTradingFeeBps", args: [nextFeeBps], account: account.address, chainId });
-    hash = await actions.writeContract(config, simulation.request);
-  } else {
-    const simulation = await actions.simulateContract(config, { address: factory, abi: v2FactoryAbi, functionName: "setFeeDefaults", args: feeUpdateArgs(nextFeeBps, current), account: account.address, chainId });
-    hash = await actions.writeContract(config, simulation.request);
-  }
-  onHash?.(hash);
-  await confirm(config, chainId, hash, actions);
-  await waitForExpectedState(config, factory, chainId, actions, (updated) => updated.feeBps === nextFeeBps);
-  return hash;
-}
-
-export async function nominateFeeController(config: Config, factory: Address, chainId: number, candidate: Address, onHash?: (hash: Hash) => void, actions: AdminActions = defaultActions) {
-  const account = actions.getAccount(config);
-  if (!account.address || account.chainId !== chainId) throw new Error("Connect the factory owner on the configured network.");
-  const current = await readFeeDefaults(config, factory, chainId, actions);
-  const signer = getAddress(account.address);
-  if (current.owner !== signer || current.pendingOwner !== zeroAddress) throw new Error("The factory must be owned by this wallet with no pending transfer.");
-  const controller = getAddress(candidate);
-  const controllerHash = await actions.getCodeHash(config, controller, chainId);
-  if (!controllerHash || !reviewedControllerHashes.has(controllerHash)) throw new Error("Controller bytecode does not match the reviewed deployment.");
-  const read = (functionName: "factory" | "owner" | "feeAdmin") =>
-    actions.readContract(config, { address: controller, abi: factoryFeeControllerAbi, functionName, chainId });
-  const [boundFactory, superAdmin, feeAdmin] = await Promise.all([read("factory"), read("owner"), read("feeAdmin")]);
-  if (getAddress(boundFactory as Address) !== getAddress(factory) || getAddress(superAdmin as Address) !== SUPER_ADMIN_ADDRESS || getAddress(feeAdmin as Address) !== ADMIN_ADDRESS) {
-    throw new Error("Controller must be bound to this factory, owned by dot, and assign this wallet as fee admin.");
-  }
-  const simulation = await actions.simulateContract(config, { address: factory, abi: v2FactoryAbi, functionName: "transferOwnership", args: [controller], account: account.address, chainId });
+  const simulation = await actions.simulateContract(config, { address: factory, abi: factoryAbi, functionName: "setFeeDefaults", args: feeUpdateArgs(nextFeeBps, current), account: account.address, chainId });
   const hash = await actions.writeContract(config, simulation.request);
   onHash?.(hash);
   await confirm(config, chainId, hash, actions);
-  await waitForExpectedState(config, factory, chainId, actions, (updated) => updated.owner === signer && updated.pendingOwner === controller);
+  await waitForExpectedState(config, factory, chainId, actions, (updated) => updated.feeBps === nextFeeBps);
   return hash;
 }

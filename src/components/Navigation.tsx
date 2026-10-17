@@ -10,7 +10,6 @@ import type { Navigate } from "../types";
 import { activeExplorerUrl, launchpadAddress } from "../lib/web3";
 import { fetchRnsPrimaryName } from "../lib/rnsPrimary";
 import type { Theme } from "../lib/theme";
-import { ADMIN_ADDRESS } from "../lib/adminFees";
 import { useStore } from "../app/useStore.js";
 import { activeChainId } from "../lib/web3";
 import type { CreatorTokenClient } from "../creatorTokens";
@@ -303,7 +302,7 @@ export function Header({
         Profile
       </AppLink>
       <AppLink className={`nav-link ${statsClass}`} route="stats" navigate={go} aria-current={statsClass ? "page" : undefined}>Stats</AppLink>
-      {address?.toLowerCase() === ADMIN_ADDRESS.toLowerCase() && <AppLink className={`nav-link ${adminClass}`} route="admin" navigate={go} aria-current={adminClass ? "page" : undefined}>Admin</AppLink>}
+      {Boolean(address) && <AppLink className={`nav-link ${adminClass}`} route="admin" navigate={go} aria-current={adminClass ? "page" : undefined}>Admin</AppLink>}
     </>
   );
 
@@ -323,7 +322,7 @@ export function Header({
           <span ref={activePillRef} className="nav-active-pill" aria-hidden="true" />
           <AppLink className={`nav-link ${marketsClass}`} route="markets" navigate={go} aria-current={marketsClass ? "page" : undefined}>Explore</AppLink>
           <AppLink className={`nav-link ${statsClass}`} route="stats" navigate={go} aria-current={statsClass ? "page" : undefined}>Stats</AppLink>
-          {address?.toLowerCase() === ADMIN_ADDRESS.toLowerCase() && <AppLink className={`nav-link ${adminClass}`} route="admin" navigate={go} aria-current={adminClass ? "page" : undefined}>Admin</AppLink>}
+          {Boolean(address) && <AppLink className={`nav-link ${adminClass}`} route="admin" navigate={go} aria-current={adminClass ? "page" : undefined}>Admin</AppLink>}
         </nav>
         <div className="nav-actions">
           <ThemeToggle theme={theme} onToggle={onThemeToggle} />
@@ -364,7 +363,7 @@ export function LandingHeader({ address, navigate, theme, onThemeToggle }: { add
     <header className="landing-nav wrap">
       <Brand navigate={navigate} />
       <div className="landing-nav-actions">
-        {address?.toLowerCase() === ADMIN_ADDRESS.toLowerCase() && <AppLink className="nav-link" route="admin" navigate={navigate}>Admin</AppLink>}
+        {Boolean(address) && <AppLink className="nav-link" route="admin" navigate={navigate}>Admin</AppLink>}
         <ThemeToggle theme={theme} onToggle={onThemeToggle} />
         <WalletNavButton address={address} displayName={address ? `${address.slice(0, 5)}…${address.slice(-4)}` : null} />
       </div>
@@ -390,7 +389,7 @@ export function LandingFooter({ navigate }: { navigate: Navigate }) {
 
         <nav className="landing-footer-column" aria-label="Network">
           <h2>Network</h2>
-          <span>RISE Testnet</span>
+          <span>RISE Mainnet</span>
           <a href={activeExplorerUrl} target="_blank" rel="noreferrer">
             Explorer ↗
           </a>

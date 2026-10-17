@@ -7,14 +7,16 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-/// @notice Custody for launch fees. The admin can recover all assets held here.
+/// @notice Recoverable custody for launch fees collected by the production factory.
 contract CurveLaunchFeeTreasury is Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     event TokenWithdrawn(address indexed asset, address indexed recipient, uint256 amount);
     event NativeWithdrawn(address indexed recipient, uint256 amount);
 
-    constructor(address admin) Ownable(admin) {}
+    constructor(address admin) Ownable(admin) {
+        require(admin != address(0), "admin required");
+    }
 
     function renounceOwnership() public override onlyOwner {
         revert("treasury owner required");

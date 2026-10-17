@@ -10,6 +10,8 @@ interface IIcarusFactory {
 interface IIcarusPool {
     function token0() external view returns (address);
     function token1() external view returns (address);
+    function poolFees() external view returns (address);
+    function gaugeFees() external view returns (address);
     function totalSupply() external view returns (uint256);
     function getReserves() external view returns (uint256, uint256, uint256);
     function mint(address) external returns (uint256);

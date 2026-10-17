@@ -1,22 +1,16 @@
 import { getAddress, zeroAddress, type Address, type Hex } from "viem";
-import { v2FactoryAbi } from "./sdk/v2Contracts";
+import { factoryAbi } from "./sdk/contracts";
 
-export type V2DeploymentClient = {
+export type DeploymentClient = {
   getBytecode(parameters: { address: Address }): Promise<Hex | undefined>;
   readContract(parameters: { address: Address; abi: unknown; functionName: string }): Promise<unknown>;
 };
 
-export async function validateV2Deployment(client: V2DeploymentClient, factory: Address, expectedQuote?: Address) {
-  let v1 = false;
-  try {
-    v1 = (await client.readContract({ address: factory, abi: v2FactoryAbi, functionName: "graduationTarget" }) as bigint) > 0n;
-  } catch { /* Historical factories do not expose a graduation target. */ }
-  const names = v1
-    ? ["quote", "deployer", "escrow", "vault", "locker", "hook", "launchAndBuy", "venue"] as const
-    : ["quote", "deployer", "escrow", "vault", "guard", "executor", "locker", "hook", "launchAndBuy"] as const;
+export async function validateDeployment(client: DeploymentClient, factory: Address, expectedQuote?: Address) {
+  const names = ["quote", "deployer", "escrow", "vault", "locker", "hook", "launchAndBuy", "holderReserve", "venue"] as const;
   const [factoryCode, values] = await Promise.all([
     client.getBytecode({ address: factory }),
-    Promise.all(names.map((functionName) => client.readContract({ address: factory, abi: v2FactoryAbi, functionName }))),
+    Promise.all(names.map((functionName) => client.readContract({ address: factory, abi: factoryAbi, functionName }))),
   ]);
   if (!factoryCode || factoryCode === "0x") throw new Error("Factory has no deployed code.");
   const addresses = Object.fromEntries(names.map((name, index) => [name, getAddress(values[index] as string)])) as Record<typeof names[number], Address>;

@@ -1,12 +1,11 @@
 import { expect, test } from "bun:test";
 import type { Config } from "wagmi";
 import { getAddress, zeroAddress, type Address, type Hash } from "viem";
-import { ADMIN_ADDRESS, feePercentToBps, feeUpdateArgs, nominateFeeController, readFactoryFunds, submitFeeUpdate, type AdminActions } from "./adminFees";
-import { FEE_CONTROLLER_CODE_HASH } from "./feeControllerCodeHash";
+import { feePercentToBps, feeUpdateArgs, readFactoryFunds, submitFeeUpdate, type AdminActions } from "./adminFees";
 
-const factory = getAddress("0xD0f0cf4fd5Aa9D391477B3B9CF3B77Dc96705056");
-const treasury = getAddress("0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3");
-const controller = getAddress("0x1111111111111111111111111111111111111111");
+const factory = getAddress("0x2222222222222222222222222222222222222222");
+const treasury = getAddress("0x5555555555555555555555555555555555555555");
+const ADMIN_ADDRESS = getAddress("0x1111111111111111111111111111111111111111");
 const hash = `0x${"ab".repeat(32)}` as Hash;
 
 test("fee entry accepts exact basis points within the factory limit", () => {
@@ -92,65 +91,6 @@ test("wallet without on-chain ownership cannot submit a fee update", async () =>
     simulateContract: async () => { simulated = true; },
   } as unknown as AdminActions;
   await expect(submitFeeUpdate({} as Config, factory, 11_155_931, 75, undefined, actions)).rejects.toThrow("fee administrator");
-  expect(simulated).toBe(false);
-});
-
-test("fee admin updates through a dot-owned controller without changing companion settings", async () => {
-  let fee = 75;
-  let submitted: { address: Address; functionName: string; args: readonly unknown[] } | undefined;
-  const actions = {
-    getAccount: () => ({ address: ADMIN_ADDRESS, chainId: 11_155_931 }),
-    getCodeHash: async () => FEE_CONTROLLER_CODE_HASH,
-    readContract: async (_config: unknown, request: { address: Address; functionName: string }) => {
-      if (request.address === controller) return ({ factory, owner: treasury, feeAdmin: ADMIN_ADDRESS })[request.functionName as "factory"];
-      return ({ feeBps: fee, creatorShareBps: 5000, buybackShareBps: 2500,
-        creatorTaxCapBps: 50, treasury, owner: controller, pendingOwner: zeroAddress })[request.functionName as "feeBps"];
-    },
-    simulateContract: async (_config: unknown, request: { address: Address; functionName: string; args: readonly unknown[] }) => {
-      submitted = request;
-      return { request };
-    },
-    writeContract: async () => { fee = 80; return hash; },
-    waitForTransactionReceipt: async () => ({ status: "success" }),
-  } as unknown as AdminActions;
-  expect(await submitFeeUpdate({} as Config, factory, 11_155_931, 80, undefined, actions)).toBe(hash);
-  expect(submitted).toMatchObject({ address: controller, functionName: "setTradingFeeBps", args: [80] });
-});
-
-test("current owner can nominate only a controller bound to this factory with dot in control", async () => {
-  let pendingOwner: Address = zeroAddress;
-  let submitted: { address: Address; functionName: string; args: readonly unknown[] } | undefined;
-  const actions = {
-    getAccount: () => ({ address: ADMIN_ADDRESS, chainId: 11_155_931 }),
-    getCodeHash: async () => FEE_CONTROLLER_CODE_HASH,
-    readContract: async (_config: unknown, request: { address: Address; functionName: string }) => {
-      if (request.address === controller) return ({ factory, owner: treasury, feeAdmin: ADMIN_ADDRESS })[request.functionName as "factory"];
-      return ({ feeBps: 75, creatorShareBps: 5000, buybackShareBps: 2500,
-        creatorTaxCapBps: 50, treasury, owner: ADMIN_ADDRESS, pendingOwner })[request.functionName as "feeBps"];
-    },
-    simulateContract: async (_config: unknown, request: { address: Address; functionName: string; args: readonly unknown[] }) => {
-      submitted = request;
-      return { request };
-    },
-    writeContract: async () => { pendingOwner = controller; return hash; },
-    waitForTransactionReceipt: async () => ({ status: "success" }),
-  } as unknown as AdminActions;
-  expect(await nominateFeeController({} as Config, factory, 11_155_931, controller, undefined, actions)).toBe(hash);
-  expect(submitted).toMatchObject({ address: factory, functionName: "transferOwnership", args: [controller] });
-});
-
-test("controller nomination rejects a contract that only spoofs the expected getters", async () => {
-  let simulated = false;
-  const actions = {
-    getAccount: () => ({ address: ADMIN_ADDRESS, chainId: 11_155_931 }),
-    getCodeHash: async () => "0x1111111111111111111111111111111111111111111111111111111111111111",
-    readContract: async (_config: unknown, request: { functionName: string }) => ({
-      feeBps: 75, creatorShareBps: 5000, buybackShareBps: 2500,
-      creatorTaxCapBps: 50, treasury, owner: ADMIN_ADDRESS, pendingOwner: zeroAddress,
-    })[request.functionName as "feeBps"],
-    simulateContract: async () => { simulated = true; },
-  } as unknown as AdminActions;
-  await expect(nominateFeeController({} as Config, factory, 11_155_931, controller, undefined, actions)).rejects.toThrow("bytecode");
   expect(simulated).toBe(false);
 });
 

@@ -6,8 +6,8 @@ import { LaunchPreview } from "../components/LaunchPreview";
 import { useStore } from "../app/useStore.js";
 import { useAccount, useReadContract } from "wagmi";
 import { formatEther, parseEther } from "viem";
-import { v2FactoryAbi } from "../sdk/v2Contracts";
-import { activeChainId, activeExplorerUrl, activeFactoryIsLegacy, activeFactoryVersion, launchpadAddress } from "../lib/web3";
+import { factoryAbi } from "../sdk/contracts";
+import { activeChainId, activeExplorerUrl, launchpadAddress } from "../lib/web3";
 import { canSubmitLaunch } from "../lib/launchForm";
 import { publishTokenMetadata, uploadArtworkImage } from "../lib/artworkUpload";
 import { getBetaReadEnabled, selectMarketState } from "../lib/marketState";
@@ -53,51 +53,51 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
     hasLaunchpadAddress: Boolean(launchpadAddress),
   });
   const { data: publicOpen } = useReadContract({
-    address: launchpadAddress ?? undefined, abi: v2FactoryAbi,
+    address: launchpadAddress ?? undefined, abi: factoryAbi,
     functionName: "publicLaunchOpen", chainId: activeChainId,
     query: { enabled: betaReadEnabled.publicLaunchOpen },
   });
   const { data: invited } = useReadContract({
-    address: launchpadAddress ?? undefined, abi: v2FactoryAbi,
+    address: launchpadAddress ?? undefined, abi: factoryAbi,
     functionName: "invited", args: [address!], chainId: activeChainId,
     query: { enabled: betaReadEnabled.invited },
   });
   const { data: tokenSupply, isError: supplyError } = useReadContract({
     address: launchpadAddress ?? undefined,
-    abi: v2FactoryAbi,
+    abi: factoryAbi,
     functionName: "supply",
     chainId: activeChainId,
     query: { enabled: Boolean(launchpadAddress) },
   });
   const { data: curveSupply } = useReadContract({
-    address: launchpadAddress ?? undefined, abi: v2FactoryAbi,
+    address: launchpadAddress ?? undefined, abi: factoryAbi,
     functionName: "curveSupply", chainId: activeChainId,
     query: { enabled: Boolean(launchpadAddress) },
   });
   const { data: holderReserveAddress, isPending: reserveCheckPending, isError: reserveCheckError } = useReadContract({
-    address: launchpadAddress ?? undefined, abi: v2FactoryAbi,
+    address: launchpadAddress ?? undefined, abi: factoryAbi,
     functionName: "holderReserve", chainId: activeChainId,
     query: { enabled: Boolean(launchpadAddress), retry: false },
   });
   const reserveSupported = Boolean(holderReserveAddress);
-  const reserveCheckReady = reserveSupported || activeFactoryIsLegacy || (!reserveCheckPending && !reserveCheckError);
+  const reserveCheckReady = reserveSupported && !reserveCheckPending && !reserveCheckError;
   const { data: buybackShareBps, isError: buybackError } = useReadContract({
     address: launchpadAddress ?? undefined,
-    abi: v2FactoryAbi,
+    abi: factoryAbi,
     functionName: "buybackShareBps",
     chainId: activeChainId,
     query: { enabled: Boolean(launchpadAddress) },
   });
   const { data: creatorTaxCapBps } = useReadContract({
     address: launchpadAddress ?? undefined,
-    abi: v2FactoryAbi,
+    abi: factoryAbi,
     functionName: "creatorTaxCapBps",
     chainId: activeChainId,
     query: { enabled: Boolean(launchpadAddress) },
   });
   const { data: onchainLaunchFee, isError: launchFeeError } = useReadContract({
     address: launchpadAddress ?? undefined,
-    abi: v2FactoryAbi,
+    abi: factoryAbi,
     functionName: "launchFee",
     chainId: activeChainId,
     query: { enabled: Boolean(launchpadAddress) },
@@ -252,7 +252,6 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
           curveSupply={curveSupply}
           reserveBps={reserveSupported ? Math.round(Number(draftReservePercent) * 100) : 0}
           supplyUnavailable={supplyError || !launchpadAddress}
-          version={activeFactoryVersion}
         />
         <form className="launch-form" onSubmit={submitLaunch}>
           <div className="launch-form-section">
@@ -347,7 +346,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
 
             {address && !canCreate && <p className="notice" role="status">{publicOpen === false && invited === false ? "This factory is invite-only." : "Checking launch access…"}</p>}
             {launchFeeError && <p className="notice" role="alert">Could not verify the launch fee. Try again before launching.</p>}
-            {!reserveCheckReady && !activeFactoryIsLegacy && <p className="notice" role="alert">Could not verify holder reserve support. Retry before launching.</p>}
+            {!reserveCheckReady && <p className="notice" role="alert">Could not verify holder reserve support. Retry before launching.</p>}
             {launchFee === undefined && !launchFeeError && <p className="launch-field-help" role="status">Checking launch fee…</p>}
             {launchFee !== undefined && launchFee > 0n && (
               <label className="launch-fee-consent">

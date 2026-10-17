@@ -48,7 +48,7 @@ interface IVaultPool {
     function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data) external;
 }
 
-/// @notice Launch-scoped fee custody. Bounded sweeps and vesting are added with their lifecycle slice.
+/// @notice Holds per-launch buyback funds, executes guarded curve or pool buys, and vests bought tokens.
 contract CurveBuybackVault is ReentrancyGuard {
     using SafeERC20 for IERC20;
     using SafeCast for uint256;

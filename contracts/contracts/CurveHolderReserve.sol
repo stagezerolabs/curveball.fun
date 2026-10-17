@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IIcarusPool} from "./interfaces/IIcarus.sol";
 
 interface ICheckpointToken is IERC20 {
     function getPastBalance(address account, uint256 blockNumber) external view returns (uint256);
@@ -23,6 +24,8 @@ contract CurveHolderReserve is ReentrancyGuard {
         uint256 committed;
         uint256 graduationBlock;
         uint256 roundCount;
+        address poolFees;
+        address gaugeFees;
     }
 
     struct Round {
@@ -32,6 +35,7 @@ contract CurveHolderReserve is ReentrancyGuard {
     }
 
     address public immutable factory;
+    address public immutable feeEscrow;
     mapping(address => Launch) public launches;
     mapping(address => mapping(uint256 => Round)) public rounds;
     mapping(address => mapping(uint256 => mapping(address => bool))) public claimed;
@@ -43,9 +47,10 @@ contract CurveHolderReserve is ReentrancyGuard {
     );
     event Claimed(address indexed token, uint256 indexed roundId, address indexed holder, uint256 amount);
 
-    constructor(address factory_) {
-        require(factory_ != address(0), "bad factory");
+    constructor(address factory_, address feeEscrow_) {
+        require(factory_ != address(0) && feeEscrow_ != address(0), "bad dependency");
         factory = factory_;
+        feeEscrow = feeEscrow_;
     }
 
     function register(address token, address creator, address curve, address vault, uint256 amount) external {
@@ -57,7 +62,7 @@ contract CurveHolderReserve is ReentrancyGuard {
         require(
             launches[token].creator == address(0) && IERC20(token).balanceOf(address(this)) >= amount, "bad reserve"
         );
-        launches[token] = Launch(creator, curve, address(0), vault, amount, 0, 0, 0);
+        launches[token] = Launch(creator, curve, address(0), vault, amount, 0, 0, 0, address(0), address(0));
         emit ReserveRegistered(token, creator, amount);
     }
 
@@ -67,7 +72,12 @@ contract CurveHolderReserve is ReentrancyGuard {
             msg.sender == factory && launch.creator != address(0) && launch.graduationBlock == 0 && pool != address(0),
             "bad graduation"
         );
+        address poolFees = IIcarusPool(pool).poolFees();
+        address gaugeFees = IIcarusPool(pool).gaugeFees();
+        require(poolFees != address(0) && gaugeFees != address(0), "bad fee holders");
         launch.pool = pool;
+        launch.poolFees = poolFees;
+        launch.gaugeFees = gaugeFees;
         launch.graduationBlock = block.number;
         emit GraduationRecorded(token, pool, block.number);
     }
@@ -83,7 +93,9 @@ contract CurveHolderReserve is ReentrancyGuard {
         ICheckpointToken asset = ICheckpointToken(token);
         uint256 excluded = asset.getPastBalance(address(this), snapshotBlock)
             + asset.getPastBalance(launch.curve, snapshotBlock) + asset.getPastBalance(launch.pool, snapshotBlock)
-            + asset.getPastBalance(launch.vault, snapshotBlock);
+            + asset.getPastBalance(launch.vault, snapshotBlock) + asset.getPastBalance(feeEscrow, snapshotBlock)
+            + asset.getPastBalance(launch.poolFees, snapshotBlock)
+            + asset.getPastBalance(launch.gaugeFees, snapshotBlock);
         uint256 eligible = asset.totalSupply() - excluded;
         require(eligible > 0, "no holders");
         roundId = launch.roundCount++;
@@ -97,6 +109,7 @@ contract CurveHolderReserve is ReentrancyGuard {
         if (
             roundId >= launch.roundCount || claimed[token][roundId][holder] || holder == address(0)
                 || holder == address(this) || holder == launch.curve || holder == launch.pool || holder == launch.vault
+                || holder == feeEscrow || holder == launch.poolFees || holder == launch.gaugeFees
         ) return 0;
         Round storage round = rounds[token][roundId];
         return round.amount * ICheckpointToken(token).getPastBalance(holder, round.snapshotBlock) / round.eligibleSupply;

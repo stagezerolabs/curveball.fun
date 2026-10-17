@@ -2,54 +2,60 @@ ENV_FILE := $(shell dirname "$$(git rev-parse --path-format=absolute --git-commo
 -include $(ENV_FILE)
 
 ACCOUNT ?= dot
-TESTNET_RPC_URL ?= $(if $(RISE_TESTNET_RPC_URL),$(RISE_TESTNET_RPC_URL),https://testnet.riselabs.xyz)
+MAINNET_RPC_URL := $(RISE_MAINNET_RPC_URL)
+TESTNET_RPC_URL := $(or $(RISE_TESTNET_RPC_URL),$(VITE_RPC_URL))
+BLOCKSCOUT_VERIFIER_URL := https://explorer.risechain.com/api?
+TESTNET_BLOCKSCOUT_VERIFIER_URL := https://explorer.testnet.riselabs.xyz/api?
+DOT_ADDRESS := 0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3
 
-export QUOTE_TOKEN ICARUS_FACTORY BLOCKSCOUT_API RISE_TESTNET_RPC_URL RISE_RPC_URL
+export QUOTE_TOKEN ICARUS_FACTORY BLOCKSCOUT_API RISE_MAINNET_RPC_URL RISE_RPC_URL
 
-.PHONY: test test-fork-strict verify-icarus verify-icarus-testnet deploy-v1-mock-testnet deploy-v2-launch-fee-testnet deploy-holder-reserve-testnet deploy-v21-fee-controller-testnet set-fee-testnet deploy-fee-controller-testnet accept-fee-controller-testnet
-
-# Fresh V1: dot signs, mock venue receives graduation, 0.005 WETH target.
-deploy-v1-mock-testnet:
-	@DEPLOYER_ADDRESS=0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3 \
-	forge script scripts/DeployV1Mock.s.sol:DeployV1Mock \
-		--rpc-url "$(TESTNET_RPC_URL)" --broadcast --slow \
-		--account "$(ACCOUNT)" --sender 0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3
+.PHONY: test test-fork-strict test-fork-testnet verify-icarus require-production-config production-preflight deploy-production require-testnet-config testnet-preflight deploy-testnet
 
 test:
 	forge test --threads 1
 	bun scripts/check-bytecode.ts
-	bun ../scripts/check-fee-controller-codehash.ts
 
 test-fork-strict:
-	@test -n "$(RISE_TESTNET_RPC_URL)" || { echo "RISE_TESTNET_RPC_URL is required for strict fork tests."; exit 2; }
+	@test -n "$(RISE_MAINNET_RPC_URL)" || { echo "RISE_MAINNET_RPC_URL is required for strict fork tests."; exit 2; }
 	forge test --match-path 'test/fork/IcarusFactory.t.sol'
+
+test-fork-testnet:
+	@test -n "$(TESTNET_RPC_URL)" || { echo "RISE_TESTNET_RPC_URL or VITE_RPC_URL is required."; exit 2; }
+	RISE_TESTNET_RPC_URL="$(TESTNET_RPC_URL)" forge test --match-path 'test/fork/IcarusFactory.t.sol' --match-test testCurrentLifecycleOnRiseTestnetFork
 
 verify-icarus:
 	bash scripts/verify-icarus.sh
 
-verify-icarus-testnet:
-	ICARUS_FACTORY=0x8221dfB70c9A2dE60253dcfC58231FD529bbF4F9 \
-		QUOTE_TOKEN=0x4200000000000000000000000000000000000006 \
-		BLOCKSCOUT_API=https://explorer.testnet.riselabs.xyz/api \
-		VERIFY_OUTPUT=../deployments/11155931/icarus-verification.json \
-		bash scripts/verify-icarus-testnet.sh
+require-production-config:
+	@test -n "$(MAINNET_RPC_URL)" || { echo "RISE_MAINNET_RPC_URL is required and must use a private provider."; exit 2; }
+	@test -n "$(DEPLOYER_ADDRESS)" -a -n "$(OWNER_ADDRESS)" -a -n "$(TREASURY_ADDRESS)" || { echo "DEPLOYER_ADDRESS, OWNER_ADDRESS, and TREASURY_ADDRESS are required."; exit 2; }
+	@test "$(LAUNCH_FEE_WEI)" = "1000000000000000" || { echo "LAUNCH_FEE_WEI must be 1000000000000000 (0.001 WETH)."; exit 2; }
+	@test -n "$(GRADUATION_TARGET_WEI)" || { echo "GRADUATION_TARGET_WEI is required."; exit 2; }
+	@test "$$(cast chain-id --rpc-url "$(MAINNET_RPC_URL)")" = "4153" || { echo "RISE_MAINNET_RPC_URL is not chain 4153."; exit 2; }
 
-# Fee-enabled replacement V2. The script checks the chain, runs tests, asks for
-# the deployment phrase, broadcasts with the local keystore, and saves a log.
-deploy-v2-launch-fee-testnet:
-	@ACCOUNT="$(ACCOUNT)" TESTNET_RPC_URL="$(TESTNET_RPC_URL)" bash scripts/deploy-v2-launch-fee-testnet.sh
+production-preflight: require-production-config test test-fork-strict
+	forge clean
+	forge script scripts/DeployProduction.s.sol:DeployProduction --rpc-url "$(MAINNET_RPC_URL)" --sender "$(DEPLOYER_ADDRESS)"
 
-deploy-holder-reserve-testnet:
-	@ACCOUNT="$(ACCOUNT)" TESTNET_RPC_URL="$(TESTNET_RPC_URL)" bash scripts/deploy-holder-reserve-testnet.sh
+deploy-production: production-preflight
+	forge script scripts/DeployProduction.s.sol:DeployProduction \
+		--rpc-url "$(MAINNET_RPC_URL)" --broadcast --slow \
+		--account "$(ACCOUNT)" --sender "$(DEPLOYER_ADDRESS)" \
+		--verify --verifier blockscout --verifier-url "$(BLOCKSCOUT_VERIFIER_URL)" \
+		--retries 10 --delay 10
 
-deploy-v21-fee-controller-testnet:
-	@ACCOUNT="$(ACCOUNT)" TESTNET_RPC_URL="$(TESTNET_RPC_URL)" bash scripts/deploy-v21-fee-controller-testnet.sh
+require-testnet-config:
+	@test -n "$(TESTNET_RPC_URL)" || { echo "RISE_TESTNET_RPC_URL or VITE_RPC_URL is required."; exit 2; }
+	@test "$$(cast chain-id --rpc-url "$(TESTNET_RPC_URL)")" = "11155931" || { echo "Testnet RPC is not chain 11155931."; exit 2; }
 
-set-fee-testnet:
-	@ACCOUNT="$(ACCOUNT)" TESTNET_RPC_URL="$(TESTNET_RPC_URL)" bash scripts/set-fee-testnet.sh
+testnet-preflight: require-testnet-config test test-fork-testnet
+	forge clean
+	forge script scripts/DeployTestnet.s.sol:DeployTestnet --rpc-url "$(TESTNET_RPC_URL)" --sender "$(DOT_ADDRESS)"
 
-deploy-fee-controller-testnet:
-	@ACCOUNT="$(ACCOUNT)" TESTNET_RPC_URL="$(TESTNET_RPC_URL)" bash scripts/deploy-fee-controller-testnet.sh
-
-accept-fee-controller-testnet:
-	@ACCOUNT="$(ACCOUNT)" TESTNET_RPC_URL="$(TESTNET_RPC_URL)" CONTROLLER="$(CONTROLLER)" bash scripts/accept-fee-controller-testnet.sh
+deploy-testnet: testnet-preflight
+	forge script scripts/DeployTestnet.s.sol:DeployTestnet \
+		--rpc-url "$(TESTNET_RPC_URL)" --broadcast --slow \
+		--account "$(ACCOUNT)" --sender "$(DOT_ADDRESS)" \
+		--verify --verifier blockscout --verifier-url "$(TESTNET_BLOCKSCOUT_VERIFIER_URL)" \
+		--retries 10 --delay 10

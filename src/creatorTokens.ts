@@ -1,6 +1,6 @@
 import { formatEther, getAddress, zeroAddress, type Address } from "viem";
-import { v1VenueAbi, v2CurveAbi, v2FactoryAbi } from "./sdk/v2Contracts";
-import { activeDeploymentBlock, activeFactoryVersion, launchpadAddress } from "./lib/web3";
+import { venueAbi, curveAbi, factoryAbi } from "./sdk/contracts";
+import { activeDeploymentBlock, launchpadAddress } from "./lib/web3";
 import { buildBlockRanges } from "./lib/marketChart";
 import type { Token } from "./types";
 
@@ -67,7 +67,7 @@ async function discoverTokensForFactory(
 ): Promise<Token[]> {
   const eventQuery = {
     address: factoryAddress,
-    abi: v2FactoryAbi,
+    abi: factoryAbi,
     eventName: "LaunchCreated",
     ...(args ? { args } : {}),
     strict: true,
@@ -88,8 +88,8 @@ async function discoverTokensForFactory(
   if (!logs.length) return [];
 
   const [curveSupply, supply] = await Promise.all([
-    client.readContract({ address: factoryAddress, abi: v2FactoryAbi, functionName: "curveSupply" }) as Promise<bigint>,
-    client.readContract({ address: factoryAddress, abi: v2FactoryAbi, functionName: "supply" }) as Promise<bigint>,
+    client.readContract({ address: factoryAddress, abi: factoryAbi, functionName: "curveSupply" }) as Promise<bigint>,
+    client.readContract({ address: factoryAddress, abi: factoryAbi, functionName: "supply" }) as Promise<bigint>,
   ]);
   const terminalVirtualToken = supply - curveSupply;
 
@@ -101,24 +101,23 @@ async function discoverTokensForFactory(
       }
 
       const [market, block] = await Promise.all([
-        client.readContract({ address: factoryAddress, abi: v2FactoryAbi, functionName: "market", args: [token] }) as Promise<readonly [Address, Address, number, number, number, number, Address]>,
+        client.readContract({ address: factoryAddress, abi: factoryAbi, functionName: "market", args: [token] }) as Promise<readonly [Address, Address, number, number, number, number, Address]>,
         client.getBlock({ blockNumber: log.blockNumber }),
       ]);
       const curve = market[0];
       if (curve === zeroAddress || (log.args?.curve && getAddress(log.args.curve) !== getAddress(curve))) throw new Error("Launch event does not match factory market.");
-      const isV1 = activeFactoryVersion === "V1" && factoryAddress.toLowerCase() === launchpadAddress?.toLowerCase();
       const [sold, ready, graduated, pool, virtualQuote, virtualToken, initialVQ, venue] = await Promise.all([
-        client.readContract({ address: curve, abi: v2CurveAbi, functionName: "sold" }) as Promise<bigint>,
-        client.readContract({ address: curve, abi: v2CurveAbi, functionName: "ready" }) as Promise<boolean>,
-        client.readContract({ address: curve, abi: v2CurveAbi, functionName: "graduated" }) as Promise<boolean>,
-        client.readContract({ address: curve, abi: v2CurveAbi, functionName: "pool" }) as Promise<Address>,
-        client.readContract({ address: curve, abi: v2CurveAbi, functionName: "virtualQuote" }) as Promise<bigint>,
-        client.readContract({ address: curve, abi: v2CurveAbi, functionName: "virtualToken" }) as Promise<bigint>,
-        client.readContract({ address: curve, abi: v2CurveAbi, functionName: "initialVQ" }) as Promise<bigint>,
-        isV1 ? client.readContract({ address: factoryAddress, abi: v2FactoryAbi, functionName: "venueOf", args: [token] }) as Promise<Address> : Promise.resolve(zeroAddress),
+        client.readContract({ address: curve, abi: curveAbi, functionName: "sold" }) as Promise<bigint>,
+        client.readContract({ address: curve, abi: curveAbi, functionName: "ready" }) as Promise<boolean>,
+        client.readContract({ address: curve, abi: curveAbi, functionName: "graduated" }) as Promise<boolean>,
+        client.readContract({ address: curve, abi: curveAbi, functionName: "pool" }) as Promise<Address>,
+        client.readContract({ address: curve, abi: curveAbi, functionName: "virtualQuote" }) as Promise<bigint>,
+        client.readContract({ address: curve, abi: curveAbi, functionName: "virtualToken" }) as Promise<bigint>,
+        client.readContract({ address: curve, abi: curveAbi, functionName: "initialVQ" }) as Promise<bigint>,
+        client.readContract({ address: factoryAddress, abi: factoryAbi, functionName: "venueOf", args: [token] }) as Promise<Address>,
       ]);
       const mockVenue = venue === zeroAddress ? false
-        : await client.readContract({ address: venue, abi: v1VenueAbi, functionName: "isMock" }) as boolean;
+        : await client.readContract({ address: venue, abi: venueAbi, functionName: "isMock" }) as boolean;
       const price = virtualToken === 0n ? null : Number(formatEther(virtualQuote)) / Number(formatEther(virtualToken));
       const terminalVirtualQuote = terminalVirtualToken === 0n ? 0n
         : (supply * initialVQ + terminalVirtualToken - 1n) / terminalVirtualToken;

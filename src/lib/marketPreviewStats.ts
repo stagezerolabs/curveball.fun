@@ -1,5 +1,5 @@
 import { formatEther, type Address, type Hash } from "viem";
-import { v2CurveAbi } from "../sdk/v2Contracts";
+import { curveAbi } from "../sdk/contracts";
 import type { Token } from "../types";
 import { buildBlockRanges, parseCreatedBlock } from "./marketChart";
 
@@ -142,7 +142,7 @@ export async function loadMarketPreviewStats(
   let nextRange = 0;
   const eventQuery = {
     address: markets.map((token) => token.curve),
-    abi: v2CurveAbi,
+        abi: curveAbi,
     eventName: "Trade",
     strict: true,
   };
