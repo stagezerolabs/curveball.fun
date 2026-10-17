@@ -2,8 +2,7 @@ import { formatUnits } from "viem";
 import { AppLink } from "../components/Navigation";
 import { useProtocolStats } from "../components/LandingProtocolStats";
 import { formatAddress, formatEthAmount } from "../lib/format.js";
-import { activeChainId, activeExplorerUrl, launchpadAddress } from "../lib/web3";
-import { RISE_TESTNET_CHAIN_ID } from "../sdk/curveballSdk";
+import { activeExplorerUrl, launchpadAddress } from "../lib/web3";
 import type { Navigate } from "../types";
 
 export function StatsPage({ navigate }: { navigate: Navigate }) {
@@ -51,7 +50,7 @@ export function StatsPage({ navigate }: { navigate: Navigate }) {
           <div className="protocol-stats-track" role="progressbar" aria-label="Share of launched markets graduated" aria-valuenow={data ? Number(graduationRate.toFixed(1)) : undefined} aria-valuemin={0} aria-valuemax={100}>
             <span style={{ width: `${graduationRate}%` }} />
           </div>
-          <p>{data ? `${graduated} of ${total} launches have completed graduation.` : "Launch data is unavailable."} A market graduates after its curve sells out and a pool is created at its selected venue.</p>
+          <p>{data ? `${graduated} of ${total} launches have completed graduation.` : "Launch data is unavailable."}</p>
         </section>
 
         <section className="protocol-stats-recent" aria-labelledby="stats-recent-title">
@@ -81,7 +80,6 @@ export function StatsPage({ navigate }: { navigate: Navigate }) {
         </div>
         <div>
           <p>Launches and graduations: current factory. Creator claims: paid curve fees only; excludes unclaimed and pool fees.</p>
-          {activeChainId === RISE_TESTNET_CHAIN_ID && <p>Testnet data. WETH is a test asset.</p>}
           {dataUpdatedAt > 0 && <p className="protocol-stats-updated">Last checked <time dateTime={new Date(dataUpdatedAt).toISOString()}>{new Date(dataUpdatedAt).toLocaleString()}</time></p>}
           {launchpadAddress && <a className="text-link" href={`${activeExplorerUrl}/address/${launchpadAddress}`} target="_blank" rel="noreferrer">View factory on explorer ↗</a>}
         </div>
