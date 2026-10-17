@@ -4,7 +4,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IIcarusPool} from "./interfaces/IIcarus.sol";
-import {CurveMemeHook} from "../historical/CurveMemeHook.sol";
+import {CurveMemeHook} from "./CurveMemeHook.sol";
 
 /// @notice V1 custody for LP tokens created by the selected graduation adapter.
 contract CurveV1Locker is ReentrancyGuard {

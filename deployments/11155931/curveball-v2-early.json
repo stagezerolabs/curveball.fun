@@ -1,9 +1,0 @@
-{
-  "version": "v2",
-  "release": "early",
-  "chainId": 11155931,
-  "factory": "0x36628AbAC7B2cdcde1A8fa21868AfeCB74660ECf",
-  "deploymentBlock": "55636468",
-  "quote": "0x4200000000000000000000000000000000000006",
-  "deploymentTransaction": "0xebdfa1606fb04f76515f6c535efddf2eeffc93a637a677dd5c002ff0486ddbb6"
-}

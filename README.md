@@ -24,49 +24,7 @@ The keeper scans `LaunchCreated` events from `KEEPER_DEPLOYMENT_BLOCK`, then che
 
 Users see **Bonding complete** while the pool is being prepared. The market page checks for the on-chain transition and shows a link to the confirmed pool address when `graduated` becomes true. This release uses a mock venue: its pool is an explorer-visible test artifact and does not support swaps.
 
-## Historical V2.1 testnet deployment
-
-- Chain: RISE Testnet (`11155931`)
-- RPC: `https://testnet.riselabs.xyz`
-- Historical V2.1 factory: `0x6c12CCE962944EbB6A28536eD23baeFAa15c79cD`
-- Holder reserve: `0x06791a55D94B7EA697C00E2B33bA2F16A9160999`
-- Fee controller: `0x5f4a91DC59ed15fFEf30dbf3c591089132Df8831`
-- Deployment block: `56985934`
-- Launch fee: `0.0004 WETH` per token launch
-- Launch fee treasury: `0x5Dd6890a17c8652DA24A0Aff5746f0A996B95BE4`
-- Canonical deployment record: `deployments/11155931/curveball-v2.1-holder-reserve.json`
-
-The frontend discovers launches from the active factory's events, reads market state from the factory and curve contracts, and sends wallet-signed transactions through the SDK in `src/sdk`. Historical V2 deployment records remain for reference; V1 market discovery and trading exclude those factories.
-
-## Holder airdrop reserve (V2.1)
-
-V2.1 is deployed on RISE Testnet as a historical release. Existing V2 tokens retain their original supply and cannot gain a holder reserve.
-
-New launches default to a 5% holder reserve; creators can choose 0–5%. The 80% curve sale remains fixed, and the chosen reserve reduces the 20% otherwise provided to the graduation pool. Reserve tokens remain in `CurveHolderReserve`. After graduation, the recorded creator can commit them across multiple rounds using a past block after graduation. Claims are proportional to checkpointed balances at that block. The curve, liquidity pool, reserve contract, and buyback vault are excluded; the creator qualifies if their wallet holds tokens. Any wallet can submit a claim, but tokens always go to the eligible holder. Claims have no expiry. Rounding dust remains in the reserve contract. Balance checkpoint writes add gas to token transfers.
-
-The V2.1 deployment was signed locally on October 15, 2026. Its transactions, service addresses, code hashes, and creation block are in the canonical deployment record. Do not rerun the deployment command against the same release.
-
-## Trading fee administration
-
-V2.1 has a 75 bps (0.75%) curve trading fee. Its factory is owned by the V2.1 fee controller. Dot owns that controller as super admin, and `0x5cc42e772f67089b4670eec4dcd904be2f2d511c` is the delegated fee admin. The `/admin` dashboard recognizes the reviewed controller code and lets either authorized wallet edit the trading fee. The prior V2 controller remains bound to its own factory. Each market snapshots its trading fee at launch, so changes affect future launches only. Icarus pool swap fees after graduation are separate.
-
-The controller delegates only trading-fee changes to the fee admin wallet and reads the other factory defaults in the same transaction. Dot can revoke the delegate, change all factory policy, or transfer factory ownership. The dashboard checks the confirmed on-chain result.
-
-The dashboard also reads live WETH balances for the trading-fee treasury, the separate launch-fee treasury, and the buyback vault. These are wallet and contract balances, not lifetime fee totals.
-
-The V2.1 controller deployment, ownership nomination, and acceptance are recorded in `deployments/11155931/curveball-v2.1-fee-controller.json`. The earlier V2 controller and its history remain in `deployments/11155931/curveball-fee-controller.json`. Controllers hold factory authority, including rescue authority and vested buyback claims. They do not control the separately owned launch-fee treasury.
-
-The V2.1 deployment and controller handoff commands have completed for this release. Do not rerun them against these addresses.
-
-### Deploy the fee-enabled V2
-
-The earlier fee-enabled V2 factory was deployed on RISE Testnet on October 11, 2026. It charges a fixed `0.0004 WETH` per launch and sends it to an admin-owned fee treasury. For a fresh testnet deployment, run from the repository root:
-
-```bash
-make -C contracts deploy-v2-launch-fee-testnet
-```
-
-The historical command uses the local Foundry `dot` keystore by default. Set `ACCOUNT=<keystore-name>` if yours differs. Its existing broadcast guard prevents accidentally overwriting the recorded fee-enabled deployment. Do not send your password, private key, or keystore file. The earlier no-fee factory is recorded in `deployments/11155931/curveball-v2-early.json`.
+The SDK retains the ABI definitions needed to read previously deployed V2 markets. New deployments use V1.
 
 ## Run locally
 

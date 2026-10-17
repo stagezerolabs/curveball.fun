@@ -44,4 +44,39 @@ contract V1MockGraduationTest is TestBase {
         assertTrue(IERC20(pool).balanceOf(address(factory.locker())) > 0, "LP not locked");
         assertEq(factory.locker().tokenOfPool(pool), token, "pool not registered");
     }
+
+    function testBuySellRoutesFeesAndKeepsQuoteBacked() external {
+        MockWETH weth = new MockWETH();
+        MockIcarusFactory mock = new MockIcarusFactory();
+        CurveV1Factory factory = CurveV1Deployment.deploy(address(weth), address(mock), address(this), address(0), 0);
+        (address token, address curveAddress) = factory.createToken("V1 Trade", "V1T", "", 0);
+        CurveBondingCurve curve = CurveBondingCurve(curveAddress);
+        weth.mint(TRADER, 0.001 ether);
+        vm.prank(TRADER);
+        weth.approve(curveAddress, 0.001 ether);
+        vm.prank(TRADER);
+        uint256 bought = curve.buyTokens(0.001 ether, 1, DEADLINE);
+        assertEq(IERC20(token).balanceOf(TRADER), bought, "buyer did not receive tokens");
+        assertTrue(factory.escrow().claimable(token, address(weth), TRADER) == 0, "buyer earned creator fees");
+        assertTrue(factory.escrow().claimable(token, address(weth), address(this)) > 0, "creator fees missing");
+
+        vm.prank(TRADER);
+        IERC20(token).approve(curveAddress, bought);
+        vm.prank(TRADER);
+        curve.sellTokens(bought, 1, DEADLINE);
+        assertEq(curve.sold(), 0, "sale did not unwind");
+        assertEq(IERC20(token).balanceOf(TRADER), 0, "seller retained tokens");
+        assertEq(weth.balanceOf(curveAddress), curve.realQuote(), "curve quote is not backed");
+    }
+
+    function testLaunchRegistersChosenHolderReserve() external {
+        MockWETH weth = new MockWETH();
+        MockIcarusFactory mock = new MockIcarusFactory();
+        CurveV1Factory factory = CurveV1Deployment.deploy(address(weth), address(mock), address(this), address(0), 0);
+        (address token, address curveAddress) = factory.createToken("V1 Reserve", "V1R", "", 0, 250);
+        uint256 reserved = factory.supply() * 250 / 10_000;
+        assertEq(factory.reserveBps(token), 250, "reserve selection not recorded");
+        assertEq(IERC20(token).balanceOf(address(factory.holderReserve())), reserved, "reserve tokens missing");
+        assertEq(IERC20(token).balanceOf(curveAddress), factory.supply() - reserved, "curve allocation changed");
+    }
 }

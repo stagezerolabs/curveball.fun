@@ -8,13 +8,13 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {CurveLaunchDeployer} from "./CurveLaunchDeployer.sol";
 import {CurveBondingCurve} from "./CurveBondingCurve.sol";
-import {CurveFeeEscrow} from "../historical/CurveFeeEscrow.sol";
+import {CurveFeeEscrow} from "./CurveFeeEscrow.sol";
 import {CurveBuybackVault} from "./CurveBuybackVault.sol";
 import {CurveV1Locker} from "./CurveV1Locker.sol";
 import {ICurveV1Venue} from "./interfaces/ICurveV1Venue.sol";
-import {CurveLauncherToken} from "../historical/CurveLauncherToken.sol";
-import {CurveMemeHook} from "../historical/CurveMemeHook.sol";
-import {CurveLaunchAndBuy} from "../historical/CurveLaunchAndBuy.sol";
+import {CurveLauncherToken} from "./CurveLauncherToken.sol";
+import {CurveMemeHook} from "./CurveMemeHook.sol";
+import {CurveLaunchAndBuy} from "./CurveLaunchAndBuy.sol";
 import {CurveHolderReserve} from "./CurveHolderReserve.sol";
 
 /// @notice Fresh V1 registry. Pricing and venue settings are snapshotted for each launch.
