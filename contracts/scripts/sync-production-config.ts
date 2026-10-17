@@ -40,4 +40,11 @@ for (const [key, value] of Object.entries(values)) {
 }
 source = source.replace(/^VITE_FACTORY_VERSION=.*(?:\r?\n|$)/m, "");
 await Bun.write(path, source);
+if (isTestnet) {
+  await Promise.all([
+    Bun.write(".env.local", source),
+    Bun.write(".env.testnet.local", source),
+  ]);
+}
 console.log(`Updated ${path} for RISE ${requestedNetwork} factory ${record.factory} at block ${record.deploymentBlock}.`);
+if (isTestnet) console.log("Updated this worktree's local development and testnet-build environments.");

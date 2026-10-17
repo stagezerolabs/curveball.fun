@@ -5,11 +5,12 @@ export RISE_MAINNET_RPC_URL RISE_TESTNET_RPC_URL VITE_RPC_URL
 
 .DEFAULT_GOAL := help
 
-.PHONY: help dev build test typecheck contracts-test testnet-preflight deploy-testnet record-testnet configure-testnet production-preflight deploy-production record-production configure-production
+.PHONY: help dev build build-testnet test typecheck contracts-test testnet-preflight deploy-testnet record-testnet configure-testnet production-preflight deploy-production record-production configure-production
 
 help:
 	@echo "make dev                 Run the static frontend"
 	@echo "make build               Build the static frontend"
+	@echo "make build-testnet       Build the frontend against the recorded testnet deployment"
 	@echo "make test                Run typecheck and contract tests"
 	@echo "make contracts-test      Run Foundry contract tests"
 	@echo "make testnet-preflight        Run the real RISE Testnet lifecycle and deployment simulation"
@@ -26,6 +27,9 @@ dev:
 
 build:
 	bun run build
+
+build-testnet:
+	bun run build:testnet
 
 test: typecheck contracts-test
 
