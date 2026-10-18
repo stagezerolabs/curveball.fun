@@ -49,6 +49,17 @@ abstract contract Fixture is Test, CurveDeploy {
         });
     }
 
+    function _meta() internal pure returns (CurveLaunchpad.Metadata memory) {
+        return CurveLaunchpad.Metadata("Curve Meme", "MEME", "ipfs://meme");
+    }
+
+    /// @dev Launches from `who` with a `reserveBps` holder reserve and a `firstBuy` quote first buy.
+    function _launch(address who, uint16 reserveBps, uint256 firstBuy) internal returns (address token) {
+        _fund(who, LAUNCH_FEE + firstBuy);
+        vm.prank(who);
+        (token,) = launchpad.launch(_meta(), 0, reserveBps, firstBuy, 0);
+    }
+
     /// @dev Mints `amount` WETH to `account` and approves the launchpad for all of it.
     function _fund(address account, uint256 amount) internal {
         weth.mint(account, amount);
