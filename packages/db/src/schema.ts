@@ -128,7 +128,8 @@ export const assets = curveball.table("assets", {
 export const markets = curveball.table("markets", {
   chainId: chainId(),
   tokenAddress: text("token_address").notNull(),
-  curveAddress: text("curve_address").notNull(),
+  // The singleton launchpad that runs the market's curve. V1 rows hold their per-market curve here.
+  launchpadAddress: text("launchpad_address").notNull(),
   creatorAddress: text("creator_address").notNull(),
   name: text("name").notNull(),
   symbol: text("symbol").notNull(),
@@ -147,7 +148,9 @@ export const markets = curveball.table("markets", {
   creatorFeeShareBps: integer("creator_fee_share_bps"),
   buybackFeeShareBps: integer("buyback_fee_share_bps"),
   creatorTaxBps: integer("creator_tax_bps"),
-  state: text("state").notNull().default("live"),
+  state: text("state").notNull().default("trading"),
+  /** When the curve sold out; the launchpad's abort timeout runs from here. */
+  readyAt: timestamp("ready_at", { withTimezone: true }),
   orphaned: boolean("orphaned").notNull().default(false),
   graduated: boolean("graduated").notNull().default(false),
   poolAddress: text("pool_address"),
@@ -155,10 +158,10 @@ export const markets = curveball.table("markets", {
   graduatedAt: timestamp("graduated_at", { withTimezone: true }),
 }, (table) => [
   primaryKey({ columns: [table.chainId, table.tokenAddress] }),
-  uniqueIndex("markets_curve_uidx").on(table.chainId, table.curveAddress),
+  index("markets_launchpad_idx").on(table.chainId, table.launchpadAddress),
   index("markets_creator_idx").on(table.chainId, table.creatorAddress, table.launchedAt),
   index("markets_discovery_idx").on(table.chainId, table.orphaned, table.launchedAt),
-  check("markets_state_check", sql`${table.state} in ('live','sold_out','ready','deferred','graduated')`),
+  check("markets_state_check", sql`${table.state} in ('trading','ready','aborted','graduated')`),
 ]);
 
 export const trades = curveball.table("trades", {
@@ -170,7 +173,7 @@ export const trades = curveball.table("trades", {
   transactionIndex: integer("transaction_index"),
   logIndex: integer("log_index").notNull(),
   tokenAddress: text("token_address").notNull(),
-  curveAddress: text("curve_address").notNull(),
+  launchpadAddress: text("launchpad_address").notNull(),
   traderAddress: text("trader_address").notNull(),
   isBuy: boolean("is_buy").notNull(),
   grossCurveQuote: uint256("gross_curve_quote"),

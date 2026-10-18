@@ -25,7 +25,9 @@ bun run social:worker
 
 For a long-running host with Docker Compose, copy `compose.example.yaml`, provide its required Supabase variables, and put a TLS reverse proxy in front of `127.0.0.1:8787`. The one-shot `migrate` service applies ordered Drizzle migrations before the API, indexer, and metadata worker start.
 
-Required variables are `SOCIAL_DATABASE_URL`, `SOCIAL_DIRECT_DATABASE_URL`, `SOCIAL_FACTORY_ADDRESS`, `SOCIAL_DEPLOYMENT_BLOCK`, `PRIVY_APP_ID`, and the server-only `PRIVY_APP_SECRET`. The indexer discovers factory-wired quote, treasury, escrow, vault, locker, hook, launch wrapper, holder reserve, and venue accounts; `SOCIAL_PROTOCOL_ACCOUNTS` can add any deployment-specific system accounts that must stay out of human attribution. Set `VITE_SOCIAL_API_URL` in the web app to this service's public origin.
+Required variables are `SOCIAL_DATABASE_URL`, `SOCIAL_DIRECT_DATABASE_URL`, `SOCIAL_LAUNCHPAD_ADDRESS` and `SOCIAL_DEPLOYMENT_BLOCK` (the `launchpad` and `deploymentBlock` in `deployments/<chainId>/curveball.json`), `PRIVY_APP_ID`, and the server-only `PRIVY_APP_SECRET`. `SOCIAL_FACTORY_ADDRESS` is still accepted as the old name. The indexer discovers the launchpad-wired quote token, treasury, fee escrow, LP locker and holder reserve; `SOCIAL_PROTOCOL_ACCOUNTS` can add any deployment-specific system accounts that must stay out of human attribution.
+
+When the indexer starts on a launchpad other than the one it last indexed, it retires the previous deployment: chain-derived rows (markets, trades, swaps, transfers, protocol flows) are marked orphaned as a reorg would, derived aggregates and cursors are cleared, and indexing restarts at `SOCIAL_DEPLOYMENT_BLOCK`. Profiles, follows, notes, reactions and copy intents are kept. Set `VITE_SOCIAL_API_URL` in the web app to this service's public origin.
 
 ## Safety boundary
 

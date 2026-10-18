@@ -57,7 +57,7 @@ function mapTrade(row: Record<string, unknown>): SocialTrade {
     tokenAddress: getAddress(String(row.token_address)),
     tokenName: String(row.token_name),
     tokenSymbol: String(row.token_symbol),
-    curveAddress: getAddress(String(row.curve_address)),
+    launchpadAddress: getAddress(String(row.launchpad_address)),
     displayName: typeof row.display_name === "string" ? row.display_name : null,
     note: typeof row.note === "string" ? row.note : null,
     reactionCount: Number(row.reaction_count || 0),

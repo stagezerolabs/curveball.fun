@@ -266,7 +266,7 @@ async function feed(url, viewer) {
     `SELECT t.logical_id AS id, t.trader_address, t.is_buy, t.net_trader_quote AS quote_amount_wei,
        t.token_amount AS token_amount_wei, t.virtual_quote_after, t.virtual_token_after,
        t.transaction_hash, t.log_index, t.block_timestamp, m.token_address, m.name AS token_name,
-       m.symbol AS token_symbol, m.curve_address, p.display_name, n.note,
+       m.symbol AS token_symbol, m.launchpad_address, p.display_name, n.note,
        (SELECT COUNT(*) FROM trade_reactions rx WHERE rx.logical_trade_id=t.logical_id) AS reaction_count,
        EXISTS(SELECT 1 FROM trade_reactions rx WHERE rx.logical_trade_id=t.logical_id AND rx.reactor_address=$4) AS reacted,
        EXISTS(SELECT 1 FROM follows fv WHERE fv.chain_id=t.chain_id AND fv.follower_address=$4 AND fv.followed_address=t.trader_address) AS is_followed,
@@ -378,15 +378,16 @@ async function leaderboards(url, viewer) {
 function shapeMarket(row) {
   return {
     chainId: Number(row.chain_id),
-    factoryAddress: config.factoryAddress.toLowerCase(),
+    factoryAddress: config.launchpadAddress.toLowerCase(),
     tokenAddress: row.token_address,
-    curveAddress: row.curve_address,
+    launchpadAddress: row.launchpad_address,
     creatorAddress: row.creator_address,
     name: row.name,
     symbol: row.symbol,
     metadataUri: row.metadata_uri,
     imageUrl: row.token_metadata?.imageUrl || null,
     state: row.state,
+    readyAt: row.ready_at,
     isGraduated: Boolean(row.graduated),
     poolAddress: row.pool_address,
     launchedAt: row.launched_at,
@@ -483,7 +484,7 @@ async function marketTrades(url, tokenAddress) {
   const beforeId = typeof cursor?.id === "string" ? cursor.id : null;
   const result = await pool.query(`WITH activity AS (
       SELECT logical_id,trader_address AS participant_address,'trader'::text AS participant_role,
-        NULL::text AS execution_sender_address,'curve'::text AS venue_type,curve_address AS venue_address,
+        NULL::text AS execution_sender_address,'curve'::text AS venue_type,launchpad_address AS venue_address,
         is_buy,gross_curve_quote,net_trader_quote,fee_quote,creator_tax_quote,token_amount,
         virtual_quote_after,virtual_token_after,sold_after,transaction_hash,block_number,log_index,block_timestamp
       FROM trades WHERE chain_id=$1 AND token_address=$2 AND orphaned=false
@@ -584,9 +585,11 @@ async function protocolStats() {
       (SELECT COUNT(DISTINCT trader_address) FROM trades t WHERE chain_id=$1 AND orphaned=false AND NOT EXISTS (
         SELECT 1 FROM protocol_accounts pa WHERE pa.chain_id=t.chain_id AND pa.address=t.trader_address AND pa.is_user_attributable=false
       )) AS traders,
+      COALESCE((SELECT SUM((pf.metadata->>'creatorAmount')::numeric) FROM protocol_flows pf WHERE pf.chain_id=$1 AND pf.orphaned=false
+        AND pf.category='fee_accrued' AND pf.asset_address=(SELECT address FROM protocol_accounts WHERE chain_id=$1 AND role='quote' LIMIT 1)),0) AS creator_fees_earned,
       COALESCE((SELECT SUM(amount) FROM protocol_flows pf WHERE pf.chain_id=$1 AND pf.orphaned=false
         AND pf.category='fee_claimed' AND pf.asset_address=(SELECT address FROM protocol_accounts WHERE chain_id=$1 AND role='quote' LIMIT 1)
-        AND EXISTS (SELECT 1 FROM markets cm WHERE cm.chain_id=pf.chain_id AND cm.token_address=pf.market_token_address AND cm.creator_address=pf.to_address)),0) AS creator_fees_claimed,
+        AND EXISTS (SELECT 1 FROM markets cm WHERE cm.chain_id=pf.chain_id AND cm.orphaned=false AND cm.creator_address=pf.to_address)),0) AS creator_fees_claimed,
       COALESCE((SELECT SUM(quote_spent) FROM buyback_executions WHERE chain_id=$1 AND orphaned=false),0) AS buyback_quote_spent,
       COALESCE((SELECT SUM(amount) FROM protocol_flows pf WHERE pf.chain_id=$1 AND pf.orphaned=false AND pf.category='pool_fee'
         AND pf.asset_address=(SELECT address FROM protocol_accounts WHERE chain_id=$1 AND role='quote' LIMIT 1)),0) AS pool_quote_fees
@@ -598,6 +601,7 @@ async function protocolStats() {
     grossQuoteVolume: String(row.gross_quote_volume || 0),
     walletCashTurnover: String(row.wallet_cash_turnover || 0),
     traders: Number(row.traders || 0),
+    creatorFeesEarned: String(row.creator_fees_earned || 0),
     creatorFeesClaimed: String(row.creator_fees_claimed || 0),
     buybackQuoteSpent: String(row.buyback_quote_spent || 0),
     poolQuoteFees: String(row.pool_quote_fees || 0),

@@ -4,6 +4,7 @@ import type { MarketPreviewStatsByToken } from "../lib/marketPreviewStats";
 import { socialApiBaseUrl } from "../social/api";
 import { launchpadAddress } from "../lib/web3";
 import type { Token } from "../types";
+import type { MarketLifecycle } from "../sdk/sdk";
 
 type CandleRow = {
   bucketStart: string;
@@ -32,13 +33,14 @@ type TradeRow = {
 type MarketRow = {
   factoryAddress: Address;
   tokenAddress: Address;
-  curveAddress: Address;
+  launchpadAddress: Address;
   creatorAddress: Address;
   name: string;
   symbol: string;
   metadataUri: string;
   imageUrl: string | null;
-  state: "live" | "sold_out" | "ready" | "deferred" | "graduated";
+  state: Exclude<MarketLifecycle, "none">;
+  readyAt: string | null;
   isGraduated: boolean;
   poolAddress: Address | null;
   launchedAt: string;
@@ -96,7 +98,10 @@ async function marketRowToToken(row: MarketRow): Promise<Token> {
     symbol: row.symbol,
     creator: getAddress(row.creatorAddress),
     graduated: row.isGraduated,
-    pending: row.state === "sold_out" || row.state === "ready" || row.state === "deferred",
+    lifecycle: row.state,
+    pending: row.state === "ready",
+    readyAt: row.readyAt ? Math.floor(Date.parse(row.readyAt) / 1_000) : null,
+    reserveTokens: row.policy.reserveAmount,
     feeBps: row.policy.feeBps,
     creatorTaxBps: row.policy.creatorTaxBps,
     creatorShareBps: row.policy.creatorFeeShareBps,

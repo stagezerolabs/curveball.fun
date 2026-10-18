@@ -4,50 +4,41 @@ import { pool, transaction } from "./db.mjs";
 import { crossedCurveMilestones } from "./milestones.mjs";
 import { publishLeaderboards, refreshPerformanceSnapshot } from "./performance.mjs";
 
-const launchEvent = parseAbiItem("event LaunchCreated(address indexed token,address indexed curve,address indexed creator,string name,string symbol,string uri)");
-const graduatedEvent = parseAbiItem("event Graduated(address indexed token,address indexed pool,uint256 tokenLiquidity,uint256 quoteLiquidity,uint256 liquidity)");
-const reserveConfiguredEvent = parseAbiItem("event ReserveConfigured(address indexed token,uint16 reserveBps,uint256 amount)");
-const graduationStartedEvent = parseAbiItem("event GraduationStarted(address indexed token,address indexed curve)");
-const graduationDeferredEvent = parseAbiItem("event GraduationDeferred(address indexed token,bytes reason)");
-const tradeEvent = parseAbiItem("event Trade(address indexed token,address indexed trader,bool isBuy,uint256 grossCurveQuote,uint256 netTraderQuote,uint256 feeQuote,uint256 creatorTaxQuote,uint256 tokenAmount,uint256 vQAfter,uint256 vTAfter,uint256 soldAfter)");
+// The lean launchpad (docs/adr/0003-lean-singleton-launchpad.md): one contract runs every market's
+// curve, and the fee escrow, LP locker and holder reserve are singletons discovered from it.
+const launchEvent = parseAbiItem("event LaunchCreated(address indexed token,address indexed creator,string name,string symbol,string uri,uint16 feeBps,uint16 creatorShareBps,uint16 buybackShareBps,uint16 taxBps,uint256 reserveTokens)");
+const graduationReadyEvent = parseAbiItem("event GraduationReady(address indexed token)");
+const graduationAbortedEvent = parseAbiItem("event GraduationAborted(address indexed token)");
+const graduatedEvent = parseAbiItem("event Graduated(address indexed token,address indexed pool,uint256 quoteAmount,uint256 tokenAmount,uint256 burned)");
+const tradeEvent = parseAbiItem("event Trade(address indexed token,address indexed trader,bool isBuy,uint256 quoteAmount,uint256 tokenAmount,uint256 fee,uint256 tax,uint256 virtualToken,uint256 virtualQuote)");
 const transferEvent = parseAbiItem("event Transfer(address indexed from,address indexed to,uint256 value)");
-const launchFeePaidEvent = parseAbiItem("event LaunchFeePaid(address indexed creator,address indexed treasury,uint256 amount)");
-const feeAccruedEvent = parseAbiItem("event FeeAccrued(address indexed launch,address indexed asset,address indexed recipient,uint256 amount)");
-const feeClaimedEvent = parseAbiItem("event FeeClaimed(address indexed launch,address indexed asset,address indexed recipient,uint256 amount)");
-const poolFeesRoutedEvent = parseAbiItem("event PoolFeesRouted(address indexed token,address indexed pool,address indexed asset,uint256 amount)");
-const quoteCreditedEvent = parseAbiItem("event QuoteCredited(address indexed launch,uint256 amount)");
-const memeCreditedEvent = parseAbiItem("event MemeCredited(address indexed launch,uint256 amount)");
-const vestedClaimedEvent = parseAbiItem("event VestedClaimed(address indexed launch,address indexed recipient,uint256 amount)");
-const buybackExecutedEvent = parseAbiItem("event BuybackExecuted(address indexed launch,address indexed venue,uint256 quoteSpent,uint256 tokensBought)");
-const reserveRegisteredEvent = parseAbiItem("event ReserveRegistered(address indexed token,address indexed creator,uint256 amount)");
-const roundCreatedEvent = parseAbiItem("event RoundCreated(address indexed token,uint256 indexed roundId,uint256 snapshotBlock,uint256 amount,uint256 eligibleSupply)");
-const reserveClaimedEvent = parseAbiItem("event Claimed(address indexed token,uint256 indexed roundId,address indexed holder,uint256 amount)");
+const feeAccruedEvent = parseAbiItem("event FeeAccrued(address indexed token,address indexed asset,uint256 creatorAmount,uint256 buybackAmount,uint256 protocolAmount)");
+const feeClaimedEvent = parseAbiItem("event FeeClaimed(address indexed account,address indexed asset,uint256 amount)");
+const buybackBurnedEvent = parseAbiItem("event BuybackBurned(address indexed token,uint256 quoteSpent,uint256 tokensBurned)");
+const lpFeesClaimedEvent = parseAbiItem("event LpFeesClaimed(address indexed token,address indexed pool,uint256 tokenAmount,uint256 quoteAmount)");
+const reserveRegisteredEvent = parseAbiItem("event ReserveRegistered(address indexed token,uint256 amount)");
+const reserveClaimedEvent = parseAbiItem("event ReserveClaimed(address indexed token,address indexed account,uint256 amount)");
 const poolSwapEvent = parseAbiItem("event Swap(address indexed sender,address indexed to,uint256 amount0In,uint256 amount1In,uint256 amount0Out,uint256 amount1Out)");
-const ledgerTopics = [transferEvent, launchFeePaidEvent, feeAccruedEvent, feeClaimedEvent, poolFeesRoutedEvent,
-  quoteCreditedEvent, memeCreditedEvent, vestedClaimedEvent, buybackExecutedEvent, reserveRegisteredEvent,
-  roundCreatedEvent, reserveClaimedEvent].map((event) => toEventSelector(event).toLowerCase());
-const curveConfigAbi = parseAbi([
-  "function supply() view returns (uint256)",
-  "function curveSupply() view returns (uint256)",
-  "function reserveAmount() view returns (uint256)",
-  "function initialVQ() view returns (uint256)",
-  "function feeBps() view returns (uint16)",
-  "function creatorShareBps() view returns (uint16)",
-  "function buybackShareBps() view returns (uint16)",
-  "function creatorTaxBps() view returns (uint16)",
-]);
-const factoryServiceAbi = parseAbi([
-  "function quote() view returns (address)",
+const ledgerTopics = [transferEvent, feeAccruedEvent, feeClaimedEvent, buybackBurnedEvent, lpFeesClaimedEvent,
+  reserveRegisteredEvent, reserveClaimedEvent].map((event) => toEventSelector(event).toLowerCase());
+const launchpadAbi = parseAbi([
+  "function quoteToken() view returns (address)",
   "function treasury() view returns (address)",
-  "function deployer() view returns (address)",
   "function escrow() view returns (address)",
-  "function vault() view returns (address)",
   "function locker() view returns (address)",
-  "function hook() view returns (address)",
-  "function launchAndBuy() view returns (address)",
-  "function holderReserve() view returns (address)",
-  "function venue() view returns (address)",
+  "function reserve() view returns (address)",
+  "function SUPPLY() view returns (uint256)",
+  "function CURVE_SUPPLY() view returns (uint256)",
+  "function market(address token) view returns ((address creator,uint16 feeBps,uint16 creatorShareBps,uint16 buybackShareBps,uint16 taxBps,uint8 state,uint128 virtualToken,uint128 virtualQuote,uint128 initialVirtualQuote,uint128 realQuote,uint128 reserveTokens,uint40 readyAt,address pool))",
 ]);
+// Trades and lifecycle events both come from the launchpad, so each stream orphans only its own topics.
+const lifecycleTopics = [launchEvent, graduationReadyEvent, graduationAbortedEvent, graduatedEvent]
+  .map((event) => toEventSelector(event).toLowerCase());
+const tradeTopic = toEventSelector(tradeEvent).toLowerCase();
+/** CurveLaunchpad.State in enum order, as stored in markets.state. */
+const MARKET_STATES = ["trading", "trading", "ready", "graduated", "aborted"];
+/** The launchpad's SUPPLY and CURVE_SUPPLY, read once at startup. */
+let supplies;
 const poolPairAbi = parseAbi([
   "function token0() view returns (address)",
   "function token1() view returns (address)",
@@ -245,9 +236,6 @@ async function rebuildMarketStats(db, tokenAddress) {
     row.gross_quote_volume, row.wallet_cash_turnover, row.token_volume, row.virtual_quote, row.virtual_token,
     row.sold, row.current_price_x18, row.ath_price_x18, row.gross_quote_volume_24h,
     changeBps(row.price_1h), changeBps(row.price_6h), changeBps(row.price_24h), row.latest_trade_id, row.latest_trade_at]);
-  await db.query(`UPDATE markets SET state=CASE WHEN $3::numeric>=curve_supply THEN 'sold_out' ELSE 'live' END
-    WHERE chain_id=$1 AND token_address=$2 AND graduated=false AND state IN ('live','sold_out')`,
-  [config.chainId, tokenAddress, row.sold]);
 }
 
 async function rebuildMarketCandles(db, tokenAddress) {
@@ -278,31 +266,61 @@ async function rebuildMarketCandles(db, tokenAddress) {
   }
 }
 
+// Everything below is derived from chain logs, so a new launchpad can retire the old deployment's rows by
+// orphaning them (as a reorg would) and rebuild from its own deployment block. User content (profiles,
+// follows, notes, reactions, copy intents) is untouched; it keeps referencing the orphaned trades.
+const DERIVED_TABLES_TO_ORPHAN = ["markets", "trades", "venue_swaps", "asset_transfers", "protocol_flows", "buyback_executions", "reserve_claims", "chain_logs"];
+const DERIVED_TABLES_TO_CLEAR = ["market_stats", "market_candles", "curve_positions", "trader_performance_snapshots", "leaderboard_snapshots", "chain_cursors"];
+
+async function retirePreviousDeployment(db, launchpad) {
+  const active = await db.query(`SELECT address FROM contract_deployments
+    WHERE chain_id=$1 AND role IN ('factory','launchpad') AND active_until IS NULL`, [config.chainId]);
+  if (!active.rowCount || active.rows.every((row) => row.address === launchpad)) return false;
+  await db.query(`UPDATE contract_deployments SET active_until=now()
+    WHERE chain_id=$1 AND role IN ('factory','launchpad') AND address<>$2 AND active_until IS NULL`, [config.chainId, launchpad]);
+  for (const table of DERIVED_TABLES_TO_ORPHAN) {
+    await db.query(`UPDATE ${table} SET orphaned=true WHERE chain_id=$1 AND orphaned=false`, [config.chainId]);
+  }
+  for (const table of DERIVED_TABLES_TO_CLEAR) {
+    await db.query(`DELETE FROM ${table} WHERE chain_id=$1`, [config.chainId]);
+  }
+  await db.query(`DELETE FROM protocol_accounts WHERE chain_id=$1`, [config.chainId]);
+  return true;
+}
+
 async function initializeIndexerState() {
   const connectedChainId = await client.getChainId();
   if (connectedChainId !== config.chainId) {
     throw new Error(`RPC chain ${connectedChainId} does not match configured chain ${config.chainId}.`);
   }
-  const serviceRoles = ["quote", "treasury", "deployer", "escrow", "vault", "locker", "hook", "launchAndBuy", "holderReserve", "venue"];
-  const discoveredAccounts = [];
-  for (const role of serviceRoles) {
-    try {
-      const address = await client.readContract({ address: config.factoryAddress, abi: factoryServiceAbi, functionName: role });
-      discoveredAccounts.push({ role, address: lower(address) });
-    } catch {
-      // A partially initialized deployment can start indexing launches after its services become readable.
-    }
-  }
+  const launchpad = lower(config.launchpadAddress);
+  const read = (functionName) => client.readContract({ address: config.launchpadAddress, abi: launchpadAbi, functionName });
+  const [quote, treasury, escrow, locker, reserve, supply, curveSupply] = await Promise.all([
+    read("quoteToken"), read("treasury"), read("escrow"), read("locker"), read("reserve"), read("SUPPLY"), read("CURVE_SUPPLY"),
+  ]);
+  supplies = { supply, curveSupply };
+  // Roles the ledger stream reads logs from; none of these addresses is a user for stats or holders.
+  const accounts = [
+    { role: "launchpad", address: launchpad },
+    { role: "quote", address: lower(quote) },
+    { role: "treasury", address: lower(treasury) },
+    { role: "escrow", address: lower(escrow) },
+    { role: "locker", address: lower(locker) },
+    { role: "holderReserve", address: lower(reserve) },
+    ...config.protocolAccounts,
+  ];
   await transaction(async (db) => {
     await db.query(`INSERT INTO chains (id,name,native_symbol,finality_confirmations)
       VALUES ($1,$2,$3,$4) ON CONFLICT (id) DO UPDATE SET
       name=EXCLUDED.name,native_symbol=EXCLUDED.native_symbol,finality_confirmations=EXCLUDED.finality_confirmations,enabled=true`,
     [config.chainId, config.chainName, config.nativeSymbol, Number(config.confirmations)]);
+    if (await retirePreviousDeployment(db, launchpad)) {
+      console.info(`Indexer switched to launchpad ${launchpad}; the previous deployment's rows are orphaned and re-indexing starts at block ${config.deploymentBlock}.`);
+    }
     await db.query(`INSERT INTO contract_deployments (chain_id,role,address,version,deployment_block)
-      VALUES ($1,'factory',$2,'current',$3) ON CONFLICT (chain_id,role,address) DO UPDATE SET
+      VALUES ($1,'launchpad',$2,'lean-v2',$3) ON CONFLICT (chain_id,role,address) DO UPDATE SET
       deployment_block=EXCLUDED.deployment_block,active_until=NULL`,
-    [config.chainId, lower(config.factoryAddress), config.deploymentBlock.toString()]);
-    const accounts = [{ role: "factory", address: lower(config.factoryAddress) }, ...discoveredAccounts, ...config.protocolAccounts];
+    [config.chainId, launchpad, config.deploymentBlock.toString()]);
     for (const account of accounts) {
       await db.query(`INSERT INTO protocol_accounts (chain_id,address,role,label,is_user_attributable)
         VALUES ($1,$2,$3,$3,false) ON CONFLICT (chain_id,address,role) DO UPDATE SET is_user_attributable=false`,
@@ -312,43 +330,41 @@ async function initializeIndexerState() {
 }
 
 async function indexFactoryRange(fromBlock, toBlock) {
-  const [launches, graduations, reserves, graduationStarts, graduationDeferrals] = await Promise.all([
-    client.getLogs({ address: config.factoryAddress, event: launchEvent, fromBlock, toBlock, strict: true }),
-    client.getLogs({ address: config.factoryAddress, event: graduatedEvent, fromBlock, toBlock, strict: true }),
-    client.getLogs({ address: config.factoryAddress, event: reserveConfiguredEvent, fromBlock, toBlock, strict: true }),
-    client.getLogs({ address: config.factoryAddress, event: graduationStartedEvent, fromBlock, toBlock, strict: true }),
-    client.getLogs({ address: config.factoryAddress, event: graduationDeferredEvent, fromBlock, toBlock, strict: true }),
+  const launchpad = config.launchpadAddress;
+  const [launches, readies, aborts, graduations] = await Promise.all([
+    client.getLogs({ address: launchpad, event: launchEvent, fromBlock, toBlock, strict: true }),
+    client.getLogs({ address: launchpad, event: graduationReadyEvent, fromBlock, toBlock, strict: true }),
+    client.getLogs({ address: launchpad, event: graduationAbortedEvent, fromBlock, toBlock, strict: true }),
+    client.getLogs({ address: launchpad, event: graduatedEvent, fromBlock, toBlock, strict: true }),
   ]);
   const timestamps = new Map();
+  const { supply, curveSupply } = supplies;
 
   await transaction(async (db) => {
-    const [replacedLaunches, replacedGraduations] = await Promise.all([
-      db.query(`SELECT token_address,curve_address FROM markets
-        WHERE chain_id=$1 AND orphaned=false AND launch_block BETWEEN $2 AND $3`,
-      [config.chainId, fromBlock.toString(), toBlock.toString()]),
+    const [replacedGraduations, replacedLifecycle] = await Promise.all([
       db.query(`SELECT token_address,pool_address FROM markets
         WHERE chain_id=$1 AND pool_address IS NOT NULL AND graduation_block BETWEEN $2 AND $3`,
       [config.chainId, fromBlock.toString(), toBlock.toString()]),
+      db.query(`SELECT DISTINCT token_address FROM markets m JOIN chain_logs l
+          ON l.chain_id=m.chain_id AND l.address=$4 AND l.orphaned=false AND l.block_number BETWEEN $2 AND $3
+          AND l.topic0=ANY($5::text[]) AND l.topics->>1=('0x' || lpad(substr(m.token_address,3),64,'0'))
+        WHERE m.chain_id=$1 AND m.orphaned=false`,
+      [config.chainId, fromBlock.toString(), toBlock.toString(), lower(launchpad), lifecycleTopics]),
     ]);
-    const replacedCurves = replacedLaunches.rows.map((row) => row.curve_address);
     const replacedPools = replacedGraduations.rows.map((row) => row.pool_address);
     const replacedGraduatedTokens = replacedGraduations.rows.map((row) => row.token_address);
     await db.query(
-      "UPDATE chain_logs SET orphaned = true WHERE chain_id = $1 AND block_number BETWEEN $2 AND $3 AND address = $4",
-      [config.chainId, fromBlock.toString(), toBlock.toString(), lower(config.factoryAddress)],
+      "UPDATE chain_logs SET orphaned = true WHERE chain_id = $1 AND block_number BETWEEN $2 AND $3 AND address = $4 AND topic0 = ANY($5::text[])",
+      [config.chainId, fromBlock.toString(), toBlock.toString(), lower(launchpad), lifecycleTopics],
     );
     await db.query(
       "UPDATE markets SET orphaned=true WHERE chain_id=$1 AND launch_block BETWEEN $2 AND $3",
       [config.chainId, fromBlock.toString(), toBlock.toString()],
     );
     await db.query(
-      "UPDATE markets SET graduated=false,state='live',pool_address=NULL,graduation_block=NULL,graduated_at=NULL WHERE chain_id=$1 AND graduation_block BETWEEN $2 AND $3",
+      "UPDATE markets SET graduated=false,pool_address=NULL,graduation_block=NULL,graduated_at=NULL WHERE chain_id=$1 AND graduation_block BETWEEN $2 AND $3",
       [config.chainId, fromBlock.toString(), toBlock.toString()],
     );
-    if (replacedCurves.length) {
-      await db.query("DELETE FROM protocol_accounts WHERE chain_id=$1 AND role='curve' AND address=ANY($2::text[])",
-        [config.chainId, replacedCurves]);
-    }
     if (replacedPools.length) {
       await db.query("DELETE FROM protocol_accounts WHERE chain_id=$1 AND role='pool' AND address=ANY($2::text[])",
         [config.chainId, replacedPools]);
@@ -364,67 +380,47 @@ async function indexFactoryRange(fromBlock, toBlock) {
       const block = await blockFor(log.blockNumber, timestamps);
       await recordBlock(db, block);
       const launchedAt = new Date(Number(block.timestamp) * 1_000);
-      const curveAddress = log.args.curve;
-      const [supply, curveSupply, reserveAmount, initialVQ, feeBps, creatorShareBps, buybackShareBps, creatorTaxBps] = await Promise.all([
-        "supply", "curveSupply", "reserveAmount", "initialVQ", "feeBps", "creatorShareBps", "buybackShareBps", "creatorTaxBps",
-      ].map((functionName) => client.readContract({ address: curveAddress, abi: curveConfigAbi, functionName, blockNumber: log.blockNumber })));
-      const graduationTarget = initialVQ * curveSupply / (supply - curveSupply);
+      // The starting virtual quote isn't in the event; the market snapshot holds it from launch on.
+      const market = await client.readContract({ address: launchpad, abi: launchpadAbi, functionName: "market", args: [log.args.token], blockNumber: log.blockNumber });
+      const initialVirtualQuote = market.initialVirtualQuote;
+      const graduationTarget = initialVirtualQuote * curveSupply / (supply - curveSupply);
+      const reserveTokens = log.args.reserveTokens;
       await db.query(
         `INSERT INTO markets
-          (chain_id, token_address, curve_address, creator_address, name, symbol, metadata_uri,
-           launch_tx_hash, launch_log_index, launch_block, launched_at,total_supply,curve_supply,reserve_amount,
-           initial_virtual_quote,graduation_target_quote,fee_bps,creator_fee_share_bps,buyback_fee_share_bps,creator_tax_bps,orphaned)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,false)
+          (chain_id, token_address, launchpad_address, creator_address, name, symbol, metadata_uri,
+           launch_tx_hash, launch_log_index, launch_block, launched_at,total_supply,curve_supply,reserve_amount,reserve_bps,
+           initial_virtual_quote,graduation_target_quote,fee_bps,creator_fee_share_bps,buyback_fee_share_bps,creator_tax_bps,
+           state,ready_at,orphaned)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,'trading',NULL,false)
          ON CONFLICT (chain_id, token_address) DO UPDATE SET
-           curve_address = EXCLUDED.curve_address, creator_address = EXCLUDED.creator_address,
+           launchpad_address = EXCLUDED.launchpad_address, creator_address = EXCLUDED.creator_address,
            name = EXCLUDED.name, symbol = EXCLUDED.symbol, metadata_uri = EXCLUDED.metadata_uri,
            launch_tx_hash = EXCLUDED.launch_tx_hash, launch_log_index = EXCLUDED.launch_log_index,
            launch_block = EXCLUDED.launch_block, launched_at = EXCLUDED.launched_at,total_supply=EXCLUDED.total_supply,
-           curve_supply=EXCLUDED.curve_supply,reserve_amount=EXCLUDED.reserve_amount,
+           curve_supply=EXCLUDED.curve_supply,reserve_amount=EXCLUDED.reserve_amount,reserve_bps=EXCLUDED.reserve_bps,
            initial_virtual_quote=EXCLUDED.initial_virtual_quote,graduation_target_quote=EXCLUDED.graduation_target_quote,
            fee_bps=EXCLUDED.fee_bps,creator_fee_share_bps=EXCLUDED.creator_fee_share_bps,
            buyback_fee_share_bps=EXCLUDED.buyback_fee_share_bps,creator_tax_bps=EXCLUDED.creator_tax_bps,
-           state='live', orphaned = false`,
-        [config.chainId, lower(log.args.token), lower(log.args.curve), lower(log.args.creator), log.args.name,
+           state='trading', ready_at=NULL, orphaned = false`,
+        [config.chainId, lower(log.args.token), lower(launchpad), lower(log.args.creator), log.args.name,
           log.args.symbol, log.args.uri, lower(log.transactionHash), log.logIndex, log.blockNumber.toString(), launchedAt,
-          supply.toString(), curveSupply.toString(), reserveAmount.toString(), initialVQ.toString(), graduationTarget.toString(),
-          Number(feeBps), Number(creatorShareBps), Number(buybackShareBps), Number(creatorTaxBps)],
+          supply.toString(), curveSupply.toString(), reserveTokens.toString(), Number(reserveTokens * 10_000n / supply),
+          initialVirtualQuote.toString(), graduationTarget.toString(), Number(log.args.feeBps),
+          Number(log.args.creatorShareBps), Number(log.args.buybackShareBps), Number(log.args.taxBps)],
       );
       await db.query(`INSERT INTO assets (chain_id,address,name,symbol,decimals,metadata_uri)
         VALUES ($1,$2,$3,$4,18,$5) ON CONFLICT (chain_id,address) DO UPDATE SET
         name=EXCLUDED.name,symbol=EXCLUDED.symbol,metadata_uri=EXCLUDED.metadata_uri,updated_at=now()`,
       [config.chainId, lower(log.args.token), log.args.name, log.args.symbol, log.args.uri]);
-      await db.query(`INSERT INTO protocol_accounts (chain_id,address,role,label,is_user_attributable)
-        VALUES ($1,$2,'curve','Bonding curve',false) ON CONFLICT DO NOTHING`,
-      [config.chainId, lower(log.args.curve)]);
       const eventId = logicalId(log);
       await db.query(`INSERT INTO notification_outbox (event_key,topic,payload)
         VALUES ($1,'launch',$2::jsonb) ON CONFLICT (event_key) DO NOTHING`,
       [`chain:${config.chainId}:launch:${eventId}`, JSON.stringify({ id: eventId, type: "launch", tokenAddress: lower(log.args.token) })]);
     }
 
-    for (const log of reserves) {
+    for (const log of [...readies, ...aborts]) {
       await recordOccurrence(db, log);
-      const block = await blockFor(log.blockNumber, timestamps);
-      await recordBlock(db, block);
-      await db.query("UPDATE markets SET reserve_bps=$1,reserve_amount=$2 WHERE chain_id=$3 AND token_address=$4",
-        [Number(log.args.reserveBps), log.args.amount.toString(), config.chainId, lower(log.args.token)]);
-    }
-
-    for (const log of graduationStarts) {
-      await recordOccurrence(db, log);
-      const block = await blockFor(log.blockNumber, timestamps);
-      await recordBlock(db, block);
-      await db.query("UPDATE markets SET state='ready' WHERE chain_id=$1 AND token_address=$2",
-        [config.chainId, lower(log.args.token)]);
-    }
-
-    for (const log of graduationDeferrals) {
-      await recordOccurrence(db, log);
-      const block = await blockFor(log.blockNumber, timestamps);
-      await recordBlock(db, block);
-      await db.query("UPDATE markets SET state='deferred' WHERE chain_id=$1 AND token_address=$2 AND graduated=false",
-        [config.chainId, lower(log.args.token)]);
+      await recordBlock(db, await blockFor(log.blockNumber, timestamps));
     }
 
     for (const log of graduations) {
@@ -432,7 +428,7 @@ async function indexFactoryRange(fromBlock, toBlock) {
       const block = await blockFor(log.blockNumber, timestamps);
       await recordBlock(db, block);
       await db.query(
-        "UPDATE markets SET graduated=true,state='graduated',pool_address=$1,graduation_block=$2,graduated_at=$3 WHERE chain_id=$4 AND token_address=$5",
+        "UPDATE markets SET graduated=true,pool_address=$1,graduation_block=$2,graduated_at=$3 WHERE chain_id=$4 AND token_address=$5",
         [lower(log.args.pool), log.blockNumber.toString(), new Date(Number(block.timestamp) * 1_000), config.chainId, lower(log.args.token)],
       );
       await db.query(`INSERT INTO protocol_accounts (chain_id,address,role,label,is_user_attributable)
@@ -453,6 +449,20 @@ async function indexFactoryRange(fromBlock, toBlock) {
       [`chain:${config.chainId}:graduation:${eventId}`, JSON.stringify({ id: eventId, type: "graduation", tokenAddress: lower(log.args.token) })]);
     }
 
+    // The lifecycle (trading, ready, aborted, graduated) and readyAt are read from the launchpad as of this
+    // range's end for every market an event touched, so a replayed or reorged range can't leave them stale.
+    const touched = new Set([
+      ...replacedLifecycle.rows.map((row) => row.token_address),
+      ...replacedGraduatedTokens,
+      ...[...launches, ...readies, ...aborts, ...graduations].map((log) => lower(log.args.token)),
+    ]);
+    for (const token of touched) {
+      const market = await client.readContract({ address: launchpad, abi: launchpadAbi, functionName: "market", args: [token], blockNumber: toBlock });
+      if (market.creator === "0x0000000000000000000000000000000000000000") continue;
+      await db.query("UPDATE markets SET state=$1,ready_at=$2 WHERE chain_id=$3 AND token_address=$4",
+        [MARKET_STATES[market.state] ?? "trading", market.readyAt ? new Date(Number(market.readyAt) * 1_000) : null, config.chainId, token]);
+    }
+
     await db.query(
       `INSERT INTO chain_cursors (chain_id, stream, next_block) VALUES ($1,'factory',$2)
        ON CONFLICT (chain_id, stream) DO UPDATE SET next_block = EXCLUDED.next_block, updated_at = now()`,
@@ -462,37 +472,20 @@ async function indexFactoryRange(fromBlock, toBlock) {
 }
 
 async function indexTradeRange(fromBlock, toBlock, onEvent) {
-  const [markets, existing] = await Promise.all([
-    pool.query("SELECT curve_address FROM markets WHERE chain_id = $1 AND orphaned = false", [config.chainId]),
-    pool.query(`SELECT DISTINCT curve_address FROM trades
-      WHERE chain_id=$1 AND orphaned=false AND block_number BETWEEN $2 AND $3`,
-    [config.chainId, fromBlock.toString(), toBlock.toString()]),
-  ]);
-  const currentAddresses = markets.rows.map((row) => row.curve_address);
-  const addresses = [...new Set([...currentAddresses, ...existing.rows.map((row) => row.curve_address)])];
-  if (!addresses.length) {
-    await pool.query(`INSERT INTO chain_cursors (chain_id,stream,next_block) VALUES ($1,'trades',$2)
-      ON CONFLICT (chain_id,stream) DO UPDATE SET next_block=EXCLUDED.next_block,updated_at=now()`,
-    [config.chainId, (toBlock + 1n).toString()]);
-    return;
-  }
-
-  const logs = [];
-  for (let index = 0; index < currentAddresses.length; index += 100) {
-    logs.push(...await client.getLogs({ address: currentAddresses.slice(index, index + 100), event: tradeEvent, fromBlock, toBlock, strict: true }));
-  }
+  const launchpad = lower(config.launchpadAddress);
+  const logs = await client.getLogs({ address: config.launchpadAddress, event: tradeEvent, fromBlock, toBlock, strict: true });
   logs.sort((left, right) => Number(left.blockNumber - right.blockNumber) || left.logIndex - right.logIndex);
   const timestamps = new Map();
   const emitted = [];
 
   await transaction(async (db) => {
     await db.query(
-      "UPDATE chain_logs SET orphaned = true WHERE chain_id = $1 AND block_number BETWEEN $2 AND $3 AND address = ANY($4::text[])",
-      [config.chainId, fromBlock.toString(), toBlock.toString(), addresses],
+      "UPDATE chain_logs SET orphaned = true WHERE chain_id = $1 AND block_number BETWEEN $2 AND $3 AND address = $4 AND topic0 = $5",
+      [config.chainId, fromBlock.toString(), toBlock.toString(), launchpad, tradeTopic],
     );
     const replaced = await db.query(
-      "SELECT logical_id FROM trades WHERE chain_id=$1 AND block_number BETWEEN $2 AND $3 AND curve_address=ANY($4::text[]) AND orphaned=false",
-      [config.chainId, fromBlock.toString(), toBlock.toString(), addresses],
+      "SELECT logical_id FROM trades WHERE chain_id=$1 AND block_number BETWEEN $2 AND $3 AND launchpad_address=$4 AND orphaned=false",
+      [config.chainId, fromBlock.toString(), toBlock.toString(), launchpad],
     );
     const replacedIds = replaced.rows.map((row) => row.logical_id);
     if (replacedIds.length) {
@@ -502,8 +495,8 @@ async function indexTradeRange(fromBlock, toBlock, onEvent) {
       )`, [config.chainId, replacedIds]);
     }
     await db.query(
-      "UPDATE trades SET orphaned = true WHERE chain_id = $1 AND block_number BETWEEN $2 AND $3 AND curve_address = ANY($4::text[])",
-      [config.chainId, fromBlock.toString(), toBlock.toString(), addresses],
+      "UPDATE trades SET orphaned = true WHERE chain_id = $1 AND block_number BETWEEN $2 AND $3 AND launchpad_address = $4",
+      [config.chainId, fromBlock.toString(), toBlock.toString(), launchpad],
     );
 
     for (const log of logs) {
@@ -512,20 +505,24 @@ async function indexTradeRange(fromBlock, toBlock, onEvent) {
       const block = await blockFor(log.blockNumber, timestamps);
       await recordBlock(db, block);
       const occurredAt = new Date(Number(block.timestamp) * 1_000);
+      // quoteAmount is what the trader paid on a buy (fee and tax included) or received on a sell; the
+      // curve-side quote and the sold amount follow from it and the post-trade virtual token reserve.
+      const { isBuy, quoteAmount, fee, tax, tokenAmount, virtualToken, virtualQuote } = log.args;
+      const curveQuote = isBuy ? quoteAmount - fee - tax : quoteAmount + fee + tax;
+      const soldAfter = supplies.supply - virtualToken;
       await db.query(
         `INSERT INTO trades
           (logical_id, chain_id, block_hash, block_number, transaction_hash, transaction_index, log_index,
-           token_address, curve_address, trader_address, is_buy, gross_curve_quote,
+           token_address, launchpad_address, trader_address, is_buy, gross_curve_quote,
            net_trader_quote, fee_quote, creator_tax_quote, token_amount, virtual_quote_after,
            virtual_token_after, sold_after, block_timestamp, orphaned)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,false)
          ON CONFLICT (logical_id) DO UPDATE SET block_hash = EXCLUDED.block_hash,
            block_number = EXCLUDED.block_number, block_timestamp = EXCLUDED.block_timestamp, orphaned = false`,
         [id, config.chainId, lower(log.blockHash), log.blockNumber.toString(), lower(log.transactionHash), log.transactionIndex ?? null, log.logIndex,
-          lower(log.args.token), lower(log.address), lower(log.args.trader), log.args.isBuy,
-          log.args.grossCurveQuote.toString(), log.args.netTraderQuote.toString(), log.args.feeQuote.toString(),
-          log.args.creatorTaxQuote.toString(), log.args.tokenAmount.toString(), log.args.vQAfter.toString(),
-          log.args.vTAfter.toString(), log.args.soldAfter.toString(), occurredAt],
+          lower(log.args.token), lower(log.address), lower(log.args.trader), isBuy,
+          curveQuote.toString(), quoteAmount.toString(), fee.toString(), tax.toString(), tokenAmount.toString(),
+          virtualQuote.toString(), virtualToken.toString(), soldAfter.toString(), occurredAt],
       );
       await db.query(
         `INSERT INTO notifications (chain_id, recipient_address, kind, actor_address, logical_event_id, payload)
@@ -545,8 +542,8 @@ async function indexTradeRange(fromBlock, toBlock, onEvent) {
       );
       const milestones = market.rows[0]?.curve_supply ? crossedCurveMilestones({
         isBuy: log.args.isBuy,
-        soldAfter: log.args.soldAfter,
-        tokenAmount: log.args.tokenAmount,
+        soldAfter,
+        tokenAmount,
         curveSupply: market.rows[0].curve_supply,
       }) : [];
       for (const milestone of milestones) {
@@ -581,8 +578,8 @@ async function indexTradeRange(fromBlock, toBlock, onEvent) {
     }
 
     const affectedPositions = await db.query(`SELECT DISTINCT trader_address,token_address FROM trades
-      WHERE chain_id=$1 AND block_number BETWEEN $2 AND $3 AND curve_address=ANY($4::text[])`,
-    [config.chainId, fromBlock.toString(), toBlock.toString(), addresses]);
+      WHERE chain_id=$1 AND block_number BETWEEN $2 AND $3 AND launchpad_address=$4`,
+    [config.chainId, fromBlock.toString(), toBlock.toString(), launchpad]);
     for (const position of affectedPositions.rows) {
       await rebuildCurvePosition(db, position.trader_address, position.token_address);
     }
@@ -647,19 +644,13 @@ async function indexLedgerRange(fromBlock, toBlock) {
     roles.set(row.role, current);
   }
   const role = (name) => roles.get(name) || [];
-  const [transfers, launchFees, feesAccrued, feesClaimed, poolFees, quoteCredits, memeCredits,
-    vestedClaims, buybacks, reserveRegistrations, reserveRounds, reserveClaims] = await Promise.all([
+  const [transfers, feesAccrued, feesClaimed, buybacks, lpFees, reserveRegistrations, reserveClaims] = await Promise.all([
     logsFor(tokens, transferEvent, fromBlock, toBlock),
-    logsFor([lower(config.factoryAddress)], launchFeePaidEvent, fromBlock, toBlock),
     logsFor(role("escrow"), feeAccruedEvent, fromBlock, toBlock),
     logsFor(role("escrow"), feeClaimedEvent, fromBlock, toBlock),
-    logsFor(role("hook"), poolFeesRoutedEvent, fromBlock, toBlock),
-    logsFor(role("vault"), quoteCreditedEvent, fromBlock, toBlock),
-    logsFor(role("vault"), memeCreditedEvent, fromBlock, toBlock),
-    logsFor(role("vault"), vestedClaimedEvent, fromBlock, toBlock),
-    logsFor(role("vault"), buybackExecutedEvent, fromBlock, toBlock),
+    logsFor(role("escrow"), buybackBurnedEvent, fromBlock, toBlock),
+    logsFor(role("locker"), lpFeesClaimedEvent, fromBlock, toBlock),
     logsFor(role("holderReserve"), reserveRegisteredEvent, fromBlock, toBlock),
-    logsFor(role("holderReserve"), roundCreatedEvent, fromBlock, toBlock),
     logsFor(role("holderReserve"), reserveClaimedEvent, fromBlock, toBlock),
   ]);
   const timestamps = new Map();
@@ -689,8 +680,6 @@ async function indexLedgerRange(fromBlock, toBlock) {
       [config.chainId, fromBlock.toString(), toBlock.toString()]);
     await db.query("UPDATE buyback_executions SET orphaned=true WHERE chain_id=$1 AND block_number BETWEEN $2 AND $3",
       [config.chainId, fromBlock.toString(), toBlock.toString()]);
-    await db.query("UPDATE reserve_rounds SET orphaned=true WHERE chain_id=$1 AND created_block BETWEEN $2 AND $3",
-      [config.chainId, fromBlock.toString(), toBlock.toString()]);
     await db.query("UPDATE reserve_claims SET orphaned=true WHERE chain_id=$1 AND block_number BETWEEN $2 AND $3",
       [config.chainId, fromBlock.toString(), toBlock.toString()]);
 
@@ -713,93 +702,66 @@ async function indexLedgerRange(fromBlock, toBlock) {
         log.transactionIndex ?? null, log.logIndex, lower(log.address), lower(log.args.from), lower(log.args.to),
         log.args.value.toString(), occurredAt]);
     }
-    for (const log of launchFees) {
-      const occurredAt = await occurrence(log);
-      await recordProtocolFlow(db, log, occurredAt, "launch_fee", {
-        fromAddress: lower(log.args.creator), toAddress: lower(log.args.treasury), amount: log.args.amount,
-      });
-    }
+    // One accrual per fee: amount is the whole fee, split as recorded in metadata. The creator's share
+    // is attributable to the market even though claims (below) pool across a creator's launches.
     for (const log of feesAccrued) {
       const occurredAt = await occurrence(log);
+      const { creatorAmount, buybackAmount, protocolAmount } = log.args;
       await recordProtocolFlow(db, log, occurredAt, "fee_accrued", {
-        marketTokenAddress: lower(log.args.launch), assetAddress: lower(log.args.asset),
-        toAddress: lower(log.args.recipient), amount: log.args.amount,
+        marketTokenAddress: lower(log.args.token), assetAddress: lower(log.args.asset), toAddress: lower(log.address),
+        amount: creatorAmount + buybackAmount + protocolAmount,
+        metadata: { creatorAmount: creatorAmount.toString(), buybackAmount: buybackAmount.toString(), protocolAmount: protocolAmount.toString() },
       });
     }
     for (const log of feesClaimed) {
       const occurredAt = await occurrence(log);
       await recordProtocolFlow(db, log, occurredAt, "fee_claimed", {
-        marketTokenAddress: lower(log.args.launch), assetAddress: lower(log.args.asset),
-        fromAddress: lower(log.address), toAddress: lower(log.args.recipient), amount: log.args.amount,
+        assetAddress: lower(log.args.asset), fromAddress: lower(log.address),
+        toAddress: lower(log.args.account), amount: log.args.amount,
       });
     }
-    for (const log of poolFees) {
+    for (const log of lpFees) {
       const occurredAt = await occurrence(log);
       await recordProtocolFlow(db, log, occurredAt, "pool_fee", {
-        marketTokenAddress: lower(log.args.token), assetAddress: lower(log.args.asset), amount: log.args.amount,
-        metadata: { poolAddress: lower(log.args.pool) },
-      });
-    }
-    for (const log of quoteCredits) {
-      const occurredAt = await occurrence(log);
-      await recordProtocolFlow(db, log, occurredAt, "quote_credited", {
-        marketTokenAddress: lower(log.args.launch), assetAddress: quoteAddress, toAddress: lower(log.address), amount: log.args.amount,
-      });
-    }
-    for (const log of memeCredits) {
-      const occurredAt = await occurrence(log);
-      await recordProtocolFlow(db, log, occurredAt, "meme_credited", {
-        marketTokenAddress: lower(log.args.launch), assetAddress: lower(log.args.launch), toAddress: lower(log.address), amount: log.args.amount,
-      });
-    }
-    for (const log of vestedClaims) {
-      const occurredAt = await occurrence(log);
-      await recordProtocolFlow(db, log, occurredAt, "vested_claim", {
-        marketTokenAddress: lower(log.args.launch), assetAddress: lower(log.args.launch), fromAddress: lower(log.address),
-        toAddress: lower(log.args.recipient), amount: log.args.amount,
+        marketTokenAddress: lower(log.args.token), assetAddress: quoteAddress, amount: log.args.quoteAmount,
+        metadata: { poolAddress: lower(log.args.pool), tokenAmount: log.args.tokenAmount.toString() },
       });
     }
     for (const log of buybacks) {
       const occurredAt = await occurrence(log);
+      const token = lower(log.args.token);
+      const poolResult = await db.query("SELECT pool_address FROM markets WHERE chain_id=$1 AND token_address=$2", [config.chainId, token]);
+      const poolAddress = poolResult.rows[0]?.pool_address || lower(log.address);
       const id = await recordProtocolFlow(db, log, occurredAt, "buyback", {
-        marketTokenAddress: lower(log.args.launch), assetAddress: quoteAddress, fromAddress: lower(log.address),
-        amount: log.args.quoteSpent, metadata: { venueAddress: lower(log.args.venue), tokensBought: log.args.tokensBought.toString() },
+        marketTokenAddress: token, assetAddress: quoteAddress, fromAddress: lower(log.address),
+        amount: log.args.quoteSpent, metadata: { poolAddress, tokensBurned: log.args.tokensBurned.toString() },
       });
       await db.query(`INSERT INTO buyback_executions
           (logical_id,chain_id,token_address,venue_address,quote_spent,tokens_bought,transaction_hash,block_number,block_timestamp,orphaned)
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,false) ON CONFLICT (logical_id) DO UPDATE SET
           orphaned=false,block_number=EXCLUDED.block_number,block_timestamp=EXCLUDED.block_timestamp`,
-      [id, config.chainId, lower(log.args.launch), lower(log.args.venue), log.args.quoteSpent.toString(),
-        log.args.tokensBought.toString(), lower(log.transactionHash), log.blockNumber.toString(), occurredAt]);
+      [id, config.chainId, token, poolAddress, log.args.quoteSpent.toString(),
+        log.args.tokensBurned.toString(), lower(log.transactionHash), log.blockNumber.toString(), occurredAt]);
     }
     for (const log of reserveRegistrations) {
       const occurredAt = await occurrence(log);
       await recordProtocolFlow(db, log, occurredAt, "reserve_registered", {
         marketTokenAddress: lower(log.args.token), assetAddress: lower(log.args.token), toAddress: lower(log.address),
-        amount: log.args.amount, metadata: { creatorAddress: lower(log.args.creator) },
+        amount: log.args.amount,
       });
     }
-    for (const log of reserveRounds) {
-      const occurredAt = await occurrence(log);
-      await db.query(`INSERT INTO reserve_rounds
-          (chain_id,token_address,round_id,snapshot_block,amount,eligible_supply,transaction_hash,created_block,created_at,orphaned)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,false) ON CONFLICT (chain_id,token_address,round_id) DO UPDATE SET
-          snapshot_block=EXCLUDED.snapshot_block,amount=EXCLUDED.amount,eligible_supply=EXCLUDED.eligible_supply,
-          transaction_hash=EXCLUDED.transaction_hash,created_block=EXCLUDED.created_block,created_at=EXCLUDED.created_at,orphaned=false`,
-      [config.chainId, lower(log.args.token), log.args.roundId.toString(), log.args.snapshotBlock.toString(),
-        log.args.amount.toString(), log.args.eligibleSupply.toString(), lower(log.transactionHash), log.blockNumber.toString(), occurredAt]);
-    }
+    // The lean reserve has no rounds: each curve buyer claims once, so round_id is always 0.
     for (const log of reserveClaims) {
       const occurredAt = await occurrence(log);
       const id = await recordProtocolFlow(db, log, occurredAt, "reserve_claim", {
         marketTokenAddress: lower(log.args.token), assetAddress: lower(log.args.token), fromAddress: lower(log.address),
-        toAddress: lower(log.args.holder), amount: log.args.amount, metadata: { roundId: log.args.roundId.toString() },
+        toAddress: lower(log.args.account), amount: log.args.amount,
       });
       await db.query(`INSERT INTO reserve_claims
           (logical_id,chain_id,token_address,round_id,holder_address,amount,transaction_hash,block_number,claimed_at,orphaned)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,false) ON CONFLICT (logical_id) DO UPDATE SET
+        VALUES ($1,$2,$3,0,$4,$5,$6,$7,$8,false) ON CONFLICT (logical_id) DO UPDATE SET
           orphaned=false,block_number=EXCLUDED.block_number,claimed_at=EXCLUDED.claimed_at`,
-      [id, config.chainId, lower(log.args.token), log.args.roundId.toString(), lower(log.args.holder),
+      [id, config.chainId, lower(log.args.token), lower(log.args.account),
         log.args.amount.toString(), lower(log.transactionHash), log.blockNumber.toString(), occurredAt]);
     }
     for (const address of affectedWallets) await refreshPerformanceSnapshot(db, address, toBlock);

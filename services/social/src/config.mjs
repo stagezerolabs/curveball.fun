@@ -38,8 +38,10 @@ function metadataConfiguration() {
   return { gateway: gateway.endsWith("/") ? gateway : `${gateway}/`, hosts };
 }
 
-const factory = required("SOCIAL_FACTORY_ADDRESS");
-if (!isAddress(factory)) throw new Error("SOCIAL_FACTORY_ADDRESS is invalid.");
+// SOCIAL_FACTORY_ADDRESS is the pre-launchpad name, still accepted so existing env files keep working.
+const launchpad = process.env.SOCIAL_LAUNCHPAD_ADDRESS?.trim() || process.env.SOCIAL_FACTORY_ADDRESS?.trim();
+if (!launchpad) throw new Error("SOCIAL_LAUNCHPAD_ADDRESS is required.");
+if (!isAddress(launchpad)) throw new Error("SOCIAL_LAUNCHPAD_ADDRESS is invalid.");
 const admin = process.env.SOCIAL_ADMIN_ADDRESS?.trim() || "0x5cc42e772f67089b4670eec4dcd904be2f2d511c";
 if (!isAddress(admin)) throw new Error("SOCIAL_ADMIN_ADDRESS is invalid.");
 const metadata = metadataConfiguration();
@@ -53,7 +55,7 @@ export const config = Object.freeze({
   chainId: positiveInteger("SOCIAL_CHAIN_ID", 4153),
   chainName: process.env.SOCIAL_CHAIN_NAME?.trim() || "Rise",
   nativeSymbol: process.env.SOCIAL_NATIVE_SYMBOL?.trim() || "ETH",
-  factoryAddress: getAddress(factory),
+  launchpadAddress: getAddress(launchpad),
   adminAddress: getAddress(admin).toLowerCase(),
   protocolAccounts: protocolAccounts(process.env.SOCIAL_PROTOCOL_ACCOUNTS),
   deploymentBlock: BigInt(required("SOCIAL_DEPLOYMENT_BLOCK")),

@@ -26,7 +26,7 @@ export type SocialTrade = {
   tokenAddress: Address;
   tokenName: string;
   tokenSymbol: string;
-  curveAddress: Address;
+  launchpadAddress: Address;
   displayName: string | null;
   note: string | null;
   reactionCount: number;
