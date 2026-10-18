@@ -6,11 +6,10 @@ import { LaunchPreview } from "../components/LaunchPreview";
 import { useStore } from "../app/useStore.js";
 import { useAccount, useReadContract } from "wagmi";
 import { formatEther, parseEther } from "viem";
-import { factoryAbi } from "../sdk/contracts";
+import { curveLaunchpadAbi } from "../sdk/contracts";
 import { activeChainId, activeExplorerUrl, launchpadAddress } from "../lib/web3";
-import { canSubmitLaunch } from "../lib/launchForm";
+import { canSubmitLaunch, percentToBps } from "../lib/launchForm";
 import { publishTokenMetadata, uploadArtworkImage } from "../lib/artworkUpload";
-import { getBetaReadEnabled, selectMarketState } from "../lib/marketState";
 import type { Navigate } from "../types";
 
 type LaunchPhase = "preparing" | "wrapWallet" | "wrapConfirming" | "approveWallet" | "approveConfirming" | "wallet" | "confirming" | "pending" | "success" | "error";
@@ -36,7 +35,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
   const [draftName, setDraftName] = useState("");
   const [draftSymbol, setDraftSymbol] = useState("");
   const [draftTaxPercent, setDraftTaxPercent] = useState("0");
-  const [draftReservePercent, setDraftReservePercent] = useState("5");
+  const [draftReservePercent, setDraftReservePercent] = useState("4");
   const [draftInitialBuy, setDraftInitialBuy] = useState("");
   const [feeAccepted, setFeeAccepted] = useState(false);
   const [draftImageUrl, setDraftImageUrl] = useState<string>();
@@ -48,66 +47,19 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
   const [imageError, setImageError] = useState("");
   const { address } = useAccount();
   const { openConnectModal } = useConnectModal();
-  const betaReadEnabled = getBetaReadEnabled({
-    walletConnected: Boolean(address),
-    hasLaunchpadAddress: Boolean(launchpadAddress),
-  });
-  const { data: publicOpen } = useReadContract({
-    address: launchpadAddress ?? undefined, abi: factoryAbi,
-    functionName: "publicLaunchOpen", chainId: activeChainId,
-    query: { enabled: betaReadEnabled.publicLaunchOpen },
-  });
-  const { data: invited } = useReadContract({
-    address: launchpadAddress ?? undefined, abi: factoryAbi,
-    functionName: "invited", args: [address!], chainId: activeChainId,
-    query: { enabled: betaReadEnabled.invited },
-  });
-  const { data: tokenSupply, isError: supplyError } = useReadContract({
-    address: launchpadAddress ?? undefined,
-    abi: factoryAbi,
-    functionName: "supply",
-    chainId: activeChainId,
-    query: { enabled: Boolean(launchpadAddress) },
-  });
-  const { data: curveSupply } = useReadContract({
-    address: launchpadAddress ?? undefined, abi: factoryAbi,
-    functionName: "curveSupply", chainId: activeChainId,
-    query: { enabled: Boolean(launchpadAddress) },
-  });
-  const { data: holderReserveAddress, isPending: reserveCheckPending, isError: reserveCheckError } = useReadContract({
-    address: launchpadAddress ?? undefined, abi: factoryAbi,
-    functionName: "holderReserve", chainId: activeChainId,
-    query: { enabled: Boolean(launchpadAddress), retry: false },
-  });
-  const reserveSupported = Boolean(holderReserveAddress);
-  const reserveCheckReady = reserveSupported && !reserveCheckPending && !reserveCheckError;
-  const { data: buybackShareBps, isError: buybackError } = useReadContract({
-    address: launchpadAddress ?? undefined,
-    abi: factoryAbi,
-    functionName: "buybackShareBps",
-    chainId: activeChainId,
-    query: { enabled: Boolean(launchpadAddress) },
-  });
-  const { data: creatorTaxCapBps } = useReadContract({
-    address: launchpadAddress ?? undefined,
-    abi: factoryAbi,
-    functionName: "creatorTaxCapBps",
-    chainId: activeChainId,
-    query: { enabled: Boolean(launchpadAddress) },
-  });
-  const { data: onchainLaunchFee, isError: launchFeeError } = useReadContract({
-    address: launchpadAddress ?? undefined,
-    abi: factoryAbi,
-    functionName: "launchFee",
-    chainId: activeChainId,
-    query: { enabled: Boolean(launchpadAddress) },
-  });
+  const launchpadRead = { address: launchpadAddress ?? undefined, abi: curveLaunchpadAbi, chainId: activeChainId, query: { enabled: Boolean(launchpadAddress) } } as const;
+  const { data: tokenSupply, isError: supplyError } = useReadContract({ ...launchpadRead, functionName: "SUPPLY" });
+  const { data: curveSupply } = useReadContract({ ...launchpadRead, functionName: "CURVE_SUPPLY" });
+  const { data: maxReserveBps, isError: reserveCapError } = useReadContract({ ...launchpadRead, functionName: "MAX_RESERVE_BPS" });
+  const { data: feeDefaults, isError: feeDefaultsError } = useReadContract({ ...launchpadRead, functionName: "feeDefaults" });
+  const { data: paused } = useReadContract({ ...launchpadRead, functionName: "paused" });
+  const { data: onchainLaunchFee, isError: launchFeeError } = useReadContract({ ...launchpadRead, functionName: "launchFee" });
   const launchFee = onchainLaunchFee;
-  const { canCreate } = selectMarketState({
-    walletConnected: Boolean(address),
-    publicLaunchOpen: publicOpen,
-    invited,
-  });
+  const buybackShareBps = feeDefaults?.[2];
+  const creatorTaxCapBps = feeDefaults?.[3];
+  const maxReservePercent = maxReserveBps === undefined ? null : Number(maxReserveBps) / 100;
+  // The guardian's pause stops new launches (and buys); nothing else gates who may launch.
+  const canCreate = Boolean(address) && paused === false;
   const { createToken: create, isPending, launchProgress, clearLaunchProgress } = useStore() as {
     createToken: (event: React.FormEvent<HTMLFormElement>) => Promise<void>;
     isPending: boolean;
@@ -183,15 +135,19 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
   }, [launchProgress?.phase, navigate, clearLaunchProgress]);
 
   const phase = launchProgress?.phase;
-  const draftTaxBps = Math.round(Number(draftTaxPercent || "0") * 100);
-  const formReady = reserveCheckReady && !imageError && canSubmitLaunch({
+  const draftTaxBps = percentToBps(draftTaxPercent || "0") ?? 0;
+  const draftReserveBps = percentToBps(draftReservePercent) ?? 0;
+  const formReady = !imageError && canSubmitLaunch({
     name: draftName,
     symbol: draftSymbol,
     initialBuy: draftInitialBuy,
     launchFee,
     feeAccepted,
-    artworkSelected: Boolean(artworkFile),
     artworkUri: publishedUri,
+    taxPercent: draftTaxPercent,
+    reservePercent: draftReservePercent,
+    maxReserveBps: maxReserveBps === undefined ? undefined : Number(maxReserveBps),
+    taxCapBps: creatorTaxCapBps,
   });
   let launchTotal: string | null = null;
   if (launchFee !== undefined && launchFee > 0n && draftInitialBuy.trim()) {
@@ -250,7 +206,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
           imageUrl={draftImageUrl}
           supply={tokenSupply}
           curveSupply={curveSupply}
-          reserveBps={reserveSupported ? Math.round(Number(draftReservePercent) * 100) : 0}
+          reserveBps={draftReserveBps}
           supplyUnavailable={supplyError || !launchpadAddress}
         />
         <form className="launch-form" onSubmit={submitLaunch}>
@@ -322,31 +278,32 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                     <i>%</i>
                   </span>
                 </label>
-                {reserveSupported && <label className="launch-field-wide">
-                  <span>Holder airdrop reserve <b>0–5%</b></span>
+                <label className="launch-field-wide">
+                  <span>Holder reserve <b>0–{maxReservePercent ?? "…"}%</b></span>
                   <span className="launch-unit-input">
-                    <input name="holderReservePercent" type="number" min="0" max="5" step="0.01" inputMode="decimal" required value={draftReservePercent} onChange={(event) => setDraftReservePercent(event.target.value)} />
+                    <input name="holderReservePercent" type="number" min="0" max={maxReservePercent ?? undefined} step="0.01" inputMode="decimal" required value={draftReservePercent} onChange={(event) => setDraftReservePercent(event.target.value)} />
                     <i>%</i>
                   </span>
-                  <small>Held for creator-triggered, holder-claimable airdrops after graduation. This reduces pool tokens, not curve sale tokens.</small>
-                </label>}
-                {reserveSupported && tokenSupply !== undefined && Number.isFinite(Number(draftReservePercent)) && <div className="launch-pair-field">
+                  <small>After graduation, every curve buyer can claim a share in proportion to the tokens they bought on the curve. This reduces pool tokens, not curve sale tokens.</small>
+                </label>
+                {tokenSupply !== undefined && Number.isFinite(Number(draftReservePercent)) && <div className="launch-pair-field">
                   <span>Reserved tokens</span>
                   <strong>{(Number(formatEther(tokenSupply)) * Number(draftReservePercent) / 100).toLocaleString()}</strong>
                 </div>}
                 <div className="launch-pair-field">
                   <span>Buyback</span>
-                  <strong>{buybackShareBps == null ? buybackError ? "Unavailable" : "Loading…" : `${Number(buybackShareBps) / 100}% of trading fee`}</strong>
+                  <strong>{buybackShareBps == null ? feeDefaultsError ? "Unavailable" : "Loading…" : `${Number(buybackShareBps) / 100}% of trading fee`}</strong>
                 </div>
               </div>
             </details>
             <input type="hidden" name="creatorTaxBps" value={draftTaxBps} />
-            <input type="hidden" name="holderReserveBps" value={reserveSupported ? Math.round(Number(draftReservePercent) * 100) : 0} />
+            <input type="hidden" name="holderReserveBps" value={draftReserveBps} />
             <input type="hidden" name="uri" value={publishedUri} />
 
-            {address && !canCreate && <p className="notice" role="status">{publicOpen === false && invited === false ? "This factory is invite-only." : "Checking launch access…"}</p>}
+            {address && paused === true && <p className="notice" role="status">New launches are paused by the guardian. Existing markets keep trading.</p>}
+            {!artworkFile && <p className="launch-field-help" role="status">Add artwork to launch: it is published with the token's metadata.</p>}
             {launchFeeError && <p className="notice" role="alert">Could not verify the launch fee. Try again before launching.</p>}
-            {!reserveCheckReady && <p className="notice" role="alert">Could not verify holder reserve support. Retry before launching.</p>}
+            {(reserveCapError || feeDefaultsError) && <p className="notice" role="alert">Could not read the launch limits. Retry before launching.</p>}
             {launchFee === undefined && !launchFeeError && <p className="launch-field-help" role="status">Checking launch fee…</p>}
             {launchFee !== undefined && launchFee > 0n && (
               <label className="launch-fee-consent">
@@ -361,7 +318,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                 onClick={!address ? () => openConnectModal?.() : undefined}
                 disabled={isPending || (Boolean(address) && (!canCreate || !formReady))}
               >
-                {isPending ? "Launching…" : !address ? "Connect wallet to launch" : artworkStatus === "uploading" ? "Uploading artwork…" : artworkStatus === "publishing" ? "Publishing artwork…" : artworkStatus === "error" ? "Artwork unavailable" : !canCreate ? "Checking access…" : !formReady ? "Complete form to launch" : "Launch token"} <ArrowIcon />
+                {isPending ? "Launching…" : !address ? "Connect wallet to launch" : artworkStatus === "uploading" ? "Uploading artwork…" : artworkStatus === "publishing" ? "Publishing artwork…" : artworkStatus === "error" ? "Artwork unavailable" : paused === true ? "Launches paused" : !canCreate ? "Checking launch status…" : !formReady ? "Complete form to launch" : "Launch token"} <ArrowIcon />
               </button>
             </div>
           </div>

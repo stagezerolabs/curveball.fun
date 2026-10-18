@@ -67,21 +67,21 @@ describe("buildBlockRanges", () => {
 });
 
 describe("chart RPC helpers", () => {
-  test("decodes trade volume from the gross curve quote", () => {
-    const reserves = { vQAfter: 4_000000000000000000n, vTAfter: 2_000000000000000000n };
-    expect(tradeLogToPoint({ ...reserves, grossCurveQuote: 3_000000000000000000n }, 100)).toEqual({
-      timestamp: 100,
-      price: 2,
-      volume: 3,
-    });
+  test("charts the curve-side volume of buys and sells at the post-trade price", () => {
+    const reserves = { virtualQuote: 4_000000000000000000n, virtualToken: 2_000000000000000000n };
+    // A buy's payment includes fee and tax; a sell's proceeds exclude them. Both move 3 WETH through the curve.
+    const buy = { ...reserves, isBuy: true, quoteAmount: 3_100000000000000000n, fee: 75_000000000000000n, tax: 25_000000000000000n };
+    const sell = { ...reserves, isBuy: false, quoteAmount: 2_900000000000000000n, fee: 75_000000000000000n, tax: 25_000000000000000n };
+    expect(tradeLogToPoint(buy, 100)).toEqual({ timestamp: 100, price: 2, volume: 3 });
+    expect(tradeLogToPoint(sell, 100)).toEqual({ timestamp: 100, price: 2, volume: 3 });
+    expect(tradeLogToPoint({ ...buy, fee: undefined }, 100)).toBeNull();
   });
 
   test("keeps the actual trader quote and event identity for buy and sell rows", () => {
     const trader = "0x0000000000000000000000000000000000000001";
     const transactionHash = `0x${"a".repeat(64)}` as `0x${string}`;
     const log = {
-      args: { trader, isBuy: false, tokenAmount: 2_000000000000000000n,
-        grossCurveQuote: 3_000000000000000000n, netTraderQuote: 2_700000000000000000n },
+      args: { trader, isBuy: false, tokenAmount: 2_000000000000000000n, quoteAmount: 2_700000000000000000n },
       blockNumber: 42n,
       logIndex: 1,
       transactionHash,
