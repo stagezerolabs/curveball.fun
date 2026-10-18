@@ -10,7 +10,7 @@ DOT_ADDRESS := 0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3
 
 export QUOTE_TOKEN ICARUS_FACTORY BLOCKSCOUT_API RISE_MAINNET_RPC_URL RISE_RPC_URL
 
-.PHONY: test abis require-fork-tests test-fork-strict test-fork-testnet verify-icarus require-production-config production-preflight deploy-production require-testnet-config testnet-preflight deploy-testnet
+.PHONY: test abis smoke-testnet require-fork-tests test-fork-strict test-fork-testnet verify-icarus require-production-config production-preflight deploy-production require-testnet-config testnet-preflight deploy-testnet
 
 # Fork suites need network access; they run only through the targets below.
 test:
@@ -75,3 +75,8 @@ deploy-testnet: testnet-preflight
 		--account "$(TESTNET_ACCOUNT)" --password-file "$(TESTNET_PASSWORD_FILE)" \
 		--verify --verifier blockscout --verifier-url "$(TESTNET_BLOCKSCOUT_VERIFIER_URL)" \
 		--retries 10 --delay 10
+
+# Runs one market through the recorded testnet deployment end to end (needs about 0.021 ETH).
+smoke-testnet: require-testnet-config
+	forge script scripts/Smoke.s.sol:Smoke --rpc-url "$(TESTNET_RPC_URL)" --broadcast --slow \
+		--account "$(TESTNET_ACCOUNT)" --password-file "$(TESTNET_PASSWORD_FILE)"
