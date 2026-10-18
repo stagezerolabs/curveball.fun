@@ -16,7 +16,9 @@ contract LaunchpadLaunchTest is Fixture {
         address predicted = launchpad.predictToken(creator);
         _fund(creator, LAUNCH_FEE);
         vm.expectEmit(address(launchpad));
-        emit CurveLaunchpad.LaunchCreated(predicted, creator, "Curve Meme", "MEME", "ipfs://meme", 50, 40_000 ether);
+        emit CurveLaunchpad.LaunchCreated(
+            predicted, creator, "Curve Meme", "MEME", "ipfs://meme", 75, 5_000, 2_500, 50, 40_000 ether
+        );
         vm.prank(creator);
         (address token, uint256 tokensOut) = launchpad.launch(_meta(), 50, 400, 0, 0);
 
@@ -97,6 +99,13 @@ contract LaunchpadLaunchTest is Fixture {
         vm.prank(creator);
         vm.expectRevert(CurveLaunchpad.Slippage.selector);
         launchpad.launch(_meta(), 0, 0, 0.1 ether, 1_000_000 ether);
+    }
+
+    function test_launch_rejectsMinOutWithoutAFirstBuy() public {
+        _fund(creator, LAUNCH_FEE);
+        vm.prank(creator);
+        vm.expectRevert(CurveLaunchpad.InvalidLaunch.selector);
+        launchpad.launch(_meta(), 0, 0, 0, 1);
     }
 
     function test_launch_revertsWhilePaused() public {

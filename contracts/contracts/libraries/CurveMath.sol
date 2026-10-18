@@ -65,7 +65,9 @@ library CurveMath {
         if (b.tokensOut == 0) revert ZeroOutput();
         b.fee = b.curveQuote * feeBps / BPS;
         b.tax = b.curveQuote * taxBps / BPS;
-        if (feeBps != 0 && b.fee == 0) revert DustTrade();
+        // The final fill is exempt: near sellout a buyer can leave so little that any fill's fee rounds
+        // to 0, and rejecting it would wedge the curve just short of graduation.
+        if (feeBps != 0 && b.fee == 0 && b.tokensOut != remaining) revert DustTrade();
         b.spent = b.curveQuote + b.fee + b.tax;
     }
 

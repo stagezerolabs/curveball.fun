@@ -120,6 +120,35 @@ contract LaunchpadTradeTest is Fixture {
         assertEq(launchpad.held(token, alice) + launchpad.held(token, bob), C);
     }
 
+    /// @dev The largest spend whose fill still leaves part of the curve unsold.
+    function _largestPartialSpend() internal view returns (uint256 lo) {
+        uint256 remaining = launchpad.market(token).virtualToken - (S - C);
+        uint256 hi = 100 ether;
+        while (lo + 1 < hi) {
+            uint256 mid = (lo + hi) / 2;
+            try launchpad.previewBuy(token, mid) returns (CurveMath.Buy memory b) {
+                if (b.tokensOut < remaining) lo = mid;
+                else hi = mid;
+            } catch {
+                lo = mid; // too small to fill anything
+            }
+        }
+    }
+
+    function test_sellout_cantBeWedgedByLeavingADustRemainder() public {
+        // Leave the smallest remainder a buy can: so little that any fill's fee rounds to 0.
+        _buy(alice, token, _largestPartialSpend());
+        uint256 remaining = launchpad.market(token).virtualToken - (S - C);
+        assertGt(remaining, 0);
+        assertLt(remaining * launchpad.market(token).virtualQuote / launchpad.market(token).virtualToken, 134);
+        assertEq(uint8(_market().state), uint8(CurveLaunchpad.State.Trading));
+
+        assertEq(launchpad.previewBuy(token, 100 ether).tokensOut, remaining);
+        _sellOut(bob, token);
+        assertEq(uint8(_market().state), uint8(CurveLaunchpad.State.Ready));
+        assertEq(launchpad.held(token, bob), remaining);
+    }
+
     function test_buy_inReady_reverts() public {
         _sellOut(alice, token);
         _fund(bob, 1 ether);

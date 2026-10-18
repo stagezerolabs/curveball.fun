@@ -159,6 +159,15 @@ contract CurveMathTest is Test {
         h.quoteBuy(S, 2.5 ether, C, 100, FEE, 0);
     }
 
+    function test_buy_finalDustFillIsExempt() public view {
+        // About 100 wei of curve quote for the last 4e6 token-wei: the fee rounds to 0 but it must fill.
+        CurveMath.Buy memory b = h.quoteBuy(S - C + 4e6, 5 ether, 4e6, 100 ether, FEE, 0);
+        assertEq(b.tokensOut, 4e6);
+        assertEq(b.fee, 0);
+        assertGt(b.curveQuote, 0);
+        assertEq(b.spent, b.curveQuote);
+    }
+
     function test_buy_rejectsOversizedSpend() public {
         vm.expectRevert(CurveMath.InvalidAmount.selector);
         h.quoteBuy(S, 2.5 ether, C, uint256(type(uint128).max) + 1, FEE, TAX);

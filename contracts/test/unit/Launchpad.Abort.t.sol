@@ -60,7 +60,11 @@ contract LaunchpadAbortTest is Fixture {
     function test_abort_isSticky_aResoldOutCurveStillSells() public {
         vm.warp(block.timestamp + timeout);
         _sell(alice, token, 1 ether);
-        _sellOut(alice, token);
+        _fund(alice, 100 ether);
+        vm.expectEmit(address(launchpad));
+        emit CurveLaunchpad.GraduationReady(token);
+        vm.prank(alice);
+        launchpad.buy(token, 100 ether, 0, block.timestamp);
         assertEq(_sold(), C);
         assertEq(uint8(_state()), uint8(CurveLaunchpad.State.Aborted), "re-selling out doesn't re-block sells");
         assertGt(_sell(bob, token, 1 ether), 0);

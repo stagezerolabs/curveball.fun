@@ -118,6 +118,9 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
         string name,
         string symbol,
         string uri,
+        uint16 feeBps,
+        uint16 creatorShareBps,
+        uint16 buybackShareBps,
         uint16 taxBps,
         uint256 reserveTokens
     );
@@ -207,6 +210,7 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
         _emitLaunch(token, meta, taxBps, reserveTokens);
 
         if (maxSpend != 0) tokensOut = _buy(token, maxSpend, minOut);
+        else if (minOut != 0) revert InvalidLaunch();
     }
 
     // ---------------------------------------------------------------- trade
@@ -444,9 +448,12 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
         m.realQuote += b.curveQuote.toUint128();
         totalRealQuote += b.curveQuote;
         held[token][msg.sender] += b.tokensOut;
-        if (b.tokensOut == remaining && state == State.Trading) {
-            m.state = State.Ready;
-            m.readyAt = uint40(block.timestamp);
+        if (b.tokensOut == remaining) {
+            // An Aborted market stays Aborted (sells stay open) but can graduate again.
+            if (state == State.Trading) {
+                m.state = State.Ready;
+                m.readyAt = uint40(block.timestamp);
+            }
             emit GraduationReady(token);
         }
 
@@ -485,7 +492,19 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
 
     /// @dev Its own frame: emitting three calldata strings inside `launch` runs out of stack.
     function _emitLaunch(address token, Metadata calldata meta, uint16 taxBps, uint256 reserveTokens) internal {
-        emit LaunchCreated(token, msg.sender, meta.name, meta.symbol, meta.uri, taxBps, reserveTokens);
+        Market storage m = markets[token];
+        emit LaunchCreated(
+            token,
+            msg.sender,
+            meta.name,
+            meta.symbol,
+            meta.uri,
+            m.feeBps,
+            m.creatorShareBps,
+            m.buybackShareBps,
+            taxBps,
+            reserveTokens
+        );
     }
 
     function _salt(address creator, uint256 nonce) internal pure returns (bytes32) {
