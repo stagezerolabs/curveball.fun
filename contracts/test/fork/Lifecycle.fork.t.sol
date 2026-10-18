@@ -11,8 +11,14 @@ interface IWETH {
     function deposit() external payable;
 }
 
+interface IIcarusPausable {
+    function pauser() external view returns (address);
+    function setPauseState(bool state) external;
+}
+
 /// @dev The lifecycle against the real Icarus and WETH on a RISE fork. Skips without an RPC unless
-///      CI_FORK=1, where a missing RPC or the wrong chain fails instead.
+///      CI_FORK=1, where a missing RPC or the wrong chain fails instead. Forks a pinned block for
+///      reproducible runs; FORK_BLOCK overrides it if the RPC no longer serves that state.
 abstract contract LifecycleFork is Test, CurveDeploy {
     address constant WETH = 0x4200000000000000000000000000000000000006;
     uint256 constant S = 1_000_000 ether;
@@ -31,6 +37,7 @@ abstract contract LifecycleFork is Test, CurveDeploy {
     function _rpcVar() internal pure virtual returns (string memory);
     function _chainId() internal pure virtual returns (uint256);
     function _icarusFactory() internal pure virtual returns (address);
+    function _forkBlock() internal pure virtual returns (uint256);
 
     function setUp() public {
         string memory rpc = vm.envOr(_rpcVar(), string(""));
@@ -38,7 +45,7 @@ abstract contract LifecycleFork is Test, CurveDeploy {
             require(vm.envOr("CI_FORK", uint256(0)) != 1, string.concat(_rpcVar(), " is required when CI_FORK=1"));
             vm.skip(true);
         }
-        vm.createSelectFork(rpc);
+        vm.createSelectFork(rpc, vm.envOr("FORK_BLOCK", _forkBlock()));
         assertEq(block.chainid, _chainId(), "RPC points at the wrong chain");
         icarus = IIcarusFactory(_icarusFactory());
         d = _deployCurve(
@@ -87,6 +94,12 @@ abstract contract LifecycleFork is Test, CurveDeploy {
         assertEq(d.escrow.totalOwed(WETH), owedBefore + quoteFees);
         assertGe(IERC20(WETH).balanceOf(address(d.escrow)), d.escrow.totalOwed(WETH));
 
+        // The real factory's pause stops swaps only: the buyback skips without starting its interval.
+        _setIcarusPaused(true);
+        assertEq(d.escrow.buyback(token), 0);
+        assertEq(d.escrow.lastBuyback(token), 0);
+        _setIcarusPaused(false);
+
         uint256 supply = IERC20(token).totalSupply();
         uint256 burned = d.escrow.buyback(token);
         assertGt(burned, 0, "buyback skipped on the real pool");
@@ -110,6 +123,21 @@ abstract contract LifecycleFork is Test, CurveDeploy {
         assertEq(quote, m.realQuote + 0.001 ether);
         assertApproxEqAbs(tokens, quote * uint256(m.virtualToken) / uint256(m.virtualQuote), 1, "curve-end price");
         assertEq(d.locker.tokenOf(address(pool)), token);
+    }
+
+    /// @dev Icarus's pauser can't force an abort: graduation never checks the pause.
+    function test_fork_graduatesWhileIcarusIsPaused() public {
+        address token = _launchAndSellOut(0);
+        _setIcarusPaused(true);
+        address pool = d.launchpad.graduate(token);
+        assertEq(uint8(d.launchpad.market(token).state), uint8(CurveLaunchpad.State.Graduated));
+        assertGt(IIcarusPool(pool).balanceOf(address(d.locker)), 0);
+    }
+
+    function _setIcarusPaused(bool state) internal {
+        vm.prank(IIcarusPausable(address(icarus)).pauser());
+        IIcarusPausable(address(icarus)).setPauseState(state);
+        assertEq(icarus.isPaused(), state);
     }
 
     function _launchAndSellOut(uint16 reserveBps) internal returns (address token) {
@@ -155,6 +183,10 @@ contract LifecycleMainnetForkTest is LifecycleFork {
     function _icarusFactory() internal pure override returns (address) {
         return 0xEe10C6a0f158bFEeef3d48Dc0D26130Cf6115615;
     }
+
+    function _forkBlock() internal pure override returns (uint256) {
+        return 24_722_082;
+    }
 }
 
 contract LifecycleTestnetForkTest is LifecycleFork {
@@ -168,5 +200,9 @@ contract LifecycleTestnetForkTest is LifecycleFork {
 
     function _icarusFactory() internal pure override returns (address) {
         return 0x8221dfB70c9A2dE60253dcfC58231FD529bbF4F9;
+    }
+
+    function _forkBlock() internal pure override returns (uint256) {
+        return 57_239_173;
     }
 }
