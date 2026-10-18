@@ -6,10 +6,12 @@ import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {CurveToken} from "./CurveToken.sol";
 import {ICurveLaunchpad} from "./interfaces/ICurveLaunchpad.sol";
-import {ICurveFeeEscrow, ICurveHolderReserve} from "./interfaces/ICurveSingletons.sol";
+import {ICurveFeeEscrow, ICurveHolderReserve, ICurveLpLocker} from "./interfaces/ICurveSingletons.sol";
+import {IIcarusFactory, IIcarusPool} from "./interfaces/IIcarus.sol";
 import {CurveMath} from "./libraries/CurveMath.sol";
 
 /// @notice Singleton launchpad: launches fixed-supply tokens on virtual-reserve curves and graduates
@@ -132,6 +134,9 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
         uint256 virtualQuote
     );
     event GraduationReady(address indexed token);
+    event Graduated(
+        address indexed token, address indexed pool, uint256 quoteAmount, uint256 tokenAmount, uint256 burned
+    );
     event FeeDefaultsUpdated(uint16 feeBps, uint16 creatorShareBps, uint16 buybackShareBps, uint16 taxCapBps);
     event GraduationTargetUpdated(uint256 target);
     event GuardianUpdated(address indexed guardian);
@@ -143,6 +148,9 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
     error NotTrading();
     error Slippage();
     error Expired();
+    error NotReady();
+    error PoolUsed();
+    error MintMismatch();
     error NotGuardian();
     error EnforcedPause();
     error RenounceDisabled();
@@ -257,6 +265,48 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
     function previewSell(address token, uint256 amount) external view returns (CurveMath.Sell memory) {
         Market storage m = markets[token];
         return CurveMath.quoteSell(m.virtualToken, m.virtualQuote, m.realQuote, amount, m.feeBps, m.taxBps);
+    }
+
+    // ---------------------------------------------------------------- graduation
+
+    /// @notice Seeds `token`'s Icarus pool at the curve's closing price, locks the LP and burns the rest.
+    /// @dev Permissionless once sold out. Never checks Icarus's pause (only `swap` does), so its pauser
+    ///      can't force an abort. A WETH donation synced into a pre-created pool is matched with tokens
+    ///      from the burn buffer, so the opening price equals the curve-end spot; beyond the buffer the
+    ///      pool opens slightly higher at the donor's expense. Nothing a donor does can make this revert.
+    function graduate(address token) external nonReentrant returns (address pool) {
+        Market storage m = markets[token];
+        State state = m.state;
+        uint256 vT = m.virtualToken;
+        if (state != State.Ready && (state != State.Aborted || vT != SUPPLY - CURVE_SUPPLY)) revert NotReady();
+        uint256 realQuote = m.realQuote;
+        m.state = State.Graduated;
+        m.realQuote = 0;
+        totalRealQuote -= realQuote;
+
+        // Unlock first: skim transfers the token even when the pool holds none of it.
+        CurveToken(token).unlock();
+        pool = _freshPool(token);
+        m.pool = pool;
+        IIcarusPool(pool).skim(address(this));
+        (uint256 tokenReserve, uint256 quoteReserve) = _reserves(pool, token);
+        if (tokenReserve != 0) revert PoolUsed();
+
+        uint256 quoteInPool = realQuote + quoteReserve;
+        uint256 tokensToPool = Math.min(
+            CurveMath.tokensFor(quoteInPool, vT, m.virtualQuote),
+            Math.min(SUPPLY - CURVE_SUPPLY - m.reserveTokens, IERC20(token).balanceOf(address(this)))
+        );
+        IERC20(quoteToken).safeTransfer(pool, realQuote);
+        IERC20(token).safeTransfer(pool, tokensToPool);
+        IIcarusPool(pool).mint(locker);
+        (tokenReserve, quoteReserve) = _reserves(pool, token);
+        if (tokenReserve != tokensToPool || quoteReserve != quoteInPool) revert MintMismatch();
+
+        uint256 burned = IERC20(token).balanceOf(address(this));
+        CurveToken(token).burn(burned);
+        ICurveLpLocker(locker).register(token, pool);
+        emit Graduated(token, pool, quoteInPool, tokensToPool, burned);
     }
 
     // ---------------------------------------------------------------- admin
@@ -379,6 +429,19 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
         IERC20(token).safeTransfer(msg.sender, b.tokensOut);
         emit Trade(token, msg.sender, true, b.spent, b.tokensOut, b.fee, b.tax, vT, vQ);
         return b.tokensOut;
+    }
+
+    /// @dev The volatile token/quote pool, created if missing; an existing one must have no LP yet.
+    function _freshPool(address token) internal returns (address pool) {
+        IIcarusFactory factory = IIcarusFactory(icarusFactory);
+        pool = factory.getPool(token, quoteToken, false);
+        if (pool == address(0)) return factory.createPool(token, quoteToken, false);
+        if (IIcarusPool(pool).totalSupply() != 0) revert PoolUsed();
+    }
+
+    function _reserves(address pool, address token) internal view returns (uint256 tokenReserve, uint256 quoteReserve) {
+        (uint256 reserve0, uint256 reserve1,) = IIcarusPool(pool).getReserves();
+        return IIcarusPool(pool).token0() == token ? (reserve0, reserve1) : (reserve1, reserve0);
     }
 
     /// @dev Its own frame: emitting three calldata strings inside `launch` runs out of stack.
