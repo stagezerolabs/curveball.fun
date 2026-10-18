@@ -5,6 +5,7 @@ import { getAddress, isAddress } from "viem";
 import { config } from "./config.mjs";
 import { pool, transaction } from "./db.mjs";
 import { ACTIVE_WALLET_HEADER, createPrivyAuthenticator } from "./privyAuth.mjs";
+import { claimProfile } from "./profiles.mjs";
 
 const JSON_LIMIT = 64 * 1024;
 const RNS_CHAIN_ID = 4153;
@@ -636,6 +637,11 @@ export function createSocialServer({ subscribe } = {}) {
         return send(request, response, 200, await resolveRns(address));
       }
       if (request.method === "GET" && url.pathname === "/v1/me") return send(request, response, 200, { address: viewer });
+      if (request.method === "POST" && url.pathname === "/v1/me") {
+        const address = await requirePrivyWallet(request);
+        await claimProfile(pool, config.chainId, address);
+        return send(request, response, 200, { address });
+      }
       if (request.method === "GET" && url.pathname === "/v1/feed") return send(request, response, 200, await feed(url, viewer));
       if (request.method === "GET" && url.pathname.startsWith("/v1/leaderboards/")) return send(request, response, 200, await leaderboards(url, viewer));
       if (request.method === "GET" && url.pathname === "/v1/markets") return send(request, response, 200, await markets(url));

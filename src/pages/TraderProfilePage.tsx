@@ -26,13 +26,13 @@ function signedWeth(value: string) {
   return `${amount >= 0 ? "+" : ""}${formatEthAmount(amount)} WETH`;
 }
 
-function ProfileAvatar({ name }: { name: string }) {
+function ProfileAvatar({ address, name }: { address: Address; name: string }) {
   const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [name]);
+  useEffect(() => setFailed(false), [address]);
   if (failed) return <div className="profile-hero-avatar" aria-hidden="true">{name.replace(/^0x/i, "").slice(0, 2).toUpperCase()}</div>;
   return <img
     className="profile-hero-avatar"
-    src={`https://api.dicebear.com/10.x/thumbs/svg?seed=${encodeURIComponent(name)}`}
+    src={`https://api.dicebear.com/10.x/thumbs/svg?seed=${address.toLowerCase()}`}
     alt=""
     onError={() => setFailed(true)}
   />;
@@ -69,7 +69,7 @@ function ProfileEditor({ profile, onSaved }: {
       <textarea id="trader-bio" rows={3} maxLength={280} value={bio} onChange={(event) => setBio(event.target.value)} placeholder="How you trade, in a line or two" />
     </div>
     {mutation.error ? <p className="social-form-error" role="alert">{mutation.error.message}</p> : null}
-    <button className="primary-button settings-save" type="submit" disabled={(profile.claimed && !dirty) || mutation.isPending}>{mutation.isPending ? "Saving…" : profile.claimed ? "Save changes" : "Claim profile"}</button>
+    <button className="primary-button settings-save" type="submit" disabled={!dirty || mutation.isPending}>{mutation.isPending ? "Saving…" : "Save changes"}</button>
   </form>;
 }
 
@@ -159,12 +159,11 @@ export function TraderProfilePage({ address: routeAddress, navigate, launches = 
 
     <div className="profile-top">
       <header className="profile-hero" aria-labelledby="trader-profile-name">
-        <ProfileAvatar name={name} />
+        <ProfileAvatar address={traderAddress} name={name} />
         <div className="profile-hero-copy">
           <h1 id="trader-profile-name">{name}</h1>
           <p className="profile-hero-meta">
             <a href={`${activeExplorerUrl}/address/${traderAddress}`} target="_blank" rel="noreferrer" title={traderAddress}>{formatAddress(traderAddress)} <span aria-hidden="true">↗</span></a>
-            {!data.claimed ? <span className="profile-hero-tag">Unclaimed</span> : null}
           </p>
           {data.bio ? <p className="profile-hero-bio">{data.bio}</p> : null}
           <p className="profile-hero-social"><span><strong>{data.followers}</strong> followers</span><span><strong>{data.following}</strong> following</span></p>

@@ -4464,7 +4464,6 @@ img.profile-hero-avatar { background: var(--raise); object-fit: cover; }
 .profile-hero-meta { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; margin: 0; }
 .profile-hero-meta a { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; text-decoration: none; transition: color 100ms ease-out; }
 .profile-hero-meta a:hover { color: var(--ink); }
-.profile-hero-tag { background: var(--raise); border-radius: 999px; color: var(--muted); font-size: 10px; font-weight: 700; padding: 2px 8px; }
 .profile-hero-bio { font-size: 14px; line-height: 1.55; margin: 4px 0 0; max-width: 60ch; }
 .profile-hero-social { color: var(--muted); display: flex; font-size: 13px; gap: 16px; margin: 2px 0 0; }
 .profile-hero-social strong { color: var(--ink); font-variant-numeric: tabular-nums; }

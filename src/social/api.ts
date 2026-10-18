@@ -68,8 +68,9 @@ function mapTrade(row: Record<string, unknown>): SocialTrade {
 }
 
 export const socialApi = {
+  /** Confirms the signed-in wallet with the API, which claims its profile on first sign-in. */
   async me() {
-    return api<{ address: Address | null }>("/v1/me");
+    return api<{ address: Address | null }>("/v1/me", { method: "POST" });
   },
   async feed(scope: "global" | "following" = "global", cursor?: string, trader?: Address) {
     const query = new URLSearchParams({ scope, limit: "30" });
