@@ -182,5 +182,5 @@ await Bun.write(outputPath, `${JSON.stringify(record, null, 2)}\n`);
 console.log(`Recorded Curveball launchpad ${launchpad} at block ${record.deploymentBlock}.`);
 console.log(`VITE_LAUNCHPAD_ADDRESS=${launchpad}`);
 console.log(`VITE_DEPLOYMENT_BLOCK=${record.deploymentBlock}`);
-console.log(`KEEPER_FACTORY_ADDRESS=${launchpad}`);
+console.log(`KEEPER_LAUNCHPAD_ADDRESS=${launchpad}`);
 console.log(`KEEPER_DEPLOYMENT_BLOCK=${record.deploymentBlock}`);
