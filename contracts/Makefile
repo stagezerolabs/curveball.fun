@@ -10,7 +10,7 @@ DOT_ADDRESS := 0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3
 
 export QUOTE_TOKEN ICARUS_FACTORY BLOCKSCOUT_API RISE_MAINNET_RPC_URL RISE_RPC_URL
 
-.PHONY: test require-fork-tests test-fork-strict test-fork-testnet verify-icarus require-production-config production-preflight deploy-production require-testnet-config testnet-preflight deploy-testnet
+.PHONY: test abis require-fork-tests test-fork-strict test-fork-testnet verify-icarus require-production-config production-preflight deploy-production require-testnet-config testnet-preflight deploy-testnet
 
 # Fork suites need network access; they run only through the targets below.
 test:
@@ -32,6 +32,11 @@ test-fork-testnet: require-fork-tests
 
 verify-icarus:
 	bash scripts/verify-icarus.sh
+
+# Regenerates src/sdk/abis.generated.ts from the compiled singletons.
+abis:
+	forge build
+	bun scripts/export-abis.ts
 
 require-production-config:
 	@test -n "$(MAINNET_RPC_URL)" || { echo "RISE_MAINNET_RPC_URL is required."; exit 2; }

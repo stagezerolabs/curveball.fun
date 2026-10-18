@@ -114,3 +114,6 @@ export const erc20Abi = parseAbi([
   "function deposit() payable",
   "function withdraw(uint256 amount)",
 ]);
+
+// The lean singletons (lean-contracts-v2); the V1 ABIs above go once Phase 6 moves their consumers.
+export * from "./abis.generated";
