@@ -126,9 +126,9 @@ function CreatorLaunchDashboard({ address, navigate }: { address: Address; navig
 
 export function ProfilePage({ navigate, initialTab }: { navigate: Navigate; initialTab?: ProfileTab }) {
   const { address } = useAccount();
-  const { ready: privyReady, login } = usePrivy();
+  const { ready: privyReady, authenticated, login } = usePrivy();
 
-  if (!address) {
+  if (!address || !authenticated) {
     return <main className="page-main profile-page wrap">
       <h1 className="visually-hidden">Profile</h1>
       <section className="profile-connect" aria-labelledby="profile-connect-title">

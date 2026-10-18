@@ -102,7 +102,10 @@ export function createCurveballSdk(config: Config, deployment: CurveballDeployme
   async function ensureWallet(): Promise<Address> {
     const account = actions.getAccount(config);
     if (!account.address) throw new CurveballSdkError("Connect a wallet to continue.");
-    if (account.chainId !== chainId) {
+    // Wagmi's cached chain can lag the provider: Privy's embedded wallet provider starts on chain 1
+    // without Wagmi seeing it, and viem then rejects the write. Ask the wallet itself.
+    const walletChainId = await account.connector?.getChainId().catch(() => account.chainId) ?? account.chainId;
+    if (walletChainId !== chainId) {
       const switched = await actions.switchChain(config, { chainId });
       if (switched.id !== chainId) throw new CurveballSdkError("Switch your wallet to the configured Curveball network.");
     }
