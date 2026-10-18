@@ -4,6 +4,7 @@ import { getAddress, isAddress, type Address } from "viem";
 import { useStore } from "../app/useStore.js";
 import { AppLink } from "../components/Navigation";
 import { MarketHeader } from "../components/MarketHeader";
+import { HolderAirdropPanel } from "../components/HolderAirdropPanel";
 import { MilestonePanel } from "../components/MilestonePanel";
 import { TradePanel } from "../components/TradePanel";
 import { marketFields, readMarket, type CreatorTokenClient } from "../creatorTokens";
@@ -129,6 +130,7 @@ export function MarketPage({
             token={resolvedToken}
             address={walletAddress}
           />
+          {resolvedToken.reserveTokens !== "0" && <HolderAirdropPanel token={resolvedToken} />}
         </aside>
       </div>
 
