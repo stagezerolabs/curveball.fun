@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { usePrivy } from "@privy-io/react-auth";
 import { Collapsible } from "@base-ui/react/collapsible";
 import type { ReactNode } from "react";
 import { formatEther, parseEther } from "viem";
@@ -60,7 +60,7 @@ export function TradePanel({
     fetchQuote,
   } = useStore();
   const [explain, setExplain] = useState(false);
-  const { openConnectModal } = useConnectModal();
+  const { ready: privyReady, login } = usePrivy();
   const marketFactory = launchpadAddress ? factoryForToken(token.factory) : undefined;
   const { data: paused } = useReadContract({
     address: marketFactory, abi: curveLaunchpadAbi,
@@ -236,8 +236,8 @@ export function TradePanel({
           <span aria-live="polite" aria-atomic="true">{tradeProgress ? tradeButtonLabel(tradeProgress.side, tradeProgress.phase) : tradeButtonLabel(side, null)}</span>
         </button>
       ) : (
-        <button className={`trade-submit ${side}`} type="button" onClick={() => openConnectModal?.()}>
-          Connect wallet to trade
+        <button className={`trade-submit ${side}`} type="button" disabled={!privyReady} onClick={login}>
+          Sign in to trade
         </button>
       )}
       {tradeMessage && !isPending && (

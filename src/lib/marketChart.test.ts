@@ -87,7 +87,7 @@ describe("chart RPC helpers", () => {
       transactionHash,
     };
     expect(tradeLogToActivity(log, 100)).toEqual({
-      trader, isBuy: false, tokenAmount: 2_000000000000000000n,
+      trader, participantRole: "trader", venue: "curve", isBuy: false, tokenAmount: 2_000000000000000000n,
       quoteAmount: 2_700000000000000000n, timestamp: 100,
       blockNumber: 42n, logIndex: 1, transactionHash,
     });

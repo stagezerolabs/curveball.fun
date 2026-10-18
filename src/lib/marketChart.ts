@@ -2,6 +2,10 @@ import { formatEther, isAddress, type Address, type Hash } from "viem";
 
 export type TradeActivity = {
   trader: Address;
+  participantRole: "trader" | "recipient";
+  venue: "curve" | "pool";
+  venueAddress?: Address;
+  executionSender?: Address;
   isBuy: boolean;
   tokenAmount: bigint;
   quoteAmount: bigint;
@@ -27,6 +31,8 @@ export function tradeLogToActivity(
       log.blockNumber == null || log.logIndex === undefined || !log.transactionHash) return null;
   return {
     trader,
+    participantRole: "trader",
+    venue: "curve",
     isBuy,
     tokenAmount,
     quoteAmount,

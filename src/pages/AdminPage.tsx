@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccount, useSwitchChain } from "wagmi";
 import { readContract, simulateContract, waitForTransactionReceipt, writeContract } from "wagmi/actions";
 import { formatEther, formatUnits, parseEther, zeroAddress, type Address, type Hash } from "viem";
 import { feePercentToBps, readFactoryFunds, readFeeDefaults, submitFeeUpdate, type FactoryFunds, type FeeAuthority } from "../lib/adminFees";
+import { isAdminAddress } from "../lib/adminAccess";
 import { readableError } from "../lib/errors";
 import { formatAddress } from "../lib/format.js";
 import { activeChainId, activeExplorerUrl, launchpadAddress, wagmiConfig } from "../lib/web3";
 import { curveLaunchpadAbi } from "../sdk/contracts";
+import { socialApi, socialApiConfigured } from "../social/api";
+import type { ModerationReport } from "../social/types";
+import { useSocialAuth } from "../social/useSocialAuth";
 
 type Settings = FeeAuthority;
 
@@ -54,12 +58,30 @@ function FactoryDetails({ settings, factory }: { settings: Settings; factory: Ad
   </aside>;
 }
 
+function ModerationRow({ report, pending, onUpdate }: {
+  report: ModerationReport;
+  pending: boolean;
+  onUpdate: (id: string, status: "reviewing" | "actioned" | "dismissed", note: string) => void;
+}) {
+  const [note, setNote] = useState(report.resolution_note ?? "");
+  return <li>
+    <header><span className={`report-status ${report.status}`}>{report.status}</span><time dateTime={report.created_at}>{new Date(report.created_at).toLocaleString()}</time></header>
+    <p><strong>{report.reason.replace("_", " ")}</strong> against <a href={`${activeExplorerUrl}/address/${report.subject_address}`} target="_blank" rel="noreferrer">{formatAddress(report.subject_address)} ↗</a></p>
+    {report.details ? <blockquote>{report.details}</blockquote> : null}
+    <label>Resolution note<textarea maxLength={1000} value={note} onChange={(event) => setNote(event.target.value)} /></label>
+    <div className="admin-actions">
+      <button type="button" disabled={pending} onClick={() => onUpdate(report.id, "reviewing", note)}>Reviewing</button>
+      <button type="button" disabled={pending} onClick={() => onUpdate(report.id, "actioned", note)}>Actioned</button>
+      <button type="button" disabled={pending} onClick={() => onUpdate(report.id, "dismissed", note)}>Dismiss</button>
+    </div>
+  </li>;
+}
+
 export function AdminPage() {
   const feeInputRef = useRef<HTMLInputElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
   const focusInputAfterSave = useRef(false);
   const { address, chainId } = useAccount();
-  const { openConnectModal } = useConnectModal();
   const { switchChain } = useSwitchChain();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [funds, setFunds] = useState<FactoryFunds | null>(null);
@@ -76,8 +98,23 @@ export function AdminPage() {
   const [targetReview, setTargetReview] = useState<bigint | null>(null);
   const [targetError, setTargetError] = useState("");
   const configured = Boolean(launchpadAddress);
-  const isAdmin = address?.toLowerCase() === settings?.owner.toLowerCase();
+  const isAdmin = isAdminAddress(address);
   const correctChain = chainId === activeChainId;
+  const { ensureAuthenticated } = useSocialAuth();
+  const queryClient = useQueryClient();
+  const moderation = useQuery({
+    queryKey: ["social", "admin", "reports"],
+    queryFn: () => socialApi.moderationReports("open"),
+    enabled: Boolean(isAdmin && socialApiConfigured),
+    retry: false,
+  });
+  const updateReport = useMutation({
+    mutationFn: async ({ id, status, note }: { id: string; status: "reviewing" | "actioned" | "dismissed"; note: string }) => {
+      await ensureAuthenticated();
+      return socialApi.updateModerationReport(id, status, note);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["social", "admin", "reports"] }),
+  });
 
   const refresh = useCallback(async (resetDraft = false) => {
     if (!configured || !launchpadAddress) { setLoading(false); return; }
@@ -167,11 +204,10 @@ export function AdminPage() {
 
   return <main className="page-main admin-page wrap">
     <h1 className="visually-hidden">Admin controls</h1>
-    {!address ? <section className="admin-panel admin-state"><h2>Connect your wallet</h2><p>Connect the launchpad owner wallet to manage settings.</p><button type="button" className="primary-button" onClick={() => openConnectModal?.()}>Connect wallet</button></section>
+    {!address || !isAdmin ? null
       : !configured ? <section className="admin-panel admin-state"><h2>Launchpad unavailable</h2><p>Configure the active launchpad before managing settings.</p></section>
       : loading && !settings ? <section className="admin-panel admin-state" aria-busy="true">Reading launchpad settings…</section>
       : !settings ? <section className="admin-panel admin-state" role="alert">{error || "Could not read launchpad settings."}</section>
-      : !isAdmin ? <section className="admin-panel admin-state"><h2>Access restricted</h2><p>This dashboard is available to the launchpad owner.</p></section>
       : <>
         {!correctChain && <div className="notice admin-notice" role="status">Switch to the configured network to submit transactions. <button type="button" onClick={() => switchChain({ chainId: activeChainId })}>Switch network</button></div>}
         {error && <p className="notice admin-notice" role="alert">{error}</p>}
@@ -215,7 +251,16 @@ export function AdminPage() {
               {funds && <FundsPanel funds={funds} />}
               <FactoryDetails settings={settings} factory={launchpadAddress!} />
             </div>
-          </div></>}
+          </div>
+          {socialApiConfigured ? <section className="admin-panel moderation-panel" aria-labelledby="moderation-title">
+            <div className="admin-side-head"><h2 id="moderation-title">Open reports</h2><span>{moderation.data?.items.length ?? 0}</span></div>
+            {moderation.isLoading ? <p aria-busy="true">Loading moderation queue…</p>
+              : moderation.isError ? <div className="admin-state"><p>{moderation.error instanceof Error ? moderation.error.message : "Moderation queue unavailable."}</p><button className="primary-button" type="button" onClick={async () => { await ensureAuthenticated(); await moderation.refetch(); }}>Sign in and retry</button></div>
+                : !moderation.data?.items.length ? <p className="admin-help">No open reports.</p>
+                  : <ol>{moderation.data.items.map((report) => <ModerationRow key={report.id} report={report} pending={updateReport.isPending} onUpdate={(id, status, note) => updateReport.mutate({ id, status, note })} />)}</ol>}
+            {updateReport.error ? <p className="notice" role="alert">{updateReport.error.message}</p> : null}
+          </section> : null}
+          </>}
       </>}
   </main>;
 }
