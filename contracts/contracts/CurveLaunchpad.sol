@@ -134,6 +134,7 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
         uint256 virtualQuote
     );
     event GraduationReady(address indexed token);
+    event GraduationAborted(address indexed token);
     event Graduated(
         address indexed token, address indexed pool, uint256 quoteAmount, uint256 tokenAmount, uint256 burned
     );
@@ -149,6 +150,7 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
     error Slippage();
     error Expired();
     error NotReady();
+    error NotAbortable();
     error PoolUsed();
     error MintMismatch();
     error NotGuardian();
@@ -229,6 +231,8 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
         if (block.timestamp > deadline) revert Expired();
         Market storage m = markets[token];
         State state = m.state;
+        // A graduation stuck past its timeout aborts here, so holders never need a separate transaction.
+        if (state == State.Ready && _expired(m)) state = _abort(m, token);
         if (state != State.Trading && state != State.Aborted) revert NotTrading();
         uint256 vT = m.virtualToken;
         uint256 vQ = m.virtualQuote;
@@ -307,6 +311,15 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
         CurveToken(token).burn(burned);
         ICurveLpLocker(locker).register(token, pool);
         emit Graduated(token, pool, quoteInPool, tokensToPool, burned);
+    }
+
+    /// @notice Gives up on a sold-out market whose graduation has been stuck for `GRADUATION_TIMEOUT`.
+    /// @dev Aborted is sticky: sells reopen for good, buys continue while sold < C, and `graduate`
+    ///      works again whenever the curve is sold out.
+    function abortGraduation(address token) external nonReentrant {
+        Market storage m = markets[token];
+        if (m.state != State.Ready || !_expired(m)) revert NotAbortable();
+        _abort(m, token);
     }
 
     // ---------------------------------------------------------------- admin
@@ -429,6 +442,16 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
         IERC20(token).safeTransfer(msg.sender, b.tokensOut);
         emit Trade(token, msg.sender, true, b.spent, b.tokensOut, b.fee, b.tax, vT, vQ);
         return b.tokensOut;
+    }
+
+    function _expired(Market storage m) internal view returns (bool) {
+        return block.timestamp >= uint256(m.readyAt) + GRADUATION_TIMEOUT;
+    }
+
+    function _abort(Market storage m, address token) internal returns (State) {
+        m.state = State.Aborted;
+        emit GraduationAborted(token);
+        return State.Aborted;
     }
 
     /// @dev The volatile token/quote pool, created if missing; an existing one must have no LP yet.
