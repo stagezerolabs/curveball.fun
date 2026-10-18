@@ -141,6 +141,7 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
     event FeeDefaultsUpdated(uint16 feeBps, uint16 creatorShareBps, uint16 buybackShareBps, uint16 taxCapBps);
     event GraduationTargetUpdated(uint256 target);
     event GuardianUpdated(address indexed guardian);
+    event Rescued(address indexed asset, address indexed to, uint256 amount);
     event Paused();
     event Unpaused();
 
@@ -156,6 +157,7 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
     error NotGuardian();
     error EnforcedPause();
     error RenounceDisabled();
+    error NotRescuable();
 
     modifier whenNotPaused() {
         if (paused) revert EnforcedPause();
@@ -348,6 +350,20 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
     function unpause() external onlyOwner {
         paused = false;
         emit Unpaused();
+    }
+
+    /// @notice Sends out what the launchpad holds but owes nobody: WETH beyond `totalRealQuote`
+    ///         (donations, skimmed pool balances), any unrelated token, or a graduated token.
+    /// @dev A token still on its curve is the curve's inventory, so it can't be rescued at all.
+    function rescue(address asset, address to, uint256 amount) external onlyOwner nonReentrant {
+        if (asset == quoteToken) {
+            if (amount > IERC20(asset).balanceOf(address(this)) - totalRealQuote) revert NotRescuable();
+        } else {
+            State state = markets[asset].state;
+            if (state != State.None && state != State.Graduated) revert NotRescuable();
+        }
+        IERC20(asset).safeTransfer(to, amount);
+        emit Rescued(asset, to, amount);
     }
 
     function renounceOwnership() public pure override {
