@@ -165,6 +165,8 @@ There are **4 deployed singletons** (launchpad, escrow, locker, reserve), **1 in
   - Any other asset: freely rescuable.
 - **Fee policy is snapshotted per market** in the launchpad's `Market` struct, which is the single source.
 - **Metadata.** `uri` is emitted in `LaunchCreated` and **not stored**. Length bounds: name ≤ 64, symbol ≤ 12, uri ≤ 2048, none empty.
+  - *Done (Task 15):* `launch(Metadata{name, symbol, uri}, taxBps, reserveBps, maxSpend, minOut)`; three loose calldata strings ran out of stack. `LaunchCreated(token, creator, name, symbol, uri, feeBps, creatorShareBps, buybackShareBps, taxBps, reserveTokens)`. Market state is read through `market(token)` (a struct view), plus `previewBuy`/`previewSell` and `predictToken(creator)`. `SUPPLY`, `CURVE_SUPPLY` and `MAX_RESERVE_*` are constants; `MIN_TARGET` = 0.01 ether. `launch` rejects a `minOut` without a first buy.
+- **Dust (Phase 3 review).** The final fill of a curve is exempt from `DustTrade`; otherwise anyone could leave a remainder whose every fill rounds its fee to 0 and wedge the market short of `Ready`. Sells keep the check: a position under about 4e7 token-wei (worth < 134 wei) can't be sold on the curve but becomes transferable after graduation. `GraduationReady` is emitted on every sellout, including an `Aborted` re-sellout.
 - **Events.**
   - Launchpad:
     - `LaunchCreated(token, creator, name, symbol, uri, policy)`
@@ -193,6 +195,7 @@ There are **4 deployed singletons** (launchpad, escrow, locker, reserve), **1 in
 - **Bytecode budget.** The launchpad must stay under 24,576 bytes with at least 2 KB headroom. This is a hard gate in Task 17.
   - The fallback, decided now, is a stateless external `CurveGraduator`.
   - The launchpad unlocks the token, transfers assets to it, and it runs pool → skim → mint → assert → returns. It is not used unless the gate fails.
+  - *Done (Task 17):* the gate is a test (`test_launchpad_keepsTwoKilobytesUnderTheCodeSizeLimit`); the launchpad is 14.4 KB, so `CurveGraduator` was not needed.
 
 ### Dependencies
 
@@ -504,6 +507,8 @@ The repo's layered backend rule doesn't apply: there is no Kotlin or Next.js. It
 **Round 3, protocol reviewer: ACCEPT.** Minor items applied: a third `balanceOf` clamp in `tokensToPool`, a large-donation test, a pre-transfer pool-token-balance assert, and the guardian worst case recorded in the ADR. Also noted for Task 17: the "used pool" guard is now only reachable through a mock hack, and Task 5's `MIN_TARGET` fuzz must cover the clamped case.
 
 **Phase 2 gate (protocol reviewer): NEEDS CHANGES → ACCEPT in 2 rounds.** Major: buyback could wedge on quiet pools (its own price move, or one market move, left spot outside the band and every call reverted). Fixed with the 0.25% impact cap, `sync()` before quoting, and skip-on-slippage, each mutation-checked by a test. Also: one extra observation window, the dust rule, and Phase 3 requirements for the fee-share sum and full-sellout graduation.
+
+**Phase 3 gate (protocol reviewer): NEEDS CHANGES (1 major) → ACCEPT in 2 rounds.** Major: a buyer could leave a dust remainder whose fill's fee rounded to 0, so every final buy reverted `DustTrade` and graduation was blocked for good; fixed by exempting the final fill (mutation-checked). Minors applied: `GraduationReady` on `Aborted` re-sellout, fee policy in `LaunchCreated`, `minOut` without a first buy rejected. Noted for Task 24: `Deploy.s.sol` must pass the broadcasting EOA as `deployer` to `_deployCurve`.
 
 **Accepted as-is:** Task 2 and Task 38 file-count exceptions; Gate 2 rule adaptation; Task 48 as a labelled deliverable; the dust-sell delay in `Aborted`.
 

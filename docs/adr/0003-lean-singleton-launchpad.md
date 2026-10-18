@@ -19,6 +19,7 @@ Decisions and the trust assumptions they leave:
 - **Icarus is trusted for liveness and fees.** Its `feeManager` can divert up to half of LP fees to `gaugeFees`, which Curveball can't claim. The indexer polls each graduated pool's fee and unstaked fee and alerts on change.
 - **Holder reserve leftovers.** Rounding dust, unclaimed amounts and the reserve of a market that never graduates stay in `CurveHolderReserve` permanently.
 - **Buyback pacing.** Each buyback spends at most 0.25% of the pool's quote reserve, at most hourly, and only within 1% of the fee-adjusted TWAP; otherwise it skips. The 25% chunk is geometric, so a balance only empties through the dust rule (spend all once a chunk rounds to 0). On a pool created before graduation, a donation synced before graduation can still sit in one TWAP window; the impact cap bounds what a sandwich can take from that.
+- **Dust.** The final fill of a curve may pay no fee, so a dust remainder can't block sellout. Curve sells still reject fills whose fee rounds to 0; a dust position becomes transferable after graduation.
 - **Locker strays.** Tokens sent to `CurveLpLocker` by mistake stay there; it has no rescue, so nothing can ever move LP out.
 - **Quote.** The quote token is plain 18-decimal WETH (`0x4200…0006`). There are no native-ETH paths and no `receive`.
 - **Size fallback.** If `CurveLaunchpad` can't keep 2 KB under EIP-170 once graduation is written, graduation moves to a stateless `CurveGraduator`. The launchpad keeps the registry, the curve state and the unlock.
