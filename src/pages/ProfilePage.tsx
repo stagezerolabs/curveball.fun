@@ -14,6 +14,7 @@ import { formatAddress, formatRelativeTime } from "../lib/format.js";
 import { getMarketDisplayStatus } from "../lib/marketState";
 import { activeChainId, activeExplorerUrl } from "../lib/web3";
 import type { Navigate, Token } from "../types";
+import type { ProfileTab } from "./TraderProfilePage";
 
 type LaunchFilter = "all" | "live" | "ready" | "graduated";
 type ProfileSection = "holders" | "airdrops";
@@ -70,36 +71,26 @@ function CreatorLaunchDashboard({ address, navigate }: { address: Address; navig
   }, [tokens, search, filter]);
   const selectedToken = visibleTokens.find((token) => token.address.toLowerCase() === selectedAddress) ?? visibleTokens[0];
 
-  return <section className="profile-page creator-launch-dashboard" aria-labelledby="creator-launches-title">
-    <header className="creator-launch-heading">
-      <div><p>Creator portfolio</p><h2 id="creator-launches-title">Created tokens</h2></div>
-      <span>{counts.graduated} graduated</span>
-    </header>
+  const filters = ([["all", "All", tokens.length], ["live", "Live", counts.live], ["ready", "Bonding complete", counts.ready], ["graduated", "Graduated", counts.graduated]] as const)
+    .filter(([value, , count]) => value === "all" || count > 0);
 
-    {initialLoading ? <section className="profile-stats profile-stats-skeleton" aria-busy="true" aria-label="Loading launch summary">
-      {Array.from({ length: 4 }, (_, index) => <div key={index}><span className="skeleton skeleton-line" /><span className="skeleton skeleton-number" /></div>)}
-    </section> : <dl className="profile-stats" aria-label="Launch summary">
-      <div><dt>Launched</dt><dd>{tokens.length}</dd></div>
-      <div><dt>Live</dt><dd>{counts.live}</dd></div>
-      <div><dt>Bonding complete</dt><dd>{counts.ready}</dd></div>
-      <div><dt>Graduated</dt><dd>{counts.graduated}</dd></div>
-    </dl>}
-
+  return <section className="creator-launch-dashboard" aria-label="Your launches">
     {error && <p className="notice" role="alert">{error}</p>}
-    {initialLoading ? <div className="profile-dashboard-loading" aria-busy="true" aria-label="Loading launches"><div className="skeleton" /><div className="skeleton" /></div> : !tokens.length ? <section className="profile-empty">
-      <strong>No launches from this wallet yet.</strong>
-      <p>Tokens you create will appear here.</p>
-      <AppLink className="primary-button" route="launch" navigate={navigate}>Launch a token</AppLink>
-    </section> : <div className="profile-dashboard">
-      <aside className="profile-launch-directory" aria-labelledby="profile-launch-list-title">
-        <div className="profile-directory-heading"><h3 id="profile-launch-list-title">Launches</h3><span>{visibleTokens.length} / {tokens.length}</span></div>
-        <div className="profile-directory-controls">
-          <label className="visually-hidden" htmlFor="profile-launch-search">Search launches</label>
-          <input id="profile-launch-search" type="search" placeholder="Search launches" value={search} onChange={(event) => setSearch(event.target.value)} />
-          <div className="profile-status-filters" role="group" aria-label="Filter launches by status">
-            {([["all", "All", tokens.length], ["live", "Live", counts.live], ["ready", "Bonding complete", counts.ready], ["graduated", "Graduated", counts.graduated]] as const).map(([value, label, count]) => <button key={value} type="button" className={filter === value ? "profile-status-filter active" : "profile-status-filter"} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}<span>{count}</span></button>)}
-          </div>
-        </div>
+    {initialLoading ? <div className="profile-dashboard-loading" aria-busy="true" aria-label="Loading launches"><div className="skeleton" /><div className="skeleton" /></div> : !tokens.length ? <div className="profile-empty-state">
+      <strong>No launches yet</strong>
+      <p>Tokens you create show up here with their holders and reserve.</p>
+      <AppLink className="profile-secondary-action" route="launch" navigate={navigate}>Launch a token</AppLink>
+    </div> : <div className="profile-dashboard">
+      <aside className="profile-launch-directory" aria-label="Launches">
+        {tokens.length > 1 ? <div className="profile-directory-controls">
+          {tokens.length > 6 ? <>
+            <label className="visually-hidden" htmlFor="profile-launch-search">Search launches</label>
+            <input id="profile-launch-search" type="search" placeholder="Search launches" value={search} onChange={(event) => setSearch(event.target.value)} />
+          </> : null}
+          {filters.length > 2 ? <div className="profile-status-filters" role="group" aria-label="Filter launches by status">
+            {filters.map(([value, label, count]) => <button key={value} type="button" className={filter === value ? "profile-status-filter active" : "profile-status-filter"} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}<span>{count}</span></button>)}
+          </div> : null}
+        </div> : null}
         {visibleTokens.length ? <ul className="profile-launch-list">{visibleTokens.map((token, index) => {
           const status = getMarketDisplayStatus(token);
           return <li key={token.address}><button type="button" className={selectedToken?.address === token.address ? "profile-launch-item selected" : "profile-launch-item"} aria-pressed={selectedToken?.address === token.address} onClick={() => setSelectedAddress(token.address.toLowerCase())}>
@@ -114,11 +105,11 @@ function CreatorLaunchDashboard({ address, navigate }: { address: Address; navig
         {selectedToken ? <>
           <header className="profile-token-header">
             <div className="profile-token-identity"><TokenAvatar token={selectedToken} className="profile-token-avatar" /><div><h3>{selectedToken.name}</h3><p>${selectedToken.symbol} <span aria-hidden="true">·</span> <a className="profile-token-address" href={`${activeExplorerUrl}/address/${selectedToken.address}`} target="_blank" rel="noreferrer" title={selectedToken.address} aria-label={`View ${selectedToken.name} token address ${selectedToken.address} on explorer`}>{formatAddress(selectedToken.address)} <span aria-hidden="true">↗</span></a></p></div></div>
-            <div className="profile-token-actions"><span className={`profile-launch-status ${getMarketDisplayStatus(selectedToken).kind}`}>{getMarketDisplayStatus(selectedToken).label}</span><AppLink className="profile-market-link" route="market" params={{ address: selectedToken.address }} navigate={navigate}>View market <span aria-hidden="true">↗</span></AppLink></div>
+            <div className="profile-token-actions"><AppLink className="profile-market-link" route="market" params={{ address: selectedToken.address }} navigate={navigate}>View market <span aria-hidden="true">↗</span></AppLink></div>
           </header>
-          <dl className="profile-token-facts"><div><dt>Market cap</dt><dd><UsdAmount weth={selectedToken.marketCap} /></dd></div><div><dt>Stage</dt><dd>{getMarketDisplayStatus(selectedToken).label}</dd></div><div><dt>Launched</dt><dd>{formatRelativeTime(selectedToken.createdAt)}</dd></div></dl>
+          <dl className="profile-token-facts"><div><dt>Market cap</dt><dd><UsdAmount weth={selectedToken.marketCap} /></dd></div><div><dt>Launched</dt><dd>{formatRelativeTime(selectedToken.createdAt)}</dd></div></dl>
           <Tabs.Root value={activeSection} onValueChange={(value) => setActiveSection(value as ProfileSection)}>
-            <Tabs.List className="profile-section-nav" aria-label="Selected token view">
+            <Tabs.List className="profile-section-nav profile-subnav" aria-label="Selected token view">
               <Tabs.Tab value="holders" className={activeSection === "holders" ? "active" : ""}>Holders</Tabs.Tab>
               <Tabs.Tab value="airdrops" className={activeSection === "airdrops" ? "active" : ""}>Holder reserve</Tabs.Tab>
               <Tabs.Indicator className="profile-section-indicator" />
@@ -133,11 +124,11 @@ function CreatorLaunchDashboard({ address, navigate }: { address: Address; navig
   </section>;
 }
 
-export function ProfilePage({ navigate }: { navigate: Navigate }) {
+export function ProfilePage({ navigate, initialTab }: { navigate: Navigate; initialTab?: ProfileTab }) {
   const { address } = useAccount();
-  const { ready: privyReady, login } = usePrivy();
+  const { ready: privyReady, authenticated, login } = usePrivy();
 
-  if (!address) {
+  if (!address || !authenticated) {
     return <main className="page-main profile-page wrap">
       <h1 className="visually-hidden">Profile</h1>
       <section className="profile-connect" aria-labelledby="profile-connect-title">
@@ -153,6 +144,7 @@ export function ProfilePage({ navigate }: { navigate: Navigate }) {
     <TraderProfilePage
       address={address}
       navigate={navigate}
+      {...(initialTab ? { initialTab } : {})}
       launches={<CreatorLaunchDashboard address={address} navigate={navigate} />}
     />
   </Suspense>;

@@ -296,3 +296,34 @@ test("claims and keeper actions go to the singleton that owns them", async () =>
     [deployment.launchpad, "abortGraduation", [token]],
   ]);
 });
+
+test("a wallet whose provider is still on chain 1 is switched before the launch is sent", async () => {
+  // Privy's embedded wallet provider starts on chain 1 while Wagmi's cached connection can already say RISE.
+  let providerChainId = 1;
+  const switched: number[] = [];
+  const actions = {
+    getAccount: () => ({
+      address: wallet,
+      chainId: RISE_TESTNET_CHAIN_ID,
+      connector: { getChainId: async () => providerChainId },
+    }),
+    switchChain: async (_config: Config, { chainId }: { chainId: number }) => {
+      switched.push(chainId);
+      providerChainId = chainId;
+      return { id: chainId };
+    },
+    readContract: reads(),
+    simulateContract: async () => ({ request: {} }),
+    writeContract: async () => {
+      if (providerChainId !== RISE_TESTNET_CHAIN_ID) {
+        throw new Error(`The current chain of the wallet (id: ${providerChainId}) does not match the target chain for the transaction (id: ${RISE_TESTNET_CHAIN_ID} – RISE Testnet).`);
+      }
+      return hash;
+    },
+    waitForTransactionReceipt: async () => ({ status: "success", logs: [launchLog()] }),
+  } as unknown as WagmiActions;
+
+  const result = await createCurveballSdk({} as Config, deployment, actions).createToken({ name: "Test", symbol: "TST", uri });
+  expect(switched).toEqual([RISE_TESTNET_CHAIN_ID]);
+  expect(result.token).toBe(token);
+});

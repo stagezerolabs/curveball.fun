@@ -12,6 +12,7 @@ const routes: Route[] = [
   { id: "market", path: "/markets/:address", title: "Market — Curveball" },
   { id: "launch", path: "/launch", title: "Launch — Curveball" },
   { id: "profile", path: "/profile", title: "Profile — Curveball" },
+  { id: "profileSettings", path: "/profile/settings", title: "Settings — Curveball" },
   { id: "trader", path: "/profile/:address", title: "Trader profile — Curveball" },
   { id: "admin", path: "/admin", title: "Admin — Curveball" },
   { id: "notFound", path: "*", title: "Page not found — Curveball" },

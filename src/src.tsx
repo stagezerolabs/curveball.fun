@@ -5,6 +5,7 @@ import { App } from "./app/App";
 import { ErrorBoundary } from "./app/ErrorBoundary";
 import { privyConfig } from "./lib/privyConfig";
 import { PrivyWagmiProvider } from "./lib/PrivyWagmiProvider";
+import { ProfileClaimSync } from "./social/ProfileClaimSync";
 import { wagmiConfig } from "./lib/web3";
 import "./style.css";
 
@@ -21,6 +22,7 @@ createRoot(document.getElementById("root")!).render(
   >
     <QueryClientProvider client={queryClient}>
       <PrivyWagmiProvider config={wagmiConfig}>
+        <ProfileClaimSync />
         <ErrorBoundary>
           <App />
         </ErrorBoundary>

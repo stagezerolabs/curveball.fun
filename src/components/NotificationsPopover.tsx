@@ -76,13 +76,10 @@ export function NotificationsPopover({ address, navigate }: { address: Address; 
     <Popover.Portal>
       <Popover.Positioner className="notifications-popover-positioner" sideOffset={10} align="end" collisionPadding={12}>
         <Popover.Popup className="notifications-popover" aria-busy={notifications.isLoading}>
-          <header>
-            <Popover.Title>Notifications</Popover.Title>
-            <Popover.Close className="notifications-popover-close" aria-label="Close notifications">×</Popover.Close>
-          </header>
+          <Popover.Title className="notifications-popover-title">Notifications</Popover.Title>
           {notifications.isLoading ? <div className="notifications-popover-loading" aria-label="Loading notifications"><span className="skeleton" /><span className="skeleton" /><span className="skeleton" /></div>
             : notifications.isError ? <div className="notifications-popover-state" role="alert"><strong>Notifications unavailable</strong><button type="button" onClick={() => void notifications.refetch()}>Try again</button></div>
-              : !notifications.data?.items.length ? <div className="notifications-popover-state"><strong>You’re all caught up</strong><p>Follow traders to see their buys, sells, and token milestones here.</p></div>
+              : !notifications.data?.items.length ? <div className="notifications-popover-state"><strong>You’re all caught up</strong><p>Follow traders to see their trades and token milestones here.</p></div>
                 : <ol className="notifications-popover-list">{notifications.data.items.map((item) => {
                   const copy = notificationCopy(item);
                   const content = <>
@@ -95,7 +92,7 @@ export function NotificationsPopover({ address, navigate }: { address: Address; 
                     : <div>{content}</div>}
                   </li>;
                 })}</ol>}
-          <footer><button type="button" onClick={() => { setOpen(false); navigate("profile"); }}>Notification settings</button></footer>
+          <footer><button type="button" onClick={() => { setOpen(false); navigate("profileSettings"); }}>Notification settings <span aria-hidden="true">›</span></button></footer>
         </Popover.Popup>
       </Popover.Positioner>
     </Popover.Portal>

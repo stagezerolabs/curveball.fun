@@ -1,5 +1,5 @@
 import { useEffect, type PropsWithChildren } from "react";
-import { useWallets, type ConnectedWallet } from "@privy-io/react-auth";
+import { usePrivy, useWallets, type ConnectedWallet } from "@privy-io/react-auth";
 import {
   WagmiProvider,
   useConfig,
@@ -52,21 +52,45 @@ export function selectPreferredWallet<T extends Pick<ConnectedWallet, "walletCli
   return wallets.find((wallet) => wallet.walletClientType !== "privy" && wallet.walletClientType !== "privy-v2") ?? wallets[0];
 }
 
+// Privy reports CAIP-2 ids ("eip155:1"); its embedded wallet provider starts on chain 1.
+export function walletsOffChain<T extends Pick<ConnectedWallet, "chainId">>(wallets: T[], chainId: number) {
+  return wallets.filter((wallet) => wallet.chainId !== `eip155:${chainId}`);
+}
+
+export type WalletSyncAction = "wait" | "clear" | "connect";
+
+// Privy keeps listing a browser wallet after logout, so the session, not the wallet list, decides.
+export function selectWalletSyncAction({ ready, authenticated, walletCount }: {
+  ready: boolean;
+  authenticated: boolean;
+  walletCount: number;
+}): WalletSyncAction {
+  if (!ready) return "wait";
+  return authenticated && walletCount > 0 ? "connect" : "clear";
+}
+
 function PrivyWalletSync() {
-  const { wallets, ready } = useWallets();
+  const { ready: privyReady, authenticated } = usePrivy();
+  const { wallets, ready: walletsReady } = useWallets();
   const config = useConfig();
   const { reconnect } = useReconnect();
 
   useEffect(() => {
-    if (!ready) return;
+    const action = selectWalletSyncAction({ ready: privyReady && walletsReady, authenticated, walletCount: wallets.length });
+    if (action === "wait") return;
     let cancelled = false;
 
     void (async () => {
-      if (!wallets.length) {
+      if (action === "clear") {
         clearWallets(config);
         return;
       }
 
+      // Move every Privy wallet onto Wagmi's only chain so both libraries agree before anything signs.
+      const [appChain] = config.chains;
+      await Promise.all(walletsOffChain(wallets, appChain.id).map((wallet) => wallet.switchChain(appChain.id).catch((error) => {
+        console.warn(`Could not switch ${wallet.meta.name} to ${appChain.name}`, error);
+      })));
       await registerWallets(wallets, config);
       const preferredWallet = selectPreferredWallet(wallets);
       if (!preferredWallet) return;
@@ -84,7 +108,7 @@ function PrivyWalletSync() {
     return () => {
       cancelled = true;
     };
-  }, [config, ready, reconnect, wallets]);
+  }, [authenticated, config, privyReady, reconnect, wallets, walletsReady]);
 
   return null;
 }
