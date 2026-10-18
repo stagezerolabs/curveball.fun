@@ -187,8 +187,8 @@ export function LandingPage({ navigate }: { navigate: Navigate }) {
             <span className="landing-step-number">03</span>
             <h3>Graduate</h3>
             <p>
-              When the curve sells out, liquidity moves to that market's
-              selected venue.
+              When the curve sells out, its WETH and remaining tokens seed an
+              Icarus pool at the curve's closing price, with the LP locked.
             </p>
           </article>
         </div>
@@ -222,18 +222,21 @@ export function LandingPage({ navigate }: { navigate: Navigate }) {
           <details>
             <summary>Where do trading fees go?</summary>
             <p>
-              Curve fees are split between the creator, buyback vault, and
-              protocol treasury. Each market shows its exact fee and split;
-              buybacks happen separately from trades.
+              Curve and pool fees are split between the creator, the protocol
+              treasury, and a buyback that buys the token from its pool and
+              burns it. Each market shows its exact fee and split; buybacks
+              happen separately from trades, in small chunks.
             </p>
           </details>
           <details>
             <summary>What happens after the curve sells out?</summary>
             <p>
-              Bonding completes and the backend keeper prepares the venue pool.
-              Remaining tokens and WETH move to the venue selected when the
-              token launched. The pool address appears on the market page after
-              confirmation, and trading continues in the Icarus pool.
+              Curve trading pauses until anyone (usually the keeper) graduates
+              the market: its WETH and remaining tokens seed an Icarus pool at
+              the curve's closing price, the LP is locked forever, and unused
+              tokens are burned. Trading then continues in the pool. If
+              graduation stays stuck for 7 days, it aborts and curve trading
+              resumes.
             </p>
           </details>
           <details>
