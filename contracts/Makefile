@@ -12,8 +12,9 @@ export QUOTE_TOKEN ICARUS_FACTORY BLOCKSCOUT_API RISE_MAINNET_RPC_URL RISE_RPC_U
 
 .PHONY: test require-fork-tests test-fork-strict test-fork-testnet verify-icarus production-preflight deploy-production testnet-preflight deploy-testnet
 
+# Fork suites need network access; they run only through the targets below.
 test:
-	forge test --threads 1
+	forge test --threads 1 --no-match-path 'test/fork/*'
 	forge build --sizes
 
 # Fork suites read CI_FORK=1 and fail instead of skipping when their RPC is missing.
@@ -23,11 +24,11 @@ require-fork-tests:
 
 test-fork-strict: require-fork-tests
 	@test -n "$(RISE_MAINNET_RPC_URL)" || { echo "RISE_MAINNET_RPC_URL is required for strict fork tests."; exit 2; }
-	CI_FORK=1 forge test --match-path 'test/fork/*'
+	CI_FORK=1 forge test --match-path 'test/fork/*' --match-contract MainnetFork
 
 test-fork-testnet: require-fork-tests
 	@test -n "$(TESTNET_RPC_URL)" || { echo "RISE_TESTNET_RPC_URL or VITE_RPC_URL is required."; exit 2; }
-	CI_FORK=1 RISE_TESTNET_RPC_URL="$(TESTNET_RPC_URL)" forge test --match-path 'test/fork/*'
+	CI_FORK=1 RISE_TESTNET_RPC_URL="$(TESTNET_RPC_URL)" forge test --match-path 'test/fork/*' --match-contract TestnetFork
 
 verify-icarus:
 	bash scripts/verify-icarus.sh
