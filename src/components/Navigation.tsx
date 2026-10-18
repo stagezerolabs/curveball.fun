@@ -288,7 +288,7 @@ export function Header({
   };
   const marketsClass = ["markets", "market"].includes(routeId) ? "active" : "";
   const socialClass = ["social", "trader"].includes(routeId) ? "active" : "";
-  const profileClass = routeId === "profile" ? "active" : "";
+  const profileClass = routeId === "profile" || routeId === "profileSettings" ? "active" : "";
   const adminClass = routeId === "admin" ? "active" : "";
 
   const primaryLinks = (

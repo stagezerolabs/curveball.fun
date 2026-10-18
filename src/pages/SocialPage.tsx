@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
-import { AppLink } from "../components/Navigation";
 import type { Navigate } from "../types";
 import { SocialTradeCard } from "../social/SocialTradeCard";
 import { socialApi, socialApiBaseUrl, socialApiConfigured } from "../social/api";
@@ -50,7 +49,10 @@ export function SocialPage({ navigate }: { navigate: Navigate }) {
         <div>
           <h1>Trade in public.</h1>
         </div>
-        {address ? <AppLink className="social-profile-link" route="profile" navigate={navigate}>View my profile</AppLink> : null}
+        <div className="social-segmented" role="group" aria-label="Activity feed filter">
+          <button type="button" aria-pressed={scope === "global"} onClick={() => void selectScope("global")}>Feed</button>
+          <button type="button" aria-pressed={scope === "following"} onClick={() => void selectScope("following")}>Following</button>
+        </div>
       </header>
 
       {!socialApiConfigured ? <section className="social-service-state" role="status">
@@ -61,13 +63,6 @@ export function SocialPage({ navigate }: { navigate: Navigate }) {
 
       <div className="social-workspace">
         <section className="social-feed" aria-label="Trade feed" aria-busy={feed.isLoading}>
-          <div className="social-feed-toolbar">
-            <div className="social-segmented" role="group" aria-label="Activity feed filter">
-              <button type="button" aria-pressed={scope === "global"} onClick={() => void selectScope("global")}>Feed</button>
-              <button type="button" aria-pressed={scope === "following"} onClick={() => void selectScope("following")}>Following</button>
-            </div>
-          </div>
-
           {feed.isLoading ? <div className="social-feed-skeleton" aria-label="Loading activity">
             {Array.from({ length: 3 }, (_, index) => <span className="skeleton" key={index} />)}
           </div> : feed.isError ? <div className="social-feed-state" role="alert"><strong>Activity is unavailable.</strong><p>{feed.error instanceof Error ? feed.error.message : "Try again shortly."}</p><button type="button" onClick={() => void feed.refetch()}>Retry</button></div>

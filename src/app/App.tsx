@@ -68,8 +68,9 @@ export function App() {
       page = <LaunchPage navigate={navigate} />;
       break;
     case "profile":
+    case "profileSettings":
       page = (
-        <ProfilePage navigate={navigate} />
+        <ProfilePage key={route.id} navigate={navigate} initialTab={route.id === "profileSettings" ? "settings" : undefined} />
       );
       break;
     case "trader":
