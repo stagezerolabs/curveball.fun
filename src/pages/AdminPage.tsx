@@ -7,7 +7,7 @@ import { feePercentToBps, readFactoryFunds, readFeeDefaults, submitFeeUpdate, ty
 import { readableError } from "../lib/errors";
 import { formatAddress } from "../lib/format.js";
 import { activeChainId, activeExplorerUrl, launchpadAddress, wagmiConfig } from "../lib/web3";
-import { factoryAbi } from "../sdk/contracts";
+import { curveLaunchpadAbi } from "../sdk/contracts";
 
 type Settings = FeeAuthority;
 
@@ -27,10 +27,10 @@ function FundsPanel({ funds }: { funds: FactoryFunds }) {
     <div className="admin-side-head"><h2 id="admin-funds-title">Protocol funds</h2><span>{funds.symbol}</span></div>
     <dl className="admin-funds-grid">
       {[
-        { label: "Trading treasury", fund: funds.tradingTreasury },
-        { label: "Launch treasury", fund: funds.launchTreasury },
-        { label: "Buyback vault", fund: funds.buybackVault },
-      ].filter(({ fund }) => fund.address !== zeroAddress).map(({ label, fund }) => <div key={label} className="admin-fund-row">
+        { label: "Treasury wallet", fund: funds.treasuryWallet },
+        { label: "Treasury fees in escrow", fund: funds.treasuryInEscrow },
+        { label: "Escrow total (fees and buybacks)", fund: funds.escrowHeld },
+      ].map(({ label, fund }) => <div key={label} className="admin-fund-row">
         <dt>{label}</dt>
         <dd><strong>{displayBalance(fund.balance, funds.decimals)} <span>{funds.symbol}</span></strong><ExplorerAddress address={fund.address} label={label} /></dd>
       </div>)}
@@ -40,14 +40,15 @@ function FundsPanel({ funds }: { funds: FactoryFunds }) {
 
 function FactoryDetails({ settings, factory }: { settings: Settings; factory: Address }) {
   return <aside className="admin-panel admin-details" aria-labelledby="admin-details-title">
-    <h2 id="admin-details-title">Factory details</h2>
+    <h2 id="admin-details-title">Launchpad details</h2>
     <dl>
-      <div><dt>Factory</dt><dd><ExplorerAddress address={factory} label="Factory" /></dd></div>
+      <div><dt>Launchpad</dt><dd><ExplorerAddress address={factory} label="Launchpad" /></dd></div>
       <div><dt>Owner</dt><dd><ExplorerAddress address={settings.owner} label="Owner" /></dd></div>
       {settings.pendingOwner !== zeroAddress && <div><dt>Pending owner</dt><dd><ExplorerAddress address={settings.pendingOwner} label="Pending owner" /></dd></div>}
       <div><dt>Creator share</dt><dd>{(settings.creatorShareBps / 100).toFixed(2)}%</dd></div>
       <div><dt>Buyback share</dt><dd>{(settings.buybackShareBps / 100).toFixed(2)}%</dd></div>
       <div><dt>Creator tax cap</dt><dd>{(settings.creatorTaxCapBps / 100).toFixed(2)}%</dd></div>
+      <div><dt>Guardian</dt><dd><ExplorerAddress address={settings.guardian} label="Guardian" /></dd></div>
       <div><dt>Treasury</dt><dd><ExplorerAddress address={settings.treasury} label="Treasury" /></dd></div>
     </dl>
   </aside>;
@@ -89,12 +90,12 @@ export function AdminPage() {
       setSettings(latest);
       setFunds(latestFunds);
       if (resetDraft) setDraft((latest.feeBps / 100).toFixed(2));
-      const nextTarget = await readContract(wagmiConfig, { address: launchpadAddress, abi: factoryAbi, functionName: "graduationTarget", chainId: activeChainId });
+      const nextTarget = await readContract(wagmiConfig, { address: launchpadAddress, abi: curveLaunchpadAbi, functionName: "graduationTarget", chainId: activeChainId });
       setTarget(nextTarget);
       if (resetDraft) setTargetDraft(formatEther(nextTarget));
       setError("");
     } catch (cause) {
-      setError(readableError(cause, "Could not read factory settings or balances."));
+      setError(readableError(cause, "Could not read launchpad settings or balances."));
     } finally { setLoading(false); }
   }, [configured]);
 
@@ -111,7 +112,7 @@ export function AdminPage() {
     event.preventDefault();
     if (!settings) return;
     try {
-      const next = feePercentToBps(draft, settings.creatorTaxCapBps);
+      const next = feePercentToBps(draft);
       if (next === settings.feeBps) throw new Error("The fee is already set to this value.");
       setReviewBps(next);
       setError("");
@@ -147,7 +148,7 @@ export function AdminPage() {
     setMessage("Confirm the graduation target update in your wallet.");
     try {
       const simulation = await simulateContract(wagmiConfig, {
-        address: launchpadAddress, abi: factoryAbi, functionName: "setGraduationTarget",
+        address: launchpadAddress, abi: curveLaunchpadAbi, functionName: "setGraduationTarget",
         args: [targetReview], account: address, chainId: activeChainId,
       });
       const tx = await writeContract(wagmiConfig, simulation.request);
@@ -166,16 +167,16 @@ export function AdminPage() {
 
   return <main className="page-main admin-page wrap">
     <h1 className="visually-hidden">Admin controls</h1>
-    {!address ? <section className="admin-panel admin-state"><h2>Connect your wallet</h2><p>Connect the factory owner wallet to manage settings.</p><button type="button" className="primary-button" onClick={() => openConnectModal?.()}>Connect wallet</button></section>
-      : !configured ? <section className="admin-panel admin-state"><h2>Factory unavailable</h2><p>Configure the active factory before managing settings.</p></section>
-      : loading && !settings ? <section className="admin-panel admin-state" aria-busy="true">Reading factory settings…</section>
-      : !settings ? <section className="admin-panel admin-state" role="alert">{error || "Could not read factory settings."}</section>
-      : !isAdmin ? <section className="admin-panel admin-state"><h2>Access restricted</h2><p>This dashboard is available to the factory owner.</p></section>
+    {!address ? <section className="admin-panel admin-state"><h2>Connect your wallet</h2><p>Connect the launchpad owner wallet to manage settings.</p><button type="button" className="primary-button" onClick={() => openConnectModal?.()}>Connect wallet</button></section>
+      : !configured ? <section className="admin-panel admin-state"><h2>Launchpad unavailable</h2><p>Configure the active launchpad before managing settings.</p></section>
+      : loading && !settings ? <section className="admin-panel admin-state" aria-busy="true">Reading launchpad settings…</section>
+      : !settings ? <section className="admin-panel admin-state" role="alert">{error || "Could not read launchpad settings."}</section>
+      : !isAdmin ? <section className="admin-panel admin-state"><h2>Access restricted</h2><p>This dashboard is available to the launchpad owner.</p></section>
       : <>
         {!correctChain && <div className="notice admin-notice" role="status">Switch to the configured network to submit transactions. <button type="button" onClick={() => switchChain({ chainId: activeChainId })}>Switch network</button></div>}
         {error && <p className="notice admin-notice" role="alert">{error}</p>}
         {(message || hash) && <p className="admin-feedback" role="status">{message || "Check the submitted transaction before retrying."} {hash && <a href={`${activeExplorerUrl}/tx/${hash}`} target="_blank" rel="noreferrer">View transaction ↗</a>}</p>}
-        {loading && !settings ? <section className="admin-panel admin-state" aria-busy="true">Reading factory settings…</section>
+        {loading && !settings ? <section className="admin-panel admin-state" aria-busy="true">Reading launchpad settings…</section>
           : settings && <>
           <div className="admin-grid">
             {target !== null && settings.owner.toLowerCase() === address.toLowerCase() && <section className="admin-panel admin-fee-panel" aria-labelledby="admin-target-title">
