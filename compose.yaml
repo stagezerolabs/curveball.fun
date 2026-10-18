@@ -1,0 +1,65 @@
+# Local stack: Supabase-backed social service, graduation keeper, and the Vite frontend.
+# Secrets stay in the per-service .env files and are injected at runtime, never baked into images.
+x-social: &social
+  build:
+    context: .
+    dockerfile: services/social/Dockerfile
+  image: curveball-social:local
+  env_file: services/social/.env
+
+services:
+  migrate:
+    <<: *social
+    command: ["bun", "services/social/src/migrate.mjs"]
+
+  api:
+    <<: *social
+    command: ["bun", "services/social/src/api.mjs"]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8787:8787"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8787/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  indexer:
+    <<: *social
+    command: ["bun", "services/social/src/indexer-runner.mjs"]
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    <<: *social
+    command: ["bun", "services/social/src/worker.mjs"]
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  keeper:
+    build: keeper
+    image: curveball-keeper:local
+    env_file: keeper/.env
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend.Dockerfile
+    image: curveball-frontend:local
+    env_file:
+      - .env
+      - path: .env.local
+        required: false
+    ports:
+      - "127.0.0.1:5173:5173"
+    depends_on:
+      api:
+        condition: service_healthy

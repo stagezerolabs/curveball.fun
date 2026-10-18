@@ -1,0 +1,2 @@
+ALTER TABLE "curveball"."notifications" DROP CONSTRAINT "notifications_kind_check";--> statement-breakpoint
+ALTER TABLE "curveball"."notifications" ADD CONSTRAINT "notifications_kind_check" CHECK ("curveball"."notifications"."kind" in ('followed_buy','followed_sell','new_follower','curve_milestone','graduation','reaction'));

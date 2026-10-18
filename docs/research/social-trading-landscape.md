@@ -1,0 +1,373 @@
+# Crypto social and copy trading landscape
+
+**Research date:** 2026-10-17
+**Product context:** Curveball is a self-custodial RISE launchpad with public bonding-curve buys/sells, wallet profiles, and `.rise` names. This document asks which competitor patterns can translate into an MVP now.
+
+## Executive decision
+
+The winning MVP is **not “build eToro.”** It is a narrow loop:
+
+1. Turn every claimed, opted-in wallet/RNS identity into a discoverable trader profile; keep unclaimed address pages as raw onchain views.
+2. Let users follow identities and see a verified, onchain activity feed.
+3. Rank traders using return **and risk/quality evidence**, not ROI alone.
+4. Launch **copy alerts + one-tap prefilled trades** first.
+5. Add automatic copying only after Curveball has a safe delegated-signing model, with fixed spend, portfolio budget, slippage, liquidity/curve-stage filters, copy-sell rules, and an onchain-enforced emergency pause rather than only a VPS flag.
+
+This is the common core hidden beneath the products reviewed. The large centralized venues make discovery, trust metrics, configurable allocation, risk limits, execution history, and leader incentives first-class. The closest onchain analogues—OKX Wallet Trader Mode and Trojan—copy a wallet rather than a curated CEX portfolio, and consequently expose much stronger token and execution filters. ([OKX Wallet copy trading](https://www.okx.com/en-us/help/how-do-i-use-the-okx-wallet-smart-account-for-copy-trading), updated 2026-08-06; [Trojan copy trading](https://docs.trojan.com/terminal-overview/tools-and-widgets/copy-trading-bot), accessed 2026-10-17.)
+
+## The four live product models
+
+| Model | Current examples | What is actually copied | Best lesson for Curveball |
+|---|---|---|---|
+| Exchange-managed copy execution | Binance, Bybit, OKX, Bitget | Qualifying lead orders or portfolio changes that the exchange mirrors into separately tracked follower allocations; the exact account/portfolio segregation varies by product | Keep copied activity separate in analytics, expose failures, and give the follower hard allocation limits. ([Binance guide](https://www.binance.com/en/support/faq/detail/abc27f5949cf46d9801d31b5e33d0b38); [Bitget elite-trader guide](https://www.bitget.com/support/articles/12560603844617).) |
+| Proportional portfolio replication | eToro | Existing allocation plus later buys, sells, SL/TP changes, and closures | “Copy” is a persistent relationship, not a one-time order; pause, stop-and-sell, and stop-and-keep are core controls. ([eToro copy systems](https://www.etoro.com/copytrader/how-it-works/).) |
+| Onchain wallet mirroring | OKX Wallet Trader Mode, Trojan | Transactions by a target address, subject to follower filters | This is Curveball's closest product analogue: fixed/ratio buys, task budgets, copy sells, TP/SL, token filters, pause, and an execution log. ([OKX Wallet copy trading](https://www.okx.com/en-us/help/how-do-i-use-the-okx-wallet-smart-account-for-copy-trading); [Trojan](https://docs.trojan.com/terminal-overview/tools-and-widgets/copy-trading-bot).) |
+| Onchain managed vault | Hyperliquid's current builder-defined vault primitive; legacy HyperCore Vaults as the product precedent | The depositor buys shares in a strategy rather than mirroring transactions into their own wallet | Powerful later-stage primitive, but materially more contract, custody/delegation, fee-accounting, withdrawal, and regulatory surface than an MVP needs. Hyperliquid's current model supports customizable HyperEVM accounting and CoreWriter access; its earlier fixed rules are now explicitly legacy. ([Hyperliquid Vaults](https://hyperliquid.gitbook.io/hyperliquid-docs/hypercore/vaults).) |
+
+## Competitor matrix
+
+| Product | Discovery and transparency | Copy/execution and follower controls | Leader economics | Social/community and eligibility | MVP takeaway |
+|---|---|---|---|---|---|
+| **Binance** | Lead portfolios expose ROI, PnL, Sharpe, maximum drawdown, win rate, AUM, balance, and runtime; users can compare up to four futures leaders side by side and can mock-copy before funding. ([Spot metrics](https://www.binance.com/en/support/faq/detail/1ae9c68fcd0247408c9345e55ab54939); [compare tool](https://www.binance.com/en/support/faq/detail/607c124c574a417bbf734f9035ee9d28).) | Spot and futures; fixed amount or fixed ratio. Spot offers pair selection, up to 3% entry-slippage preference, total stop loss, and up to ten copied portfolios. Futures adds leverage/margin settings, per-position TP/SL, portfolio stop loss, pause/resume, and balance adjustment. ([Spot guide](https://www.binance.com/en/support/faq/detail/abc27f5949cf46d9801d31b5e33d0b38); [futures guide](https://www.binance.com/en/support/faq/detail/0b3a91eea664402f812fe41358c8a206).) | Spot lead traders receive 10% of copier profit plus 10% of copier trading-fee commission, settled weekly when conditions are met. ([Lead-trader guide](https://www.binance.com/en-AE/support/faq/detail/b9e5e3b2141149be826685d2c88536fa).) | Binance Square now connects content and copy execution: lead traders can attach copy widgets to posts, sync trade signals to their profiles/followers' feeds, and pin portfolios in livestream chats for one-tap copying. Spot copy requires identity verification plus proof of address and is region-dependent. ([Square copy guide](https://www.binance.com/en/square/post/2337933267185); [livestream guide](https://www.binance.com/en/square/post/360159906422714); [Spot FAQ](https://www.binance.com/en/support/faq/detail/1826c3b426a149949851554bdde227d3).) | Ship comparable profiles and a simulation/dry-run view before real auto-copy. Separate “performance” from “risk-adjusted performance.” |
+| **Bybit** | One of the richest profiles: followers, trading days, stability index, AUM, leader assets, ROI/ROE, leader and follower PnL, drawdown, average PnL, profit/loss ratio, holding time, volatility, Sharpe, Sortino, open/closed positions, and history. Its leaderboards have separate categories for ROI, follower profit, low drawdown, intraday, new talent, and balanced traders, with explicit activity, AUM, follower-PnL, leverage, and drawdown thresholds. ([Performance definitions](https://www.bybit.com/en/help-center/article/How-to-Understand-Master-Trader-Performance); [ranking rules](https://www.bybit.com/en/help-center/article/How-Can-Master-Traders-Rank-in-The-Different-Categories).) | Classic futures offers Smart Copy or follower-set fixed margin, leverage, margin mode, TP/SL and other parameters; copied orders can diverge from the leader because the follower executes at market. ([Classic FAQ](https://www.bybit.com/en/help-center/article/FAQ-Copy-Trading); [role differences](https://www.bybit.com/en/help-center/article/Differences-Between-Master-Traders-and-Followers-in-Copy-Trading?category=dace0e6976ec4585df).) | Classic tiers pay leaders 10%, 12%, or 15% of net follower profit, with losses offset within a weekly settlement cycle. ([Profit sharing](https://www.bybit.com/en/help-center/article/Copy-Trading-Profit-Sharing-Explained).) | Leaders can expose trading signals, share profile/order cards to Telegram, X, Facebook, and WhatsApp, and run Classic invitation/whitelist communities with exclusive follower slots. ([Leader guide](https://www.bybit.com/en/help-center/article/?id=000001555); [Classic follower management](https://www.bybit.com/en/help-center/article/How-to-Invite-or-Manage-Your-Follower).) Standard KYC is mandatory; products and jurisdictions vary, and Bybit publishes excluded jurisdictions. ([KYC](https://www.bybit.com/en/help-center/article/Individual-KYC-FAQ?category=top); [restricted countries](https://www.bybit.com/en/help-center/article/Service-Restricted-Countries?category=8c8de4a417efb42713).) | Do not make one “Top traders” sort. Give users at least **Trending**, **Consistent**, **Most profitable for followers**, and **New**; require a minimum track record for ranked exposure. |
+| **OKX Exchange** | Profiles show periodic PnL/PnL%, win rate, profit/loss ratio, order count, follower PnL, holding period, follower count, AUM, charts, volume, and asset preferences. Its published overview rank weights cumulative/30d/7d PnL%, historical/weekly drawdown, follower count, and follower PnL—so popularity cannot wholly override risk and delivered follower results. ([Profile](https://www.okx.com/en-us/help/lead-traders-lead-trader-profile); [selection/ranking](https://www.okx.com/en-gb/help/copy-traders-how-to-choose-a-lead-trader).) | Spot and futures. Spot supports fixed amount, proportional copying, and Smart Sync proportional to leader equity; followers can set total investment, optionally buy existing holdings, set a total stop loss, and exit early. A 0.5% leader/follower buy-price disparity can cancel a spot copy. ([Spot guide](https://www.okx.com/en-us/help/copy-traders-spot-copy-trading-guidelines); [Smart Sync](https://www.okx.com/en-us/help/what-is-smart-sync-spot-copy-trading); [failure/slippage rules](https://www.okx.com/en-gb/help/explanation-of-the-reasons-for-the-failure-of-spot-tracking).) | Product/tier-dependent. Current public leader tiers can reach 30%; private futures/signal/grid relationships can set 0–50%. Regular trading fees still apply. ([Spot leader FAQ](https://www.okx.com/en-us/help/spot-copy-trading-product-cheatsheet-for-lead-trader); [private copy](https://www.okx.com/en-us/help/introduction-to-private-copy-trading); [general copy FAQ](https://www.okx.com/en-ae/help/copy-trading-faqs).) | Public and invite-only leader relationships sit beside OKX Orbit, an integrated community with posts, position sharing, follows, replies/likes, groups, creator rewards, public/private performance, and moderation controls. Copy availability remains jurisdiction/customer dependent, and Orbit restricts traffic-diversion behavior. ([Orbit FAQ](https://www.okx.com/help/okx-orbit-faq); [Regional FAQ](https://www.okx.com/en-ae/help/copy-trading-faqs).) | The published rank formula is an excellent MVP precedent: combine return, drawdown, social proof, and actual follower outcomes, and show the formula. |
+| **OKX Wallet Trader Mode** | Users can browse an onchain-wallet leaderboard and start a task from a wallet address. The product also combines leaderboard/tracker discovery and address monitoring. ([Copy trading](https://www.okx.com/en-us/help/how-do-i-use-the-okx-wallet-smart-account-for-copy-trading); [Trader Mode](https://www.okx.com/en-gb/help/what-is-smart-account).) | Closest direct benchmark: fixed buy or ratio buy with max per-buy cap; skip repeat holdings; net buy budget; strategy loss cap; copy-sell limited to task positions or the whole wallet; independent auto-sell TP/SL; filters for leader trade size, market cap, liquidity, token age, and a blocklist; task duration up to three months; pause/restart/stop/edit; and per-task order/transaction/PnL logs. It supports Solana, BSC, X Layer, and Base—not RISE as of the source update. ([Copy trading](https://www.okx.com/en-us/help/how-do-i-use-the-okx-wallet-smart-account-for-copy-trading).) | No leader profit share is described in this wallet-copy workflow; it is an execution product rather than a managed-leader marketplace. | Automated signing uses a TEE: the user signs an order intent, the TEE validates future transactions against it, signs matching trades, and deletes keys when a 7/15/30-day enable period ends. OKX describes it as self-custodial but this still introduces specialized security infrastructure and trust assumptions. ([Trader Mode guide](https://www.okx.com/en-gb/help/how-to-trade-with-smart-account).) | This is the functional north star for automatic Curveball copy tasks. The delegation/signing system is the hard product—not the VPS listener. Do not store ordinary wallet keys on the VPS. |
+| **Bitget** | Followers see pairs, ROI, win rate, AUM, and profit share. The current spot leader center tracks follower count/assets, active accounts, retention, follower profit, revenue rankings, copy success and trade frequency. ([Futures follower guide](https://www.bitget.com/support/articles/12560603800577); [spot leader guide](https://www.bitget.com/support/articles/12560603844617).) | Futures offers Smart Copy (follows leader margin/leverage) and Diverse Follow, a shared follower capital pool across multiple leaders using fixed amount or multiplier. Controls include allowed pairs, TP/SL, max copy amount, and slippage. Spot blocks copies beyond default 0.3% BTC/ETH and 0.5% other-token slippage. ([Diverse Follow](https://www.bitget.com/support/articles/12560603800575); [futures parameters](https://www.bitget.com/en-CA/support/articles/12560603802175); [spot guide](https://www.bitget.com/support/articles/12560603844617).) | Current public futures guidance allows 0–10%; private futures portfolios allow 0–50%. Spot uses a weekly high-water-mark model so leaders earn only on new net profit. ([Current futures leader guide](https://www.bitget.com/support/articles/12560603847588); [private futures](https://www.bitget.com/support/articles/12560603883610); [spot HWM](https://www.bitget.com/support/articles/12560603844621).) | Public/private portfolios sit beside Bitget Insights, which integrates verified-trader content, strategy discussion, followers, creator exposure, and cross-program perks for elite traders. KYC is required for core trading and elite-trader applications. ([Insights launch](https://www.bitget.com/blog/articles/12560603777820); [Elite Trader–Insighter perks](https://www.bitget.com/support/articles/12560603810537); [KYC](https://www.bitget.com/support/articles/12560603808893).) | A shared “copy budget” across several leaders is a strong later feature. High-water-mark fees are much fairer than charging on each isolated win. |
+| **eToro** | Profiles combine transparent performance, portfolio composition, a 1–10 historical-volatility risk score, drawdowns, active copiers, copy flow, and assets under copy. ([Stats](https://help.etoro.com/s/article/What-statistics-does-eToro-track-and-where-can-I-find-them?language=en_GB); [risk score](https://help.etoro.com/s/article/How-does-eToro-calculate-and-present-risk?language=en_GB).) | Proportionally mirrors the leader's current portfolio and future activity. Users can close an individual copied position, add/remove funds, pause new trades while existing trades still follow exits/SL/TP, or stop and either sell all or keep positions. Portfolio Copy Stop Loss closes the relationship below a selected equity level. ([How it works](https://www.etoro.com/copytrader/how-it-works/).) | CopyTrader itself has no extra copy fee; normal spreads/overnight/crypto/CFD fees apply. Approved Pro Investors are paid by eToro, up to 1.5% of assets under copy at higher tiers, rather than directly taking a follower performance fee. ([Copy fees](https://help.etoro.com/s/article/Are-there-any-fees-related-to-CopyTrader?language=en_GB); [Pro Investor program](https://www.etoro.com/copytrader/popular-investor/?culture=en-us).) | A mature, deeply integrated social-investing network: personalized feed, posts, `$SYMBOL` and `@user` tags, likes, comments, shares and discussions. Copyable leaders are vetted; current entry rules include capital/history plus risk, drawdown, concentration, diversification, and profitable-month thresholds. ([News Feed](https://help.etoro.com/en-us/s/article/what-is-the-news-feed-US); [Pro Investor program](https://www.etoro.com/copytrader/popular-investor/?culture=en-us).) | Copying works better when a leader can explain trades and build trust. For MVP, prefer trade-attached notes/reactions over a general-purpose feed that immediately creates a moderation burden. |
+| **Hyperliquid Vaults (current primitive; legacy product precedent)** | Legacy HyperCore vault pages exposed APY, deposits/TVL, PnL, maximum drawdown, volume, open positions, trade history, depositor count, and support duration. ([Legacy depositor docs](https://hyperliquid.gitbook.io/hyperliquid-docs/hypercore/vaults/for-vault-depositors-legacy).) | Under the legacy model, users deposited into a pooled vault and received proportional profits/losses; a one-day lock applied, and withdrawals could force cancellations or partial position closes. Current HyperEVM/CoreWriter vaults are builder-defined and can implement customizable accounting with spot and HIP-3 access. ([Current vault primitive](https://hyperliquid.gitbook.io/hyperliquid-docs/hypercore/vaults); [legacy depositor docs](https://hyperliquid.gitbook.io/hyperliquid-docs/hypercore/vaults/for-vault-depositors-legacy).) | The legacy product paid leaders 10% of profits and required at least 5% leader stake; those fixed economics should not be generalized to current builder-defined vaults. ([Legacy leader docs](https://hyperliquid.gitbook.io/hyperliquid-docs/hypercore/vaults/for-vault-leaders-legacy).) | Permissionless strategy infrastructure rather than a conversational social feed. | A pooled “creator/trader club” may eventually fit Curveball, but only after copy relationships, custom accounting, withdrawals, and legal analysis are mature. |
+| **Trojan (Solana/onchain)** | Users provide a target address and are told to use Wallet Analyzer; Trojan explicitly says good copy wallets are hard to identify and warns against snipers/custom programs. ([Copy docs](https://docs.trojan.com/terminal-overview/tools-and-widgets/copy-trading-bot); [FAQ](https://docs.trojan.com/faqs).) | Fixed SOL or percentage buys; copy-sell or follower TP/SL; execution wallet; priority fee, bribe, slippage and MEV protection; market-cap and minimum-liquidity filters; max spend; launchpad exclusion; pause/resume individually or in bulk. ([Copy docs](https://docs.trojan.com/terminal-overview/tools-and-widgets/copy-trading-bot).) | Trojan charges 1% per successful trade; its docs do not describe a built-in leader performance share. ([FAQ](https://docs.trojan.com/faqs).) | Utility-first rather than social; users source target wallets themselves. The docs warn that copying very fast/sniper wallets can make followers exit liquidity and that malicious custom programs can fake swaps. ([Detailed tutorial](https://docs.trojanonsolana.com/telegram-bot-user-guide/copy-trading-crypto).) | Curveball must assume followers execute later and at a worse curve price. Show price impact, skip unsafe copies, and never market past leader PnL as follower-achievable PnL. |
+
+## Qualitative complaint check
+
+Public reviews and forum posts are noisy, self-selected, and not reliable incidence estimates. They are useful only where the same failure pattern appears repeatedly and is also consistent with first-party product documentation.
+
+- Binance and Bybit users describe leader results, leverage, entry price, or ROI that they could not reconcile with their follower accounts. A separate Bybit suggestion thread asks for longer track-record filters rather than spectacular short-window ROI. ([Binance example](https://www.reddit.com/r/binance/comments/1n0k528/lost_money_on_copy_trading_on_binance/); [Bybit discrepancy thread](https://www.reddit.com/r/Bybit/comments/1133pkx); [Bybit product suggestions](https://www.reddit.com/r/Bybit/comments/11mvu26).) Bybit's own documentation confirms that follower orders execute after the leader and may diverge or remain unexecuted because of price protection and slippage. ([Bybit discrepancy guide](https://www.bybit.com/en/help-center/article/Understanding-Discrepancies-in-Copy-Trading-Positions-between-Master-Trader-s-and-Follower-s).)
+- Onchain-wallet copy users report missed/failed transactions and confusion about where balances went; GMGN's own guide lists slippage, balance, congestion, timeout, priority fee, retries, and auto-pausing after repeated failures. ([GMGN user thread](https://www.reddit.com/r/solana/comments/1h07gy1/copy_trading_on_gmgnai_doesnt_actually_work/); [GMGN copy guide](https://docs.gmgn.ai/index/copy-trade-copy-smart-money-automatically-earn-sol).)
+- Store reviews for eToro show both sides of the product: the social/copy concept is praised by some users, while others criticize access restrictions, support, fee clarity, or how returns are presented. ([Google Play](https://play.google.com/store/apps/details?gl=GB&hl=en-GB&id=com.etoro.openbook); [Apple App Store reviews](https://apps.apple.com/us/app/etoro-trade-invest/id674984916?see-all=reviews).)
+
+The actionable pattern is not “copy trading does not work.” It is that **opaque ranking math, unexplained execution divergence, silent failures, and unclear account controls are recurring trust risks worth addressing**. Curveball should make those four areas visible from the first release.
+
+## What the market has converged on
+
+### 1. Discovery is a risk product, not a popularity page
+
+Every mature marketplace displays some combination of PnL/ROI, win rate, drawdown, AUM, track record, positions, and follower outcomes. Bybit and OKX go further: rankings explicitly incorporate activity duration, leader capital, drawdown, and follower PnL, while Binance exposes Sharpe and a side-by-side comparison tool. ([Bybit ranking rules](https://www.bybit.com/en/help-center/article/How-Can-Master-Traders-Rank-in-The-Different-Categories); [OKX rank formula](https://www.okx.com/en-gb/help/copy-traders-how-to-choose-a-lead-trader); [Binance comparison](https://www.binance.com/en/support/faq/detail/607c124c574a417bbf734f9035ee9d28).)
+
+**Curveball implication:** a leaderboard ordered by raw ROI will be gamed by tiny, new, concentrated wallets. Use eligibility gates plus categorized lists. Make raw onchain history visible even when an address is not eligible for rankings.
+
+### 2. Fixed amount and proportional amount are the default pair
+
+Binance, OKX, Bitget, eToro and onchain tools all offer either a constant amount per copied buy, a ratio of the leader's order/equity, or both. ([Binance](https://www.binance.com/en/support/faq/detail/abc27f5949cf46d9801d31b5e33d0b38); [OKX Wallet](https://www.okx.com/en-us/help/how-do-i-use-the-okx-wallet-smart-account-for-copy-trading); [Bitget](https://www.bitget.com/support/articles/12560603800575); [eToro](https://www.etoro.com/copytrader/how-it-works/).)
+
+**Curveball implication:** start with **fixed WETH per copied buy**. It is explainable and caps each decision. Add proportional copying later, but cap both the per-trade amount and the entire relationship budget.
+
+### 3. “Pause” is different from “stop,” and exits require an explicit policy
+
+eToro and Binance let users pause new copied entries while retaining the relationship/current positions; eToro lets users stop and either sell all or keep positions, while Trojan and OKX expose independent copy-sell/auto-sell choices. ([eToro](https://www.etoro.com/copytrader/how-it-works/); [Binance futures](https://www.binance.com/en/support/faq/detail/0b3a91eea664402f812fe41358c8a206); [Trojan](https://docs.trojan.com/terminal-overview/tools-and-widgets/copy-trading-bot); [OKX Wallet](https://www.okx.com/en-us/help/how-do-i-use-the-okx-wallet-smart-account-for-copy-trading).)
+
+**Curveball implication:** every relationship needs these states: `active`, `paused`, and `stopped`. Stopping must ask: **keep tokens**, **sell now**, or **keep following exits only**. Emergency “Pause all” should immediately stop backend jobs and, for unattended authority, revoke the session or pause an onchain guard.
+
+### 4. Copy failures are normal product states
+
+Competitor docs repeatedly list insufficient balance, minimum order size, slippage, risk caps, unsupported assets, fill state, and service interruption as reasons a follower will diverge. Binance, OKX and Bitget expose failed-copy history or document these cases explicitly. ([Binance spot guide](https://www.binance.com/en/support/faq/detail/abc27f5949cf46d9801d31b5e33d0b38); [OKX FAQ](https://www.okx.com/en-gb/help/copy-traders-faqs); [Bitget spot guide](https://www.bitget.com/support/articles/12560603844617).)
+
+**Curveball implication:** never promise “exact copying.” Each attempted copy needs a durable status such as `detected → eligible → submitted → confirmed`, or a specific skipped/failed reason. Show leader fill vs follower quote/fill and resulting price difference.
+
+### 5. Private communities are a monetization and distribution wedge
+
+OKX, Bybit and Bitget all support invite-only leaders with links/codes, follower management, and higher/configurable private profit shares. ([OKX private copy](https://www.okx.com/en-us/help/introduction-to-private-copy-trading); [Bybit whitelist](https://www.bybit.com/en/help-center/article/How-to-Invite-or-Manage-Followers-on-Copy-Trading-TradFi); [Bitget private futures](https://www.bitget.com/support/articles/12560603883610).)
+
+**Curveball implication:** after public follow/copy works, “private circles” tied to RNS names can serve creators, Telegram groups, and alpha communities without requiring a full public content network.
+
+### 6. Leader incentives favor aligned, delayed settlement
+
+Performance shares cluster around 10% at the low/default end; mature products settle net performance on a cycle, and newer products use high-water marks so a leader is paid only after recovering earlier losses. eToro instead pays vetted leaders from platform economics based partly on assets under copy. ([Binance](https://www.binance.com/en-AE/support/faq/detail/b9e5e3b2141149be826685d2c88536fa); [Bybit](https://www.bybit.com/en/help-center/article/Copy-Trading-Profit-Sharing-Explained); [Bitget HWM](https://www.bitget.com/support/articles/12560603844621); [eToro Pro Investor](https://www.etoro.com/copytrader/popular-investor/?culture=en-us).)
+
+**Curveball implication:** do not add per-winning-trade performance fees in the MVP. They are easy to game and hard to calculate fairly across deposits, withdrawals, open positions, and prior losses. Start with existing trade fees/referrals or no leader payout; add high-water-mark performance sharing only after legal and accounting design.
+
+## Recommended Curveball MVP
+
+### P0 — Social proof and follow graph (ship first)
+
+- **Claimed trader profile:** `.rise` name, address, join/first-trade date, Curveball markets traded, Curveball holdings, realized and unrealized Curveball PnL separately, win rate, volume, average holding time, largest-position concentration, maximum drawdown, and 7d/30d/all-time charts. Publish the virtual-portfolio and cost-basis methodology; these are not canonical whole-wallet NAV/AUM figures because an EOA may commingle external activity.
+- **Verified activity feed:** launch, buy, sell, graduation, and optional short trade note. Every activity links to the transaction and market. “Following” is a filter, not a claim that Curveball endorses the trader.
+- **Follow/unfollow and notifications:** in-app first; opt-in email/Telegram/web-push later through the VPS.
+- **Rank categories:** `Trending` (recent follower/trade acceleration), `Consistent` (return adjusted for drawdown and minimum history), `Profitable for followers` (simulated or actual follower fills), and `New traders` (clearly labeled, never mixed into established ranks).
+- **Eligibility gates:** minimum active days, minimum number of completed round trips, minimum meaningful capital/volume, no flagged wash/self trades, and a visible confidence/track-record label.
+- **Share cards:** RNS identity, verified return period, drawdown, and link back to the profile/market; never share ROI without the period and risk context.
+
+This captures most of the “social trading feel” before any wallet delegation: identity, discovery, observable behavior, reputational history, following, and social distribution.
+
+### P1 — Copy Assist (safe non-custodial MVP)
+
+When a followed trader buys or sells:
+
+- Generate an alert with leader amount, leader execution price/market cap, current quote, price movement since detection, estimated Curveball fee, and price impact.
+- Offer **one-tap prefilled** `Buy fixed WETH` or `Sell the same percentage`, but require the user's wallet confirmation.
+- Let users pre-save preferences: amount per buy, maximum slippage, maximum WETH per trader/day, minimum remaining curve liquidity, allowed curve-progress range, skip repeat buys, ignore trades below a leader-size threshold, copy sells vs manual sells, and token/address blocklist.
+- Keep an execution journal with `copied`, `skipped by rule`, `quote expired`, `user dismissed`, `wallet rejected`, `reverted`, and `confirmed`.
+
+This delivers useful copying without Curveball holding signing keys or pretending a backend can autonomously spend from a normal wallet.
+
+### P2 — Automatic copy tasks (only with delegated execution)
+
+Match the proven OKX Wallet/Trojan control surface:
+
+- fixed amount first; proportional ratio second;
+- per-trade maximum, per-leader budget, daily budget, and relationship stop-loss;
+- buy filters for leader size, market cap, liquidity/reserves, token age, and curve stage;
+- track copy-sells against the task-acquired inventory by default; for a normal EOA this is an offchain accounting/UI cap, while hard enforcement requires a segregated account or contract ledger;
+- independent TP/SL only if those orders can be executed reliably;
+- short-lived authorization, explicit scope, wallet/session revocation, a backend job pause, an onchain guard pause where delegated authority remains live, and task expiry;
+- durable execution/failure audit log and user notifications.
+
+The backend/VPS can index events, compute rankings, evaluate rules, queue jobs, and notify. It **cannot safely make a normal externally-owned wallet autonomous** without a signing/delegation design. OKX's precedent uses TEE-held encrypted keys and signed order intents with short enable periods; Curveball should instead evaluate the safest RISE-compatible option (for example a narrowly scoped smart-account/session-key module) and have it independently reviewed before mainnet use. ([OKX Trader Mode execution model](https://www.okx.com/en-gb/help/how-to-trade-with-smart-account).)
+
+### Defer
+
+- **General-purpose posting/feed:** eToro shows the long-term value, but text/media, comments, mentions, blocking, reporting, spam, financial-promotion rules, and moderation are a separate product. Start with transaction-attached notes and reactions.
+- **Performance fees:** defer until high-water-mark accounting, disclosures, jurisdiction, and leader eligibility are designed.
+- **Pooled vaults:** defer until contracts, withdrawal behavior, strategy authority, and legal treatment have been reviewed.
+- **Leverage or cross-market copying:** irrelevant to the bonding-curve MVP and substantially increases risk.
+
+## Minimum safe defaults for Curveball auto-copy
+
+These defaults are a product recommendation derived from the competitor controls above, not claims about competitor settings:
+
+| Control | Recommended default |
+|---|---|
+| Entry sizing | Fixed WETH; no proportional mode until users opt into Advanced |
+| Maximum per copied buy | Required, never unlimited |
+| Total allocation per leader | Required |
+| Daily total | Required |
+| Slippage | Conservative cap; skip rather than silently widen |
+| Repeat buys | Off by default |
+| Copy sells | Cap instructions to the quantity attributed to that relationship; hard enforcement requires a segregated account or contract ledger |
+| Newly launched/thin curves | Excluded until a configurable minimum age/reserve/progress threshold |
+| Leader's tiny “signal” buys | Ignore below a meaningful threshold |
+| Emergency control | Stop backend jobs plus revoke wallet/session authority or pause the onchain guard |
+| Relationship lifetime | Expiring authorization, with explicit renewal |
+| Failure behavior | Skip and notify; never retry indefinitely or increase slippage automatically |
+
+## Ranking design that avoids the obvious trap
+
+Compute all returns from a published Curveball-only virtual portfolio with a defined lot-selection, fee, cash-flow, and mark-to-curve policy; do not imply whole-wallet NAV. A first defensible score can combine:
+
+- 25% risk-adjusted return over a fixed window;
+- 20% realized PnL quality (not unrealized screenshots);
+- 15% maximum drawdown;
+- 15% actual or backtested follower PnL using follower-time quotes and Curveball fees;
+- 10% track-record length/activity consistency;
+- 10% capital at risk / position concentration quality;
+- 5% follower retention, capped so popularity cannot dominate.
+
+Publish every component and retain category-specific lists. Do not collapse new traders and established traders into one score. OKX's published formula and Bybit's category/eligibility rules are the strongest precedents for transparent ranking. ([OKX ranking](https://www.okx.com/en-gb/help/copy-traders-how-to-choose-a-lead-trader); [Bybit rankings](https://www.bybit.com/en/help-center/article/How-Can-Master-Traders-Rank-in-The-Different-Categories).)
+
+## Threats and failure modes specific to Curveball
+
+| Failure mode | Product response |
+|---|---|
+| Leader buys before followers, followers move up the curve, leader exits into them | Show leader-vs-current price and estimated impact before confirmation; cap slippage; compute **follower-achievable** PnL; flag repeated leader-first/follower-loss patterns. Trojan explicitly warns followers can become a fast trader's exit liquidity. ([Trojan limitations](https://docs.trojanonsolana.com/telegram-bot-user-guide/copy-trading-crypto).) |
+| ROI gaming with tiny capital, one lucky launch, deposits/withdrawals, or open winners | Minimum history/capital/trade gates; time-weighted or explicitly cash-flow-adjusted Curveball virtual-portfolio return; separate realized/unrealized; display drawdown and concentration. Binance and Bybit document deposit-aware ROI and extensive risk metrics. ([Binance metrics](https://www.binance.com/en/support/faq/detail/1ae9c68fcd0247408c9345e55ab54939); [Bybit metrics](https://www.bybit.com/en/help-center/article/How-to-Understand-Master-Trader-Performance).) |
+| Wash trading or linked-wallet coordination | Exclude self/factory-linked patterns from rank inputs; graph likely linked wallets; add report/review states; never treat volume alone as quality. |
+| Copy divergence | Record detection time, quote time, submit time, leader fill, follower fill, skip/failure reason. Competitors explicitly warn slippage/liquidity can make results differ. ([eToro risk warning](https://www.etoro.com/copytrader/risk-warnings/); [Binance risks](https://www.binance.com/en/support/faq/detail/2616103f0575445da24cc4794d23bba8).) |
+| Compromised or malicious automation authority | Short-lived, narrowly scoped delegation; spend caps; contract allowlist; backend pause plus wallet/session revocation or an onchain paused guard; alerts; no raw user keys in the application database or ordinary VPS process. |
+| Social claims become financial promotion/advice | Transaction facts and methodology-first metrics; clear risk disclosures; reporting/moderation; legal review before paid leaders, performance fees, or promoted rankings. eToro explicitly treats trader content and past performance as non-guarantees and requires suitability in some jurisdictions. ([eToro risks](https://www.etoro.com/copytrader/risk-warnings/); [EU terms](https://www.etoro.com/wp-content/uploads/2026/01/eToro-EU-Terms-and-Conditions-7-January-2026-Clean.pdf).) |
+
+## Market momentum (directional, first-party and self-reported)
+
+- Bitget reported copy-trading followers growing from over 1.0 million to 1.1 million in July 2025. A separate BGB whitepaper reports over 200,000 elite traders and 900,000 copiers; the different figures may reflect different dates or definitions. These are Bitget's own figures, not independently audited market-share data. ([July 2025 report](https://www.bitget.com/blog/articles/july-2025-transparency-report); [BGB whitepaper](https://www.bitget.com/cdnstatic/files/BGB-whitepaper-en.pdf).)
+- eToro says it has over 40 million registered users; its 2025 annual filing reported more than 4,750 Pro Investors at year-end, including 125 above $1 million assets under copy and 17 above $10 million. ([Program page](https://www.etoro.com/copytrader/popular-investor/?culture=en-us); [2025 Form 20-F](https://investors.etoro.com/static-files/42426819-ac6c-46e9-ba77-2aeaacf156b2).)
+- Product investment is visibly continuing: Binance now exposes leader comparison/mock copy, OKX operates both exchange and onchain-wallet copy systems, and Bitget's 2026 update log shows repeated new leaderboard, private portfolio, profile, and risk-control releases. ([Binance compare](https://www.binance.com/en/support/faq/detail/607c124c574a417bbf734f9035ee9d28); [OKX Wallet](https://www.okx.com/en-us/help/how-do-i-use-the-okx-wallet-smart-account-for-copy-trading); [Bitget product updates](https://www.bitget.com/support/sections/12508313404900).)
+
+The signal is not that every trader wants full automation. It is that **identity + transparent performance + follow/discovery + constrained automation** has become a durable acquisition and retention loop across CEX, broker, and onchain products.
+
+## Curveball's existing advantage and hard boundary
+
+Curveball already emits the data needed for a credible social layer. Each bonding-curve `Trade` records the trader, side, gross and net quote, fees, token amount, and post-trade reserves ([`CurveBondingCurve.sol`](../../contracts/contracts/CurveBondingCurve.sol#L65)). The frontend already converts those logs into wallet-attributed activity ([`marketChart.ts`](../../src/lib/marketChart.ts#L3)) and resolves trader addresses to verified RNS primary names ([`MarketActivity.tsx`](../../src/components/MarketActivity.tsx#L13)).
+
+Before graduation, the launch token can move only to or from its curve ([`CurveLauncherToken.sol`](../../contracts/contracts/CurveLauncherToken.sol#L44)). This means Curveball can reconstruct curve buys, sells, cost basis, position size, cash flow, and Curveball-only virtual-portfolio value unusually cleanly. One caveat: `quoteSell()` is unavailable once a curve is `ready` but before graduation, so any valuation in that interval must be labeled theoretical, stale, or non-executable. The immediate opportunity is therefore a product/indexing layer, not a new trading protocol.
+
+There are two important boundaries:
+
+1. **The current profile is not a social profile.** It is tied to the connected wallet and shows only tokens that wallet created ([`ProfilePage.tsx`](../../src/pages/ProfilePage.tsx#L21)). Public `/profile/:address` routes, claimed profile metadata, follows, and trader statistics are new surfaces.
+2. **Current attribution stops at graduation.** The UI hides the bonding-curve trade panel after graduation ([`TradePanel.tsx`](../../src/components/TradePanel.tsx#L152)), and the current history reads only curve `Trade` logs. Until Icarus swaps and ordinary post-graduation transfers are indexed, statistics must be labeled **Curveball curve performance**, not total wallet PnL.
+
+User-confirmed Copy Assist fits the existing code without contract changes. The SDK already reads fresh quotes, wraps ETH into WETH, handles approvals, applies slippage/deadlines, submits buys/sells, and verifies receipts ([`sdk.ts`](../../src/sdk/sdk.ts#L256)). A copy action can prefill this existing flow and then require the follower's wallet signature.
+
+Unattended copying does **not** fit the current contracts by adding a VPS keeper alone. `buyTokens()` credits `msg.sender`; `sellTokens()` takes the asset from and pays WETH to `msg.sender`; and `buyTokensFor()` is restricted to the launch-and-buy wrapper ([`CurveBondingCurve.sol`](../../contracts/contracts/CurveBondingCurve.sol#L196)). An EOA's WETH approval cannot authorize the server to make arbitrary calls as that EOA. Automatic copy therefore needs delegated signing authority—potentially same-address EIP-7702 execution—or an isolated user-controlled smart account, a tightly constrained on-behalf-of contract design, or a pooled vault.
+
+## The product wedge: follower-achievable performance
+
+A recurring operational issue acknowledged in competitor documentation and raised in user complaints is **leader/follower divergence**. Market orders arrive later, copy jobs fail or are skipped, and slippage limits differ. Separately, Curveball should assume that raw win rate can hide open losses and that short histories can dominate ROI lists unless ranking rules correct for them. Bybit explicitly documents entry-price divergence, and eToro warns that copied outcomes can vary because of execution and market conditions. ([Bybit discrepancy guide](https://www.bybit.com/en/help-center/article/Understanding-Discrepancies-in-Copy-Trading-Positions-between-Master-Trader-s-and-Follower-s); [eToro risks](https://www.etoro.com/copytrader/risk-warnings/).)
+
+Curveball can make this weakness its moat. Alongside wallet PnL, calculate a **Copyability** panel:
+
+- standard-size shadow returns, for example 0.01 and 0.05 WETH per buy;
+- the quote available immediately after the leader's confirmed trade and after a measured production latency window;
+- Curveball fees, creator tax, price impact, and modeled/actual slippage;
+- percentage of leader trades that passed default safety filters;
+- percentage successfully copied, skipped, failed, or manually dismissed;
+- leader fill versus median follower fill;
+- actual follower realized PnL once Copy Assist has usage data;
+- leader-exit versus follower-exit timing and the worst follower drawdown.
+
+Because the curve state and fees are onchain, this model can be deterministic and reproducible. Publish the formula and version it. Label modeled results as simulations, never as guaranteed returns. Over time, rank **actual follower outcomes** more heavily than backtests.
+
+## Backend and data plan for the VPS
+
+Use the chain as the source of trade truth and the VPS as a read model, social graph, notification engine, and later policy evaluator:
+
+```text
+RISE WebSocket/Shreds -> live ingester -> Postgres -> API + SSE -> web app
+            RPC logs -> reconciler -----^          -> alert jobs
+```
+
+RISE documents shred-speed log subscriptions over WebSocket, including filtered contract-event subscriptions, which is well suited to a live activity feed ([RISE Shreds docs](https://docs.risechain.com/docs/builders/shreds)). Live events should enter a `seen` state quickly, but a reconciliation loop must backfill with `eth_getLogs`, compare block hashes, handle removed/reorged logs, and promote events to `confirmed` only after the configured finality policy. Use a second RPC provider for reconciliation and expose indexer lag.
+
+Recommended service boundary:
+
+- `services/indexer`: launch discovery, curve trade/graduation ingestion, replay and reconciliation;
+- `services/api`: public reads, Privy-authenticated profile/follow writes, SSE feed;
+- `services/worker`: RNS refresh, notification fanout, metric snapshots, and later copy-job evaluation;
+- PostgreSQL first; add Redis only when measured cache/pub-sub load justifies it;
+- keep the existing graduation keeper separate from social services and from any future execution signer.
+
+Minimum tables:
+
+| Table | Purpose |
+|---|---|
+| `chain_cursors`, `chain_logs` | Reorg-aware ingestion and replay |
+| `markets`, `trades` | Canonical launches and curve activity |
+| `wallet_positions`, `wallet_market_stats`, `daily_curve_virtual_portfolio` | Rebuildable Curveball-only performance views with a versioned methodology |
+| `profiles`, `rns_cache` | Privy-authorized wallet identity and offchain metadata |
+| `follows`, `blocks`, `reports` | Social graph and basic safety controls |
+| `notifications`, `notification_preferences` | In-app first; email/Telegram/web push later |
+| `copy_intents`, `copy_executions` | Source-trade attribution and follower outcomes |
+| later: `copy_policies`, `copy_jobs`, `delegations` | Automatic-copy policies and audit trail |
+
+Store raw log occurrences by `(chain_id, block_hash, log_index)`, retain and mark orphaned occurrences after reorgs, and derive a stable logical event ID from the transaction hash plus receipt-local log ordinal/emitter/topic. Use that logical ID in auto-copy idempotency keys together with follower and policy version. Keep raw events immutable so rankings can be recomputed after formula changes.
+
+Suggested API surface:
+
+- `GET /v1/feed?scope=following|global|large&cursor=...`
+- `GET /v1/profiles/:address`
+- `GET /v1/profiles/:address/trades|positions|performance`
+- `GET /v1/leaderboards/:category`
+- `POST|DELETE /v1/follows/:address`
+- `POST /v1/copy-intents` and `PATCH /v1/copy-intents/:id`
+- `GET /v1/notifications` and `PATCH /v1/notification-preferences`
+
+Profile and follow mutations should require a verified Privy access token and confirm that the active EVM address is linked to the authenticated Privy user. Profile biographies and social links belong offchain so users can edit/delete them. Raw onchain wallet pages may be viewable, but only Privy-authorized, opt-in profiles should be discoverable, rankable, or eligible to receive followers. Linking RNS identities to detailed behavior increases deanonymization risk; the EDPB notes that linkable wallet identifiers can be personal data ([EDPB Guidelines 02/2025](https://www.edpb.europa.eu/documents/guideline/guidelines-022025-on-processing-of-personal-data-through-blockchain_en)).
+
+## Copy Assist interaction
+
+Every feed/profile trade card gets a `Copy` action. It opens a ticket with:
+
+- source RNS/address, transaction, and age;
+- leader side, size, fill price/market cap, and token amount;
+- current quote and percentage move since the leader fill;
+- Curveball fee/creator tax, expected tokens or WETH, minimum received, price impact, and deadline;
+- fixed WETH presets for buys and position-percentage presets for sells;
+- a warning when the curve is thin, nearly complete, already ready/graduated, or beyond the user's saved limit;
+- explicit wallet confirmation using the existing trade flow.
+
+Default buys to a user-owned fixed WETH amount, not the leader's absolute amount. Default sells to the same percentage of the position attributed to that copy relationship, clamped to the user's current holdings. For an ordinary EOA with fungible, commingled balances, this lot ledger limits the instruction but cannot prove which physical token units are sold; hard isolation requires a Copy Account or contract ledger. Requote immediately before signature; if the quote crosses the saved limit, invalidate it and ask again.
+
+Each intent should end in a legible state: `confirmed`, `skipped by rule`, `quote expired`, `dismissed`, `wallet rejected`, `reverted`, or `market unavailable`. This execution journal is a trust feature, not internal plumbing.
+
+## Automatic copy on RISE: feasible, but a separate release
+
+RISE already has unusually relevant primitives. Its wallet stack is built on Porto and EIP-7702, supports scoped session keys, contract/function permissions, recurring token-spend limits, expirations, revocation, batching, and relay sponsorship ([RISE Wallet architecture](https://docs.risechain.com/docs/rise-wallet/how-it-works); [session-key flow](https://docs.risechain.com/docs/cookbook/rise-wallet-quickstart/session-key-flow)). RISE Mainnet also documents predeployed Permit2 and ERC-4337 EntryPoint v0.6 contracts; predeployment alone does not establish compatible bundler/paymaster support or prove that Porto's EIP-7702 flow uses ERC-4337 ([RISE mainnet contracts](https://docs.risechain.com/docs/builders/mainnet-contract-addresses)).
+
+These primitives make auto-copy plausible, but do not eliminate the product/security work. The current app authenticates users and connects embedded or external EVM wallets through Privy; it does not yet integrate the RISE Wallet permission flow. Curveball also deploys a different curve contract for every launch, while permissions are normally scoped to target contracts and selectors. RISE's native call permissions constrain the top-level target, selector, spend, and expiry, but do not validate arbitrary calldata arguments; by themselves they cannot enforce `minOut`, deadline, curve stage, copied-lot sells, or the chosen leader. In particular, do not grant a generic ERC-20 `approve(address,uint256)` permission whose spender and amount remain selectable. Use exact pre-approvals or an audited guard/executor that validates calldata and restricts curves to factory-created markets.
+
+Before committing to an architecture, run a release-blocking integration spike. RISE's examples create P-256 keys in a browser and use wallet-connector methods such as `wallet_prepareCalls` and `wallet_sendPreparedCalls`; verify headless/server submission, origin/authentication requirements, sponsorship, key format and custody, rotation, revocation, and recovery in the production wallet mix.
+
+Two designs merit investigation:
+
+- **Same-address EIP-7702 delegated execution:** keeps trade attribution on the user's RNS/EOA and may call the current buy/sell interface, but still needs narrowly delegated signing authority and an audited policy guard rather than an unrestricted server key.
+- **Isolated per-user Copy Account:** holds only the user's selected copy allocation and gives the cleanest hard boundary for task-acquired inventory. Trades are attributed onchain to the Copy Account, so require signed owner-account linking, clear aggregation labels, and separate raw-address views.
+
+For an isolated account, the minimum design is:
+
+- the owner can pause/revoke automation and withdraw assets when the token and curve state permit it; before graduation launch tokens cannot transfer to the owner, and sells are unavailable in the ready-to-graduated interval, so disclose these exit constraints;
+- an audited executor/module can call only Curveball factory-registered markets;
+- a custom onchain guard—not only the session permission—enforces allowed markets, fixed per-trade cap, daily/relationship cap, maximum price impact/slippage, minimum reserves/age, deadline, copied-inventory-only sells, and expiry;
+- the VPS watches confirmed trades, evaluates the same policy, simulates, and submits an idempotent job;
+- the automation signer/session key is stored in an HSM/KMS or hardened signer service, not the application database or ordinary VPS process;
+- the execution service has no arbitrary call, upgrade, owner-change, or withdrawal authority;
+- a backend job pause and the distinct onchain/session revocation circuit breakers are tested before mainnet.
+
+Permit2 can constrain token pulls but does not make an EOA autonomous or decide where copied positions live. A pooled ERC-4626 vault is a different product with shared NAV, withdrawals, strategy authority, fees, and collective-management risk. Neither is a shortcut.
+
+Bonding-curve execution also creates a fairness issue: the leader moves price first, then each follower moves it again, so later followers receive worse buy prices and bots can target a predictable queue. Cap copied flow relative to real reserves, skip rather than widen slippage, expose latency/fill divergence, and initially keep the pilot small. An audited aggregate order with pro-rata token distribution could later replace a server-controlled sequential queue, but it requires a protocol/token change: the current pre-graduation transfer lock prevents an aggregator from buying and distributing launch tokens to followers. Possible designs include direct multi-recipient mint/accounting, an allowlisted distributor, or custody in a vault until graduation.
+
+## Regulation and launch boundary
+
+Automatic execution is not merely the manual feature with fewer clicks. ESMA says crypto copy-trading models must be classified case by case under MiCA and applies its MiFID copy-trading analysis; unattended execution can be portfolio management, while required client action before each order changes the analysis, though other execution/advice obligations may remain ([ESMA MiCA Q&A](https://www.esma.europa.eu/publications-data/questions-answers/2463); [supervisory briefing](https://www.esma.europa.eu/sites/default/files/2023-03/ESMA35-42-1428_Supervisory_Briefing_on_Copy_Trading.pdf)). Where MiFID applies—including relevant financial instruments and CFDs—the FCA treats automatic execution without clear client input as portfolio/investment management; spot-crypto treatment needs separate UK analysis ([FCA copy trading](https://www.fca.org.uk/firms/copy-trading)).
+
+The boundary gets more sensitive when Curveball pools funds, pays leaders, takes performance fees, personalizes recommendations, or markets into specific jurisdictions. Before auto-copy, obtain jurisdiction-specific counsel and decide eligibility/KYC/geofencing, disclosures, recordkeeping, sanctions controls, complaints, and incident response. If Nigeria is an intended market, make Nigerian counsel a launch gate: the SEC's ARIP framework expressly covers platforms facilitating virtual-asset trading and services including reception, transmission, and execution of orders or portfolio management, including foreign operators serving Nigerians ([SEC Nigeria ARIP framework](https://sec.gov.ng/documents/1294/ARIP-Framework-for-the-Onboarding-of-VASPs_4624.pdf); [ARIP onboarding checklist](https://sec.gov.ng/about/resources/checklists/accelerated-regulatory-incubation-program-arip-checklist-for-vasp-onboarding/)). Disclaimers and “non-custodial” language do not determine the functional classification.
+
+For the social/manual MVP:
+
+- display transaction facts and reproducible methodology, not guaranteed outcomes;
+- keep “Following” distinct from “Recommended”;
+- make rankings explainable and disclose conflicts such as token creator, creator-fee recipient, or likely linked wallet;
+- add block/report controls before trade-attached notes or reactions;
+- launch with no leader compensation and no performance fee;
+- do not add an open-ended social posting system until moderation and financial-promotion rules are staffed.
+
+## Concrete build order and release gates
+
+### Release A — Social foundation
+
+1. Add the VPS indexer, Postgres schema, reconciliation, health/lag metrics, and read API.
+2. Add `/profile/:address`, RNS display, Privy-linked wallet authorization, opt-in leader visibility, and curve-performance labels.
+3. Add follow/unfollow, global/following feeds, in-app notifications, and profile/market share cards.
+4. Add categorized leaderboards with minimum history/activity/capital gates and published formulas.
+
+### Release B — Copy Assist
+
+5. Add the Copy ticket on activity cards using the existing SDK and wallet confirmation.
+6. Persist copy intent/outcome attribution and show leader-fill versus follower-fill.
+7. Add saved copy preferences and alerts, but continue to require a signature per trade.
+8. Build the Copyability score from shadow fills, then shift weight toward actual follower results.
+
+### Release C — completeness and evidence
+
+9. Index Icarus post-graduation swaps/transfers before presenting total wallet performance.
+10. Measure copy conversion, time-to-confirm, slippage, skipped reasons, leader/follower PnL divergence, concentration, seven-day follower retention, and report/block rates.
+11. Use this evidence to choose safe automation defaults and identify manipulation patterns.
+
+### Release D — automatic-copy pilot
+
+12. Complete legal classification, threat model, contract design, external audit, signer isolation, incident runbook, and emergency-pause drills.
+13. Launch a small allowlisted, no-leverage, fixed-amount pilot with low caps, short-lived authorization, no leader fees, and no pooled vault.
+14. Expand only if follower outcomes, execution reliability, and security telemetry meet published gates.
+
+## MVP acceptance metrics
+
+Avoid optimizing only for gross volume. A healthy launch should track:
+
+- claimed/eligible trader profiles and profile-to-follow conversion;
+- percentage of active wallets following at least one trader;
+- feed weekly retention and alert open rate;
+- Copy ticket open-to-wallet-confirm conversion;
+- median detection-to-confirm time and leader/follower fill difference;
+- copied trade confirmation, skip, failure, and wallet-rejection rates;
+- follower realized PnL and drawdown by leader, not only leader PnL;
+- concentration in the top leaders and tokens;
+- percentage of ranked profiles meeting minimum history requirements;
+- block/report rate and suspected linked-wallet manipulation;
+- indexer lag, reconciliation mismatches, and notification delay.
+
+The go/no-go metric for unattended copying should be **follower outcome quality and predictable execution**, not raw demand for an Auto button.
+
+## Source and interpretation notes
+
+- Sources are first-party product/help/API/company materials and were accessed on 2026-10-17 unless an update/publication date is stated.
+- Product availability, ratios, pairs, and jurisdiction rules change quickly. The linked regional pages sometimes show different product versions; Curveball should re-check them before treating any number as a permanent market norm.
+- Company growth figures are labeled as self-reported. They support directional demand, not independent competitive market share.
+- “Curveball implication,” recommendations, and priority labels are analysis based on the cited product evidence; they are not claims made by the sources.
+- This is product research, not legal advice. Automated copy execution, ranking promotion, and leader compensation should receive jurisdiction-specific legal review before launch.
