@@ -5,6 +5,7 @@ import { usePublicClient } from "wagmi";
 import { readHolderSnapshot } from "../lib/holderSnapshot";
 import { parseCreatedBlock } from "../lib/marketChart";
 import { activeChainId, activeDeploymentBlock, activeExplorerUrl } from "../lib/web3";
+import { curveLaunchpadAbi } from "../sdk/contracts";
 import type { Token } from "../types";
 
 function amount(value: bigint) {
@@ -19,13 +20,17 @@ export function CreatorTokenInsights({ token }: { token: Token }) {
   const client = usePublicClient({ chainId: activeChainId });
   const [showAllHolders, setShowAllHolders] = useState(false);
   const { data, error, isPending, isFetching, refetch } = useQuery({
-    queryKey: ["creator-holders", activeChainId, token.address, token.createdBlock, token.curve, token.pool, token.factory],
+    queryKey: ["creator-holders", activeChainId, token.address, token.createdBlock, token.pool, token.factory],
     enabled: Boolean(client),
     queryFn: async () => {
       if (!client) throw new Error("No chain client available.");
       const latestBlock = await client.getBlockNumber();
       const block = latestBlock > 0n ? latestBlock - 1n : latestBlock;
-      const excluded = [token.curve, token.pool, token.factory].filter((value): value is Address => Boolean(value));
+      // The launchpad holds unsold curve tokens and the holder reserve holds the reserve; neither is a holder.
+      const reserve = token.factory
+        ? await client.readContract({ address: token.factory, abi: curveLaunchpadAbi, functionName: "reserve" })
+        : null;
+      const excluded = [token.factory, token.pool, reserve].filter((value): value is Address => Boolean(value));
       const holders = await readHolderSnapshot(client, token.address, parseCreatedBlock(token.createdBlock, activeDeploymentBlock), block, excluded);
       return { holders, block };
     },

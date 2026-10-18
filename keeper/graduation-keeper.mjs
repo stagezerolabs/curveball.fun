@@ -1,30 +1,34 @@
-import { createPublicClient, createWalletClient, defineChain, getAddress, http, isAddress, parseAbi, zeroAddress } from "viem";
+import { createPublicClient, createWalletClient, decodeEventLog, defineChain, getAddress, http, isAddress, parseAbi } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const factoryAbi = parseAbi([
-  "function curveSupply() view returns (uint256)",
-  "function supply() view returns (uint256)",
-  "function venueOf(address token) view returns (address)",
-  "function graduate(address token)",
-  "function createGraduatedPool(address token) returns (address pool)",
-  "event LaunchCreated(address indexed token,address indexed curve,address indexed creator,string name,string symbol,string uri)",
+const launchpadAbi = parseAbi([
+  "function escrow() view returns (address)",
+  "function GRADUATION_TIMEOUT() view returns (uint256)",
+  "function SUPPLY() view returns (uint256)",
+  "function CURVE_SUPPLY() view returns (uint256)",
+  "function market(address token) view returns ((address creator,uint16 feeBps,uint16 creatorShareBps,uint16 buybackShareBps,uint16 taxBps,uint8 state,uint128 virtualToken,uint128 virtualQuote,uint128 initialVirtualQuote,uint128 realQuote,uint128 reserveTokens,uint40 readyAt,address pool))",
+  "function graduate(address token) returns (address pool)",
+  "function abortGraduation(address token)",
+  "event LaunchCreated(address indexed token,address indexed creator,string name,string symbol,string uri,uint16 feeBps,uint16 creatorShareBps,uint16 buybackShareBps,uint16 taxBps,uint256 reserveTokens)",
 ]);
-const curveAbi = parseAbi([
-  "function sold() view returns (uint128)",
-  "function ready() view returns (bool)",
-  "function graduated() view returns (bool)",
-  "function pool() view returns (address)",
-  "function reserveAmount() view returns (uint256)",
-  "function realQuote() view returns (uint128)",
+const escrowAbi = parseAbi([
+  "function BUYBACK_INTERVAL() view returns (uint256)",
+  "function buybackBalance(address token) view returns (uint256)",
+  "function lastBuyback(address token) view returns (uint256)",
+  "function buyback(address token) returns (uint256 burned)",
+  "event BuybackSkipped(address indexed token,uint8 reason)",
 ]);
-const venueAbi = parseAbi(["function check(address token,uint256 tokenLiquidity,uint256 quoteLiquidity) view"]);
+
+/** CurveLaunchpad.State, in enum order. */
+const STATES = ["none", "trading", "ready", "graduated", "aborted"];
+const SKIP_REASONS = ["too few observations", "quote failed", "Icarus paused", "price outside the band"];
 const LOG_RANGE = 5_000n;
 const LOG_SCAN_CONCURRENCY = 4;
-const DEFERRED_RETRY_MS = 60_000;
-const MAX_DEFERRED_RETRY_MS = 3_600_000;
 const STATUS_CONCURRENCY = 8;
+const FAILURE_RETRY_MS = 60_000;
+const MAX_RETRY_MS = 6 * 3_600_000;
 
 async function mapConcurrent(items, limit, task) {
   const results = new Array(items.length);
@@ -39,95 +43,126 @@ async function mapConcurrent(items, limit, task) {
   return results;
 }
 
-export async function processMarket({ token, curveSupply, readState, canPrepare = async () => true, send }) {
-  let state = await readState();
-  if (state.graduated) return { status: "graduated", pool: state.pool };
-  if (state.sold !== curveSupply) return { status: "bonding" };
-
-  if (!state.ready) {
-    if (!await canPrepare()) return { status: "deferred" };
-    const sent = await send("graduate", token);
-    if (!sent) return { status: "transaction-pending" };
-    state = await readState();
-    if (state.graduated) return { status: "graduated", pool: state.pool };
-    if (state.sold !== curveSupply) return { status: "bonding" };
-    if (!state.ready) return { status: "deferred" };
+/**
+ * What the keeper should do for one market now:
+ * - Ready → graduate. Icarus's pause never matters: graduation doesn't check it.
+ * - Ready past the timeout, when graduation can't go through → abort, which reopens sells.
+ * - Aborted and sold out again → graduate.
+ * - Graduated with a buyback balance and the interval elapsed → buyback.
+ */
+export function decide({ state, soldOut, readyAt, nowSeconds, timeout, graduationReverts = false, buyback }) {
+  if (state === "ready") {
+    if (graduationReverts && nowSeconds >= readyAt + timeout) return "abort";
+    return graduationReverts ? "wait" : "graduate";
   }
-
-  // Re-read before pool creation in case another keeper completed graduation.
-  state = await readState();
-  if (state.graduated) return { status: "graduated", pool: state.pool };
-  if (state.sold !== curveSupply || !state.ready) return { status: "bonding" };
-  const sent = await send("createGraduatedPool", token);
-  if (!sent) return { status: "transaction-pending" };
-  state = await readState();
-  if (!state.graduated || !state.pool || state.pool === zeroAddress) {
-    throw new Error("Pool creation confirmed without a graduated curve and pool address.");
-  }
-  return { status: "graduated", pool: state.pool };
+  if (state === "aborted") return soldOut && !graduationReverts ? "graduate" : "wait";
+  if (state === "graduated" && buyback && buyback.balance > 0n
+      && (buyback.last === 0n || nowSeconds >= buyback.last + buyback.interval)) return "buyback";
+  return "wait";
 }
 
-export function createGraduationKeeper({ publicClient, walletClient, factory, deploymentBlock, logger = console, now = Date.now }) {
+export function createGraduationKeeper({ publicClient, walletClient, launchpad, deploymentBlock, logger = console, now = Date.now }) {
   const markets = new Map();
   const retryAfter = new Map();
-  const deferCount = new Map();
+  const failures = new Map();
   let nextBlock = deploymentBlock;
-  let curveSupply;
+  let constants;
 
-  function scheduleRetry(key, token, reason) {
-    const attempts = (deferCount.get(key) ?? 0) + 1;
-    deferCount.set(key, attempts);
-    const delay = Math.min(DEFERRED_RETRY_MS * 2 ** Math.min(attempts - 1, 6), MAX_DEFERRED_RETRY_MS);
+  function backOff(key, token, reason, baseMs) {
+    const attempts = (failures.get(key) ?? 0) + 1;
+    failures.set(key, attempts);
+    const delay = Math.min(baseMs * 2 ** Math.min(attempts - 1, 8), MAX_RETRY_MS);
     retryAfter.set(key, now() + delay);
     logger.warn(`${reason} for ${token}; retrying in ${Math.round(delay / 1_000)} seconds.`);
   }
 
-  async function readState(curve) {
-    const [sold, ready, graduated, pool] = await Promise.all([
-      publicClient.readContract({ address: curve, abi: curveAbi, functionName: "sold" }),
-      publicClient.readContract({ address: curve, abi: curveAbi, functionName: "ready" }),
-      publicClient.readContract({ address: curve, abi: curveAbi, functionName: "graduated" }),
-      publicClient.readContract({ address: curve, abi: curveAbi, functionName: "pool" }),
-    ]);
-    return { sold, ready, graduated, pool };
+  function clearBackOff(key) {
+    retryAfter.delete(key);
+    failures.delete(key);
   }
 
-  async function send(functionName, token) {
+  async function readConstants() {
+    const [escrow, timeout, supply, curveSupply] = await Promise.all([
+      publicClient.readContract({ address: launchpad, abi: launchpadAbi, functionName: "escrow" }),
+      publicClient.readContract({ address: launchpad, abi: launchpadAbi, functionName: "GRADUATION_TIMEOUT" }),
+      publicClient.readContract({ address: launchpad, abi: launchpadAbi, functionName: "SUPPLY" }),
+      publicClient.readContract({ address: launchpad, abi: launchpadAbi, functionName: "CURVE_SUPPLY" }),
+    ]);
+    const interval = await publicClient.readContract({ address: escrow, abi: escrowAbi, functionName: "BUYBACK_INTERVAL" });
+    return { escrow, timeout, terminalVirtualToken: supply - curveSupply, interval };
+  }
+
+  async function readStatus(token) {
+    const market = await publicClient.readContract({ address: launchpad, abi: launchpadAbi, functionName: "market", args: [token] });
+    const state = STATES[market.state] ?? "none";
+    const status = { state, soldOut: market.virtualToken === constants.terminalVirtualToken, readyAt: BigInt(market.readyAt) };
+    if (state !== "graduated") return status;
+    const [balance, last] = await Promise.all([
+      publicClient.readContract({ address: constants.escrow, abi: escrowAbi, functionName: "buybackBalance", args: [token] }),
+      publicClient.readContract({ address: constants.escrow, abi: escrowAbi, functionName: "lastBuyback", args: [token] }),
+    ]);
+    return { ...status, buyback: { balance, last, interval: constants.interval } };
+  }
+
+  async function simulates(functionName, address, abi, token) {
+    try {
+      await publicClient.simulateContract({ account: walletClient.account, address, abi, functionName, args: [token] });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Sends one keeper transaction; returns its receipt, or null while an earlier one may still land. */
+  async function send(functionName, address, abi, token) {
     // The keeper has a dedicated wallet. A pending nonce means a prior call may
     // still land, so wait for the next sweep instead of sending a duplicate.
     const [latest, pending] = await Promise.all([
       publicClient.getTransactionCount({ address: walletClient.account.address, blockTag: "latest" }),
       publicClient.getTransactionCount({ address: walletClient.account.address, blockTag: "pending" }),
     ]);
-    if (pending > latest) return false;
-    const { request } = await publicClient.simulateContract({
-      account: walletClient.account,
-      address: factory,
-      abi: factoryAbi,
-      functionName,
-      args: [token],
-    });
+    if (pending > latest) return null;
+    const { request } = await publicClient.simulateContract({ account: walletClient.account, address, abi, functionName, args: [token] });
     const hash = await walletClient.writeContract(request);
-    logger.info(`Graduation ${functionName} submitted for ${token}: ${hash}`);
+    logger.info(`${functionName} submitted for ${token}: ${hash}`);
     const receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: 90_000 });
     if (receipt.status !== "success") throw new Error(`${functionName} reverted: ${hash}`);
-    return true;
+    return receipt;
   }
 
-  async function canPrepare(token, curve) {
-    try {
-      const [venue, supply, reserve, quote] = await Promise.all([
-        publicClient.readContract({ address: factory, abi: factoryAbi, functionName: "venueOf", args: [token] }),
-        publicClient.readContract({ address: factory, abi: factoryAbi, functionName: "supply" }),
-        publicClient.readContract({ address: curve, abi: curveAbi, functionName: "reserveAmount" }),
-        publicClient.readContract({ address: curve, abi: curveAbi, functionName: "realQuote" }),
-      ]);
-      if (venue === zeroAddress) throw new Error("No venue configured for this token.");
-      await publicClient.readContract({ address: venue, abi: venueAbi, functionName: "check", args: [token, supply - curveSupply - reserve, quote] });
-      return true;
-    } catch (error) {
-      logger.warn(`Venue check deferred for ${token}: ${error instanceof Error ? error.message : String(error)}`);
-      return false;
+  function skipReason(receipt) {
+    for (const log of receipt.logs) {
+      if (log.address.toLowerCase() !== constants.escrow.toLowerCase()) continue;
+      try {
+        const event = decodeEventLog({ abi: escrowAbi, data: log.data, topics: log.topics, strict: true });
+        if (event.eventName === "BuybackSkipped") return SKIP_REASONS[event.args.reason] ?? `reason ${event.args.reason}`;
+      } catch { /* Other escrow events. */ }
+    }
+    return null;
+  }
+
+  async function act(key, token, status) {
+    const nowSeconds = BigInt(Math.floor(now() / 1_000));
+    const needsGraduation = status.state === "ready" || (status.state === "aborted" && status.soldOut);
+    const graduationReverts = needsGraduation && !await simulates("graduate", launchpad, launchpadAbi, token);
+    const action = decide({ ...status, nowSeconds, timeout: constants.timeout, graduationReverts });
+
+    if (action === "graduate" || action === "abort") {
+      const functionName = action === "graduate" ? "graduate" : "abortGraduation";
+      const receipt = await send(functionName, launchpad, launchpadAbi, token);
+      if (receipt) {
+        logger.info(`${action === "graduate" ? "Graduated" : "Aborted the stuck graduation of"} ${token}.`);
+        clearBackOff(key);
+      }
+    } else if (action === "buyback") {
+      const receipt = await send("buyback", constants.escrow, escrowAbi, token);
+      if (!receipt) return;
+      const skipped = skipReason(receipt);
+      // A skip spends nothing and doesn't start the interval; back off so a quiet pool isn't polled hourly.
+      if (skipped) backOff(key, token, `Buyback skipped (${skipped})`, Number(constants.interval) * 1_000);
+      else clearBackOff(key);
+    } else if (needsGraduation && graduationReverts) {
+      backOff(key, token, "Graduation would revert", FAILURE_RETRY_MS);
     }
   }
 
@@ -140,13 +175,13 @@ export function createGraduationKeeper({ publicClient, walletClient, factory, de
         ranges.push({ fromBlock: block, toBlock });
       }
       const batches = await Promise.all(ranges.map((range) => publicClient.getContractEvents({
-        address: factory, abi: factoryAbi, eventName: "LaunchCreated",
+        address: launchpad, abi: launchpadAbi, eventName: "LaunchCreated",
         ...range, strict: true,
       })));
       for (const logs of batches) {
         for (const log of logs) {
           const token = getAddress(log.args.token);
-          markets.set(token.toLowerCase(), { token, curve: getAddress(log.args.curve) });
+          markets.set(token.toLowerCase(), token);
         }
       }
       nextBlock = ranges.at(-1).toBlock + 1n;
@@ -154,38 +189,19 @@ export function createGraduationKeeper({ publicClient, walletClient, factory, de
   }
 
   async function tick() {
-    if (curveSupply === undefined) {
-      curveSupply = await publicClient.readContract({ address: factory, abi: factoryAbi, functionName: "curveSupply" });
-    }
+    constants ??= await readConstants();
     await discoverLaunches();
     // Reads are independent; writes remain serial for the keeper wallet nonce.
     const entries = [...markets];
-    const statuses = await mapConcurrent(entries, STATUS_CONCURRENCY, async ([, { curve }]) => {
-      const [sold, graduated] = await Promise.all([
-        publicClient.readContract({ address: curve, abi: curveAbi, functionName: "sold" }),
-        publicClient.readContract({ address: curve, abi: curveAbi, functionName: "graduated" }),
-      ]);
-      return { sold, graduated };
-    });
-    for (const [index, [key, { token, curve }]] of entries.entries()) {
+    const statuses = await mapConcurrent(entries, STATUS_CONCURRENCY, ([, token]) => readStatus(token));
+    for (const [index, [key, token]] of entries.entries()) {
+      if ((retryAfter.get(key) ?? 0) > now()) continue;
       try {
         if (statuses[index].error) throw statuses[index].error;
-        const { sold, graduated } = statuses[index].value;
-        if (graduated) { markets.delete(key); retryAfter.delete(key); deferCount.delete(key); continue; }
-        if (sold !== curveSupply) { retryAfter.delete(key); deferCount.delete(key); continue; }
-        if ((retryAfter.get(key) ?? 0) > now()) continue;
-        const result = await processMarket({ token, curveSupply, readState: () => readState(curve), canPrepare: () => canPrepare(token, curve), send });
-        if (result.status === "graduated") {
-          logger.info(`Graduated ${token} into pool ${result.pool}`);
-          markets.delete(key);
-          retryAfter.delete(key);
-          deferCount.delete(key);
-        } else if (result.status === "deferred") {
-          scheduleRetry(key, token, "Graduation deferred");
-        }
+        await act(key, token, statuses[index].value);
       } catch (error) {
-        logger.error(`Graduation check failed for ${token}: ${error instanceof Error ? error.message : String(error)}`);
-        scheduleRetry(key, token, "Graduation check failed");
+        logger.error(`Keeper action failed for ${token}: ${error instanceof Error ? error.message : String(error)}`);
+        backOff(key, token, "Keeper action failed", FAILURE_RETRY_MS);
       }
     }
   }
@@ -201,12 +217,12 @@ function required(name) {
 
 export async function main() {
   const rpcUrl = required("KEEPER_RPC_URL");
-  const factory = required("KEEPER_FACTORY_ADDRESS");
+  const launchpad = required("KEEPER_LAUNCHPAD_ADDRESS");
   const privateKey = required("KEEPER_PRIVATE_KEY");
   const chainId = Number(required("KEEPER_CHAIN_ID"));
   const deploymentBlock = BigInt(required("KEEPER_DEPLOYMENT_BLOCK"));
   const intervalMs = Number(process.env.KEEPER_POLL_INTERVAL_MS || 10_000);
-  if (!isAddress(factory) || !/^0x[0-9a-fA-F]{64}$/.test(privateKey) || !Number.isSafeInteger(chainId) || chainId <= 0 || deploymentBlock < 0n || !Number.isSafeInteger(intervalMs) || intervalMs < 1_000) {
+  if (!isAddress(launchpad) || !/^0x[0-9a-fA-F]{64}$/.test(privateKey) || !Number.isSafeInteger(chainId) || chainId <= 0 || deploymentBlock < 0n || !Number.isSafeInteger(intervalMs) || intervalMs < 1_000) {
     throw new Error("Invalid keeper configuration.");
   }
   const chain = defineChain({ id: chainId, name: "Keeper chain", nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: [rpcUrl] } } });
@@ -214,11 +230,11 @@ export async function main() {
   if (await publicClient.getChainId() !== chainId) throw new Error("Keeper RPC is on the wrong chain.");
   const account = privateKeyToAccount(privateKey);
   const walletClient = createWalletClient({ account, chain, transport: http(rpcUrl) });
-  const keeper = createGraduationKeeper({ publicClient, walletClient, factory: getAddress(factory), deploymentBlock });
+  const keeper = createGraduationKeeper({ publicClient, walletClient, launchpad: getAddress(launchpad), deploymentBlock });
   let stopping = false;
   process.on("SIGINT", () => { stopping = true; });
   process.on("SIGTERM", () => { stopping = true; });
-  console.info(`Graduation keeper started for factory ${getAddress(factory)} on chain ${chainId}.`);
+  console.info(`Keeper started for launchpad ${getAddress(launchpad)} on chain ${chainId}.`);
   while (!stopping) {
     try { await keeper.tick(); }
     catch (error) { console.error(`Keeper sweep failed: ${error instanceof Error ? error.message : String(error)}`); }

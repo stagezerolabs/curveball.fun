@@ -1,4 +1,5 @@
 import type { Address } from "viem";
+import type { MarketLifecycle } from "./sdk/sdk";
 
 export type Navigate = (id: string, params?: Record<string, string>) => void;
 
@@ -9,9 +10,13 @@ export type Token = {
   symbol: string;
   creator: Address;
   graduated: boolean;
+  /** Sold out and waiting for `graduate`; the same as `lifecycle === "ready"`. */
   pending?: boolean;
   indexing?: boolean;
-  curve?: Address | null;
+  lifecycle?: MarketLifecycle;
+  /** Unix seconds when the curve sold out; the abort timeout runs from here. */
+  readyAt?: number | null;
+  reserveTokens?: string | null;
   feeBps?: number | null;
   creatorTaxBps?: number | null;
   creatorShareBps?: number | null;
@@ -28,7 +33,6 @@ export type Token = {
   imageUrl?: string | null;
   metadataUri?: string | null;
   pool?: Address | null;
-  mockVenue?: boolean;
   quoteSymbol?: string | null;
   description?: string | null;
   website?: string | null;

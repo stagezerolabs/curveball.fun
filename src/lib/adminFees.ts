@@ -1,27 +1,34 @@
 import { getAccount, readContract, simulateContract, waitForTransactionReceipt, writeContract, getTransactionReceipt } from "wagmi/actions";
-import { getAddress, zeroAddress, type Address, type Hash } from "viem";
+import { getAddress, type Address, type Hash } from "viem";
 import type { Config } from "wagmi";
-import { erc20Abi, factoryAbi } from "../sdk/contracts";
+import { curveFeeEscrowAbi, curveLaunchpadAbi, erc20Abi } from "../sdk/contracts";
+
+/** CurveLaunchpad.MAX_FEE_BPS: the highest curve fee the owner can set for new launches. */
+export const MAX_FEE_BPS = 200;
 
 export type FeeDefaults = {
   feeBps: number;
   creatorShareBps: number;
   buybackShareBps: number;
   creatorTaxCapBps: number;
-  treasury: Address;
 };
 
 export type FeeAuthority = FeeDefaults & {
   owner: Address;
   pendingOwner: Address;
+  guardian: Address;
+  /** Immutable: launch fees go here directly, trading fees accrue to it in the escrow. */
+  treasury: Address;
 };
 
 export type FactoryFunds = {
   symbol: string;
   decimals: number;
-  tradingTreasury: { address: Address; balance: bigint };
-  launchTreasury: { address: Address; balance: bigint };
-  buybackVault: { address: Address; balance: bigint };
+  treasuryWallet: { address: Address; balance: bigint };
+  /** The treasury's unclaimed share of trading and pool fees. */
+  treasuryInEscrow: { address: Address; balance: bigint };
+  /** Everything the escrow holds: creator and treasury fees plus every market's buyback balance. */
+  escrowHeld: { address: Address; balance: bigint };
 };
 
 export type AdminActions = {
@@ -38,54 +45,59 @@ const defaultActions: AdminActions = {
   readContract, simulateContract, writeContract, waitForTransactionReceipt, getTransactionReceipt,
 };
 
-export function feePercentToBps(value: string, taxCapBps: number): number {
+export function feePercentToBps(value: string): number {
   if (!/^(?:\d+)(?:\.\d{1,2})?$/.test(value.trim())) throw new Error("Enter a percentage with at most two decimal places.");
   const [whole, fraction = ""] = value.trim().split(".");
   const bps = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
-  if (!Number.isSafeInteger(bps) || bps < 0 || bps > 500 || bps + taxCapBps > 550) {
-    throw new Error("The fee exceeds the factory limit.");
+  if (!Number.isSafeInteger(bps) || bps < 0 || bps > MAX_FEE_BPS) {
+    throw new Error(`The fee exceeds the launchpad limit of ${MAX_FEE_BPS / 100}%.`);
   }
   return bps;
 }
 
-export function feeUpdateArgs(nextFeeBps: number, current: FeeDefaults): readonly [number, number, number, number, Address] {
-  return [nextFeeBps, current.creatorShareBps, current.buybackShareBps, current.creatorTaxCapBps, current.treasury];
+/** setFeeDefaults takes the whole struct, so every other default is resubmitted unchanged. */
+export function feeUpdateArgs(nextFeeBps: number, current: FeeDefaults) {
+  return [{
+    feeBps: nextFeeBps,
+    creatorShareBps: current.creatorShareBps,
+    buybackShareBps: current.buybackShareBps,
+    taxCapBps: current.creatorTaxCapBps,
+  }] as const;
 }
 
-export async function readFactoryFunds(config: Config, factory: Address, chainId: number, actions: AdminActions = defaultActions): Promise<FactoryFunds> {
-  const readFactory = (functionName: "quote" | "treasury" | "launchFeeTreasury" | "vault") =>
-    actions.readContract(config, { address: factory, abi: factoryAbi, functionName, chainId });
-  const [quoteRaw, tradingRaw, launchRaw, vaultRaw] = await Promise.all([
-    readFactory("quote"), readFactory("treasury"), readFactory("launchFeeTreasury"), readFactory("vault"),
-  ]);
+export async function readFactoryFunds(config: Config, launchpad: Address, chainId: number, actions: AdminActions = defaultActions): Promise<FactoryFunds> {
+  const readLaunchpad = (functionName: "quoteToken" | "treasury" | "escrow") =>
+    actions.readContract(config, { address: launchpad, abi: curveLaunchpadAbi, functionName, chainId });
+  const [quoteRaw, treasuryRaw, escrowRaw] = await Promise.all([readLaunchpad("quoteToken"), readLaunchpad("treasury"), readLaunchpad("escrow")]);
   const quote = getAddress(quoteRaw as Address);
-  const trading = getAddress(tradingRaw as Address);
-  const launch = getAddress(launchRaw as Address);
-  const vault = getAddress(vaultRaw as Address);
+  const treasury = getAddress(treasuryRaw as Address);
+  const escrow = getAddress(escrowRaw as Address);
   const readQuote = (functionName: "symbol" | "decimals" | "balanceOf", args?: readonly [Address]) =>
     actions.readContract(config, { address: quote, abi: erc20Abi, functionName, args, chainId });
-  const [symbol, decimals, tradingBalance, launchBalance, vaultBalance] = await Promise.all([
-    readQuote("symbol"), readQuote("decimals"), readQuote("balanceOf", [trading]),
-    launch === zeroAddress ? Promise.resolve(0n) : readQuote("balanceOf", [launch]),
-    readQuote("balanceOf", [vault]),
+  const [symbol, decimals, treasuryBalance, escrowBalance, treasuryOwed] = await Promise.all([
+    readQuote("symbol"), readQuote("decimals"), readQuote("balanceOf", [treasury]), readQuote("balanceOf", [escrow]),
+    actions.readContract(config, { address: escrow, abi: curveFeeEscrowAbi, functionName: "claimable", args: [treasury, quote], chainId }),
   ]);
   return {
     symbol: symbol as string,
     decimals: Number(decimals),
-    tradingTreasury: { address: trading, balance: BigInt(tradingBalance) },
-    launchTreasury: { address: launch, balance: BigInt(launchBalance) },
-    buybackVault: { address: vault, balance: BigInt(vaultBalance) },
+    treasuryWallet: { address: treasury, balance: BigInt(treasuryBalance) },
+    treasuryInEscrow: { address: escrow, balance: BigInt(treasuryOwed) },
+    escrowHeld: { address: escrow, balance: BigInt(escrowBalance) },
   };
 }
 
-export async function readFeeDefaults(config: Config, factory: Address, chainId: number, actions: AdminActions = defaultActions): Promise<FeeAuthority> {
-  const read = (functionName: "feeBps" | "creatorShareBps" | "buybackShareBps" | "creatorTaxCapBps" | "treasury" | "owner" | "pendingOwner") =>
-    actions.readContract(config, { address: factory, abi: factoryAbi, functionName, chainId });
-  const [feeBps, creatorShareBps, buybackShareBps, creatorTaxCapBps, treasury, owner, pendingOwner] = await Promise.all([
-    read("feeBps"), read("creatorShareBps"), read("buybackShareBps"), read("creatorTaxCapBps"), read("treasury"), read("owner"), read("pendingOwner"),
+export async function readFeeDefaults(config: Config, launchpad: Address, chainId: number, actions: AdminActions = defaultActions): Promise<FeeAuthority> {
+  const read = (functionName: "feeDefaults" | "treasury" | "owner" | "pendingOwner" | "guardian") =>
+    actions.readContract(config, { address: launchpad, abi: curveLaunchpadAbi, functionName, chainId });
+  const [defaults, treasury, owner, pendingOwner, guardian] = await Promise.all([
+    read("feeDefaults"), read("treasury"), read("owner"), read("pendingOwner"), read("guardian"),
   ]);
-  const ownerAddress = getAddress(owner as Address);
-  return { feeBps: Number(feeBps), creatorShareBps: Number(creatorShareBps), buybackShareBps: Number(buybackShareBps), creatorTaxCapBps: Number(creatorTaxCapBps), treasury: getAddress(treasury as Address), owner: ownerAddress, pendingOwner: getAddress(pendingOwner as Address) };
+  const [feeBps, creatorShareBps, buybackShareBps, creatorTaxCapBps] = defaults as readonly [number, number, number, number];
+  return {
+    feeBps: Number(feeBps), creatorShareBps: Number(creatorShareBps), buybackShareBps: Number(buybackShareBps), creatorTaxCapBps: Number(creatorTaxCapBps),
+    treasury: getAddress(treasury as Address), owner: getAddress(owner as Address), pendingOwner: getAddress(pendingOwner as Address), guardian: getAddress(guardian as Address),
+  };
 }
 
 async function confirm(config: Config, chainId: number, hash: Hash, actions: AdminActions) {
@@ -116,13 +128,13 @@ async function waitForExpectedState(
 
 export async function submitFeeUpdate(config: Config, factory: Address, chainId: number, nextFeeBps: number, onHash?: (hash: Hash) => void, actions: AdminActions = defaultActions) {
   const account = actions.getAccount(config);
-  if (!account.address || account.chainId !== chainId) throw new Error("Connect the factory owner or fee admin on the configured network.");
+  if (!account.address || account.chainId !== chainId) throw new Error("Connect the launchpad owner on the configured network.");
   const current = await readFeeDefaults(config, factory, chainId, actions);
   const signer = getAddress(account.address);
   if (current.owner !== signer) throw new Error("The connected wallet is not the on-chain fee administrator.");
-  if (!Number.isInteger(nextFeeBps) || nextFeeBps < 0 || nextFeeBps > 500 || nextFeeBps + current.creatorTaxCapBps > 550) throw new Error("The fee exceeds the factory limit.");
+  if (!Number.isInteger(nextFeeBps) || nextFeeBps < 0 || nextFeeBps > MAX_FEE_BPS) throw new Error(`The fee exceeds the launchpad limit of ${MAX_FEE_BPS / 100}%.`);
   if (nextFeeBps === current.feeBps) throw new Error("The fee is already set to this value.");
-  const simulation = await actions.simulateContract(config, { address: factory, abi: factoryAbi, functionName: "setFeeDefaults", args: feeUpdateArgs(nextFeeBps, current), account: account.address, chainId });
+  const simulation = await actions.simulateContract(config, { address: factory, abi: curveLaunchpadAbi, functionName: "setFeeDefaults", args: feeUpdateArgs(nextFeeBps, current), account: account.address, chainId });
   const hash = await actions.writeContract(config, simulation.request);
   onHash?.(hash);
   await confirm(config, chainId, hash, actions);

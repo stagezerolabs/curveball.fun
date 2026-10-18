@@ -1,7 +1,7 @@
-import { formatEther, type Address, type Hash } from "viem";
-import { curveAbi } from "../sdk/contracts";
+import type { Address, Hash } from "viem";
+import { curveLaunchpadAbi } from "../sdk/contracts";
 import type { Token } from "../types";
-import { buildBlockRanges, parseCreatedBlock } from "./marketChart";
+import { buildBlockRanges, parseCreatedBlock, tradeLogToPoint, type TradeLogValues } from "./marketChart";
 
 const MAX_EVENT_QUERY_BLOCKS = 5_000n;
 const EVENT_QUERY_CONCURRENCY = 3;
@@ -36,12 +36,9 @@ export type MarketTradeSample = {
 };
 
 type TradeLog = {
-  args?: {
+  args?: TradeLogValues & {
     token?: Address;
     trader?: Address;
-    grossCurveQuote?: bigint;
-    vQAfter?: bigint;
-    vTAfter?: bigint;
   };
   blockNumber?: bigint | null;
   logIndex?: number;
@@ -121,12 +118,13 @@ export async function loadMarketPreviewStats(
   tokens: readonly Token[],
   deploymentBlock: bigint,
 ): Promise<MarketPreviewStatsByToken> {
-  const markets = tokens.filter((token): token is Token & { curve: Address } => Boolean(token.curve));
+  const markets = tokens.filter((token): token is Token & { factory: Address } => Boolean(token.factory));
   if (!markets.length) return summarizeMarketPreviewStats(tokens, []);
+  const launchpads = [...new Set(markets.map((token) => token.factory))];
 
   const latestBlock = await client.getBlockNumber();
   const marketSignature = markets
-    .map((token) => `${token.address.toLowerCase()}:${token.curve.toLowerCase()}:${token.createdBlock ?? deploymentBlock}`)
+    .map((token) => `${token.address.toLowerCase()}:${token.factory.toLowerCase()}:${token.createdBlock ?? deploymentBlock}`)
     .sort()
     .join("|");
   const cached = tradeSampleCache?.marketSignature === marketSignature && tradeSampleCache.lastBlock <= latestBlock
@@ -141,9 +139,10 @@ export async function loadMarketPreviewStats(
   const logs: TradeLog[] = [];
   let nextRange = 0;
   const eventQuery = {
-    address: markets.map((token) => token.curve),
-        abi: curveAbi,
+    address: launchpads,
+    abi: curveLaunchpadAbi,
     eventName: "Trade",
+    args: { token: markets.map((token) => token.address) },
     strict: true,
   };
 
@@ -172,20 +171,16 @@ export async function loadMarketPreviewStats(
   ));
 
   const newSamples = logs.flatMap((log): MarketTradeSample[] => {
-    const { token, trader, grossCurveQuote, vQAfter, vTAfter } = log.args ?? {};
-    if (!token || log.blockNumber == null || grossCurveQuote == null || vQAfter == null || vTAfter == null || vTAfter === 0n) return [];
-    const timestamp = timestamps.get(log.blockNumber);
-    if (timestamp == null) return [];
-    const virtualToken = Number(formatEther(vTAfter));
-    if (!Number.isFinite(virtualToken) || virtualToken <= 0) return [];
+    const { token, trader } = log.args ?? {};
+    if (!token || log.blockNumber == null) return [];
+    const point = tradeLogToPoint(log.args, timestamps.get(log.blockNumber));
+    if (!point || !Number.isFinite(point.price)) return [];
     return [{
       token,
       trader,
       transactionHash: log.transactionHash,
       eventId: `${log.blockNumber}:${log.logIndex ?? 0}`,
-      timestamp,
-      price: Number(formatEther(vQAfter)) / virtualToken,
-      volume: Number(formatEther(grossCurveQuote)),
+      ...point,
     }];
   });
 

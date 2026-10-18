@@ -4,12 +4,12 @@ import { getAddress, isAddress, type Address } from "viem";
 import { useStore } from "../app/useStore.js";
 import { AppLink } from "../components/Navigation";
 import { MarketHeader } from "../components/MarketHeader";
+import { HolderAirdropPanel } from "../components/HolderAirdropPanel";
 import { MilestonePanel } from "../components/MilestonePanel";
 import { TradePanel } from "../components/TradePanel";
-import type { CreatorTokenClient } from "../creatorTokens";
+import { marketFields, readMarket, type CreatorTokenClient } from "../creatorTokens";
 import { activeChainId } from "../lib/web3";
 import type { MarketPriceChange } from "../lib/marketChart";
-import { curveAbi } from "../sdk/contracts";
 import type { Navigate, Token } from "../types";
 
 const MarketChart = lazy(() =>
@@ -69,8 +69,9 @@ export function MarketPage({
   }, [address, fetchedAt, loadToken, publicClient]);
 
   useEffect(() => {
-    if (!address || !resolvedToken?.curve || resolvedToken.graduated || !publicClient) return;
-    const curve = resolvedToken.curve;
+    if (!address || !resolvedToken?.factory || resolvedToken.graduated || !publicClient) return;
+    const launchpad = resolvedToken.factory;
+    const shownLifecycle = resolvedToken.lifecycle;
     const shownSoldOut = Boolean(resolvedToken.pending || (resolvedToken.progress ?? 0) >= 100);
     let checking = false;
     let active = true;
@@ -78,12 +79,8 @@ export function MarketPage({
       if (checking || document.visibilityState !== "visible") return;
       checking = true;
       try {
-        const [sold, curveSupply, graduated] = await Promise.all([
-          publicClient.readContract({ address: curve, abi: curveAbi, functionName: "sold" }),
-          publicClient.readContract({ address: curve, abi: curveAbi, functionName: "curveSupply" }),
-          publicClient.readContract({ address: curve, abi: curveAbi, functionName: "graduated" }),
-        ]);
-        if (active && (graduated || (sold === curveSupply) !== shownSoldOut)) {
+        const market = marketFields(await readMarket(publicClient as unknown as CreatorTokenClient, launchpad, address));
+        if (active && (market.lifecycle !== shownLifecycle || (market.progress >= 100) !== shownSoldOut)) {
           await loadToken(publicClient as unknown as CreatorTokenClient, address, { force: true });
         }
       } catch { /* The next poll will retry a temporary RPC failure. */ }
@@ -91,7 +88,7 @@ export function MarketPage({
     };
     const timer = window.setInterval(() => { void refreshStatus(); }, 10_000);
     return () => { active = false; window.clearInterval(timer); };
-  }, [address, resolvedToken?.curve, resolvedToken?.graduated, resolvedToken?.pending, resolvedToken?.progress, publicClient, loadToken]);
+  }, [address, resolvedToken?.factory, resolvedToken?.graduated, resolvedToken?.lifecycle, resolvedToken?.pending, resolvedToken?.progress, publicClient, loadToken]);
 
   if (validAddress && !hasCachedResult && !discoveryError) {
     return <MarketPageSkeleton />;
@@ -101,7 +98,7 @@ export function MarketPage({
       <main className="page-status wrap">
         <span className="empty-orbit" />
         <h1>Market not found</h1>
-        <p>{error || "This curve does not exist on the configured network."}</p>
+        <p>{error || "This market does not exist on the configured network."}</p>
         <AppLink className="primary-button" route="markets" navigate={navigate}>
           Back to markets
         </AppLink>
@@ -133,6 +130,7 @@ export function MarketPage({
             token={resolvedToken}
             address={walletAddress}
           />
+          {resolvedToken.reserveTokens !== "0" && <HolderAirdropPanel token={resolvedToken} />}
         </aside>
       </div>
 

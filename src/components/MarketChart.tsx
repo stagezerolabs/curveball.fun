@@ -6,7 +6,7 @@ import { CanvasRenderer } from "echarts/renderers";
 import { usePublicClient } from "wagmi";
 import { MarketActivity } from "./MarketActivity";
 import { UsdAmount } from "./UsdAmount";
-import { curveAbi } from "../sdk/contracts";
+import { curveLaunchpadAbi } from "../sdk/contracts";
 import {
   activeChainId,
   activeDeploymentBlock,
@@ -22,6 +22,7 @@ import {
   type TradeActivity,
   type MarketPriceChange,
   type TradePoint,
+  type TradeLogValues,
 } from "../lib/marketChart";
 import { buildMarketChartOptions } from "../lib/marketChartOptions";
 import type { Token } from "../types";
@@ -47,14 +48,9 @@ const INTERVALS = [
 ] as const;
 
 type TradeLog = {
-  args?: {
-    grossCurveQuote?: bigint;
-    vQAfter?: bigint;
-    vTAfter?: bigint;
+  args?: TradeLogValues & {
     trader?: string;
-    isBuy?: boolean;
     tokenAmount?: bigint;
-    netTraderQuote?: bigint;
   };
   blockNumber?: bigint | null;
   logIndex?: number;
@@ -68,7 +64,8 @@ type ChartClient = {
 };
 
 async function queryTradeLogs(client: ChartClient, token: Token) {
-  const address = token.curve;
+  // Every market trades on the launchpad; the indexed token topic picks out this one.
+  const address = token.factory;
   if (!address) return { latestBlock: 0n, logs: [] as TradeLog[] };
 
   const cacheKey = `${activeChainId}:${token.address.toLowerCase()}`;
@@ -82,7 +79,7 @@ async function queryTradeLogs(client: ChartClient, token: Token) {
 
   const eventQuery = {
     address,
-    abi: curveAbi,
+    abi: curveLaunchpadAbi,
     eventName: "Trade",
     args: { token: token.address },
     strict: true,
@@ -213,7 +210,7 @@ export function MarketChart({
     return () => {
       cancelled = true;
     };
-  }, [publicClient, refreshKey, token.address, token.curve, token.price, onMarketCapChange]);
+  }, [publicClient, refreshKey, token.address, token.factory, token.price, onMarketCapChange]);
 
   useEffect(() => {
     const container = chartRef.current;

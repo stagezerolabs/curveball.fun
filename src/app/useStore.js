@@ -360,9 +360,9 @@ export const useStore = create(persist((set, get) => ({
       creatorTaxBps: Number(form.get("creatorTaxBps") ?? 0),
       holderReserveBps: Number(form.get("holderReserveBps") ?? 0),
     };
-    const artwork = form.get("artwork");
-    if (!hasPublishedArtwork(artwork instanceof File && artwork.size > 0, input.uri)) {
-      set({ launchProgress: { phase: "error", hash: null, error: "Wait for artwork to finish publishing before launching." } });
+    // The launchpad rejects an empty metadata URI, and metadata is published with the artwork.
+    if (!hasPublishedArtwork(input.uri)) {
+      set({ launchProgress: { phase: "error", hash: null, error: "Add artwork and wait for it to finish publishing before launching." } });
       return;
     }
     const { startAction, endAction, handleActionError } = get();
@@ -428,35 +428,45 @@ export const useStore = create(persist((set, get) => ({
     }
   },
 
-  // LpLocker.claim is permissionless: the caller pays gas, the creator and
-  // treasury receive the fees. Nothing is routed to whoever clicks this.
-  claimPoolFees: async (locker, pool, factory) => {
+  // Permissionless market actions: the caller pays gas, and nothing is routed to whoever clicks.
+  // CurveLpLocker.claim sends LP fees to the escrow for the market's split; buyback spends one paced
+  // chunk of the market's buyback balance and burns what it buys; graduate seeds a sold-out pool.
+  claimPoolFees: (pool, factory) =>
+    get().runMarketAction(factory, (sdk) => {
+      if (!pool) throw Error("This market has no pool yet.");
+      return sdk.claimPoolFees(pool);
+    }, "Claiming pool fees…", "Pool fees credited to the creator, treasury, and buyback."),
+
+  runBuyback: (token, factory) =>
+    get().runMarketAction(factory, (sdk) => sdk.buyback(token),
+      "Running the buyback…", "Buyback submitted. It skips without spending when the pool price is unsafe."),
+
+  graduateMarket: (token, factory) =>
+    get().runMarketAction(factory, (sdk) => sdk.graduate(token),
+      "Graduating the market…", "Market graduated into its pool."),
+
+  // Escrow and reserve claims pay the connected wallet: creator fees across all of its launches,
+  // and its holder-reserve share of one graduated token.
+  claimEscrow: (asset, factory) =>
+    get().runMarketAction(factory, (sdk) => sdk.claimEscrow(asset),
+      "Claiming fees…", "Fees sent to your wallet."),
+
+  claimReserve: (token, factory) =>
+    get().runMarketAction(factory, (sdk) => sdk.claimReserve(token),
+      "Claiming your holder reserve…", "Holder reserve sent to your wallet."),
+
+  runMarketAction: async (factory, action, progressMessage, doneMessage) => {
     const { startAction, endAction, handleActionError } = get();
     startAction();
     try {
-      if (!locker || !pool) throw Error("This market has no pool yet.");
-      set({ tradeMessage: "Claiming pool fees…" });
-      await sdkForMarket(factory).claimPoolFees(locker, pool);
-      set({
-        tradeMessage: "Pool fees credited to creator, treasury, and buyback vault.",
-        marketsFetchedAt: 0,
-      });
+      set({ tradeMessage: progressMessage });
+      await action(sdkForMarket(factory));
+      set({ tradeMessage: doneMessage, marketsFetchedAt: 0 });
     } catch (error) {
       handleActionError(error);
     } finally {
       endAction();
     }
-  },
-
-  claimEscrow: async (token, asset, recipient, factory) => {
-    const { startAction, endAction, handleActionError } = get();
-    startAction();
-    try {
-      const sdk = sdkForMarket(factory);
-      await sdk.claimEscrow(token, asset, recipient);
-      set({ tradeMessage: "Accrued fees sent to the registered recipient." });
-    } catch (error) { handleActionError(error); }
-    finally { endAction(); }
   },
 
   startAction: () =>

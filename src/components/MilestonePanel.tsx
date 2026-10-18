@@ -3,9 +3,9 @@ import { formatPercent } from "../lib/format.js";
 import type { Address } from "viem";
 import { formatEther } from "viem";
 import { useReadContract } from "wagmi";
-import { escrowAbi, factoryAbi } from "../sdk/contracts";
+import { curveFeeEscrowAbi, curveLaunchpadAbi } from "../sdk/contracts";
 import { activeChainId, activeExplorerUrl, launchpadAddress } from "../lib/web3";
-import { getMarketDisplayStatus } from "../lib/marketState";
+import { getMarketDisplayStatus, selectTradeState } from "../lib/marketState";
 import { factoryForToken } from "../lib/marketFactories";
 import type { Token } from "../types";
 import { UsdAmount } from "./UsdAmount";
@@ -31,30 +31,39 @@ export function MilestonePanel({
   token: Token;
   address?: Address;
 }) {
-  const { isPending, claimPoolFees, claimEscrow } = useStore() as {
+  const { isPending, claimPoolFees, claimEscrow, runBuyback, graduateMarket } = useStore() as {
     isPending: boolean;
-    claimPoolFees: (locker: string, pool: string, factory?: Address) => Promise<void>;
-    claimEscrow: (token: Address, asset: Address, recipient: Address, factory?: Address) => Promise<void>;
+    claimPoolFees: (pool: Address, factory?: Address) => Promise<void>;
+    claimEscrow: (asset: Address, factory?: Address) => Promise<void>;
+    runBuyback: (token: Address, factory?: Address) => Promise<void>;
+    graduateMarket: (token: Address, factory?: Address) => Promise<void>;
   };
 
   const progress = token.graduated ? 100 : (token.progress ?? 0);
   const marketStatus = getMarketDisplayStatus(token);
   const marketFactory = launchpadAddress ? factoryForToken(token.factory) : undefined;
-  const { data: locker } = useReadContract({ address: marketFactory, abi: factoryAbi, functionName: "locker", chainId: activeChainId, query: { enabled: Boolean(marketFactory) } });
-  const { data: escrow } = useReadContract({ address: marketFactory, abi: factoryAbi, functionName: "escrow", chainId: activeChainId, query: { enabled: Boolean(marketFactory) } });
-  const { data: quote } = useReadContract({ address: marketFactory, abi: factoryAbi, functionName: "quote", chainId: activeChainId, query: { enabled: Boolean(marketFactory) } });
+  const { data: escrow } = useReadContract({ address: marketFactory, abi: curveLaunchpadAbi, functionName: "escrow", chainId: activeChainId, query: { enabled: Boolean(marketFactory) } });
+  const { data: quote } = useReadContract({ address: marketFactory, abi: curveLaunchpadAbi, functionName: "quoteToken", chainId: activeChainId, query: { enabled: Boolean(marketFactory) } });
+  const { canGraduate } = selectTradeState({ ...token, paused: false, nowSeconds: Math.floor(Date.now() / 1_000) });
+  const isCreator = Boolean(address && address.toLowerCase() === token.creator.toLowerCase());
   const creatorShare = token.creatorShareBps == null ? null : token.creatorShareBps / 100;
   const buybackShare = token.buybackShareBps == null ? null : token.buybackShareBps / 100;
   const treasuryShare = creatorShare === null || buybackShare === null ? null : 100 - creatorShare - buybackShare;
+  // The escrow owes a creator per asset across all of its launches, and pays only the creator.
   const { data: quoteOwed, refetch: refetchQuoteOwed } = useReadContract({
-    address: escrow, abi: escrowAbi, functionName: "claimable",
-    args: [token.address, quote!, token.creator], chainId: activeChainId,
+    address: escrow, abi: curveFeeEscrowAbi, functionName: "claimable",
+    args: [token.creator, quote!], chainId: activeChainId,
     query: { enabled: Boolean(escrow && quote) },
   });
   const { data: tokenOwed, refetch: refetchTokenOwed } = useReadContract({
-    address: escrow, abi: escrowAbi, functionName: "claimable",
-    args: [token.address, token.address, token.creator], chainId: activeChainId,
+    address: escrow, abi: curveFeeEscrowAbi, functionName: "claimable",
+    args: [token.creator, token.address], chainId: activeChainId,
     query: { enabled: Boolean(escrow) },
+  });
+  const { data: buybackBalance, refetch: refetchBuyback } = useReadContract({
+    address: escrow, abi: curveFeeEscrowAbi, functionName: "buybackBalance",
+    args: [token.address], chainId: activeChainId,
+    query: { enabled: Boolean(escrow && token.graduated) },
   });
   const hasQuotePayment = quoteOwed !== undefined && quoteOwed > 0n;
   const hasTokenPayment = tokenOwed !== undefined && tokenOwed > 0n;
@@ -98,12 +107,18 @@ export function MilestonePanel({
         </div>
       </dl>
 
-      {!token.graduated && progress >= 100 && <div className="claim-block">
-        <p className="panel-note">Bonding is complete. The pool is being prepared automatically. Its address will appear here after graduation is confirmed.</p>
+      {canGraduate && <div className="claim-block">
+        <p className="panel-note">Bonding is complete. The keeper seeds the pool automatically; anyone can also graduate the market now. The pool address appears here once graduation is confirmed.</p>
+        {address && <button type="button" className="primary-button claim-button" disabled={isPending} onClick={() => graduateMarket(token.address, marketFactory)}>
+          {isPending ? "Graduating…" : "Graduate now"}
+        </button>}
+      </div>}
+      {token.lifecycle === "aborted" && !canGraduate && <div className="claim-block">
+        <p className="panel-note">Graduation was aborted after its timeout. Trading continues on the curve, and the market graduates on its next sellout.</p>
       </div>}
 
       {token.graduated && token.pool && <div className="claim-block">
-        <h3 className="panel-subhead">{token.mockVenue ? "Mock venue pool" : "Venue pool"}</h3>
+        <h3 className="panel-subhead">Pool</h3>
         <a className="milestone-pool-link" href={`${activeExplorerUrl}/address/${token.pool}`} target="_blank" rel="noreferrer" aria-label={`View pool ${token.pool} on the explorer`}>
           <code>{token.pool}</code> <span aria-hidden="true">↗</span>
         </a>
@@ -132,29 +147,42 @@ export function MilestonePanel({
               Treasury
               <strong>{treasuryShare}%</strong>
             </li>
-            {buybackShare > 0 && <li><i className="split-buyback" aria-hidden="true" />Buyback vault<strong>{buybackShare}%</strong></li>}
+            {buybackShare > 0 && <li><i className="split-buyback" aria-hidden="true" />Buyback and burn<strong>{buybackShare}%</strong></li>}
           </ul>
         </>
       )}
 
-      {token.graduated && !token.mockVenue && (
+      {token.graduated && (
         <div className="claim-block">
           <h3 className="panel-subhead">Pool fees</h3>
           <p className="panel-note">
-            Trading fees collect in the locked LP position. Anyone can route them to the creator, treasury, and buyback vault.
+            Trading fees collect in the locked LP position. Anyone can route them to the creator, treasury, and buyback.
           </p>
           {address ? (
             <button
               type="button"
               className="primary-button claim-button"
-              disabled={isPending || !locker || !token.pool}
-              onClick={() =>
-                claimPoolFees(locker ?? "", token.pool ?? "", marketFactory)
-              }
+              disabled={isPending || !token.pool}
+              onClick={() => token.pool && claimPoolFees(token.pool, marketFactory)}
             >
               {isPending ? "Claiming…" : "Claim pool fees"}
             </button>
           ) : <p className="panel-note">Connect from the navigation to claim pool fees.</p>}
+        </div>
+      )}
+
+      {token.graduated && buybackBalance !== undefined && buybackBalance > 0n && (
+        <div className="claim-block">
+          <h3 className="panel-subhead">Buyback</h3>
+          <p className="panel-note">
+            {formatEther(buybackBalance)} WETH waits to buy {token.symbol} from the pool and burn it, in small chunks at most once an hour. A buyback skips without spending when the pool price strays from its recent average.
+          </p>
+          {address && <button type="button" className="primary-button claim-button" disabled={isPending} onClick={async () => {
+            await runBuyback(token.address, marketFactory);
+            await refetchBuyback();
+          }}>
+            {isPending ? "Running…" : "Run buyback"}
+          </button>}
         </div>
       )}
 
@@ -166,17 +194,22 @@ export function MilestonePanel({
         {creatorPaid && (
           <p className="creator-paid-status" role="status"><span aria-hidden="true">✓</span> Creator paid</p>
         )}
-        {hasQuotePayment && quote && <button type="button" className="primary-button claim-button" disabled={!address || isPending} onClick={async () => {
-          await claimEscrow(token.address, quote, token.creator, marketFactory);
+        {(hasQuotePayment || hasTokenPayment) && !isCreator && (
+          <p className="panel-note">
+            The creator has {hasQuotePayment ? `${formatEther(quoteOwed)} WETH` : ""}{hasQuotePayment && hasTokenPayment ? " and " : ""}{hasTokenPayment ? `${formatEther(tokenOwed)} ${token.symbol}` : ""} waiting, across all of their launches. Only the creator's wallet can claim it.
+          </p>
+        )}
+        {hasQuotePayment && quote && isCreator && <button type="button" className="primary-button claim-button" disabled={isPending} onClick={async () => {
+          await claimEscrow(quote, marketFactory);
           await refetchQuoteOwed();
         }}>
-          {isPending ? "Paying creator…" : `Pay creator ${formatEther(quoteOwed)} WETH`}
+          {isPending ? "Claiming…" : `Claim ${formatEther(quoteOwed)} WETH (all your launches)`}
         </button>}
-        {hasTokenPayment && <button type="button" className="primary-button claim-button" disabled={!address || isPending} onClick={async () => {
-          await claimEscrow(token.address, token.address, token.creator, marketFactory);
+        {hasTokenPayment && isCreator && <button type="button" className="primary-button claim-button" disabled={isPending} onClick={async () => {
+          await claimEscrow(token.address, marketFactory);
           await refetchTokenOwed();
         }}>
-          {isPending ? "Paying creator…" : `Pay creator ${formatEther(tokenOwed)} ${token.symbol}`}
+          {isPending ? "Claiming…" : `Claim ${formatEther(tokenOwed)} ${token.symbol}`}
         </button>}
       </div>
     </section>

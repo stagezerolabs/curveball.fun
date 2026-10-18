@@ -14,7 +14,7 @@ export function useMarketPreviewStats(
 ) {
   const [stats, setStats] = useState<MarketPreviewStatsByToken>({});
   const tokenSignature = useMemo(
-    () => tokens.map((token) => `${token.address}:${token.curve ?? ""}:${token.createdBlock ?? ""}:${token.price ?? ""}`).join("|"),
+    () => tokens.map((token) => `${token.address}:${token.factory ?? ""}:${token.createdBlock ?? ""}:${token.price ?? ""}`).join("|"),
     [tokens],
   );
 

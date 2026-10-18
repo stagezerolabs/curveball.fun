@@ -130,7 +130,7 @@ export function ProfilePage({ navigate }: { navigate: Navigate }) {
           <Tabs.Root value={activeSection} onValueChange={(value) => setActiveSection(value as ProfileSection)}>
             <Tabs.List className="profile-section-nav" aria-label="Selected token view">
               <Tabs.Tab value="holders" className={activeSection === "holders" ? "active" : ""}>Holders</Tabs.Tab>
-              <Tabs.Tab value="airdrops" className={activeSection === "airdrops" ? "active" : ""}>Airdrops</Tabs.Tab>
+              <Tabs.Tab value="airdrops" className={activeSection === "airdrops" ? "active" : ""}>Holder reserve</Tabs.Tab>
               <Tabs.Indicator className="profile-section-indicator" />
             </Tabs.List>
             <Tabs.Panel key={`${selectedToken.address}-${activeSection}`} value={activeSection} className="profile-token-workspace profile-section-panel">

@@ -34,10 +34,10 @@ export function StatsPage({ navigate }: { navigate: Navigate }) {
 
       <section aria-label="Protocol totals">
         <dl className="protocol-stats-grid" aria-busy={loading || claimLoading}>
-          <div><dt>Tokens created</dt><dd>{loading ? "…" : data ? total.toLocaleString() : "—"}</dd><small>From this factory</small></div>
+          <div><dt>Tokens created</dt><dd>{loading ? "…" : data ? total.toLocaleString() : "—"}</dd><small>From this launchpad</small></div>
           <div><dt>Not yet graduated</dt><dd>{loading ? "…" : data ? live.toLocaleString() : "—"}</dd><small>Includes completed bonding curves</small></div>
           <div><dt>Graduated markets</dt><dd>{loading ? "…" : data ? graduated.toLocaleString() : "—"}</dd><small>Pool created</small></div>
-          <div><dt>Curve fees claimed by creators</dt><dd>{claimLoading ? "…" : claimed ?? "—"}<span className="protocol-stats-unit">{claimed !== null ? " WETH" : ""}</span></dd><small>Confirmed escrow claims</small></div>
+          <div><dt>Fees earned by creators</dt><dd>{claimLoading ? "…" : claimed ?? "—"}<span className="protocol-stats-unit">{claimed !== null ? " WETH" : ""}</span></dd><small>Credited in the fee escrow</small></div>
         </dl>
       </section>
 
@@ -58,7 +58,7 @@ export function StatsPage({ navigate }: { navigate: Navigate }) {
             <h2 id="stats-recent-title">Recently on the curve.</h2>
             <AppLink className="text-link" route="markets" navigate={navigate}>All markets →</AppLink>
           </div>
-          {loading ? <p className="protocol-stats-empty" role="status">Loading launches…</p> : !data ? <p className="protocol-stats-empty">Launch data is unavailable.</p> : !data.length ? <p className="protocol-stats-empty">No launches from this factory yet.</p> : (
+          {loading ? <p className="protocol-stats-empty" role="status">Loading launches…</p> : !data ? <p className="protocol-stats-empty">Launch data is unavailable.</p> : !data.length ? <p className="protocol-stats-empty">No launches from this launchpad yet.</p> : (
             <ul className="protocol-stats-list">
               {data.slice(0, 5).map((token) => (
                 <li key={token.address}>
@@ -79,9 +79,9 @@ export function StatsPage({ navigate }: { navigate: Navigate }) {
           <h2 id="stats-source-title">Read the source.</h2>
         </div>
         <div>
-          <p>Launches and graduations: current factory. Creator claims: paid curve fees only; excludes unclaimed and pool fees.</p>
+          <p>Launches and graduations: current launchpad. Creator earnings: WETH credited to creators from curve fees, creator tax and pool fees, whether claimed yet or not.</p>
           {dataUpdatedAt > 0 && <p className="protocol-stats-updated">Last checked <time dateTime={new Date(dataUpdatedAt).toISOString()}>{new Date(dataUpdatedAt).toLocaleString()}</time></p>}
-          {launchpadAddress && <a className="text-link" href={`${activeExplorerUrl}/address/${launchpadAddress}`} target="_blank" rel="noreferrer">View factory on explorer ↗</a>}
+          {launchpadAddress && <a className="text-link" href={`${activeExplorerUrl}/address/${launchpadAddress}`} target="_blank" rel="noreferrer">View launchpad on explorer ↗</a>}
         </div>
       </section>
     </main>

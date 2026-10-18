@@ -1,5 +1,6 @@
 import { formatEther, getAddress, zeroAddress, type Address } from "viem";
-import { venueAbi, curveAbi, factoryAbi } from "./sdk/contracts";
+import { curveLaunchpadAbi } from "./sdk/contracts";
+import { CURVE_SUPPLY, MARKET_STATES, TOKEN_SUPPLY } from "./sdk/sdk";
 import { activeDeploymentBlock, launchpadAddress } from "./lib/web3";
 import { buildBlockRanges } from "./lib/marketChart";
 import type { Token } from "./types";
@@ -14,7 +15,6 @@ type CreatedLog = {
     name?: string;
     symbol?: string;
     uri?: string;
-    curve?: Address;
   };
   blockNumber?: bigint | null;
 };
@@ -59,15 +59,65 @@ async function discoverTokens(
   return tokens.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
+/** The launchpad's market struct, as `market(token)` returns it. */
+export type LaunchpadMarket = Readonly<{
+  creator: Address;
+  feeBps: number;
+  creatorShareBps: number;
+  buybackShareBps: number;
+  taxBps: number;
+  state: number;
+  virtualToken: bigint;
+  virtualQuote: bigint;
+  initialVirtualQuote: bigint;
+  realQuote: bigint;
+  reserveTokens: bigint;
+  readyAt: number;
+  pool: Address;
+}>;
+
+/** The token fields that follow from a market's on-chain state. */
+export function marketFields(market: LaunchpadMarket) {
+  const lifecycle = MARKET_STATES[market.state] ?? "none";
+  const sold = TOKEN_SUPPLY - market.virtualToken;
+  const terminalVirtualToken = TOKEN_SUPPLY - CURVE_SUPPLY;
+  // The curve ends where virtualToken reaches S − C; k = S · initialVirtualQuote is fixed until graduation.
+  const terminalVirtualQuote = (TOKEN_SUPPLY * market.initialVirtualQuote + terminalVirtualToken - 1n) / terminalVirtualToken;
+  const price = market.virtualToken === 0n ? null : Number(formatEther(market.virtualQuote)) / Number(formatEther(market.virtualToken));
+  return {
+    lifecycle,
+    graduated: lifecycle === "graduated",
+    pending: lifecycle === "ready",
+    readyAt: market.readyAt === 0 ? null : Number(market.readyAt),
+    feeBps: market.feeBps,
+    creatorShareBps: market.creatorShareBps,
+    buybackShareBps: market.buybackShareBps,
+    creatorTaxBps: market.taxBps,
+    reserveTokens: market.reserveTokens.toString(),
+    progress: Number((sold * 10_000n) / CURVE_SUPPLY) / 100,
+    supply: TOKEN_SUPPLY.toString(),
+    curveSupply: CURVE_SUPPLY.toString(),
+    price,
+    targetPrice: Number(formatEther(terminalVirtualQuote)) / Number(formatEther(terminalVirtualToken)),
+    marketCap: price === null ? null : price * Number(formatEther(TOKEN_SUPPLY)),
+    graduationTargetWeth: formatEther(terminalVirtualQuote - market.initialVirtualQuote),
+    pool: market.pool === zeroAddress ? null : getAddress(market.pool),
+  } satisfies Partial<Token>;
+}
+
+export function readMarket(client: Pick<CreatorTokenClient, "readContract">, launchpad: Address, token: Address) {
+  return client.readContract({ address: launchpad, abi: curveLaunchpadAbi, functionName: "market", args: [token] }) as Promise<LaunchpadMarket>;
+}
+
 async function discoverTokensForFactory(
   client: CreatorTokenClient,
-  factoryAddress: Address,
+  launchpad: Address,
   deploymentBlock: bigint,
   args?: { creator: Address } | { token: Address },
 ): Promise<Token[]> {
   const eventQuery = {
-    address: factoryAddress,
-    abi: factoryAbi,
+    address: launchpad,
+    abi: curveLaunchpadAbi,
     eventName: "LaunchCreated",
     ...(args ? { args } : {}),
     strict: true,
@@ -87,57 +137,27 @@ async function discoverTokensForFactory(
   }));
   if (!logs.length) return [];
 
-  const [curveSupply, supply] = await Promise.all([
-    client.readContract({ address: factoryAddress, abi: factoryAbi, functionName: "curveSupply" }) as Promise<bigint>,
-    client.readContract({ address: factoryAddress, abi: factoryAbi, functionName: "supply" }) as Promise<bigint>,
-  ]);
-  const terminalVirtualToken = supply - curveSupply;
-
-  const tokens = await Promise.all(
+  return Promise.all(
     logs.map(async (log) => {
       const { token, creator: eventCreator, name, symbol, uri } = log.args ?? {};
       if (!token || !eventCreator || !name || !symbol || !log.blockNumber) {
         throw new Error("The launchpad returned an incomplete LaunchCreated log.");
       }
-
       const [market, block] = await Promise.all([
-        client.readContract({ address: factoryAddress, abi: factoryAbi, functionName: "market", args: [token] }) as Promise<readonly [Address, Address, number, number, number, number, Address]>,
+        readMarket(client, launchpad, token),
         client.getBlock({ blockNumber: log.blockNumber }),
       ]);
-      const curve = market[0];
-      if (curve === zeroAddress || (log.args?.curve && getAddress(log.args.curve) !== getAddress(curve))) throw new Error("Launch event does not match factory market.");
-      const [sold, ready, graduated, pool, virtualQuote, virtualToken, initialVQ, venue] = await Promise.all([
-        client.readContract({ address: curve, abi: curveAbi, functionName: "sold" }) as Promise<bigint>,
-        client.readContract({ address: curve, abi: curveAbi, functionName: "ready" }) as Promise<boolean>,
-        client.readContract({ address: curve, abi: curveAbi, functionName: "graduated" }) as Promise<boolean>,
-        client.readContract({ address: curve, abi: curveAbi, functionName: "pool" }) as Promise<Address>,
-        client.readContract({ address: curve, abi: curveAbi, functionName: "virtualQuote" }) as Promise<bigint>,
-        client.readContract({ address: curve, abi: curveAbi, functionName: "virtualToken" }) as Promise<bigint>,
-        client.readContract({ address: curve, abi: curveAbi, functionName: "initialVQ" }) as Promise<bigint>,
-        client.readContract({ address: factoryAddress, abi: factoryAbi, functionName: "venueOf", args: [token] }) as Promise<Address>,
-      ]);
-      const mockVenue = venue === zeroAddress ? false
-        : await client.readContract({ address: venue, abi: venueAbi, functionName: "isMock" }) as boolean;
-      const price = virtualToken === 0n ? null : Number(formatEther(virtualQuote)) / Number(formatEther(virtualToken));
-      const terminalVirtualQuote = terminalVirtualToken === 0n ? 0n
-        : (supply * initialVQ + terminalVirtualToken - 1n) / terminalVirtualToken;
-      const targetPrice = terminalVirtualToken === 0n ? null
-        : Number(formatEther(terminalVirtualQuote)) / Number(formatEther(terminalVirtualToken));
+      if (market.creator === zeroAddress || getAddress(market.creator) !== getAddress(eventCreator)) {
+        throw new Error("Launch event does not match the launchpad's market.");
+      }
       return {
-        address: getAddress(token), factory: factoryAddress, creator: getAddress(eventCreator), name, symbol, graduated,
+        address: getAddress(token), factory: launchpad, creator: getAddress(eventCreator), name, symbol,
         metadataUri: uri ?? null,
-        curve: getAddress(curve), feeBps: market[2], creatorShareBps: market[3], buybackShareBps: market[4], creatorTaxBps: market[5],
-        pending: ready, createdAt: new Date(Number(block.timestamp) * 1_000).toISOString(),
+        createdAt: new Date(Number(block.timestamp) * 1_000).toISOString(),
         createdBlock: log.blockNumber.toString(),
-        progress: curveSupply === 0n ? 0 : Number((sold * 10_000n) / curveSupply) / 100,
-        supply: supply.toString(), curveSupply: curveSupply.toString(),
-        price, targetPrice, marketCap: price === null ? null : price * Number(formatEther(supply)),
-        graduationTargetWeth: terminalVirtualToken === 0n ? null : formatEther(initialVQ * curveSupply / terminalVirtualToken),
-        pool: pool === zeroAddress ? null : getAddress(pool), quoteSymbol: "WETH",
-        mockVenue,
+        quoteSymbol: "WETH",
+        ...marketFields(market),
       } satisfies Token;
     }),
   );
-
-  return tokens;
 }

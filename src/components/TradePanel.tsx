@@ -4,10 +4,10 @@ import { Collapsible } from "@base-ui/react/collapsible";
 import type { ReactNode } from "react";
 import { formatEther, parseEther } from "viem";
 import { useBalance, useReadContract } from "wagmi";
-import { erc20Abi, factoryAbi } from "../sdk/contracts";
+import { curveLaunchpadAbi, erc20Abi } from "../sdk/contracts";
 import { activeChainId, launchpadAddress } from "../lib/web3";
 import { factoryForToken } from "../lib/marketFactories";
-import { getBetaReadEnabled, selectMarketState } from "../lib/marketState";
+import { selectTradeState } from "../lib/marketState";
 import { useStore } from "../app/useStore.js";
 import { formatEthAmount, formatPercent } from "../lib/format.js";
 import {
@@ -62,34 +62,22 @@ export function TradePanel({
   const [explain, setExplain] = useState(false);
   const { openConnectModal } = useConnectModal();
   const marketFactory = launchpadAddress ? factoryForToken(token.factory) : undefined;
-  const betaReadEnabled = getBetaReadEnabled({
-    walletConnected: Boolean(address),
-    hasLaunchpadAddress: Boolean(marketFactory),
-  });
-  const { data: publicOpen } = useReadContract({
-    address: marketFactory, abi: factoryAbi,
-    functionName: "publicLaunchOpen", chainId: activeChainId,
-    query: { enabled: betaReadEnabled.publicLaunchOpen },
-  });
-  const { data: invited } = useReadContract({
-    address: marketFactory, abi: factoryAbi,
-    functionName: "invited", args: [address!], chainId: activeChainId,
-    query: { enabled: betaReadEnabled.invited },
+  const { data: paused } = useReadContract({
+    address: marketFactory, abi: curveLaunchpadAbi,
+    functionName: "paused", chainId: activeChainId,
+    query: { enabled: Boolean(marketFactory), refetchInterval: 30_000 },
   });
   const { data: quoteToken } = useReadContract({
     address: marketFactory,
-    abi: factoryAbi,
-    functionName: "quote",
+    abi: curveLaunchpadAbi,
+    functionName: "quoteToken",
     chainId: activeChainId,
     query: { enabled: Boolean(marketFactory) },
   });
-  const { state, hasBetaAccess, canBuy } = selectMarketState({
-    walletConnected: Boolean(address),
-    publicLaunchOpen: publicOpen,
-    invited,
-    graduated: token.graduated,
-    pending: token.pending,
-    progress: token.progress,
+  const { state, canBuy, canSell, sellAborts } = selectTradeState({
+    ...token,
+    paused: paused === true,
+    nowSeconds: Math.floor(Date.now() / 1_000),
   });
 
   const quoteSymbol = token.quoteSymbol ?? "WETH";
@@ -174,8 +162,10 @@ export function TradePanel({
         </button>
       </div>
 
-      {(token.pending || (token.progress ?? 0) >= 100) && <p className="notice" role="status">Bonding is complete. The pool is being prepared; selling remains available until graduation is confirmed.</p>}
-      {!hasBetaAccess && side === "buy" && publicOpen === false && invited === false && <p className="notice" role="status">This deployed factory is still invite-only. Selling remains open.</p>}
+      {state === "ready" && <p className="notice" role="status">Bonding is complete. Trading pauses while the pool is seeded; this market moves to its pool once graduation is confirmed.</p>}
+      {sellAborts && <p className="notice" role="status">Graduation is overdue. Selling is open again: your sale also aborts the stuck graduation, and the market graduates on its next sellout.</p>}
+      {state === "aborted" && <p className="notice" role="status">Graduation was aborted after its timeout. Trading continues, and the market graduates on its next sellout.</p>}
+      {paused === true && side === "buy" && state !== "ready" && <p className="notice" role="status">Buying is paused by the guardian. Selling stays open.</p>}
 
       <div className="amount-head">
         <label htmlFor="trade-amount">Amount</label>
@@ -240,7 +230,7 @@ export function TradePanel({
           type="button"
           className={`trade-submit ${tradeProgress?.side ?? side}${tradeProgress ? " processing" : ""}`}
           aria-busy={Boolean(tradeProgress)}
-          disabled={isPending || inputWei <= 0n || buyFunding?.canFund === false || (side === "buy" && !canBuy)}
+          disabled={isPending || inputWei <= 0n || buyFunding?.canFund === false || (side === "buy" ? !canBuy : !canSell)}
           onClick={() => trade(side, token)}
         >
           <span aria-live="polite" aria-atomic="true">{tradeProgress ? tradeButtonLabel(tradeProgress.side, tradeProgress.phase) : tradeButtonLabel(side, null)}</span>

@@ -1,0 +1,16 @@
+# Local dev image: runs the Vite dev server so the /api/artwork upload middleware works.
+# VITE_* and PINATA_* values come from the root .env/.env.local via compose env_file, not the image.
+FROM oven/bun:1.4-alpine
+
+WORKDIR /app
+
+COPY package.json bun.lock ./
+COPY contracts/package.json ./contracts/package.json
+RUN bun install --frozen-lockfile
+
+COPY index.html vite.config.js tsconfig.json ./
+COPY api ./api
+COPY src ./src
+
+EXPOSE 5173
+CMD ["bun", "run", "dev", "--host", "0.0.0.0", "--port", "5173", "--strictPort"]

@@ -11,24 +11,25 @@ export type TradeActivity = {
   transactionHash: Hash;
 };
 
+/** A Trade's quoteAmount is what the trader paid on a buy (fee and tax included) or received on a sell. */
 export function tradeLogToActivity(
   log: {
-    args?: { trader?: string; isBuy?: boolean; tokenAmount?: bigint; netTraderQuote?: bigint };
+    args?: { trader?: string; isBuy?: boolean; tokenAmount?: bigint; quoteAmount?: bigint };
     blockNumber?: bigint | null;
     logIndex?: number;
     transactionHash?: string;
   },
   timestamp: number | undefined,
 ): TradeActivity | null {
-  const { trader, isBuy, tokenAmount, netTraderQuote } = log.args ?? {};
+  const { trader, isBuy, tokenAmount, quoteAmount } = log.args ?? {};
   if (!trader || !isAddress(trader) || typeof isBuy !== "boolean" || tokenAmount === undefined ||
-      netTraderQuote === undefined || timestamp === undefined ||
+      quoteAmount === undefined || timestamp === undefined ||
       log.blockNumber == null || log.logIndex === undefined || !log.transactionHash) return null;
   return {
     trader,
     isBuy,
     tokenAmount,
-    quoteAmount: netTraderQuote,
+    quoteAmount,
     timestamp,
     blockNumber: log.blockNumber,
     logIndex: log.logIndex,
@@ -76,11 +77,22 @@ export function calculatePriceChange(
   return { percent, period: prior ? "24h" : "since first trade" };
 }
 
+/** The launchpad Trade fields the chart and stats read. */
 export type TradeLogValues = {
-  grossCurveQuote?: bigint;
-  vQAfter?: bigint;
-  vTAfter?: bigint;
+  isBuy?: boolean;
+  quoteAmount?: bigint;
+  fee?: bigint;
+  tax?: bigint;
+  virtualToken?: bigint;
+  virtualQuote?: bigint;
 };
+
+/** Quote that moved through the curve: a buy's payment less fee and tax, a sell's proceeds plus them. */
+export function curveQuoteOf(values: TradeLogValues | undefined): bigint | null {
+  const { isBuy, quoteAmount, fee, tax } = values ?? {};
+  if (typeof isBuy !== "boolean" || quoteAmount == null || fee == null || tax == null) return null;
+  return isBuy ? quoteAmount - fee - tax : quoteAmount + fee + tax;
+}
 
 export function parseCreatedBlock(value: string | undefined, fallback: bigint) {
   if (!value) return fallback;
@@ -95,11 +107,10 @@ export function tradeLogToPoint(
   values: TradeLogValues | undefined,
   timestamp: number | undefined,
 ): TradePoint | null {
-  const { vQAfter, vTAfter } = values ?? {};
-  const quoteVolume = values?.grossCurveQuote;
-  if (!timestamp || !vQAfter || !vTAfter || !quoteVolume) return null;
-  const virtualQuote = Number(formatEther(vQAfter));
-  const virtualToken = Number(formatEther(vTAfter));
+  const quoteVolume = curveQuoteOf(values);
+  if (!timestamp || !values?.virtualQuote || !values.virtualToken || !quoteVolume) return null;
+  const virtualQuote = Number(formatEther(values.virtualQuote));
+  const virtualToken = Number(formatEther(values.virtualToken));
   if (virtualToken <= 0) return null;
   return {
     timestamp,
