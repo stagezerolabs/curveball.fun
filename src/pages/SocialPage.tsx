@@ -47,7 +47,7 @@ export function SocialPage({ navigate }: { navigate: Navigate }) {
     <main className="social-page wrap">
       <header className="social-page-heading">
         <div>
-          <h1>Trade in public.</h1>
+          <h1>Pulse</h1>
         </div>
         <div className="social-segmented" role="group" aria-label="Activity feed filter">
           <button type="button" aria-pressed={scope === "global"} onClick={() => void selectScope("global")}>Feed</button>
