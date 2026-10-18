@@ -1,6 +1,4 @@
-import { getDefaultConfig } from "@rainbow-me/rainbowkit";
 import { createConfig, http } from "wagmi";
-import { injected } from "wagmi/connectors";
 import { defineChain, getAddress, isAddress, type Address } from "viem";
 import {
   RISE_MAINNET_CHAIN_ID,
@@ -31,6 +29,7 @@ const rpcUrl = configuredRpc && env.VITE_CHAIN_ID
 export const activeExplorerUrl = activeChainId === RISE_MAINNET_CHAIN_ID
   ? RISE_MAINNET_EXPLORER_URL
   : RISE_TESTNET_EXPLORER_URL;
+export const isActiveTestnet = activeChainId !== RISE_MAINNET_CHAIN_ID;
 export const activeDeploymentBlock = BigInt(env.VITE_DEPLOYMENT_BLOCK);
 
 export const riseTestnet = defineChain({
@@ -39,14 +38,17 @@ export const riseTestnet = defineChain({
   nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
   rpcUrls: { default: { http: [rpcUrl] } },
   blockExplorers: { default: { name: "RISE Explorer", url: activeExplorerUrl } },
+  testnet: isActiveTestnet,
 });
 
-const walletConnectProjectId = (env.VITE_WALLETCONNECT_PROJECT_ID || "").trim();
 // Public RPCs drop log queries under load; viem retries with exponential backoff.
 const transports = { [riseTestnet.id]: http(rpcUrl, { retryCount: 5, retryDelay: 500 }) };
-export const wagmiConfig = walletConnectProjectId
-  ? getDefaultConfig({ appName: "Curveball", projectId: walletConnectProjectId, chains: [riseTestnet], transports })
-  : createConfig({ chains: [riseTestnet], connectors: [injected()], transports });
+export const wagmiConfig = createConfig({
+  chains: [riseTestnet],
+  transports,
+  ssr: true,
+  multiInjectedProviderDiscovery: false,
+});
 
 const configuredLaunchpad = env.VITE_LAUNCHPAD_ADDRESS.trim();
 export const launchpadAddress: Address | null = isAddress(configuredLaunchpad) ? getAddress(configuredLaunchpad) : null;

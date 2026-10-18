@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Dialog } from "@base-ui/react/dialog";
-import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { usePrivy } from "@privy-io/react-auth";
 import { ArrowIcon } from "../components/ArrowIcon";
 import { LaunchPreview } from "../components/LaunchPreview";
 import { useStore } from "../app/useStore.js";
@@ -46,7 +46,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
   const [metadataRetry, setMetadataRetry] = useState(0);
   const [imageError, setImageError] = useState("");
   const { address } = useAccount();
-  const { openConnectModal } = useConnectModal();
+  const { ready: privyReady, login } = usePrivy();
   const launchpadRead = { address: launchpadAddress ?? undefined, abi: curveLaunchpadAbi, chainId: activeChainId, query: { enabled: Boolean(launchpadAddress) } } as const;
   const { data: tokenSupply, isError: supplyError } = useReadContract({ ...launchpadRead, functionName: "SUPPLY" });
   const { data: curveSupply } = useReadContract({ ...launchpadRead, functionName: "CURVE_SUPPLY" });
@@ -315,10 +315,10 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
               <button
                 className="launch-button"
                 type={address ? "submit" : "button"}
-                onClick={!address ? () => openConnectModal?.() : undefined}
-                disabled={isPending || (Boolean(address) && (!canCreate || !formReady))}
+                onClick={!address ? login : undefined}
+                disabled={!privyReady || isPending || (Boolean(address) && (!canCreate || !formReady))}
               >
-                {isPending ? "Launching…" : !address ? "Connect wallet to launch" : artworkStatus === "uploading" ? "Uploading artwork…" : artworkStatus === "publishing" ? "Publishing artwork…" : artworkStatus === "error" ? "Artwork unavailable" : paused === true ? "Launches paused" : !canCreate ? "Checking launch status…" : !formReady ? "Complete form to launch" : "Launch token"} <ArrowIcon />
+                {isPending ? "Launching…" : !address ? "Sign in to launch" : artworkStatus === "uploading" ? "Uploading artwork…" : artworkStatus === "publishing" ? "Publishing artwork…" : artworkStatus === "error" ? "Artwork unavailable" : paused === true ? "Launches paused" : !canCreate ? "Checking launch status…" : !formReady ? "Complete form to launch" : "Launch token"} <ArrowIcon />
               </button>
             </div>
           </div>

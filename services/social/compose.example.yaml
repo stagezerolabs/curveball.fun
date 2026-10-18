@@ -1,0 +1,60 @@
+services:
+  migrate:
+    build:
+      context: ../..
+      dockerfile: services/social/Dockerfile
+    command: ["bun", "services/social/src/migrate.mjs"]
+    environment: &social-env
+      SOCIAL_DATABASE_URL: ${SOCIAL_DATABASE_URL:?set the Supabase pooled runtime URL}
+      SOCIAL_DIRECT_DATABASE_URL: ${SOCIAL_DIRECT_DATABASE_URL:?set the Supabase direct migration URL}
+      SOCIAL_RPC_URL: ${SOCIAL_RPC_URL:-https://rpc.risechain.com}
+      SOCIAL_CHAIN_ID: ${SOCIAL_CHAIN_ID:-4153}
+      SOCIAL_LAUNCHPAD_ADDRESS: ${SOCIAL_LAUNCHPAD_ADDRESS:?set SOCIAL_LAUNCHPAD_ADDRESS}
+      SOCIAL_DEPLOYMENT_BLOCK: ${SOCIAL_DEPLOYMENT_BLOCK:?set SOCIAL_DEPLOYMENT_BLOCK}
+      SOCIAL_ALLOWED_ORIGINS: ${SOCIAL_ALLOWED_ORIGINS:-https://curveball.fun}
+      SOCIAL_PUBLIC_ORIGIN: ${SOCIAL_PUBLIC_ORIGIN:-https://social-api.curveball.fun}
+      PRIVY_APP_ID: ${PRIVY_APP_ID:?set PRIVY_APP_ID}
+      PRIVY_APP_SECRET: ${PRIVY_APP_SECRET:?set PRIVY_APP_SECRET}
+      SOCIAL_DATABASE_SSL: "true"
+      SOCIAL_DATABASE_CA_FILE: certs/supabase-root-2021.crt
+      SOCIAL_PROTOCOL_ACCOUNTS: ${SOCIAL_PROTOCOL_ACCOUNTS:-}
+
+  api:
+    build:
+      context: ../..
+      dockerfile: services/social/Dockerfile
+    command: ["bun", "services/social/src/api.mjs"]
+    restart: unless-stopped
+    environment: *social-env
+    ports:
+      - "127.0.0.1:8787:8787"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8787/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  indexer:
+    build:
+      context: ../..
+      dockerfile: services/social/Dockerfile
+    command: ["bun", "services/social/src/indexer-runner.mjs"]
+    restart: unless-stopped
+    environment: *social-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    build:
+      context: ../..
+      dockerfile: services/social/Dockerfile
+    command: ["bun", "services/social/src/worker.mjs"]
+    restart: unless-stopped
+    environment: *social-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully

@@ -65,9 +65,24 @@ bun install
 bun run dev
 ```
 
-Set `VITE_LAUNCHPAD_ADDRESS` and `VITE_DEPLOYMENT_BLOCK` to the deployment you want to inspect. Set `VITE_WALLETCONNECT_PROJECT_ID` for QR/mobile wallets. Injected browser wallets work without it.
+Set `VITE_LAUNCHPAD_ADDRESS` and `VITE_DEPLOYMENT_BLOCK` to the deployment you want to inspect. Set `VITE_PRIVY_APP_ID` to the public app ID from the Privy dashboard; `VITE_PRIVY_CLIENT_ID` is optional when using a configured app client. Privy handles account registration, embedded wallet creation, and external wallet connections. Keep `PRIVY_APP_SECRET` server-only in `services/social/.env`.
 
 Artwork uploads require a server-only `PINATA_JWT` with Pinata Files write permission. Never prefix it with `VITE_`. Apply an edge rate limit to `/api/artwork` before opening public uploads.
+
+## Social service
+
+The social trading backend uses the service in [`services/social/`](services/social/README.md) and the shared Drizzle data module in [`packages/db/`](packages/db/). It indexes confirmed launches, curve trades, token transfers, protocol flows, and graduated Icarus-pool swaps into hosted Supabase Postgres; serves market data, public profiles, leaderboards, holder snapshots, and moderation; and stores follows, notifications, reports, and Copy Assist audit records. The service never holds user trading keys or submits trades.
+
+The web app uses only indexed and stored backend data for social surfaces. Point `VITE_SOCIAL_API_URL` at the service; when it is absent, the UI shows an explicit disconnected state rather than fabricated activity. Authenticated requests carry the current Privy access token and active linked wallet address; the backend verifies both before authorizing a write.
+
+Set `VITE_SOCIAL_API_URL` to the public TLS origin of that service. Run its schema migration once, then keep one indexer process supervised on the VPS:
+
+```bash
+bun run social:migrate
+bun run social:api
+bun run social:indexer
+bun run social:worker
+```
 
 ## Checks
 

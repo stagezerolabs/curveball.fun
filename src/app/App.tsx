@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
+import { usePrivy } from "@privy-io/react-auth";
 import { useAccount } from "wagmi";
 import {
   Header,
@@ -14,18 +15,32 @@ import { ProfilePage } from "../pages/ProfilePage";
 import { StatsPage } from "../pages/StatsPage";
 import { AdminPage } from "../pages/AdminPage";
 import { useRouter } from "./useRouter.js";
+import { isAdminAddress } from "../lib/adminAccess";
 import {
   applyTheme,
   readStoredTheme,
   type Theme,
 } from "../lib/theme";
 
+const SocialPage = lazy(() => import("../pages/SocialPage").then((module) => ({ default: module.SocialPage })));
+const TraderProfilePage = lazy(() => import("../pages/TraderProfilePage").then((module) => ({ default: module.TraderProfilePage })));
+
+function SocialPageFallback() {
+  return <main className="page-main wrap" aria-busy="true" aria-label="Loading social trading"><div className="trader-profile-skeleton skeleton" /></main>;
+}
+
 export function App() {
   const { navigate, route } = useRouter();
   const [theme, setTheme] = useState<Theme>(readStoredTheme);
   const { address } = useAccount();
+  const { authenticated, ready: privyReady } = usePrivy();
+  const isAdmin = isAdminAddress(address);
+  const adminAccessReady = privyReady && (!authenticated || Boolean(address));
 
   useEffect(() => applyTheme(theme), [theme]);
+  useEffect(() => {
+    if (route.id === "admin" && adminAccessReady && !isAdmin) navigate("markets");
+  }, [adminAccessReady, isAdmin, navigate, route.id]);
 
   let page;
   switch (route.id) {
@@ -37,6 +52,9 @@ export function App() {
       break;
     case "stats":
       page = <StatsPage navigate={navigate} />;
+      break;
+    case "social":
+      page = <Suspense fallback={<SocialPageFallback />}><SocialPage navigate={navigate} /></Suspense>;
       break;
     case "market":
       page = (
@@ -54,8 +72,13 @@ export function App() {
         <ProfilePage navigate={navigate} />
       );
       break;
+    case "trader":
+      page = <Suspense fallback={<SocialPageFallback />}><TraderProfilePage navigate={navigate} address={(route.params as { address: string }).address} /></Suspense>;
+      break;
     case "admin":
-      page = <AdminPage />;
+      page = isAdmin
+        ? <AdminPage />
+        : <main className="page-main wrap" aria-busy="true" aria-label="Loading"><div className="trader-profile-skeleton skeleton" /></main>;
       break;
     default:
       page = <NotFoundPage navigate={navigate} />;
@@ -68,10 +91,11 @@ export function App() {
   return (
     <div className="site-shell curveball-theme">
       {isLanding ? (
-        <LandingHeader address={address} navigate={navigate} theme={theme} onThemeToggle={toggleTheme} />
+        <LandingHeader address={address} isAdmin={isAdmin} navigate={navigate} theme={theme} onThemeToggle={toggleTheme} />
       ) : (
         <Header
           address={address}
+          isAdmin={isAdmin}
           navigate={navigate}
           routeId={route.id}
           theme={theme}

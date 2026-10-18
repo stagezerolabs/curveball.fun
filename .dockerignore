@@ -2,9 +2,15 @@
 **/.env*
 !**/.env.example
 .git
+.worktrees
+.trash
 dist
+agent_wallet
+agent_wallet.json
 contracts/out
 contracts/cache
 contracts/lib
 contracts/broadcast
+contracts/echidna-v2-corpus
+contracts/crytic-export
 coverage

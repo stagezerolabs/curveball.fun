@@ -10,6 +10,7 @@ import { TradePanel } from "../components/TradePanel";
 import { marketFields, readMarket, type CreatorTokenClient } from "../creatorTokens";
 import { activeChainId } from "../lib/web3";
 import type { MarketPriceChange } from "../lib/marketChart";
+import { socialApiBaseUrl } from "../social/api";
 import type { Navigate, Token } from "../types";
 
 const MarketChart = lazy(() =>
@@ -40,6 +41,7 @@ export function MarketPage({
   navigate: Navigate;
 }) {
   const publicClient = usePublicClient({ chainId: activeChainId });
+  const backendEnabled = Boolean(socialApiBaseUrl);
   const validAddress = isAddress(tokenAddress);
   const address = validAddress ? getAddress(tokenAddress) : undefined;
   const key = tokenAddress.toLowerCase();
@@ -69,7 +71,7 @@ export function MarketPage({
   }, [address, fetchedAt, loadToken, publicClient]);
 
   useEffect(() => {
-    if (!address || !resolvedToken?.factory || resolvedToken.graduated || !publicClient) return;
+    if (!address || !resolvedToken?.factory || resolvedToken.graduated || (!publicClient && !backendEnabled)) return;
     const launchpad = resolvedToken.factory;
     const shownLifecycle = resolvedToken.lifecycle;
     const shownSoldOut = Boolean(resolvedToken.pending || (resolvedToken.progress ?? 0) >= 100);
@@ -79,6 +81,11 @@ export function MarketPage({
       if (checking || document.visibilityState !== "visible") return;
       checking = true;
       try {
+        if (backendEnabled) {
+          await loadToken(publicClient as unknown as CreatorTokenClient | undefined, address, { force: true });
+          return;
+        }
+        if (!publicClient) return;
         const market = marketFields(await readMarket(publicClient as unknown as CreatorTokenClient, launchpad, address));
         if (active && (market.lifecycle !== shownLifecycle || (market.progress >= 100) !== shownSoldOut)) {
           await loadToken(publicClient as unknown as CreatorTokenClient, address, { force: true });
@@ -88,7 +95,7 @@ export function MarketPage({
     };
     const timer = window.setInterval(() => { void refreshStatus(); }, 10_000);
     return () => { active = false; window.clearInterval(timer); };
-  }, [address, resolvedToken?.factory, resolvedToken?.graduated, resolvedToken?.lifecycle, resolvedToken?.pending, resolvedToken?.progress, publicClient, loadToken]);
+  }, [address, backendEnabled, resolvedToken?.factory, resolvedToken?.graduated, resolvedToken?.lifecycle, resolvedToken?.pending, resolvedToken?.progress, publicClient, loadToken]);
 
   if (validAddress && !hasCachedResult && !discoveryError) {
     return <MarketPageSkeleton />;

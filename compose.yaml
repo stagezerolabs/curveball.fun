@@ -1,13 +1,55 @@
-# Local stack for the lean launchpad: the Vite frontend and the market keeper, both on the
-# deployment recorded in deployments/<chainId>/curveball.json. Secrets stay in the ignored .env
-# files and are injected at runtime, never baked into images. The project name keeps this stack
-# separate from any other Curveball checkout running on the same Docker host.
-name: curveball-lean
+# Local stack: the Supabase-backed social service, the market keeper, and the Vite frontend, all on
+# the launchpad recorded in deployments/<chainId>/curveball.json. Secrets stay in the per-service
+# ignored .env files and are injected at runtime, never baked into images. Host ports can be moved
+# with FRONTEND_PORT and SOCIAL_API_PORT to run beside another Curveball stack.
+name: curveball
+
+x-social: &social
+  build:
+    context: .
+    dockerfile: services/social/Dockerfile
+  image: curveball-social:local
+  env_file: services/social/.env
 
 services:
+  migrate:
+    <<: *social
+    command: ["bun", "services/social/src/migrate.mjs"]
+
+  api:
+    <<: *social
+    command: ["bun", "services/social/src/api.mjs"]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${SOCIAL_API_PORT:-8787}:8787"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8787/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  indexer:
+    <<: *social
+    command: ["bun", "services/social/src/indexer-runner.mjs"]
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    <<: *social
+    command: ["bun", "services/social/src/worker.mjs"]
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
   keeper:
     build: keeper
-    image: curveball-lean-keeper:local
+    image: curveball-keeper:local
     env_file: keeper/.env
     restart: unless-stopped
 
@@ -15,8 +57,8 @@ services:
     build:
       context: .
       dockerfile: frontend.Dockerfile
-    image: curveball-lean-frontend:local
-    # Later files win: .env holds shared values (PINATA_JWT, WalletConnect), .env.local the
+    image: curveball-frontend:local
+    # Later files win: .env holds shared values (PINATA_JWT, WalletConnect, Privy), .env.local the
     # launchpad written by `make configure-testnet`.
     env_file:
       - path: .env
@@ -24,7 +66,10 @@ services:
       - path: .env.local
         required: false
     ports:
-      - "127.0.0.1:${FRONTEND_PORT:-5174}:5173"
+      - "127.0.0.1:${FRONTEND_PORT:-5173}:5173"
+    depends_on:
+      api:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:5173/"]
       interval: 15s
