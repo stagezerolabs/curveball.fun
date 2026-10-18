@@ -6,7 +6,7 @@ import type { CreatorTokenClient } from "../creatorTokens";
 import { useStore } from "../app/useStore.js";
 import { UsdAmount } from "./UsdAmount";
 import { readCachedLaunches, readCachedPayout, writeCachedLaunches, writeCachedPayout } from "../lib/landingStatsCache";
-import { getCreatorPayouts } from "../lib/protocolStats";
+import { getCreatorEarnings } from "../lib/protocolStats";
 import { activeChainId, activeDeploymentBlock, launchpadAddress } from "../lib/web3";
 import type { Token } from "../types";
 
@@ -34,14 +34,14 @@ export function useProtocolStats() {
   });
   const payoutEnabled = Boolean(client && launchpadAddress && data);
   const { data: payout, isPending: payoutPending, isFetching: payoutFetching, isError: payoutError, refetch: refetchPayout } = useQuery({
-    queryKey: ["landing-creator-payouts", activeChainId, factoryKey],
+    queryKey: ["landing-creator-earnings", activeChainId, factoryKey],
     enabled: payoutEnabled,
     initialData: cachedPayout?.value,
     initialDataUpdatedAt: cachedPayout?.updatedAt,
     staleTime: 300_000,
     retry: 1,
     queryFn: async () => {
-      const result = await getCreatorPayouts(client as unknown as Parameters<typeof getCreatorPayouts>[0], launchpadAddress!, data!, activeDeploymentBlock);
+      const result = await getCreatorEarnings(client as unknown as Parameters<typeof getCreatorEarnings>[0], launchpadAddress!, data!, activeDeploymentBlock);
       writeCachedPayout(cacheKey, result);
       return result;
     },
@@ -61,7 +61,7 @@ export function LandingProtocolStats() {
         <dl className="landing-proof-stats" aria-busy={(statsEnabled && isPending) || (payoutEnabled && payoutPending)}>
           <div><dt>Tokens created</dt><dd className={!data && !(statsEnabled && isPending) ? "landing-stat-unavailable" : undefined}>{data ? new Intl.NumberFormat().format(data.length) : fallback}</dd></div>
           <div><dt>Markets graduated</dt><dd className={!data && !(statsEnabled && isPending) ? "landing-stat-unavailable" : undefined}>{data ? new Intl.NumberFormat().format(data.filter((token) => token.graduated).length) : fallback}</dd></div>
-          <div><dt>Curve fees claimed by creators</dt><dd className={paid === null && !(payoutEnabled && payoutPending) ? "landing-stat-unavailable" : undefined}>{paid === null ? (payoutEnabled && payoutPending ? loading : "Unavailable") : <UsdAmount weth={paid} compact />}</dd></div>
+          <div><dt>Fees earned by creators</dt><dd className={paid === null && !(payoutEnabled && payoutPending) ? "landing-stat-unavailable" : undefined}>{paid === null ? (payoutEnabled && payoutPending ? loading : "Unavailable") : <UsdAmount weth={paid} compact />}</dd></div>
         </dl>
       </div>
     </section>
