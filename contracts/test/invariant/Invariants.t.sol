@@ -174,7 +174,7 @@ contract InvariantsTest is Fixture {
     }
 
     /// @dev 10, deterministically: every action category can do its work, so none is vacuous.
-    ///      A 64-call run can't be required to hit all 15 categories without failing by chance.
+    ///      A 64-call run can't be required to hit all 20 categories without failing by chance.
     function test_handler_reachesEveryAction() public {
         handler.buy(1, 0, 1 ether);
         handler.sell(1, 0, 5_000);

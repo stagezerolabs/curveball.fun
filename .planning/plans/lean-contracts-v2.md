@@ -319,9 +319,9 @@ Two exceptions are accepted: Task 2 is a pure deletion, and Task 38 also commits
 | # | Task | Files | Test |
 |---|---|---|---|
 | 20 | Lifecycle: launch → trades → sellout → graduate → swaps → locker claim → escrow claims → buyback-and-burn → reserve claims | `test/integration/Lifecycle.t.sol` | Balance assertions at every step |
-| 21 | Invariant handler: launch, buy, sell, donate (WETH and token to the launchpad and pool), warp, graduate, abort, swap, lpClaim, feeClaim, buyback, reserveClaim, pause; ghost counters | `test/invariant/Handler.sol` | Used by 22 |
-| 22 | Invariants (§5), including the `afterInvariant` coverage check | `test/invariant/Invariants.t.sol` | 256 × 64 green; fails if an action category ran fewer than N times |
-| 23 | Strict fork lifecycle (`vm.skip` only when `CI_FORK != 1`; fails loud otherwise) | `test/fork/Lifecycle.fork.t.sol` | 4153 and 11155931 forks: real first-mint, `sync`-donation handling, `claimFees` with the real unstaked fee, TWAP after 3 observations |
+| 21 | Invariant handler: launch, buy, sell, oversell, donate (WETH to the launchpad and escrow, WETH to the pool, token to the launchpad), transfer, warp, graduate, abort, swap, lpClaim, feeClaim, buyback, reserveClaim, rescue, admin, pause, Icarus pause; a ghost state machine per market, updated only from the handler's own successful calls, from which every must-succeed / must-revert rule is derived | `test/invariant/Handler.sol` | Used by 22 |
+| 22 | Invariants (§5), including the `afterInvariant` coverage check | `test/invariant/Invariants.t.sol` | 256 × 64 green with 0 handler reverts; `afterInvariant` fails a run where under 20% of calls did work; deterministic tests reach every category and the rare paths |
+| 23 | Strict fork lifecycle (`vm.skip` only when `CI_FORK != 1`; fails loud otherwise) | `test/fork/Lifecycle.fork.t.sol` | 4153 and 11155931 forks at pinned blocks: real first-mint, `sync`-donation handling, `claimFees` with the real unstaked fee, TWAP after 3 observations, the real factory's pause (graduation succeeds, buyback skips) |
 
 ### Phase 5: Deploy (depends on Phase 4)
 
@@ -411,7 +411,7 @@ Every H and M finding, and every row of the griefing table, has a named test:
 - Access-control negatives on every restricted function.
 
 **Invariants (Task 22).**
-1. `WETH.balanceOf(launchpad) ≥ totalRealQuote == Σ realQuote` over ungraduated markets.
+1. `WETH.balanceOf(launchpad) == totalRealQuote + surplus` and `totalRealQuote == Σ realQuote`, where the handler's ghost surplus is donations plus skimmed pool balances less rescues. A global check also conserves WETH across every known holder.
 2. Per market before graduation: `realQuote == virtualQuote − initialVQ`. After graduation it is 0.
 3. Per market: `sold + virtualToken == S` and `sold ≤ C`. Before graduation, `token.balanceOf(launchpad) ≥ S − R − sold` (≥ because of donations).
 4. `WETH.balanceOf(escrow) ≥ Σ liabilities + Σ buyback balances`. The same holds for each meme token.
@@ -424,7 +424,9 @@ Every H and M finding, and every row of the griefing table, has a named test:
    - Ready blocks sells only before the timeout.
    - Pause never blocks sell, graduate, abort or claims.
 9. Token `totalSupply` is non-increasing after launch.
-10. The handler reached every action category (checked in `afterInvariant`).
+10. The handler isn't vacuous. A 64-call run can't be required to reach all 20 categories without failing by chance, so `afterInvariant` requires at least 20% of a run's calls to do work (worst observed ≈ 35%). Deterministic tests prove each category and each rare path (early abort rejected, inline abort, buy on `Aborted`, re-sellout, graduation from `Aborted`) can execute.
+
+Also checked after every handler call: market state and `readyAt` match the ghost; the fee, tax and starting-quote snapshot and `feePolicy` are unchanged; a graduated market's launchpad balance equals post-graduation donations; the locker holds the LP; the pool opened at `realQuote + synced donation`, priced at the curve-end spot or clamped.
 
 **Integration and fork (Tasks 20 and 23).** The full lifecycle on mocks and on real Icarus.
 
@@ -509,6 +511,8 @@ The repo's layered backend rule doesn't apply: there is no Kotlin or Next.js. It
 **Phase 2 gate (protocol reviewer): NEEDS CHANGES → ACCEPT in 2 rounds.** Major: buyback could wedge on quiet pools (its own price move, or one market move, left spot outside the band and every call reverted). Fixed with the 0.25% impact cap, `sync()` before quoting, and skip-on-slippage, each mutation-checked by a test. Also: one extra observation window, the dust rule, and Phase 3 requirements for the fee-share sum and full-sellout graduation.
 
 **Phase 3 gate (protocol reviewer): NEEDS CHANGES (1 major) → ACCEPT in 2 rounds.** Major: a buyer could leave a dust remainder whose fill's fee rounded to 0, so every final buy reverted `DustTrade` and graduation was blocked for good; fixed by exempting the final fill (mutation-checked). Minors applied: `GraduationReady` on `Aborted` re-sellout, fee policy in `LaunchCreated`, `minOut` without a first buy rejected. Noted for Task 24: `Deploy.s.sol` must pass the broadcasting EOA as `deployer` to `_deployCurve`.
+
+**Phase 4 gate (protocol reviewer): NEEDS CHANGES (5 major) → ACCEPT in 2 rounds.** No contract bug. Major: the handler derived its rules from the contract's own state, so a wrong transition moved the rule with it; early aborts were never attempted; buys had no must-succeed rule; the donation price-match wasn't asserted; and rescue, pre-graduation transfers, overselling and admin changes weren't exercised. Fixed with the ghost state machine and the new actions. Mutation check with a clean rebuild per mutant: 17 seeded bugs caught; one equivalent survivor (buy allowed in `Ready`, which is always sold out). Noted for Task 24: the graduation target must be ≥ `MIN_TARGET` (0.01 ether; the old testnet record used 0.005), and CI should run `make verify-icarus` alongside the fork targets.
 
 **Accepted as-is:** Task 2 and Task 38 file-count exceptions; Gate 2 rule adaptation; Task 48 as a labelled deliverable; the dust-sell delay in `Aborted`.
 

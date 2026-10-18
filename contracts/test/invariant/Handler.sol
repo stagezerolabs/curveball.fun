@@ -44,6 +44,7 @@ contract Handler is Test {
         CurveLaunchpad.State state;
         uint40 readyAt;
         CurveLaunchpad.FeeDefaults fees;
+        uint16 taxBps;
         uint256 initialVirtualQuote;
     }
 
@@ -132,7 +133,7 @@ contract Handler is Test {
         try launchpad.launch(_meta(), taxBps, reserveBps, firstBuy, 0) returns (address token, uint256) {
             if (paused) _violate("launch while paused");
             tokens.push(token);
-            ghosts[token] = Ghost(CurveLaunchpad.State.Trading, 0, fees, vQ0);
+            ghosts[token] = Ghost(CurveLaunchpad.State.Trading, 0, fees, taxBps, vQ0);
             lastSupply[token] = S;
             _afterBuy(token);
             reached[Action.Launch]++;
@@ -296,6 +297,7 @@ contract Handler is Test {
                 _violate("aborted before the timeout");
             } catch {
                 earlyAbortsRejected++;
+                reached[Action.Abort]++;
             }
             if (waitSeed % 2 == 0) vm.warp(deadline);
         }
@@ -304,10 +306,10 @@ contract Handler is Test {
         try launchpad.abortGraduation(token) {
             if (!mustSucceed) _violate("aborted a market that was not expired and ready");
             g.state = CurveLaunchpad.State.Aborted;
+            reached[Action.Abort]++;
         } catch {
             if (mustSucceed) _violate("expired ready market failed to abort");
         }
-        reached[Action.Abort]++;
     }
 
     // ---------------------------------------------------------------- after graduation
@@ -395,10 +397,10 @@ contract Handler is Test {
             if (!graduated) _violate("reserve claimed before graduation");
             if (amount != claimable) _violate("reserve paid other than claimable");
             reserveClaimed[token] += amount;
+            reached[Action.ReserveClaim]++;
         } catch {
             if (claimable != 0) _violate("claimable reserve reverted");
         }
-        reached[Action.ReserveClaim]++;
     }
 
     // ---------------------------------------------------------------- admin
@@ -541,7 +543,8 @@ contract Handler is Test {
             if (m.state != g.state || m.readyAt != g.readyAt) _violate("market state diverged from the ghost");
             if (
                 m.feeBps != g.fees.feeBps || m.creatorShareBps != g.fees.creatorShareBps
-                    || m.buybackShareBps != g.fees.buybackShareBps || m.initialVirtualQuote != g.initialVirtualQuote
+                    || m.buybackShareBps != g.fees.buybackShareBps || m.taxBps != g.taxBps
+                    || m.initialVirtualQuote != g.initialVirtualQuote
             ) _violate("market snapshot changed");
             // The escrow splits by this view, so it must serve the snapshot too, not the live defaults.
             (address creator, uint16 creatorShareBps, uint16 buybackShareBps) = launchpad.feePolicy(token);
