@@ -1,4 +1,5 @@
 import type { Address } from "viem";
+import { socialApiBaseUrl } from "../social/api";
 
 const RISE_MAINNET_CHAIN_ID = 4153;
 const RNS_NAME = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?\.rise$/;
@@ -16,7 +17,8 @@ export function parseRnsPrimaryName(payload: unknown, address: string): string |
 }
 
 export async function fetchRnsPrimaryName(address: Address, signal?: AbortSignal): Promise<string | null> {
-  const response = await fetch(`/api/rns/primary/${address}`, { signal });
+  if (!socialApiBaseUrl) return null;
+  const response = await fetch(`${socialApiBaseUrl}/v1/rns/primary/${address}`, { signal, credentials: "include" });
   if (!response.ok) throw new Error(`RNS lookup failed (${response.status})`);
   return parseRnsPrimaryName(await response.json(), address);
 }

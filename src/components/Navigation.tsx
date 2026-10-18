@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { usePrivy } from "@privy-io/react-auth";
 import { useQuery } from "@tanstack/react-query";
-import { usePublicClient } from "wagmi";
+import { useAccount, usePublicClient, useSwitchChain } from "wagmi";
 import type { AnchorHTMLAttributes, MouseEvent, ReactNode } from "react";
 import type { Address } from "viem";
 import { routeHref } from "../app/routeTree";
@@ -14,6 +14,8 @@ import { useStore } from "../app/useStore.js";
 import { activeChainId } from "../lib/web3";
 import type { CreatorTokenClient } from "../creatorTokens";
 import type { Token } from "../types";
+import { AccountPopover } from "./AccountPopover";
+import { NotificationsPopover } from "./NotificationsPopover";
 
 const RISK_NOTICE_DISMISSED_KEY = "curveball:risk-notice-dismissed";
 
@@ -110,7 +112,10 @@ export function RiseLogo() {
   );
 }
 
-function WalletNavButton({ address, displayName }: { address?: Address; displayName?: string | null }) {
+function WalletNavButton({ address, displayName, navigate, profileActive = false }: { address?: Address; displayName?: string | null; navigate: Navigate; profileActive?: boolean }) {
+  const { ready, authenticated, login } = usePrivy();
+  const { chainId } = useAccount();
+  const { switchChain } = useSwitchChain();
   const { data: primaryName } = useQuery({
     queryKey: ["rns", "primary", address?.toLowerCase()],
     queryFn: ({ signal }) => fetchRnsPrimaryName(address!, signal),
@@ -120,33 +125,34 @@ function WalletNavButton({ address, displayName }: { address?: Address; displayN
     retry: 1,
   });
 
-  return <ConnectButton.Custom>
-    {({ account, chain, mounted, openConnectModal, openAccountModal, openChainModal }) => {
-      const connected = mounted && Boolean(account && chain);
-      const wrongNetwork = connected && Boolean(chain?.unsupported);
-      const walletLabel = primaryName ?? displayName ?? account?.displayName;
-      return <button
-        className="wallet-button"
-        type="button"
-        disabled={!mounted}
-        onClick={() => {
-          if (wrongNetwork) openChainModal?.();
-          else if (connected) openAccountModal?.();
-          else openConnectModal?.();
-        }}
-        aria-label={wrongNetwork ? "Switch wallet network" : connected ? `Manage wallet ${primaryName ? `${primaryName}, ` : ""}${address ?? account?.address}` : "Connect wallet"}
-        title={connected && !wrongNetwork ? walletLabel : undefined}
-      >
-        <svg className="wallet-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-          <path d="M3 5.5A2.5 2.5 0 0 1 5.5 3H15v3H5.5A2.5 2.5 0 0 0 3 8.5v6A2.5 2.5 0 0 0 5.5 17H17V7H5.5" />
-          <path d="M17 10h-4a2 2 0 0 0 0 4h4" />
-        </svg>
-        <span className="wallet-label">
-          {wrongNetwork ? "Wrong network" : connected ? walletLabel : "Connect wallet"}
-        </span>
-      </button>;
-    }}
-  </ConnectButton.Custom>;
+  const wrongNetwork = authenticated && Boolean(address && chainId && chainId !== activeChainId);
+  const walletLabel = primaryName ?? displayName ?? (address ? `${address.slice(0, 5)}…${address.slice(-4)}` : "Sign in");
+  const label = <span className="privy-pill-label">
+    <svg className="wallet-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M3 5.5A2.5 2.5 0 0 1 5.5 3H15v3H5.5A2.5 2.5 0 0 0 3 8.5v6A2.5 2.5 0 0 0 5.5 17H17V7H5.5" />
+      <path d="M17 10h-4a2 2 0 0 0 0 4h4" />
+    </svg>
+    <span className="wallet-label">{walletLabel}</span>
+  </span>;
+
+  if (!authenticated) {
+    return <button className="wallet-button" type="button" disabled={!ready} onClick={login} aria-label="Sign in to Curveball">
+      {label}
+    </button>;
+  }
+
+  if (wrongNetwork) {
+    return <button className="wallet-button" type="button" onClick={() => switchChain({ chainId: activeChainId })} aria-label="Switch wallet to the Curveball network">
+      <svg className="wallet-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <path d="M3 5.5A2.5 2.5 0 0 1 5.5 3H15v3H5.5A2.5 2.5 0 0 0 3 8.5v6A2.5 2.5 0 0 0 5.5 17H17V7H5.5" />
+        <path d="M17 10h-4a2 2 0 0 0 0 4h4" />
+      </svg>
+      <span className="wallet-label">Switch network</span>
+    </button>;
+  }
+
+  if (!address) return null;
+  return <AccountPopover address={address} label={walletLabel} navigate={navigate} profileActive={profileActive} />;
 }
 
 function HeaderSearch({ navigate }: { navigate: Navigate }) {
@@ -203,12 +209,14 @@ function HeaderSearch({ navigate }: { navigate: Navigate }) {
 
 export function Header({
   address,
+  isAdmin,
   navigate,
   routeId,
   theme,
   onThemeToggle,
 }: {
   address?: Address;
+  isAdmin: boolean;
   navigate: Navigate;
   routeId: string;
   theme: Theme;
@@ -279,7 +287,7 @@ export function Header({
     } catch { /* The notice stays hidden until this page is reloaded. */ }
   };
   const marketsClass = ["markets", "market"].includes(routeId) ? "active" : "";
-  const statsClass = routeId === "stats" ? "active" : "";
+  const socialClass = ["social", "trader"].includes(routeId) ? "active" : "";
   const profileClass = routeId === "profile" ? "active" : "";
   const adminClass = routeId === "admin" ? "active" : "";
 
@@ -294,6 +302,14 @@ export function Header({
         Explore
       </AppLink>
       <AppLink
+        className={`nav-link ${socialClass}`}
+        route="social"
+        navigate={go}
+        aria-current={socialClass ? "page" : undefined}
+      >
+        Social
+      </AppLink>
+      <AppLink
         className={`nav-link ${profileClass}`}
         route="profile"
         navigate={go}
@@ -301,8 +317,7 @@ export function Header({
       >
         Profile
       </AppLink>
-      <AppLink className={`nav-link ${statsClass}`} route="stats" navigate={go} aria-current={statsClass ? "page" : undefined}>Stats</AppLink>
-      {Boolean(address) && <AppLink className={`nav-link ${adminClass}`} route="admin" navigate={go} aria-current={adminClass ? "page" : undefined}>Admin</AppLink>}
+      {isAdmin && <AppLink className={`nav-link ${adminClass}`} route="admin" navigate={go} aria-current={adminClass ? "page" : undefined}>Admin</AppLink>}
     </>
   );
 
@@ -321,14 +336,14 @@ export function Header({
         <nav ref={primaryNavRef} className="nav-primary" aria-label="Main navigation">
           <span ref={activePillRef} className="nav-active-pill" aria-hidden="true" />
           <AppLink className={`nav-link ${marketsClass}`} route="markets" navigate={go} aria-current={marketsClass ? "page" : undefined}>Explore</AppLink>
-          <AppLink className={`nav-link ${statsClass}`} route="stats" navigate={go} aria-current={statsClass ? "page" : undefined}>Stats</AppLink>
-          {Boolean(address) && <AppLink className={`nav-link ${adminClass}`} route="admin" navigate={go} aria-current={adminClass ? "page" : undefined}>Admin</AppLink>}
+          <AppLink className={`nav-link ${socialClass}`} route="social" navigate={go} aria-current={socialClass ? "page" : undefined}>Social</AppLink>
+          {isAdmin && <AppLink className={`nav-link ${adminClass}`} route="admin" navigate={go} aria-current={adminClass ? "page" : undefined}>Admin</AppLink>}
         </nav>
         <div className="nav-actions">
           <ThemeToggle theme={theme} onToggle={onThemeToggle} />
           <AppLink className="nav-create" route="launch" navigate={go} aria-current={routeId === "launch" ? "page" : undefined}><span aria-hidden="true">＋</span> Create</AppLink>
-          <AppLink className="nav-profile" route="profile" navigate={go} aria-label="Profile" aria-current={profileClass ? "page" : undefined} title="Profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5" /><path d="M5.5 20a6.5 6.5 0 0 1 13 0" /></svg></AppLink>
-          <WalletNavButton address={address} displayName={address ? `${address.slice(0, 5)}…${address.slice(-4)}` : null} />
+          <WalletNavButton address={address} displayName={address ? `${address.slice(0, 5)}…${address.slice(-4)}` : null} navigate={go} profileActive={Boolean(profileClass)} />
+          {address ? <NotificationsPopover address={address} navigate={go} /> : null}
         </div>
         <button
           className="nav-menu"
@@ -358,14 +373,14 @@ export function Header({
   );
 }
 
-export function LandingHeader({ address, navigate, theme, onThemeToggle }: { address?: Address; navigate: Navigate; theme: Theme; onThemeToggle: () => void }) {
+export function LandingHeader({ address, isAdmin, navigate, theme, onThemeToggle }: { address?: Address; isAdmin: boolean; navigate: Navigate; theme: Theme; onThemeToggle: () => void }) {
   return (
     <header className="landing-nav wrap">
       <Brand navigate={navigate} />
       <div className="landing-nav-actions">
-        {Boolean(address) && <AppLink className="nav-link" route="admin" navigate={navigate}>Admin</AppLink>}
+        {isAdmin && <AppLink className="nav-link" route="admin" navigate={navigate}>Admin</AppLink>}
         <ThemeToggle theme={theme} onToggle={onThemeToggle} />
-        <WalletNavButton address={address} displayName={address ? `${address.slice(0, 5)}…${address.slice(-4)}` : null} />
+        <WalletNavButton address={address} displayName={address ? `${address.slice(0, 5)}…${address.slice(-4)}` : null} navigate={navigate} />
       </div>
     </header>
   );

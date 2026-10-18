@@ -3,10 +3,6 @@
   "buildCommand": "bun run build",
   "rewrites": [
     {
-      "source": "/api/rns/primary/:address",
-      "destination": "https://api.stage0.xyz/api/public/rns/resolve/address/:address?chainId=4153"
-    },
-    {
       "source": "/api/artwork",
       "destination": "/api/artwork"
     },

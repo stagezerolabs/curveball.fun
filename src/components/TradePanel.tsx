@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { usePrivy } from "@privy-io/react-auth";
 import { Collapsible } from "@base-ui/react/collapsible";
 import type { ReactNode } from "react";
 import { formatEther, parseEther } from "viem";
@@ -60,7 +60,7 @@ export function TradePanel({
     fetchQuote,
   } = useStore();
   const [explain, setExplain] = useState(false);
-  const { openConnectModal } = useConnectModal();
+  const { ready: privyReady, login } = usePrivy();
   const marketFactory = launchpadAddress ? factoryForToken(token.factory) : undefined;
   const betaReadEnabled = getBetaReadEnabled({
     walletConnected: Boolean(address),
@@ -174,7 +174,7 @@ export function TradePanel({
         </button>
       </div>
 
-      {(token.pending || (token.progress ?? 0) >= 100) && <p className="notice" role="status">Bonding is complete. The pool is being prepared; selling remains available until graduation is confirmed.</p>}
+      {(token.pending || (token.progress ?? 0) >= 100) && <p className="notice" role="status">Bonding is complete. The pool is being prepared; curve trading is paused until graduation is confirmed.</p>}
       {!hasBetaAccess && side === "buy" && publicOpen === false && invited === false && <p className="notice" role="status">This deployed factory is still invite-only. Selling remains open.</p>}
 
       <div className="amount-head">
@@ -246,8 +246,8 @@ export function TradePanel({
           <span aria-live="polite" aria-atomic="true">{tradeProgress ? tradeButtonLabel(tradeProgress.side, tradeProgress.phase) : tradeButtonLabel(side, null)}</span>
         </button>
       ) : (
-        <button className={`trade-submit ${side}`} type="button" onClick={() => openConnectModal?.()}>
-          Connect wallet to trade
+        <button className={`trade-submit ${side}`} type="button" disabled={!privyReady} onClick={login}>
+          Sign in to trade
         </button>
       )}
       {tradeMessage && !isPending && (

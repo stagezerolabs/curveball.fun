@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { usePrivy } from "@privy-io/react-auth";
 import { Tabs } from "@base-ui/react/tabs";
 import { useAccount, usePublicClient } from "wagmi";
 import type { Address } from "viem";
@@ -18,11 +18,11 @@ import type { Navigate, Token } from "../types";
 type LaunchFilter = "all" | "live" | "ready" | "graduated";
 type ProfileSection = "holders" | "airdrops";
 
-export function ProfilePage({ navigate }: { navigate: Navigate }) {
-  const { address } = useAccount();
-  const { openConnectModal } = useConnectModal();
+const TraderProfilePage = lazy(() => import("./TraderProfilePage").then((module) => ({ default: module.TraderProfilePage })));
+
+function CreatorLaunchDashboard({ address, navigate }: { address: Address; navigate: Navigate }) {
   const publicClient = usePublicClient({ chainId: activeChainId });
-  const key = address?.toLowerCase() ?? "";
+  const key = address.toLowerCase();
   const { creatorTokens, creatorErrors, loadCreatorTokens } = useStore() as {
     creatorTokens: Record<string, Token[]>;
     creatorErrors: Record<string, string>;
@@ -35,16 +35,15 @@ export function ProfilePage({ navigate }: { navigate: Navigate }) {
   const hasCachedResult = Object.prototype.hasOwnProperty.call(creatorTokens, key);
   const tokens = creatorTokens[key] ?? [];
   const error = creatorErrors[key];
-  const initialLoading = Boolean(address) && !hasCachedResult && !error;
+  const initialLoading = !hasCachedResult && !error;
   const awaitingPool = tokens.some((token) => !token.graduated && (token.pending || (token.progress ?? 0) >= 100));
 
   useEffect(() => {
-    if (!address) return;
     void loadCreatorTokens(publicClient as unknown as CreatorTokenClient | undefined, address).catch(() => undefined);
   }, [address, loadCreatorTokens, publicClient]);
 
   useEffect(() => {
-    if (!address || !awaitingPool) return;
+    if (!awaitingPool) return;
     const timer = window.setInterval(() => {
       if (document.visibilityState === "visible") {
         void loadCreatorTokens(publicClient as unknown as CreatorTokenClient | undefined, address, { force: true }).catch(() => undefined);
@@ -71,20 +70,11 @@ export function ProfilePage({ navigate }: { navigate: Navigate }) {
   }, [tokens, search, filter]);
   const selectedToken = visibleTokens.find((token) => token.address.toLowerCase() === selectedAddress) ?? visibleTokens[0];
 
-  if (!address) {
-    return <main className="page-main profile-page wrap">
-      <h1 className="visually-hidden">Your launches</h1>
-      <section className="profile-connect" aria-labelledby="profile-connect-title">
-        <span className="profile-connect-icon" aria-hidden="true">↗</span>
-        <h2 id="profile-connect-title">Connect your wallet</h2>
-        <p>See the tokens you created on Curveball.</p>
-        <button className="primary-button" type="button" onClick={() => openConnectModal?.()}>Connect wallet</button>
-      </section>
-    </main>;
-  }
-
-  return <main className="page-main profile-page wrap">
-    <h1 className="visually-hidden">Your launches</h1>
+  return <section className="profile-page creator-launch-dashboard" aria-labelledby="creator-launches-title">
+    <header className="creator-launch-heading">
+      <div><p>Creator portfolio</p><h2 id="creator-launches-title">Created tokens</h2></div>
+      <span>{counts.graduated} graduated</span>
+    </header>
 
     {initialLoading ? <section className="profile-stats profile-stats-skeleton" aria-busy="true" aria-label="Loading launch summary">
       {Array.from({ length: 4 }, (_, index) => <div key={index}><span className="skeleton skeleton-line" /><span className="skeleton skeleton-number" /></div>)}
@@ -102,7 +92,7 @@ export function ProfilePage({ navigate }: { navigate: Navigate }) {
       <AppLink className="primary-button" route="launch" navigate={navigate}>Launch a token</AppLink>
     </section> : <div className="profile-dashboard">
       <aside className="profile-launch-directory" aria-labelledby="profile-launch-list-title">
-        <div className="profile-directory-heading"><h2 id="profile-launch-list-title">Launches</h2><span>{visibleTokens.length} / {tokens.length}</span></div>
+        <div className="profile-directory-heading"><h3 id="profile-launch-list-title">Launches</h3><span>{visibleTokens.length} / {tokens.length}</span></div>
         <div className="profile-directory-controls">
           <label className="visually-hidden" htmlFor="profile-launch-search">Search launches</label>
           <input id="profile-launch-search" type="search" placeholder="Search launches" value={search} onChange={(event) => setSearch(event.target.value)} />
@@ -123,7 +113,7 @@ export function ProfilePage({ navigate }: { navigate: Navigate }) {
       <div className="profile-detail" aria-live="polite">
         {selectedToken ? <>
           <header className="profile-token-header">
-            <div className="profile-token-identity"><TokenAvatar token={selectedToken} className="profile-token-avatar" /><div><h2>{selectedToken.name}</h2><p>${selectedToken.symbol} <span aria-hidden="true">·</span> <a className="profile-token-address" href={`${activeExplorerUrl}/address/${selectedToken.address}`} target="_blank" rel="noreferrer" title={selectedToken.address} aria-label={`View ${selectedToken.name} token address ${selectedToken.address} on explorer`}>{formatAddress(selectedToken.address)} <span aria-hidden="true">↗</span></a></p></div></div>
+            <div className="profile-token-identity"><TokenAvatar token={selectedToken} className="profile-token-avatar" /><div><h3>{selectedToken.name}</h3><p>${selectedToken.symbol} <span aria-hidden="true">·</span> <a className="profile-token-address" href={`${activeExplorerUrl}/address/${selectedToken.address}`} target="_blank" rel="noreferrer" title={selectedToken.address} aria-label={`View ${selectedToken.name} token address ${selectedToken.address} on explorer`}>{formatAddress(selectedToken.address)} <span aria-hidden="true">↗</span></a></p></div></div>
             <div className="profile-token-actions"><span className={`profile-launch-status ${getMarketDisplayStatus(selectedToken).kind}`}>{getMarketDisplayStatus(selectedToken).label}</span><AppLink className="profile-market-link" route="market" params={{ address: selectedToken.address }} navigate={navigate}>View market <span aria-hidden="true">↗</span></AppLink></div>
           </header>
           <dl className="profile-token-facts"><div><dt>Market cap</dt><dd><UsdAmount weth={selectedToken.marketCap} /></dd></div><div><dt>Stage</dt><dd>{getMarketDisplayStatus(selectedToken).label}</dd></div><div><dt>Launched</dt><dd>{formatRelativeTime(selectedToken.createdAt)}</dd></div></dl>
@@ -140,5 +130,30 @@ export function ProfilePage({ navigate }: { navigate: Navigate }) {
         </> : <p className="profile-directory-empty">Choose a launch to view its details.</p>}
       </div>
     </div>}
-  </main>;
+  </section>;
+}
+
+export function ProfilePage({ navigate }: { navigate: Navigate }) {
+  const { address } = useAccount();
+  const { ready: privyReady, login } = usePrivy();
+
+  if (!address) {
+    return <main className="page-main profile-page wrap">
+      <h1 className="visually-hidden">Profile</h1>
+      <section className="profile-connect" aria-labelledby="profile-connect-title">
+        <span className="profile-connect-icon" aria-hidden="true">↗</span>
+        <h2 id="profile-connect-title">Connect your wallet</h2>
+        <p>See your trading profile and the tokens you created on Curveball.</p>
+        <button className="primary-button" type="button" disabled={!privyReady} onClick={login}>Create account or sign in</button>
+      </section>
+    </main>;
+  }
+
+  return <Suspense fallback={<main className="trader-profile-page wrap" aria-busy="true" aria-label="Loading profile"><div className="trader-profile-skeleton skeleton" /></main>}>
+    <TraderProfilePage
+      address={address}
+      navigate={navigate}
+      launches={<CreatorLaunchDashboard address={address} navigate={navigate} />}
+    />
+  </Suspense>;
 }

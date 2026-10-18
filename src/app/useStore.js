@@ -15,6 +15,8 @@ import { readableError } from "../lib/errors";
 import { PendingTransactionError } from "../sdk/sdk";
 import { hasPublishedArtwork } from "../lib/launchForm";
 import { sdkForMarket } from "../lib/marketFactories";
+import { fetchCreatorMarkets, fetchMarket as fetchIndexedMarket, fetchMarkets as fetchIndexedMarkets } from "../markets/api";
+import { socialApiBaseUrl } from "../social/api";
 
 const MARKET_CACHE_TTL_MS = 30_000;
 let marketsRequest = null;
@@ -190,7 +192,8 @@ export const useStore = create(persist((set, get) => ({
     }),
 
   loadMarkets: async (client, { force = false } = {}) => {
-    if (!client) {
+    const backendEnabled = Boolean(socialApiBaseUrl);
+    if (!client && !backendEnabled) {
       set({ loading: false });
       return get().tokens;
     }
@@ -200,17 +203,19 @@ export const useStore = create(persist((set, get) => ({
     if (marketsRequest) return marketsRequest;
 
     set({ loading: true, marketError: "" });
-    marketsRequest = discoverAllTokens(client, (discovered) => {
+    marketsRequest = (backendEnabled ? fetchIndexedMarkets() : discoverAllTokens(client, (discovered) => {
       if (!discovered.length) return;
       set((current) => ({
         tokens: mergeTokenLists(current.tokens, discovered),
         ...cacheTokens(current, discovered),
       }));
-    })
+    }))
       .then((discovered) => {
         const fetchedAt = Date.now();
         set((current) => ({
-          tokens: discovered,
+          tokens: backendEnabled
+            ? mergeTokenLists(current.tokens.filter((token) => token.indexing), discovered)
+            : discovered,
           ...cacheTokens(current, discovered, fetchedAt),
           loading: false,
           marketsFetchedAt: fetchedAt,
@@ -238,7 +243,8 @@ export const useStore = create(persist((set, get) => ({
   },
 
   loadToken: async (client, address, { force = false } = {}) => {
-    if (!client || !address) return null;
+    const backendEnabled = Boolean(socialApiBaseUrl);
+    if ((!client && !backendEnabled) || !address) return null;
     const key = cacheKey(address);
     const state = get();
     if (!force && isFresh(state.tokenFetchedAt[key])) {
@@ -250,7 +256,7 @@ export const useStore = create(persist((set, get) => ({
       tokenLoading: { ...current.tokenLoading, [key]: true },
       tokenErrors: { ...current.tokenErrors, [key]: "" },
     }));
-    const request = discoverToken(client, address)
+    const request = (backendEnabled ? fetchIndexedMarket(address) : discoverToken(client, address))
       .then((token) => {
         const fetchedAt = Date.now();
         set((current) => ({
@@ -283,7 +289,8 @@ export const useStore = create(persist((set, get) => ({
   },
 
   loadCreatorTokens: async (client, creator, { force = false } = {}) => {
-    if (!client || !creator) return [];
+    const backendEnabled = Boolean(socialApiBaseUrl);
+    if ((!client && !backendEnabled) || !creator) return [];
     const key = cacheKey(creator);
     const state = get();
     if (!force && isFresh(state.creatorFetchedAt[key])) {
@@ -295,7 +302,7 @@ export const useStore = create(persist((set, get) => ({
       creatorLoading: { ...current.creatorLoading, [key]: true },
       creatorErrors: { ...current.creatorErrors, [key]: "" },
     }));
-    const request = discoverCreatorTokens(client, creator)
+    const request = (backendEnabled ? fetchCreatorMarkets(creator) : discoverCreatorTokens(client, creator))
       .then((tokens) => {
         const fetchedAt = Date.now();
         set((current) => ({

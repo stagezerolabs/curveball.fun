@@ -27,20 +27,8 @@ export default defineConfig(({ mode }) => ({
       });
     },
   }],
-  server: {
-    proxy: {
-      "/api/rns/primary/": {
-        target: "https://api.stage0.xyz",
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/rns\/primary\//, "/api/public/rns/resolve/address/") + "?chainId=4153",
-      },
-    },
-  },
-  // Wallet providers and hooks must resolve to the same module instances.
-  // Bun can retain multiple compatible peer-dependency installations, which
-  // otherwise lets RainbowKit consume a different Wagmi React context.
   resolve: {
-    dedupe: ["react", "react-dom", "wagmi", "@wagmi/core", "@tanstack/react-query"],
+    dedupe: ["react", "react-dom", "wagmi", "@wagmi/core", "@privy-io/react-auth", "@tanstack/react-query"],
   },
   build: {
     outDir: "dist",

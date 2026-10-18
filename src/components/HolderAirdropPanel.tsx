@@ -5,7 +5,8 @@ import { switchChain, waitForTransactionReceipt, writeContract } from "wagmi/act
 import { formatEther, parseEther, zeroAddress, type Address } from "viem";
 import { holderReserveAbi, factoryAbi } from "../sdk/contracts";
 import { activeChainId, activeExplorerUrl, wagmiConfig } from "../lib/web3";
-import { readHolderSnapshot } from "../lib/holderSnapshot";
+import { fetchMarketHolders } from "../markets/api";
+import { socialApiConfigured } from "../social/api";
 import type { Token } from "../types";
 
 type ReserveState = {
@@ -13,7 +14,6 @@ type ReserveState = {
   total: bigint;
   committed: bigint;
   graduationBlock: bigint;
-  excluded: Address[];
   roundCount: bigint;
   latestBlock: bigint;
   rounds: Array<{ id: bigint; snapshot: bigint; amount: bigint; claimable: bigint }>;
@@ -46,10 +46,9 @@ export function HolderAirdropPanel({ token }: { token: Token }) {
       if (!client || !token.factory) throw new Error("No chain client available.");
       const reserve = await client.readContract({ address: token.factory, abi: factoryAbi, functionName: "holderReserve" });
       if (reserve === zeroAddress) throw new Error("Holder reserve is not configured.");
-      const [launch, latestBlock, feeEscrow] = await Promise.all([
+      const [launch, latestBlock] = await Promise.all([
         client.readContract({ address: reserve, abi: holderReserveAbi, functionName: "launches", args: [token.address] }),
         client.getBlockNumber(),
-        client.readContract({ address: reserve, abi: holderReserveAbi, functionName: "feeEscrow" }),
       ]);
       const count = launch[7];
       const start = count > BigInt(visible) ? count - BigInt(visible) : 0n;
@@ -61,7 +60,7 @@ export function HolderAirdropPanel({ token }: { token: Token }) {
         ]);
         return { id, snapshot: round[0], amount: round[1], claimable };
       }));
-      return { address: reserve, total: launch[4], committed: launch[5], graduationBlock: launch[6], excluded: [reserve, launch[1], launch[2], launch[3], feeEscrow, launch[8], launch[9]], roundCount: count, latestBlock, rounds };
+      return { address: reserve, total: launch[4], committed: launch[5], graduationBlock: launch[6], roundCount: count, latestBlock, rounds };
     },
     staleTime: 60_000,
     gcTime: 15 * 60_000,
@@ -86,18 +85,18 @@ export function HolderAirdropPanel({ token }: { token: Token }) {
   useEffect(() => { setShownHolders(10); }, [snapshotBlock]);
 
   const holdersQuery = useQuery({
-    queryKey: ["holder-airdrop-holders", activeChainId, token.address, token.createdBlock, snapshotBlock?.toString(), state?.excluded],
-    enabled: Boolean(client && state && snapshotBlock !== null && token.createdBlock),
-    queryFn: async () => {
-      if (!client || !state || snapshotBlock === null || !token.createdBlock) throw new Error("Holder snapshot is unavailable.");
-      return readHolderSnapshot(client, token.address, BigInt(token.createdBlock), snapshotBlock, state.excluded);
+    queryKey: ["holder-airdrop-holders", activeChainId, token.address, snapshotBlock?.toString()],
+    enabled: Boolean(socialApiConfigured && state && snapshotBlock !== null),
+    queryFn: async ({ signal }) => {
+      if (snapshotBlock === null) throw new Error("Holder snapshot is unavailable.");
+      return fetchMarketHolders(token.address, snapshotBlock, signal);
     },
     staleTime: Infinity,
     gcTime: 30 * 60_000,
     refetchOnWindowFocus: false,
     retry: 1,
   });
-  const holders = holdersQuery.data ?? [];
+  const holders = holdersQuery.data?.items ?? [];
   const holdersLoading = holdersQuery.isPending;
   const holdersError = !holdersQuery.data && holdersQuery.error ? holdersQuery.error.message : "";
 
@@ -111,7 +110,7 @@ export function HolderAirdropPanel({ token }: { token: Token }) {
   </section>;
   const isCreator = wallet?.toLowerCase() === token.creator.toLowerCase();
   const available = state.total - state.committed;
-  const eligibleBalance = holders.reduce((sum, holder) => sum + holder.balance, 0n);
+  const eligibleBalance = holdersQuery.data?.eligibleSupply ?? 0n;
   let previewAmount = 0n;
   try { previewAmount = amount ? parseEther(amount) : 0n; } catch { /* Keep the preview empty while editing. */ }
   if (previewAmount < 0n || previewAmount > available) previewAmount = 0n;

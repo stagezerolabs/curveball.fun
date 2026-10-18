@@ -1,9 +1,12 @@
 {
   "name": "curveball",
   "private": true,
+  "packageManager": "bun@1.4.0",
   "type": "module",
   "workspaces": [
-    "contracts"
+    "contracts",
+    "packages/*",
+    "services/social"
   ],
   "scripts": {
     "dev": "vite",
@@ -11,6 +14,13 @@
     "build": "vite build",
     "build:testnet": "vite build --mode testnet",
     "keeper:graduation": "node keeper/graduation-keeper.mjs",
+    "db:build": "bun run --cwd packages/db build",
+    "db:generate": "bun run --cwd packages/db generate",
+    "social:start": "bun run db:build && node services/social/src/main.mjs",
+    "social:api": "bun run db:build && node services/social/src/api.mjs",
+    "social:indexer": "bun run db:build && node services/social/src/indexer-runner.mjs",
+    "social:worker": "bun run db:build && node services/social/src/worker.mjs",
+    "social:migrate": "bun run db:build && node services/social/src/migrate.mjs",
     "test": "make -C contracts test",
     "typecheck": "tsc --noEmit",
     "verify:icarus": "make -C contracts verify-icarus",
@@ -24,13 +34,13 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
-    "@rainbow-me/rainbowkit": "2.2.11",
+    "@privy-io/react-auth": "3.50.0",
     "@tanstack/react-query": "5.62.7",
     "@wagmi/core": "2.22.1",
     "echarts": "6.1.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "viem": "2.57.3",
+    "viem": "2.57.5",
     "wagmi": "2.19.5",
     "zustand": "5.0.15"
   },

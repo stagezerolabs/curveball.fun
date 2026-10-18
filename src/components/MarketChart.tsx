@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import * as echarts from "echarts/core";
 import { BarChart, CandlestickChart } from "echarts/charts";
 import { DataZoomComponent, GridComponent, MarkLineComponent, TooltipComponent } from "echarts/components";
@@ -24,6 +25,8 @@ import {
   type TradePoint,
 } from "../lib/marketChart";
 import { buildMarketChartOptions } from "../lib/marketChartOptions";
+import { candlePriceChange, fetchMarketCandles, fetchMarketTrades } from "../markets/api";
+import { socialApiBaseUrl } from "../social/api";
 import type { Token } from "../types";
 
 echarts.use([BarChart, CandlestickChart, DataZoomComponent, GridComponent, MarkLineComponent, TooltipComponent, CanvasRenderer]);
@@ -164,19 +167,38 @@ export function MarketChart({
   onMarketCapChange?: (change: MarketPriceChange | null) => void;
 }) {
   const publicClient = usePublicClient({ chainId: activeChainId });
+  const backendEnabled = Boolean(socialApiBaseUrl);
   const chartRef = useRef<HTMLDivElement>(null);
   const [points, setPoints] = useState<TradePoint[]>([]);
-  const [trades, setTrades] = useState<TradeActivity[]>([]);
+  const [rpcTrades, setRpcTrades] = useState<TradeActivity[]>([]);
   const [interval, setInterval] = useState(60);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [rpcLoading, setRpcLoading] = useState(true);
+  const [rpcError, setRpcError] = useState("");
   const [themeVersion, setThemeVersion] = useState(0);
   const [hover, setHover] = useState<{ close: number; volume: number } | null>(null);
+  const backendCandles = useQuery({
+    queryKey: ["markets", "candles", token.address, interval, refreshKey],
+    queryFn: ({ signal }) => fetchMarketCandles(token, interval, signal),
+    enabled: backendEnabled,
+    staleTime: 8_000,
+    refetchInterval: 10_000,
+  });
+  const backendTrades = useQuery({
+    queryKey: ["markets", "trades", token.address, refreshKey],
+    queryFn: ({ signal }) => fetchMarketTrades(token.address, signal),
+    enabled: backendEnabled,
+    staleTime: 8_000,
+    refetchInterval: 10_000,
+  });
   const marketCapPoints = useMemo(
     () => toMarketCapPoints(points, token.price, token.marketCap),
     [points, token.marketCap, token.price],
   );
-  const candles = useMemo(() => buildCandles(marketCapPoints, interval), [marketCapPoints, interval]);
+  const rpcCandles = useMemo(() => buildCandles(marketCapPoints, interval), [marketCapPoints, interval]);
+  const candles = backendEnabled ? (backendCandles.data ?? []) : rpcCandles;
+  const trades = backendEnabled ? (backendTrades.data ?? []) : rpcTrades;
+  const loading = backendEnabled ? backendCandles.isPending || backendTrades.isPending : rpcLoading;
+  const error = backendEnabled ? backendCandles.error || backendTrades.error : rpcError;
 
   useEffect(() => {
     const observer = new MutationObserver(() => setThemeVersion((value) => value + 1));
@@ -186,34 +208,39 @@ export function MarketChart({
 
   useEffect(() => {
     let cancelled = false;
-    if (!publicClient || refreshKey === 0) return undefined;
-    setLoading(true);
-    setError("");
+    if (backendEnabled || !publicClient || refreshKey === 0) return undefined;
+    setRpcLoading(true);
+    setRpcError("");
     setPoints([]);
-    setTrades([]);
+    setRpcTrades([]);
     setHover(null);
     onMarketCapChange?.(null);
     void loadTradePoints(publicClient as unknown as ChartClient, token)
       .then(({ points: nextPoints, trades }) => {
         if (!cancelled) {
           setPoints(nextPoints);
-          setTrades(trades);
+          setRpcTrades(trades);
           onMarketCapChange?.(calculatePriceChange(nextPoints, token.price));
         }
       })
       .catch(() => {
         if (!cancelled) {
-          setError("Chart unavailable");
+          setRpcError("Chart unavailable");
           onMarketCapChange?.(null);
         }
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setRpcLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [publicClient, refreshKey, token.address, token.curve, token.price, onMarketCapChange]);
+  }, [backendEnabled, publicClient, refreshKey, token.address, token.curve, token.price, onMarketCapChange]);
+
+  useEffect(() => {
+    if (!backendEnabled) return;
+    onMarketCapChange?.(candlePriceChange(backendCandles.data ?? []));
+  }, [backendCandles.data, backendEnabled, onMarketCapChange]);
 
   useEffect(() => {
     const container = chartRef.current;
@@ -273,7 +300,7 @@ export function MarketChart({
       </header>
       <div className="market-chart-stage">
         {loading && <div className="market-chart-message skeleton" aria-label="Loading chart" />}
-        {!loading && error && <p className="market-chart-message">{error}</p>}
+        {!loading && error && <p className="market-chart-message">Chart unavailable</p>}
         {!loading && !error && !candles.length && (
           <p className="market-chart-message">No trades yet</p>
         )}

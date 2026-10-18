@@ -10,6 +10,7 @@ import type { CreatorTokenClient } from "../creatorTokens";
 import { activeChainId } from "../lib/web3";
 import type { MarketPriceChange } from "../lib/marketChart";
 import { curveAbi } from "../sdk/contracts";
+import { socialApiBaseUrl } from "../social/api";
 import type { Navigate, Token } from "../types";
 
 const MarketChart = lazy(() =>
@@ -40,6 +41,7 @@ export function MarketPage({
   navigate: Navigate;
 }) {
   const publicClient = usePublicClient({ chainId: activeChainId });
+  const backendEnabled = Boolean(socialApiBaseUrl);
   const validAddress = isAddress(tokenAddress);
   const address = validAddress ? getAddress(tokenAddress) : undefined;
   const key = tokenAddress.toLowerCase();
@@ -69,7 +71,7 @@ export function MarketPage({
   }, [address, fetchedAt, loadToken, publicClient]);
 
   useEffect(() => {
-    if (!address || !resolvedToken?.curve || resolvedToken.graduated || !publicClient) return;
+    if (!address || !resolvedToken?.curve || resolvedToken.graduated || (!publicClient && !backendEnabled)) return;
     const curve = resolvedToken.curve;
     const shownSoldOut = Boolean(resolvedToken.pending || (resolvedToken.progress ?? 0) >= 100);
     let checking = false;
@@ -78,6 +80,11 @@ export function MarketPage({
       if (checking || document.visibilityState !== "visible") return;
       checking = true;
       try {
+        if (backendEnabled) {
+          await loadToken(publicClient as unknown as CreatorTokenClient | undefined, address, { force: true });
+          return;
+        }
+        if (!publicClient) return;
         const [sold, curveSupply, graduated] = await Promise.all([
           publicClient.readContract({ address: curve, abi: curveAbi, functionName: "sold" }),
           publicClient.readContract({ address: curve, abi: curveAbi, functionName: "curveSupply" }),
@@ -91,7 +98,7 @@ export function MarketPage({
     };
     const timer = window.setInterval(() => { void refreshStatus(); }, 10_000);
     return () => { active = false; window.clearInterval(timer); };
-  }, [address, resolvedToken?.curve, resolvedToken?.graduated, resolvedToken?.pending, resolvedToken?.progress, publicClient, loadToken]);
+  }, [address, backendEnabled, resolvedToken?.curve, resolvedToken?.graduated, resolvedToken?.pending, resolvedToken?.progress, publicClient, loadToken]);
 
   if (validAddress && !hasCachedResult && !discoveryError) {
     return <MarketPageSkeleton />;

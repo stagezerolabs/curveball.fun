@@ -6,8 +6,9 @@ import type { CreatorTokenClient } from "../creatorTokens";
 import { useStore } from "../app/useStore.js";
 import { UsdAmount } from "./UsdAmount";
 import { readCachedLaunches, readCachedPayout, writeCachedLaunches, writeCachedPayout } from "../lib/landingStatsCache";
-import { getCreatorPayouts } from "../lib/protocolStats";
 import { activeChainId, activeDeploymentBlock, launchpadAddress } from "../lib/web3";
+import { fetchProtocolStats } from "../markets/api";
+import { socialApiConfigured } from "../social/api";
 import type { Token } from "../types";
 
 export function useProtocolStats() {
@@ -32,7 +33,7 @@ export function useProtocolStats() {
       return launches;
     },
   });
-  const payoutEnabled = Boolean(client && launchpadAddress && data);
+  const payoutEnabled = socialApiConfigured;
   const { data: payout, isPending: payoutPending, isFetching: payoutFetching, isError: payoutError, refetch: refetchPayout } = useQuery({
     queryKey: ["landing-creator-payouts", activeChainId, factoryKey],
     enabled: payoutEnabled,
@@ -41,7 +42,8 @@ export function useProtocolStats() {
     staleTime: 300_000,
     retry: 1,
     queryFn: async () => {
-      const result = await getCreatorPayouts(client as unknown as Parameters<typeof getCreatorPayouts>[0], launchpadAddress!, data!, activeDeploymentBlock);
+      const stats = await fetchProtocolStats();
+      const result = { amount: BigInt(stats.creatorFeesClaimed), decimals: 18 };
       writeCachedPayout(cacheKey, result);
       return result;
     },

@@ -10,16 +10,20 @@ import { UsdAmount } from "./UsdAmount";
 
 const PAGE_SIZE = 25;
 
-function TraderLink({ address }: { address: Address }) {
+function ParticipantLink({ address, role }: { address: Address; role: TradeActivity["participantRole"] }) {
   const { data: name } = useQuery({
     queryKey: ["rns", "primary", address.toLowerCase()],
     queryFn: ({ signal }) => fetchRnsPrimaryName(address, signal),
     staleTime: 60_000,
     retry: 1,
   });
-  return <a className="market-activity-trader" href={`${activeExplorerUrl}/address/${address}`} target="_blank" rel="noreferrer" title={address} aria-label={name ? `${name}, ${address}` : address}>
-    <span className={name ? "market-activity-name" : ""}>{name ?? formatAddress(address)}</span>
-  </a>;
+  const label = role === "recipient" ? "Pool recipient" : "Trader";
+  return <span className="market-activity-participant">
+    <small>{label}</small>
+    <a className="market-activity-trader" href={`/profile/${address}`} title={`${label}: ${address}`} aria-label={name ? `View ${name}'s Curveball profile` : `View ${address}'s Curveball profile`}>
+      <span className={name ? "market-activity-name" : ""}>{name ?? formatAddress(address)}</span>
+    </a>
+  </span>;
 }
 
 function tokenAmount(value: bigint) {
@@ -40,7 +44,7 @@ function TradeRow({ trade }: { trade: TradeActivity }) {
     <td><span className={`market-activity-side ${trade.isBuy ? "buy" : "sell"}`}>{trade.isBuy ? "Buy" : "Sell"}</span></td>
     <td className="market-activity-number market-activity-usd"><strong><UsdAmount weth={quote} /></strong></td>
     <td className="market-activity-number"><strong>{tokenAmount(trade.tokenAmount)}</strong></td>
-    <td><TraderLink address={trade.trader} /></td>
+    <td><ParticipantLink address={trade.trader} role={trade.participantRole} /></td>
     <td className="market-activity-txn"><a href={`${activeExplorerUrl}/tx/${trade.transactionHash}`} target="_blank" rel="noreferrer" title="View transaction on explorer" aria-label={`View ${trade.isBuy ? "buy" : "sell"} transaction on explorer`}>
       <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M11 4h5v5M16 4l-8 8M15 12v3.5A1.5 1.5 0 0 1 13.5 17h-9A1.5 1.5 0 0 1 3 15.5v-9A1.5 1.5 0 0 1 4.5 5H8" /></svg>
     </a></td>
@@ -65,14 +69,14 @@ export function MarketActivity({ token, trades, loading, error }: {
     </header>
     {loading ? <p className="market-activity-status" role="status">Reading on-chain trades…</p> :
       error ? <p className="market-activity-status" role="alert">Trade history is unavailable right now.</p> :
-      trades.length === 0 ? <p className="market-activity-status">No trades yet. The first buy will appear here.</p> :
+      trades.length === 0 ? <p className="market-activity-status">No confirmed trades yet.</p> :
       <div className="market-activity-scroll" tabIndex={0} aria-label="Trade history table. Scroll horizontally to see all columns.">
         <table>
           <thead><tr>
             <th scope="col">Date</th><th scope="col">Type</th>
             <th scope="col">USD</th>
             <th scope="col">{token.symbol}</th>
-            <th scope="col">Trader</th><th scope="col">Txn</th>
+            <th scope="col">Wallet</th><th scope="col">Txn</th>
           </tr></thead>
           <tbody>{visibleTrades.map((trade) => <TradeRow key={`${trade.transactionHash}-${trade.logIndex}`} trade={trade} />)}</tbody>
         </table>
