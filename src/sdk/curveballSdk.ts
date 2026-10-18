@@ -68,13 +68,13 @@ export function validateTokenInput(input: TokenInput): TokenInput {
   if (!/^[A-Z0-9]{1,12}$/.test(symbol)) {
     throw new Error("Token symbol must contain 1–12 uppercase letters or numbers.");
   }
+  // The launchpad rejects an empty URI, so a launch always needs published metadata.
+  if (!uri) throw new Error("Token metadata URI is required.");
   if (new TextEncoder().encode(uri).length > 2_048) throw new Error("Token metadata URI is too long.");
-  if (uri) {
-    const isHttps = /^https:\/\/[^\s]+$/i.test(uri);
-    const isIpfs = /^ipfs:\/\/(Qm[1-9A-HJ-NP-Za-km-z]{44}|baf[a-z2-7]{20,})(\/[^\s]*)?$/i.test(uri);
-    if (!isHttps && !isIpfs) {
-      throw new Error("Token metadata URI must be a valid HTTPS or IPFS URI.");
-    }
+  const isHttps = /^https:\/\/[^\s]+$/i.test(uri);
+  const isIpfs = /^ipfs:\/\/(Qm[1-9A-HJ-NP-Za-km-z]{44}|baf[a-z2-7]{20,})(\/[^\s]*)?$/i.test(uri);
+  if (!isHttps && !isIpfs) {
+    throw new Error("Token metadata URI must be a valid HTTPS or IPFS URI.");
   }
   return Object.freeze({ name, symbol, uri });
 }

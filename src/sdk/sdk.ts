@@ -5,8 +5,8 @@ import {
 import type { Config } from "wagmi";
 import { decodeEventLog, getAddress, zeroAddress, type Address, type Hash, type TransactionReceipt } from "viem";
 import { applySlippage, createDeadline, validateTokenInput, type CurveballDeployment, type TokenInput } from "./curveballSdk";
-import { erc20Abi, curveAbi, escrowAbi, factoryAbi, launchAndBuyAbi, lockerAbi, vaultAbi } from "./contracts";
-import { validateDeployment as validateConfiguredDeployment } from "../deployment";
+import { curveFeeEscrowAbi, curveHolderReserveAbi, curveLaunchpadAbi, curveLpLockerAbi, erc20Abi } from "./contracts";
+import { validateLaunchpad } from "../deployment";
 
 export type TradeSide = "buy" | "sell";
 export type TradePhase = "preparing" | "wrapWallet" | "wrapConfirming" | "approveWallet" | "approveConfirming" | "tradeWallet" | "tradeConfirming";
@@ -26,6 +26,15 @@ export type ConfirmedTrade = ConfirmedWrite & Readonly<{
   wrappedAmount: bigint;
   marketState: ConfirmedTradeMarketState | null;
 }>;
+export type LaunchInput = TokenInput & { creatorTaxBps?: number; holderReserveBps?: number };
+
+/** The launchpad's market lifecycle, in its on-chain enum order. */
+export const MARKET_STATES = ["none", "trading", "ready", "graduated", "aborted"] as const;
+export type MarketLifecycle = (typeof MARKET_STATES)[number];
+
+// The launchpad's SUPPLY and CURVE_SUPPLY constants; every market uses them.
+export const TOKEN_SUPPLY = 1_000_000n * 10n ** 18n;
+export const CURVE_SUPPLY = 800_000n * 10n ** 18n;
 
 const defaultActions = { getAccount, getBalance, getBytecode, getTransactionReceipt, readContract, simulateContract, switchChain, waitForTransactionReceipt, writeContract };
 export type WagmiActions = Readonly<typeof defaultActions>;
@@ -49,32 +58,30 @@ export class PendingTransactionError extends Error {
 }
 
 const CONFIRMATION_TIMEOUT_MS = 120_000;
+const BPS = 10_000n;
 
-function marketStateFromTradeReceipt(
-  receipt: TransactionReceipt,
-  curve: Address,
-  token: Address,
-  trader: Address,
-  side: TradeSide,
-): ConfirmedTradeMarketState | null {
+/** Decodes the caller's own Trade from a receipt; the launchpad emits one per buy or sell. */
+function tradeFromReceipt(receipt: TransactionReceipt, launchpad: Address, token: Address, trader: Address, side: TradeSide) {
   for (const log of receipt.logs) {
-    if (log.address.toLowerCase() !== curve.toLowerCase()) continue;
+    if (log.address.toLowerCase() !== launchpad.toLowerCase()) continue;
     try {
-      const event = decodeEventLog({ abi: curveAbi, eventName: "Trade", data: log.data, topics: log.topics, strict: true });
-      if (
-        getAddress(event.args.token) === getAddress(token) &&
-        getAddress(event.args.trader) === trader &&
-        event.args.isBuy === (side === "buy")
-      ) {
-        return {
-          sold: event.args.soldAfter,
-          virtualQuote: event.args.vQAfter,
-          virtualToken: event.args.vTAfter,
-        };
+      const event = decodeEventLog({ abi: curveLaunchpadAbi, eventName: "Trade", data: log.data, topics: log.topics, strict: true });
+      if (getAddress(event.args.token) === getAddress(token) && getAddress(event.args.trader) === trader && event.args.isBuy === (side === "buy")) {
+        return event.args;
       }
-    } catch { /* Ignore unrelated curve logs. */ }
+    } catch { /* Ignore other launchpad events. */ }
   }
   return null;
+}
+
+/** Tokens a first buy of `maxSpend` receives on a fresh curve, mirroring CurveMath.quoteBuy. */
+export function quoteFirstBuy(maxSpend: bigint, graduationTarget: bigint, feeBps: number, taxBps: number): bigint {
+  const initialVirtualQuote = graduationTarget * (TOKEN_SUPPLY - CURVE_SUPPLY) / CURVE_SUPPLY;
+  const budget = maxSpend * BPS / (BPS + BigInt(feeBps) + BigInt(taxBps));
+  const k = TOKEN_SUPPLY * initialVirtualQuote;
+  const denominator = initialVirtualQuote + budget;
+  const tokensOut = TOKEN_SUPPLY - (k + denominator - 1n) / denominator;
+  return tokensOut < CURVE_SUPPLY ? tokensOut : CURVE_SUPPLY;
 }
 
 // Some RPC endpoints briefly serve the pre-approval block after confirming the approval receipt.
@@ -89,14 +96,15 @@ async function simulateAfterApproval<T>(simulate: () => Promise<T>, approved: bo
 }
 
 export function createCurveballSdk(config: Config, deployment: CurveballDeployment, actions: WagmiActions = defaultActions) {
-  const factory = deployment.launchpad;
+  const launchpad = deployment.launchpad;
+  const chainId = deployment.chainId;
 
   async function ensureWallet(): Promise<Address> {
     const account = actions.getAccount(config);
     if (!account.address) throw new CurveballSdkError("Connect a wallet to continue.");
-    if (account.chainId !== deployment.chainId) {
-      const switched = await actions.switchChain(config, { chainId: deployment.chainId });
-      if (switched.id !== deployment.chainId) throw new CurveballSdkError("Switch your wallet to the configured Curveball network.");
+    if (account.chainId !== chainId) {
+      const switched = await actions.switchChain(config, { chainId });
+      if (switched.id !== chainId) throw new CurveballSdkError("Switch your wallet to the configured Curveball network.");
     }
     return getAddress(account.address);
   }
@@ -104,10 +112,10 @@ export function createCurveballSdk(config: Config, deployment: CurveballDeployme
   async function confirm(hash: Hash): Promise<ConfirmedWrite> {
     let receipt;
     try {
-      receipt = await actions.waitForTransactionReceipt(config, { chainId: deployment.chainId, hash, confirmations: 1, timeout: CONFIRMATION_TIMEOUT_MS });
+      receipt = await actions.waitForTransactionReceipt(config, { chainId, hash, confirmations: 1, timeout: CONFIRMATION_TIMEOUT_MS });
     } catch (waitError) {
       try {
-        receipt = await actions.getTransactionReceipt(config, { chainId: deployment.chainId, hash });
+        receipt = await actions.getTransactionReceipt(config, { chainId, hash });
       } catch {
         throw new PendingTransactionError(hash, waitError);
       }
@@ -116,14 +124,11 @@ export function createCurveballSdk(config: Config, deployment: CurveballDeployme
     return { hash, receipt };
   }
 
-  async function waitForAllowance(asset: Address, owner: Address, spender: Address, minimum: bigint) {
+  async function waitForAllowance(asset: Address, owner: Address, minimum: bigint) {
     let lastReadError: unknown;
     for (let attempt = 0; attempt < 6; attempt++) {
       try {
-        const allowance = await actions.readContract(config, {
-          address: asset, abi: erc20Abi, functionName: "allowance", args: [owner, spender],
-          chainId: deployment.chainId,
-        });
+        const allowance = await actions.readContract(config, { address: asset, abi: erc20Abi, functionName: "allowance", args: [owner, launchpad], chainId });
         if (allowance >= minimum) return;
         lastReadError = undefined;
       } catch (error) {
@@ -135,207 +140,175 @@ export function createCurveballSdk(config: Config, deployment: CurveballDeployme
     throw new CurveballSdkError("Approval confirmed, but the token allowance is still unavailable. Check the approval in your wallet before retrying.");
   }
 
+  const readQuoteToken = () => actions.readContract(config, { address: launchpad, abi: curveLaunchpadAbi, functionName: "quoteToken", chainId });
+
   async function readMarket(token: Address) {
-    const market = await actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "market", args: [getAddress(token)], chainId: deployment.chainId });
-    if (market[0] === zeroAddress) throw new CurveballSdkError("Unknown Curveball market.");
-    return { curve: getAddress(market[0]), creator: getAddress(market[1]), feeBps: market[2], creatorShareBps: market[3], buybackShareBps: market[4], creatorTaxBps: market[5], treasury: getAddress(market[6]) };
+    const market = await actions.readContract(config, { address: launchpad, abi: curveLaunchpadAbi, functionName: "market", args: [getAddress(token)], chainId });
+    if (market.creator === zeroAddress) throw new CurveballSdkError("Unknown Curveball market.");
+    return { ...market, lifecycle: MARKET_STATES[market.state] ?? "none" };
   }
 
-  async function readLaunchFee(): Promise<bigint> {
-    return actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "launchFee", chainId: deployment.chainId });
-  }
-
-  async function ensureQuoteApproval(account: Address, quote: Address, spender: Address, amount: bigint, onProgress?: LaunchProgress): Promise<boolean> {
-    if (amount === 0n) return false;
-    const balance = await actions.readContract(config, { address: quote, abi: erc20Abi, functionName: "balanceOf", args: [account], chainId: deployment.chainId });
+  /** Wraps any missing ETH into the quote token and approves the launchpad for `amount` of `asset`. */
+  async function ensureApproval(
+    account: Address,
+    asset: Address,
+    amount: bigint,
+    options: { wrap: boolean; onPhase?: (phase: "wrapWallet" | "wrapConfirming" | "approveWallet" | "approveConfirming", hash?: Hash) => void },
+  ): Promise<{ approved: boolean; wrapped: bigint }> {
+    if (amount === 0n) return { approved: false, wrapped: 0n };
+    const balance = await actions.readContract(config, { address: asset, abi: erc20Abi, functionName: "balanceOf", args: [account], chainId });
+    let wrapped = 0n;
     if (balance < amount) {
-      const missing = amount - balance;
-      const native = await actions.getBalance(config, { address: account, chainId: deployment.chainId });
-      if (native.value < missing + NATIVE_GAS_RESERVE) throw new CurveballSdkError("Not enough ETH to cover this transaction and network fees.");
-      const wrapping = await actions.simulateContract(config, { account, address: quote, abi: erc20Abi, functionName: "deposit", value: missing, chainId: deployment.chainId });
-      onProgress?.("wrapWallet");
+      if (!options.wrap) throw new CurveballSdkError("Your token balance is too low for this sale.");
+      wrapped = amount - balance;
+      const native = await actions.getBalance(config, { address: account, chainId });
+      if (native.value < wrapped + NATIVE_GAS_RESERVE) throw new CurveballSdkError("Not enough ETH to cover this transaction and network fees.");
+      const wrapping = await actions.simulateContract(config, { account, address: asset, abi: erc20Abi, functionName: "deposit", value: wrapped, chainId });
+      options.onPhase?.("wrapWallet");
       const wrapHash = await actions.writeContract(config, wrapping.request);
-      onProgress?.("wrapConfirming", wrapHash);
+      options.onPhase?.("wrapConfirming", wrapHash);
       await confirm(wrapHash);
     }
-    const allowance = await actions.readContract(config, { address: quote, abi: erc20Abi, functionName: "allowance", args: [account, spender], chainId: deployment.chainId });
-    if (allowance >= amount) return false;
-    const approval = await actions.simulateContract(config, { account, address: quote, abi: erc20Abi, functionName: "approve", args: [spender, amount], chainId: deployment.chainId });
-    onProgress?.("approveWallet");
+    const allowance = await actions.readContract(config, { address: asset, abi: erc20Abi, functionName: "allowance", args: [account, launchpad], chainId });
+    if (allowance >= amount) return { approved: false, wrapped };
+    const approval = await actions.simulateContract(config, { account, address: asset, abi: erc20Abi, functionName: "approve", args: [launchpad, amount], chainId });
+    options.onPhase?.("approveWallet");
     const approvalHash = await actions.writeContract(config, approval.request);
-    onProgress?.("approveConfirming", approvalHash);
+    options.onPhase?.("approveConfirming", approvalHash);
     await confirm(approvalHash);
-    await waitForAllowance(quote, account, spender, amount);
-    return true;
+    await waitForAllowance(asset, account, amount);
+    return { approved: true, wrapped };
   }
 
   async function quoteTrade(side: TradeSide, token: Address, input: bigint): Promise<bigint> {
     if (input <= 0n) throw new CurveballSdkError("Trade amount must be greater than zero.");
-    const market = await readMarket(token);
-    const result = await actions.readContract(config, { address: market.curve, abi: curveAbi, functionName: side === "buy" ? "quoteBuy" : "quoteSell", args: [input], chainId: deployment.chainId });
-    return result[0];
+    const address = getAddress(token);
+    if (side === "buy") {
+      const quote = await actions.readContract(config, { address: launchpad, abi: curveLaunchpadAbi, functionName: "previewBuy", args: [address, input], chainId });
+      return quote.tokensOut;
+    }
+    const quote = await actions.readContract(config, { address: launchpad, abi: curveLaunchpadAbi, functionName: "previewSell", args: [address, input], chainId });
+    return quote.net;
   }
 
-  async function reserveSupported(): Promise<boolean> {
-    try {
-      const address = await actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "holderReserve", chainId: deployment.chainId });
-      return typeof address === "string" && address !== zeroAddress;
-    } catch { return false; }
+  async function readLaunchPolicy() {
+    const [fees, launchFee, graduationTarget, maxReserveBps] = await Promise.all([
+      actions.readContract(config, { address: launchpad, abi: curveLaunchpadAbi, functionName: "feeDefaults", chainId }),
+      actions.readContract(config, { address: launchpad, abi: curveLaunchpadAbi, functionName: "launchFee", chainId }),
+      actions.readContract(config, { address: launchpad, abi: curveLaunchpadAbi, functionName: "graduationTarget", chainId }),
+      actions.readContract(config, { address: launchpad, abi: curveLaunchpadAbi, functionName: "MAX_RESERVE_BPS", chainId }),
+    ]);
+    const [feeBps, , , taxCapBps] = fees;
+    return { feeBps, taxCapBps, launchFee, graduationTarget, maxReserveBps: Number(maxReserveBps) };
   }
 
-  async function createToken(input: TokenInput & { creatorTaxBps?: number; holderReserveBps?: number }, onProgress?: LaunchProgress) {
+  /** Launches a token, with an optional first buy for the creator in the same transaction. */
+  async function launch(input: LaunchInput, initialBuy: bigint, onProgress?: LaunchProgress) {
     onProgress?.("preparing");
     const account = await ensureWallet();
     const token = validateTokenInput(input);
+    const policy = await readLaunchPolicy();
     const tax = input.creatorTaxBps ?? 0;
-    if (!Number.isInteger(tax) || tax < 0 || tax > 50) throw new CurveballSdkError("Creator tax must be 0–0.5%.");
-    const reserveBps = input.holderReserveBps ?? 0;
-    if (!Number.isInteger(reserveBps) || reserveBps < 0 || reserveBps > 500) throw new CurveballSdkError("Holder reserve must be 0–5%.");
-    if (!await reserveSupported()) throw new CurveballSdkError("Holder reserve is unavailable on the configured factory.");
-    const fee = await readLaunchFee();
-    let approved = false;
-    if (fee > 0n) {
-      const quote = await actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "quote", chainId: deployment.chainId });
-      approved = await ensureQuoteApproval(account, quote, factory, fee, onProgress);
+    if (!Number.isInteger(tax) || tax < 0 || tax > policy.taxCapBps) {
+      throw new CurveballSdkError(`Creator tax must be 0–${policy.taxCapBps / 100}%.`);
     }
-    const simulation = await simulateAfterApproval(() => actions.simulateContract(config, { account, address: factory, abi: factoryAbi, functionName: "createToken", args: [token.name, token.symbol, token.uri, tax, reserveBps], chainId: deployment.chainId }), approved);
+    const reserveBps = input.holderReserveBps ?? 0;
+    if (!Number.isInteger(reserveBps) || reserveBps < 0 || reserveBps > policy.maxReserveBps) {
+      throw new CurveballSdkError(`Holder reserve must be 0–${policy.maxReserveBps / 100}%.`);
+    }
+    if (initialBuy < 0n) throw new CurveballSdkError("Initial buy cannot be negative.");
+    const minOut = initialBuy === 0n
+      ? 0n
+      : applySlippage(quoteFirstBuy(initialBuy, policy.graduationTarget, policy.feeBps, tax), deployment.slippageBps);
+    if (initialBuy > 0n && minOut <= 0n) throw new CurveballSdkError("Initial buy is too small.");
+
+    const quote = await readQuoteToken();
+    const { approved } = await ensureApproval(account, quote, policy.launchFee + initialBuy, { wrap: true, onPhase: onProgress });
+    const meta = { name: token.name, symbol: token.symbol, uri: token.uri };
+    const simulation = await simulateAfterApproval(() => actions.simulateContract(config, {
+      account, address: launchpad, abi: curveLaunchpadAbi, functionName: "launch", args: [meta, tax, reserveBps, initialBuy, minOut], chainId,
+    }), approved);
     onProgress?.("wallet");
     const hash = await actions.writeContract(config, simulation.request);
     onProgress?.("confirming", hash);
     const confirmed = await confirm(hash);
-    return { ...confirmed, ...createdFromReceipt(confirmed.receipt) };
+    return { ...confirmed, ...launchedFromReceipt(confirmed.receipt), minimumOutput: minOut };
   }
 
-  function createdFromReceipt(receipt: ConfirmedWrite["receipt"]) {
+  function launchedFromReceipt(receipt: ConfirmedWrite["receipt"]) {
     for (const log of receipt.logs) {
-      if (log.address.toLowerCase() !== factory.toLowerCase()) continue;
+      if (log.address.toLowerCase() !== launchpad.toLowerCase()) continue;
       try {
-        const decoded = decodeEventLog({ abi: factoryAbi, eventName: "LaunchCreated", data: log.data, topics: log.topics, strict: true });
-        return { token: decoded.args.token, curve: decoded.args.curve, creator: decoded.args.creator, name: decoded.args.name, symbol: decoded.args.symbol };
-      } catch { /* Another factory event may be in the receipt. */ }
+        const decoded = decodeEventLog({ abi: curveLaunchpadAbi, eventName: "LaunchCreated", data: log.data, topics: log.topics, strict: true });
+        return { token: decoded.args.token, creator: decoded.args.creator, name: decoded.args.name, symbol: decoded.args.symbol };
+      } catch { /* Another launchpad event may be in the receipt. */ }
     }
     throw new CurveballSdkError("Confirmed launch did not emit LaunchCreated.");
   }
 
-  async function launchAndBuy(input: TokenInput & { creatorTaxBps?: number; holderReserveBps?: number }, maxSpend: bigint, onProgress?: LaunchProgress) {
-    onProgress?.("preparing");
-    const account = await ensureWallet();
-    const token = validateTokenInput(input);
-    const tax = input.creatorTaxBps ?? 0;
-    if (!Number.isInteger(tax) || tax < 0 || tax > 50 || maxSpend <= 0n) throw new CurveballSdkError("Invalid initial buy or creator tax.");
-    const reserveBps = input.holderReserveBps ?? 0;
-    if (!Number.isInteger(reserveBps) || reserveBps < 0 || reserveBps > 500) throw new CurveballSdkError("Holder reserve must be 0–5%.");
-    if (!await reserveSupported()) throw new CurveballSdkError("Holder reserve is unavailable on the configured factory.");
-    const [quote, wrapper, supply, curveSupply, initialVQ, feeBps, taxCap, launchFee] = await Promise.all([
-      actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "quote", chainId: deployment.chainId }),
-      actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "launchAndBuy", chainId: deployment.chainId }),
-      actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "supply", chainId: deployment.chainId }),
-      actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "curveSupply", chainId: deployment.chainId }),
-      actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "initialVQ", chainId: deployment.chainId }),
-      actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "feeBps", chainId: deployment.chainId }),
-      actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "creatorTaxCapBps", chainId: deployment.chainId }),
-      readLaunchFee(),
-    ]);
-    if (tax > taxCap) throw new CurveballSdkError("Creator tax exceeds the factory cap.");
-    const budget = maxSpend * 10_000n / (10_000n + BigInt(feeBps) + BigInt(tax));
-    const newVirtualToken = (supply * initialVQ + initialVQ + budget - 1n) / (initialVQ + budget);
-    const quoted = supply - newVirtualToken;
-    const minOut = applySlippage(quoted < curveSupply ? quoted : curveSupply, deployment.slippageBps);
-    if (minOut <= 0n) throw new CurveballSdkError("Initial buy is too small.");
-    const total = maxSpend + launchFee;
-    const approved = await ensureQuoteApproval(account, quote, wrapper, total, onProgress);
-    const request = { name: token.name, symbol: token.symbol, uri: token.uri, creatorTaxBps: tax, holderReserveBps: reserveBps, maxSpend, minOut, deadline: createDeadline(Date.now(), deployment.deadlineSeconds) };
-    const simulation = await simulateAfterApproval(() => actions.simulateContract(config, { account, address: wrapper, abi: launchAndBuyAbi, functionName: "launchAndBuy", args: [request], chainId: deployment.chainId }), approved);
-    onProgress?.("wallet");
-    const hash = await actions.writeContract(config, simulation.request);
-    onProgress?.("confirming", hash);
-    const confirmed = await confirm(hash);
-    return { ...confirmed, ...createdFromReceipt(confirmed.receipt), minimumOutput: minOut };
-  }
+  const createToken = (input: LaunchInput, onProgress?: LaunchProgress) => launch(input, 0n, onProgress);
+  const launchAndBuy = (input: LaunchInput, maxSpend: bigint, onProgress?: LaunchProgress) => {
+    if (maxSpend <= 0n) throw new CurveballSdkError("Invalid initial buy.");
+    return launch(input, maxSpend, onProgress);
+  };
 
   async function trade(side: TradeSide, token: Address, input: bigint, onProgress?: TradeProgress): Promise<ConfirmedTrade> {
     onProgress?.("preparing");
     if (input <= 0n) throw new CurveballSdkError("Trade amount must be greater than zero.");
     const account = await ensureWallet();
-    const market = await readMarket(token);
-    const quote = await actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "quote", chainId: deployment.chainId });
-    const asset = side === "buy" ? quote : getAddress(token);
-    const balance = await actions.readContract(config, { address: asset, abi: erc20Abi, functionName: "balanceOf", args: [account], chainId: deployment.chainId });
-    let wrappedAmount = 0n;
-    if (balance < input) {
-      if (side === "sell") throw new CurveballSdkError("Your token balance is too low for this sale.");
-      wrappedAmount = input - balance;
-      const native = await actions.getBalance(config, { address: account, chainId: deployment.chainId });
-      if (native.value < wrappedAmount + NATIVE_GAS_RESERVE) throw new CurveballSdkError("Not enough ETH to cover this buy and network fees.");
-      const wrapping = await actions.simulateContract(config, { account, address: quote, abi: erc20Abi, functionName: "deposit", value: wrappedAmount, chainId: deployment.chainId });
-      onProgress?.("wrapWallet");
-      const wrapHash = await actions.writeContract(config, wrapping.request);
-      onProgress?.("wrapConfirming");
-      await confirm(wrapHash);
-    }
-    const allowance = await actions.readContract(config, { address: asset, abi: erc20Abi, functionName: "allowance", args: [account, market.curve], chainId: deployment.chainId });
-    const approved = allowance < input;
-    if (approved) {
-      const approval = await actions.simulateContract(config, { account, address: asset, abi: erc20Abi, functionName: "approve", args: [market.curve, input], chainId: deployment.chainId });
-      onProgress?.("approveWallet");
-      const approvalHash = await actions.writeContract(config, approval.request);
-      onProgress?.("approveConfirming");
-      await confirm(approvalHash);
-      await waitForAllowance(asset, account, market.curve, input);
-    }
-    const quotedOutput = await quoteTrade(side, token, input);
+    const tokenAddress = getAddress(token);
+    await readMarket(tokenAddress);
+    const asset = side === "buy" ? await readQuoteToken() : tokenAddress;
+    const { approved, wrapped } = await ensureApproval(account, asset, input, { wrap: side === "buy", onPhase: (phase) => onProgress?.(phase) });
+    const quotedOutput = await quoteTrade(side, tokenAddress, input);
     const minimumOutput = applySlippage(quotedOutput, deployment.slippageBps);
     if (minimumOutput <= 0n) throw new CurveballSdkError("Trade output is too small.");
-    const simulation = await simulateAfterApproval(() => actions.simulateContract(config, { account, address: market.curve, abi: curveAbi, functionName: side === "buy" ? "buyTokens" : "sellTokens", args: [input, minimumOutput, createDeadline(Date.now(), deployment.deadlineSeconds)], chainId: deployment.chainId }), approved);
+    const deadline = createDeadline(Date.now(), deployment.deadlineSeconds);
+    const simulation = await simulateAfterApproval(() => actions.simulateContract(config, {
+      account, address: launchpad, abi: curveLaunchpadAbi, functionName: side, args: [tokenAddress, input, minimumOutput, deadline], chainId,
+    }), approved);
     onProgress?.("tradeWallet");
     const tradeHash = await actions.writeContract(config, simulation.request);
     onProgress?.("tradeConfirming");
     const confirmed = await confirm(tradeHash);
+    const event = tradeFromReceipt(confirmed.receipt, launchpad, tokenAddress, account, side);
     return {
       ...confirmed,
       side,
       input,
       quotedOutput,
       minimumOutput,
-      wrappedAmount,
-      marketState: marketStateFromTradeReceipt(confirmed.receipt, market.curve, token, account, side),
+      wrappedAmount: wrapped,
+      marketState: event
+        ? { sold: TOKEN_SUPPLY - event.virtualToken, virtualQuote: event.virtualQuote, virtualToken: event.virtualToken }
+        : null,
     };
   }
 
   async function unwrapWeth(amount: bigint, expectedWeth: Address): Promise<ConfirmedWrite> {
     if (amount <= 0n) throw new CurveballSdkError("WETH amount must be greater than zero.");
     const account = await ensureWallet();
-    const quote = await actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "quote", chainId: deployment.chainId });
+    const quote = await readQuoteToken();
     if (getAddress(quote) !== getAddress(expectedWeth)) throw new CurveballSdkError("This market does not use the expected WETH token.");
-    const balance = await actions.readContract(config, { address: quote, abi: erc20Abi, functionName: "balanceOf", args: [account], chainId: deployment.chainId });
+    const balance = await actions.readContract(config, { address: quote, abi: erc20Abi, functionName: "balanceOf", args: [account], chainId });
     if (balance < amount) throw new CurveballSdkError("The WETH from this sale is no longer in your wallet.");
-    const simulation = await actions.simulateContract(config, { account, address: quote, abi: erc20Abi, functionName: "withdraw", args: [amount], chainId: deployment.chainId });
+    const simulation = await actions.simulateContract(config, { account, address: quote, abi: erc20Abi, functionName: "withdraw", args: [amount], chainId });
     return confirm(await actions.writeContract(config, simulation.request));
   }
 
   async function sellAllForEth(token: Address, expectedWeth: Address, onProgress?: (phase: "approving" | "selling" | "sold" | "unwrapping", amount?: bigint, hash?: Hash) => void) {
     const account = await ensureWallet();
-    const quote = await actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "quote", chainId: deployment.chainId });
+    const quote = await readQuoteToken();
     if (getAddress(quote) !== getAddress(expectedWeth)) throw new CurveballSdkError("This market does not use the expected WETH token.");
     const tokenAddress = getAddress(token);
-    const balance = await actions.readContract(config, { address: tokenAddress, abi: erc20Abi, functionName: "balanceOf", args: [account], chainId: deployment.chainId });
+    const balance = await actions.readContract(config, { address: tokenAddress, abi: erc20Abi, functionName: "balanceOf", args: [account], chainId });
     if (balance <= 0n) throw new CurveballSdkError("There are no tokens left to sell in this wallet.");
-    const market = await readMarket(tokenAddress);
     const sale = await trade("sell", tokenAddress, balance, (phase) => {
       if (phase === "approveWallet") onProgress?.("approving");
       if (phase === "tradeWallet") onProgress?.("selling");
     });
-    let received: bigint | undefined;
-    for (const log of sale.receipt.logs) {
-      if (log.address.toLowerCase() !== market.curve.toLowerCase()) continue;
-      try {
-        const event = decodeEventLog({ abi: curveAbi, eventName: "Trade", data: log.data, topics: log.topics, strict: true });
-        if (!event.args.isBuy && getAddress(event.args.token) === tokenAddress && getAddress(event.args.trader) === account) {
-          received = event.args.netTraderQuote;
-          break;
-        }
-      } catch { /* Ignore other curve events. */ }
-    }
+    // On a sell, the Trade event's quoteAmount is what the trader received.
+    const received = tradeFromReceipt(sale.receipt, launchpad, tokenAddress, account, "sell")?.quoteAmount;
     if (!received || received <= 0n) throw new CurveballSdkError("Sale confirmed, but its WETH amount could not be verified. Check the transaction before unwrapping.");
     onProgress?.("sold", received, sale.hash);
     onProgress?.("unwrapping", received, sale.hash);
@@ -343,37 +316,52 @@ export function createCurveballSdk(config: Config, deployment: CurveballDeployme
     return { sale, unwrap, amount: received };
   }
 
-  async function claimPoolFees(locker: Address, pool: Address) {
+  async function write(address: Address, abi: unknown, functionName: string, args: readonly unknown[]): Promise<ConfirmedWrite> {
     const account = await ensureWallet();
-    const configured = await actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "locker", chainId: deployment.chainId });
-    if (getAddress(locker) !== getAddress(configured)) throw new CurveballSdkError("Fee claim rejected: locker does not belong to Curveball.");
-    const token = await actions.readContract(config, { address: configured, abi: lockerAbi, functionName: "tokenOfPool", args: [pool], chainId: deployment.chainId });
+    const simulation = await actions.simulateContract(config, { account, address, abi, functionName, args, chainId } as Parameters<WagmiActions["simulateContract"]>[1]);
+    return confirm(await actions.writeContract(config, simulation.request));
+  }
+
+  const readSingleton = (functionName: "escrow" | "locker" | "reserve") =>
+    actions.readContract(config, { address: launchpad, abi: curveLaunchpadAbi, functionName, chainId });
+
+  /** Permissionless: sends a graduated pool's LP fees to the escrow for the market's split. */
+  async function claimPoolFees(pool: Address) {
+    const locker = await readSingleton("locker");
+    const token = await actions.readContract(config, { address: locker, abi: curveLpLockerAbi, functionName: "tokenOf", args: [getAddress(pool)], chainId });
     if (token === zeroAddress) throw new CurveballSdkError("Fee claim rejected: pool is not registered.");
-    const simulation = await actions.simulateContract(config, { account, address: configured, abi: lockerAbi, functionName: "claim", args: [pool], chainId: deployment.chainId });
-    return confirm(await actions.writeContract(config, simulation.request));
+    return write(locker, curveLpLockerAbi, "claim", [getAddress(pool)]);
   }
 
-  async function claimEscrow(token: Address, asset: Address, recipient: Address) {
-    const account = await ensureWallet();
-    await readMarket(token);
-    const escrow = await actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "escrow", chainId: deployment.chainId });
-    const simulation = await actions.simulateContract(config, { account, address: escrow, abi: escrowAbi, functionName: "claim", args: [token, asset, recipient], chainId: deployment.chainId });
-    return confirm(await actions.writeContract(config, simulation.request));
+  /** Pays the connected wallet everything the escrow owes it in `asset`, across all its launches. */
+  async function claimEscrow(asset: Address) {
+    return write(await readSingleton("escrow"), curveFeeEscrowAbi, "claim", [getAddress(asset)]);
   }
 
-  async function sweepBuyback(token: Address, maxSpend: bigint, minOut: bigint) {
-    const account = await ensureWallet();
-    const market = await readMarket(token);
-    const graduated = await actions.readContract(config, { address: market.curve, abi: curveAbi, functionName: "graduated", chainId: deployment.chainId });
-    const vault = await actions.readContract(config, { address: factory, abi: factoryAbi, functionName: "vault", chainId: deployment.chainId });
-    const simulation = await actions.simulateContract(config, { account, address: vault, abi: vaultAbi, functionName: graduated ? "sweepPool" : "sweepCurve", args: [token, maxSpend, minOut, createDeadline(Date.now(), deployment.deadlineSeconds)], chainId: deployment.chainId });
-    return confirm(await actions.writeContract(config, simulation.request));
+  /** Permissionless: spends one paced chunk of a graduated market's buyback balance and burns the tokens. */
+  async function buyback(token: Address) {
+    return write(await readSingleton("escrow"), curveFeeEscrowAbi, "buyback", [getAddress(token)]);
   }
 
-  const validateDeployment = (expectedQuote?: Address) => validateConfiguredDeployment({
-    getBytecode: ({ address }) => actions.getBytecode(config, { address, chainId: deployment.chainId }),
-    readContract: ({ address, abi, functionName }) => actions.readContract(config, { address, abi: abi as typeof factoryAbi, functionName: functionName as "quote", chainId: deployment.chainId }),
-  }, factory, expectedQuote);
+  /** Pays the connected wallet its holder-reserve share of a graduated token. */
+  async function claimReserve(token: Address) {
+    return write(await readSingleton("reserve"), curveHolderReserveAbi, "claim", [getAddress(token)]);
+  }
 
-  return Object.freeze({ deployment, validateDeployment, readMarket, quoteTrade, createToken, launchAndBuy, trade, sellAllForEth, unwrapWeth, claimPoolFees, claimEscrow, sweepBuyback });
+  /** Permissionless: seeds a sold-out market's pool and locks its LP. */
+  const graduate = (token: Address) => write(launchpad, curveLaunchpadAbi, "graduate", [getAddress(token)]);
+
+  /** Permissionless once a sold-out market has waited GRADUATION_TIMEOUT: reopens sells. */
+  const abortGraduation = (token: Address) => write(launchpad, curveLaunchpadAbi, "abortGraduation", [getAddress(token)]);
+
+  const validateDeployment = (expectedQuote?: Address) => validateLaunchpad({
+    getBytecode: ({ address }) => actions.getBytecode(config, { address, chainId }),
+    readContract: ({ address, abi, functionName }) =>
+      actions.readContract(config, { address, abi, functionName, chainId } as Parameters<WagmiActions["readContract"]>[1]),
+  }, launchpad, expectedQuote);
+
+  return Object.freeze({
+    deployment, validateDeployment, readMarket, quoteTrade, createToken, launchAndBuy, trade, sellAllForEth, unwrapWeth,
+    claimPoolFees, claimEscrow, buyback, claimReserve, graduate, abortGraduation,
+  });
 }
