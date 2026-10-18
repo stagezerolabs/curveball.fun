@@ -10,19 +10,24 @@ DOT_ADDRESS := 0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3
 
 export QUOTE_TOKEN ICARUS_FACTORY BLOCKSCOUT_API RISE_MAINNET_RPC_URL RISE_RPC_URL
 
-.PHONY: test test-fork-strict test-fork-testnet verify-icarus production-preflight deploy-production testnet-preflight deploy-testnet
+.PHONY: test require-fork-tests test-fork-strict test-fork-testnet verify-icarus production-preflight deploy-production testnet-preflight deploy-testnet
 
 test:
 	forge test --threads 1
 	forge build --sizes
 
-test-fork-strict:
-	@test -n "$(RISE_MAINNET_RPC_URL)" || { echo "RISE_MAINNET_RPC_URL is required for strict fork tests."; exit 2; }
-	forge test --match-path 'test/fork/*'
+# Fork suites read CI_FORK=1 and fail instead of skipping when their RPC is missing.
+# forge exits 0 when a filter matches nothing, so require the suite to exist first.
+require-fork-tests:
+	@ls test/fork/*.t.sol >/dev/null 2>&1 || { echo "No fork tests found in test/fork/."; exit 2; }
 
-test-fork-testnet:
+test-fork-strict: require-fork-tests
+	@test -n "$(RISE_MAINNET_RPC_URL)" || { echo "RISE_MAINNET_RPC_URL is required for strict fork tests."; exit 2; }
+	CI_FORK=1 forge test --match-path 'test/fork/*'
+
+test-fork-testnet: require-fork-tests
 	@test -n "$(TESTNET_RPC_URL)" || { echo "RISE_TESTNET_RPC_URL or VITE_RPC_URL is required."; exit 2; }
-	RISE_TESTNET_RPC_URL="$(TESTNET_RPC_URL)" forge test --match-path 'test/fork/*'
+	CI_FORK=1 RISE_TESTNET_RPC_URL="$(TESTNET_RPC_URL)" forge test --match-path 'test/fork/*'
 
 verify-icarus:
 	bash scripts/verify-icarus.sh

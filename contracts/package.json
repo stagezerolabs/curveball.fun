@@ -4,7 +4,7 @@
   "scripts": {
     "compile": "forge build",
     "test": "forge test",
-    "test:fork": "env_file=\"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")/.env\"; set -a; . \"$env_file\"; set +a; forge test --match-path test/fork/IcarusFactory.t.sol"
+    "test:fork": "make test-fork-strict"
   },
   "devDependencies": {
     "@openzeppelin/contracts": "5.1.0",
