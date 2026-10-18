@@ -45,6 +45,18 @@ After recording, set the same launchpad and deployment block in Vercel and the k
 
 The standalone worker in [`keeper/`](keeper/README.md) discovers launches and sends the permissionless market transactions: graduation, aborting a graduation stuck past its timeout, and paced buybacks. Run one monitored instance with a dedicated, funded wallet. Its launchpad and deployment block must match the deployment record.
 
+## Run with Docker
+
+`compose.yaml` runs the Vite frontend and the keeper against the deployment in `.env.local` (written by `make configure-testnet`). The project is named `curveball-lean`, so it runs beside any other Curveball stack on the same host.
+
+```bash
+# .env: shared values such as PINATA_JWT and VITE_WALLETCONNECT_PROJECT_ID
+# keeper/.env: KEEPER_* from keeper/.env.example, with a dedicated funded key
+docker compose up -d --build
+```
+
+The frontend serves on `http://127.0.0.1:5174` (set `FRONTEND_PORT` to change it). Secrets are injected from the ignored env files at runtime and never baked into the images. Rebuild the frontend after source changes: `docker compose up -d --build frontend`.
+
 ## Run locally
 
 ```bash

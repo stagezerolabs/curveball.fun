@@ -128,7 +128,7 @@ async function waitForExpectedState(
 
 export async function submitFeeUpdate(config: Config, factory: Address, chainId: number, nextFeeBps: number, onHash?: (hash: Hash) => void, actions: AdminActions = defaultActions) {
   const account = actions.getAccount(config);
-  if (!account.address || account.chainId !== chainId) throw new Error("Connect the factory owner or fee admin on the configured network.");
+  if (!account.address || account.chainId !== chainId) throw new Error("Connect the launchpad owner on the configured network.");
   const current = await readFeeDefaults(config, factory, chainId, actions);
   const signer = getAddress(account.address);
   if (current.owner !== signer) throw new Error("The connected wallet is not the on-chain fee administrator.");

@@ -1,0 +1,32 @@
+# Local stack for the lean launchpad: the Vite frontend and the market keeper, both on the
+# deployment recorded in deployments/<chainId>/curveball.json. Secrets stay in the ignored .env
+# files and are injected at runtime, never baked into images. The project name keeps this stack
+# separate from any other Curveball checkout running on the same Docker host.
+name: curveball-lean
+
+services:
+  keeper:
+    build: keeper
+    image: curveball-lean-keeper:local
+    env_file: keeper/.env
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend.Dockerfile
+    image: curveball-lean-frontend:local
+    # Later files win: .env holds shared values (PINATA_JWT, WalletConnect), .env.local the
+    # launchpad written by `make configure-testnet`.
+    env_file:
+      - path: .env
+        required: false
+      - path: .env.local
+        required: false
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-5174}:5173"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:5173/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5

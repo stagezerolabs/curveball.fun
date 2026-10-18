@@ -58,5 +58,5 @@ test("discovery reads each launch's market from the launchpad and derives its st
     graduationTargetWeth: "0.01", metadataUri: "ipfs://new",
   });
   expect(factoryForToken(token.factory)).toBe(launchpad);
-  expect(() => factoryForToken(unrelatedFactory)).toThrow("configured factory");
+  expect(() => factoryForToken(unrelatedFactory)).toThrow("configured launchpad");
 });
