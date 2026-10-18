@@ -30,7 +30,7 @@ for (const [key, value] of Object.entries(values)) {
   const line = `${key}=${value}`;
   source = new RegExp(`^${key}=.*$`, "m").test(source)
     ? source.replace(new RegExp(`^${key}=.*$`, "m"), line)
-    : `${source.trimEnd()}\n${line}\n`;
+    : `${source.trimEnd() ? `${source.trimEnd()}\n` : ""}${line}\n`;
 }
 source = source.replace(/^VITE_FACTORY_VERSION=.*(?:\r?\n|$)/m, "");
 await Bun.write(path, source);
