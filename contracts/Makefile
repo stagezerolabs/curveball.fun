@@ -10,7 +10,7 @@ DOT_ADDRESS := 0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3
 
 export QUOTE_TOKEN ICARUS_FACTORY BLOCKSCOUT_API RISE_MAINNET_RPC_URL RISE_RPC_URL
 
-.PHONY: test require-fork-tests test-fork-strict test-fork-testnet verify-icarus production-preflight deploy-production testnet-preflight deploy-testnet
+.PHONY: test require-fork-tests test-fork-strict test-fork-testnet verify-icarus require-production-config production-preflight deploy-production require-testnet-config testnet-preflight deploy-testnet
 
 # Fork suites need network access; they run only through the targets below.
 test:
@@ -33,6 +33,40 @@ test-fork-testnet: require-fork-tests
 verify-icarus:
 	bash scripts/verify-icarus.sh
 
-# The V1 deploy scripts were removed; scripts/Deploy.s.sol replaces them (lean-contracts-v2 Task 24).
-production-preflight deploy-production testnet-preflight deploy-testnet:
-	@echo "$@ is unavailable until scripts/Deploy.s.sol lands (lean-contracts-v2 Task 24)."; exit 2
+require-production-config:
+	@test -n "$(MAINNET_RPC_URL)" || { echo "RISE_MAINNET_RPC_URL is required."; exit 2; }
+	@test "$$(cast chain-id --rpc-url "$(MAINNET_RPC_URL)")" = "4153" || { echo "Mainnet RPC is not chain 4153."; exit 2; }
+	@for v in CURVE_OWNER CURVE_GUARDIAN CURVE_TREASURY CURVE_TIMELOCK_PROPOSER CURVE_GRADUATION_TARGET; do \
+		test -n "$$(printenv $$v)" || { echo "$$v is required."; exit 2; }; done
+
+# Dry-runs the deployment, including the timelock, guardian and treasury preflight, without broadcasting.
+production-preflight: require-production-config test test-fork-strict verify-icarus
+	forge clean
+	forge script scripts/Deploy.s.sol:Deploy --rpc-url "$(MAINNET_RPC_URL)" --account "$(ACCOUNT)"
+
+deploy-production: production-preflight
+	@test "$(CONFIRM_DEPLOY)" = "DEPLOY_CURVEBALL_RISE_MAINNET_4153" || { echo "CONFIRM_DEPLOY is required."; exit 2; }
+	forge script scripts/Deploy.s.sol:Deploy \
+		--rpc-url "$(MAINNET_RPC_URL)" --broadcast --slow --account "$(ACCOUNT)" \
+		--verify --verifier blockscout --verifier-url "$(BLOCKSCOUT_VERIFIER_URL)" \
+		--retries 10 --delay 10
+
+# Testnet deploys from a dedicated hot keystore; owner, guardian and treasury stay the dot operator.
+TESTNET_ACCOUNT ?= curveball-testnet-deployer
+TESTNET_PASSWORD_FILE ?= $(HOME)/.foundry/$(TESTNET_ACCOUNT).password
+
+require-testnet-config:
+	@test -n "$(TESTNET_RPC_URL)" || { echo "RISE_TESTNET_RPC_URL or VITE_RPC_URL is required."; exit 2; }
+	@test "$$(cast chain-id --rpc-url "$(TESTNET_RPC_URL)")" = "11155931" || { echo "Testnet RPC is not chain 11155931."; exit 2; }
+
+testnet-preflight: require-testnet-config test test-fork-testnet
+	forge clean
+	forge script scripts/Deploy.s.sol:Deploy --rpc-url "$(TESTNET_RPC_URL)" \
+		--account "$(TESTNET_ACCOUNT)" --password-file "$(TESTNET_PASSWORD_FILE)"
+
+deploy-testnet: testnet-preflight
+	forge script scripts/Deploy.s.sol:Deploy \
+		--rpc-url "$(TESTNET_RPC_URL)" --broadcast --slow \
+		--account "$(TESTNET_ACCOUNT)" --password-file "$(TESTNET_PASSWORD_FILE)" \
+		--verify --verifier blockscout --verifier-url "$(TESTNET_BLOCKSCOUT_VERIFIER_URL)" \
+		--retries 10 --delay 10
