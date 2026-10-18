@@ -212,8 +212,7 @@ There are **4 deployed singletons** (launchpad, escrow, locker, reserve), **1 in
 | `CurveLpLocker.sol` | `contracts/contracts/` | Permanent LP and fee claim |
 | `CurveHolderReserve.sol` | `contracts/contracts/` | Held-ledger reserve claims (a new file; the old one is deleted in Task 2) |
 | `IIcarus.sol` | `contracts/contracts/interfaces/` | Factory: `getPool`, `createPool`, `getFee`, `getUnstakedFee`, `isPaused`. Pool: `skim`, `sync`, `mint`, `swap`, `claimFees`, `getReserves`, `quote`, `observationLength`, `getAmountOut`, `token0`, `totalSupply` |
-| `ICurveLaunchpad.sol` | `contracts/contracts/interfaces/` | Views used by the singletons: `market(token)`, `held(token, account)`, `isGraduated(token)`, `poolOf(token)`, `locker()` |
-| `ICurveToken.sol` | `contracts/contracts/interfaces/` | `initialize`, `unlock`, `burn` |
+| `ICurveLaunchpad.sol` | `contracts/contracts/interfaces/` | Views used by the singletons: `treasury()`, `locker()`, `curveSupply()`, `feePolicy(token)`, `poolOf(token)` (address(0) until graduated, so there is no separate `isGraduated`), `held(token, account)` |
 | `ICurveSingletons.sol` | `contracts/contracts/interfaces/` | `ICurveFeeEscrow`, `ICurveLpLocker` and `ICurveHolderReserve` in one file |
 | `MockIcarus.sol`, `MockWETH.sol` | `contracts/test/mocks/` | Behavioural Icarus mock (Task 8) and WETH |
 | `MockLaunchpad.sol` | `contracts/test/mocks/` | Implements `ICurveLaunchpad` for the singleton unit tests |
@@ -286,8 +285,8 @@ Two exceptions are accepted: Task 2 is a pure deletion, and Task 38 also commits
 |---|---|---|---|
 | 5 | `CurveMath`: `quoteBuy`, `quoteSell`, `initialVQ`, `tokensFor`, `splitFee` | `libraries/CurveMath.sol`, `test/unit/CurveMath.t.sol` | Fuzz: k never decreases; no round-trip profit; fees sum exactly; zero output reverts; `initialVQ` rejects bad targets; sellout drift stays within a few wei; `tokensFor` at sellout ≤ `S−C−R` + drift, with the boundary R = MAX fuzzed explicitly |
 | 6 | `CurveToken`: solady ERC20; `initialize(name, symbol)` once, launchpad only; lock until `unlock`; `burn` | `CurveToken.sol`, `test/unit/CurveToken.t.sol` | Init twice reverts; locked transfer between third parties reverts; `approve` + `transferFrom` and `permit` + `transferFrom` to a third party revert while locked; mint and launchpad transfers pass; permit on a clone; burn |
-| 7 | Seam interfaces | `interfaces/ICurveLaunchpad.sol`, `interfaces/ICurveToken.sol`, `interfaces/ICurveSingletons.sol` | Compiles |
-| 8 | `IIcarus` plus a **behavioural** `MockIcarus`, checked against the Icarus sources. It covers: `createPool` (reverts if it exists); `getPool`; first-mint `sqrt(a0·a1) − 1000` with `MINIMUM_LIQUIDITY` to `address(1)`; later mints; `skim`; `sync`; `swap` (pause check) and `getAmountOut` with fee; `claimFees` returning claimed amounts with an unstaked-fee split; observations every 1800 s and `quote(…, g)` underflow when observations are too few; `isPaused`, `getFee`, `getUnstakedFee` | `interfaces/IIcarus.sol`, `test/mocks/MockIcarus.sol`, `test/mocks/MockWETH.sol` | A self-test inside `MockIcarus.sol` (a `MockIcarusSelfTest` contract) covers each behaviour |
+| 7 | Seam interfaces. *Done: no `ICurveToken`; the launchpad must import `CurveToken` to deploy it, and the escrow only calls `burn`* | `interfaces/ICurveLaunchpad.sol`, `interfaces/ICurveSingletons.sol` | Compiles |
+| 8 | `IIcarus` plus a **behavioural** `MockIcarus`, checked against the Icarus sources. It covers: `createPool` (reverts if it exists); `getPool`; first-mint `sqrt(a0·a1) − 1000` with `MINIMUM_LIQUIDITY` to `address(1)`; later mints; `skim`; `sync`; `swap` (pause check) and `getAmountOut` with fee; `claimFees` returning claimed amounts with an unstaked-fee split; observations every 1800 s and `quote(…, g)` underflow when observations are too few; `isPaused`, `getFee`, `getUnstakedFee` | `interfaces/IIcarus.sol`, `test/mocks/MockIcarus.sol`, `test/mocks/MockWETH.sol`, `test/unit/MockIcarus.t.sol` | *Done:* the self-test lives in `MockIcarus.t.sol` (4 files, following the repo's test-file convention); pools are CREATE2 with the real salt |
 
 ### Phase 2: Singletons (Task 9 first, then Tasks 10–12 in parallel; depend on Tasks 7–8)
 
@@ -441,6 +440,8 @@ The repo's layered backend rule doesn't apply: there is no Kotlin or Next.js. It
 - [x] Follows existing patterns: Foundry layout, OZ 5.1, the `Curve*` prefix, `make test` as the CI entry point, ADRs in `docs/adr/`, drizzle migrations, and the existing `*.test.*` convention.
 - [x] Each layer calls only the layer below.
   - The launchpad calls the token, escrow, locker, reserve and Icarus.
+  - `CurveToken.initialize(name, symbol, supply, reserveRecipient, reserveAmount)` mints the entire supply at launch, and there is no other mint, so invariant 9 holds by construction.
+  - `ICurveFeeEscrow.distribute(token, asset, fee, tax)` takes fee and tax separately (tax goes 100% to the creator; LP fees pass tax = 0).
   - The locker calls the pool and escrow.
   - The escrow calls the pool and token, and reads `launchpad.locker()`.
   - The reserve calls the token.
