@@ -22,12 +22,15 @@ contract CurveFeeEscrow is ICurveFeeEscrow, Ownable2Step, ReentrancyGuard {
     uint256 public constant BUYBACK_INTERVAL = 1 hours;
     uint256 public constant BUYBACK_CHUNK_BPS = 2_500;
     uint256 public constant BUYBACK_SLIPPAGE_BPS = 100;
+    /// @dev Keeps each buyback's own price move well inside the band once the TWAP half-absorbs it.
+    uint256 public constant BUYBACK_MAX_IMPACT_BPS = 25;
     uint256 internal constant TWAP_WINDOWS = 2;
 
     enum SkipReason {
         FewObservations,
         QuoteFailed,
-        PoolPaused
+        PoolPaused,
+        Slippage
     }
 
     address public immutable launchpad;
@@ -58,7 +61,6 @@ contract CurveFeeEscrow is ICurveFeeEscrow, Ownable2Step, ReentrancyGuard {
     error NotGraduated();
     error TooSoon();
     error NothingToBuy();
-    error Slippage();
     error ExceedsSurplus();
     error RenounceDisabled();
 
@@ -102,20 +104,27 @@ contract CurveFeeEscrow is ICurveFeeEscrow, Ownable2Step, ReentrancyGuard {
         emit FeeClaimed(msg.sender, asset, amount);
     }
 
-    /// @notice Spends up to `BUYBACK_CHUNK_BPS` of `token`'s buyback balance in its pool and burns the output.
-    /// @dev Permissionless and at most once per `BUYBACK_INTERVAL`. The spot output must stay within
-    ///      `BUYBACK_SLIPPAGE_BPS` of the pool's fee-adjusted TWAP. When the TWAP isn't available yet or
-    ///      Icarus is paused it skips without starting the interval, so keepers don't revert in a loop.
+    /// @notice Spends a chunk of `token`'s buyback balance in its pool and burns the output.
+    /// @dev Permissionless and at most once per `BUYBACK_INTERVAL`. A chunk is `BUYBACK_CHUNK_BPS` of the
+    ///      balance (all of it once that rounds to 0), capped at `BUYBACK_MAX_IMPACT_BPS` of the pool's
+    ///      quote reserve. The spot output must stay within `BUYBACK_SLIPPAGE_BPS` of the pool's
+    ///      fee-adjusted TWAP. Every condition outside the caller's control skips without starting the
+    ///      interval instead of reverting, so keepers never retry a revert in a loop.
     function buyback(address token) external nonReentrant returns (uint256 burned) {
         IIcarusPool pool = IIcarusPool(ICurveLaunchpad(launchpad).poolOf(token));
         if (address(pool) == address(0)) revert NotGraduated();
         uint256 last = lastBuyback[token];
         if (last != 0 && block.timestamp < last + BUYBACK_INTERVAL) revert TooSoon();
-        uint256 amountIn = buybackBalance[token] * BUYBACK_CHUNK_BPS / BPS;
-        if (amountIn == 0) revert NothingToBuy();
+        uint256 balance = buybackBalance[token];
+        if (balance == 0) revert NothingToBuy();
 
-        // quote() underflows unless the pool has more observations than TWAP windows.
-        if (pool.observationLength() <= TWAP_WINDOWS) return _skip(token, SkipReason.FewObservations);
+        // Brings an idle pool's observations up to date, so the TWAP absorbs the previous buyback.
+        pool.sync();
+        // quote() underflows unless there are more observations than windows. One extra window keeps
+        // observation 0 out: on a pool created before graduation it averages in empty reserves.
+        if (pool.observationLength() <= TWAP_WINDOWS + 1) return _skip(token, SkipReason.FewObservations);
+        bool tokenIsToken0 = pool.token0() == token;
+        uint256 amountIn = _chunk(pool, tokenIsToken0, balance);
         uint256 twapOut;
         try pool.quote(quoteToken, amountIn, TWAP_WINDOWS) returns (uint256 out) {
             twapOut = out;
@@ -128,15 +137,15 @@ contract CurveFeeEscrow is ICurveFeeEscrow, Ownable2Step, ReentrancyGuard {
         uint256 poolFeeBps = icarusFactory.getFee(address(pool), false);
         uint256 minOut = twapOut * (BPS - poolFeeBps) / BPS * (BPS - BUYBACK_SLIPPAGE_BPS) / BPS;
         uint256 amountOut = pool.getAmountOut(amountIn, quoteToken);
-        if (amountOut == 0 || amountOut < minOut) revert Slippage();
+        if (amountOut == 0 || amountOut < minOut) return _skip(token, SkipReason.Slippage);
 
         lastBuyback[token] = block.timestamp;
-        buybackBalance[token] -= amountIn;
+        buybackBalance[token] = balance - amountIn;
         totalOwed[quoteToken] -= amountIn;
 
         uint256 balanceBefore = IERC20(token).balanceOf(address(this));
         IERC20(quoteToken).safeTransfer(address(pool), amountIn);
-        (uint256 out0, uint256 out1) = pool.token0() == token ? (amountOut, uint256(0)) : (uint256(0), amountOut);
+        (uint256 out0, uint256 out1) = tokenIsToken0 ? (amountOut, uint256(0)) : (uint256(0), amountOut);
         pool.swap(out0, out1, address(this), "");
         burned = IERC20(token).balanceOf(address(this)) - balanceBefore;
         CurveToken(token).burn(burned);
@@ -152,6 +161,14 @@ contract CurveFeeEscrow is ICurveFeeEscrow, Ownable2Step, ReentrancyGuard {
 
     function renounceOwnership() public pure override {
         revert RenounceDisabled();
+    }
+
+    function _chunk(IIcarusPool pool, bool tokenIsToken0, uint256 balance) internal view returns (uint256 amountIn) {
+        amountIn = balance * BUYBACK_CHUNK_BPS / BPS;
+        if (amountIn == 0) amountIn = balance;
+        (uint256 reserve0, uint256 reserve1,) = pool.getReserves();
+        uint256 maxIn = (tokenIsToken0 ? reserve1 : reserve0) * BUYBACK_MAX_IMPACT_BPS / BPS;
+        if (amountIn > maxIn) amountIn = maxIn;
     }
 
     function _skip(address token, SkipReason reason) internal returns (uint256) {

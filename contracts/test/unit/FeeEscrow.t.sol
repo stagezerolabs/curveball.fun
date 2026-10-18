@@ -126,8 +126,9 @@ contract FeeEscrowTest is Test {
 
     // ---------------------------------------------------------------- buyback
 
-    /// @dev Graduates `token` into a pool at 160k tokens / 10 WETH and accrues 0.8 WETH of buyback.
-    function _graduate(uint256 observationWindows) internal {
+    /// @dev Graduates `token` into a pool at 160k tokens / 10 WETH, records `observationWindows` TWAP
+    ///      windows, and accrues `buybackFee` of which 20% goes to the buyback balance.
+    function _graduate(uint256 observationWindows, uint256 buybackFee) internal {
         launchpad.unlock(token);
         pool = MockIcarusPool(factory.createPool(address(token), address(weth), false));
         launchpad.send(token, address(pool), 160_000 ether);
@@ -138,7 +139,7 @@ contract FeeEscrowTest is Test {
             vm.warp(block.timestamp + 1801);
             pool.sync();
         }
-        _distribute(4 ether, 0);
+        _distribute(buybackFee, 0);
     }
 
     function _frontRun(uint256 wethIn) internal {
@@ -148,6 +149,15 @@ contract FeeEscrowTest is Test {
         pool.swap(out0, out1, attacker, "");
     }
 
+    function _expectSkip(CurveFeeEscrow.SkipReason reason) internal {
+        uint256 balance = escrow.buybackBalance(address(token));
+        vm.expectEmit(address(escrow));
+        emit CurveFeeEscrow.BuybackSkipped(address(token), reason);
+        assertEq(escrow.buyback(address(token)), 0);
+        assertEq(escrow.buybackBalance(address(token)), balance);
+        assertEq(escrow.lastBuyback(address(token)), 0, "a skip must not start the interval");
+    }
+
     function test_buyback_revertsBeforeGraduation() public {
         _distribute(4 ether, 0);
         vm.expectRevert(CurveFeeEscrow.NotGraduated.selector);
@@ -155,8 +165,8 @@ contract FeeEscrowTest is Test {
     }
 
     function test_buyback_spendsAChunk_andBurnsTheOutput() public {
-        _graduate(2);
-        uint256 expectedOut = pool.getAmountOut(0.2 ether, address(weth));
+        _graduate(3, 0.2 ether);
+        uint256 expectedOut = pool.getAmountOut(0.01 ether, address(weth));
         uint256 supplyBefore = token.totalSupply();
 
         uint256 burned = escrow.buyback(address(token));
@@ -164,28 +174,69 @@ contract FeeEscrowTest is Test {
         assertEq(burned, expectedOut);
         assertEq(token.totalSupply(), supplyBefore - burned);
         assertEq(token.balanceOf(address(escrow)), 0);
-        assertEq(escrow.buybackBalance(address(token)), 0.6 ether);
-        assertEq(escrow.totalOwed(address(weth)), 3.8 ether);
-        assertEq(weth.balanceOf(address(escrow)), 3.8 ether);
+        assertEq(escrow.buybackBalance(address(token)), 0.03 ether);
+        assertEq(escrow.totalOwed(address(weth)), 0.19 ether);
+        assertEq(weth.balanceOf(address(escrow)), 0.19 ether);
+        assertEq(escrow.lastBuyback(address(token)), block.timestamp);
     }
 
-    function test_buyback_revertsInsideInterval() public {
-        _graduate(2);
+    function test_buyback_capsTheChunkAtMaxPoolImpact() public {
+        _graduate(3, 4 ether);
+        escrow.buyback(address(token));
+        assertEq(escrow.buybackBalance(address(token)), 0.8 ether - 10 ether * 25 / 10_000);
+    }
+
+    function test_buyback_spendsADustBalanceWhole() public {
+        _graduate(3, 15);
+        assertEq(escrow.buybackBalance(address(token)), 3);
+        assertGt(escrow.buyback(address(token)), 0);
+        assertEq(escrow.buybackBalance(address(token)), 0);
+    }
+
+    function test_buyback_worksForEitherPoolOrientation() public {
+        bool firstIsToken0 = address(token) < address(weth);
+        while ((address(token) < address(weth)) == firstIsToken0) {
+            token = launchpad.createToken(SUPPLY, address(0), 0);
+        }
+        launchpad.setFeePolicy(address(token), creator, CREATOR_SHARE, BUYBACK_SHARE);
+        _graduate(3, 0.2 ether);
+        uint256 expectedOut = pool.getAmountOut(0.01 ether, address(weth));
+        assertEq(escrow.buyback(address(token)), expectedOut);
+    }
+
+    function test_buyback_revertsInsideInterval_andKeepsWorkingOnAnIdlePool() public {
+        _graduate(3, 40 ether);
         escrow.buyback(address(token));
         vm.warp(block.timestamp + 1 hours - 1);
         vm.expectRevert(CurveFeeEscrow.TooSoon.selector);
         escrow.buyback(address(token));
-        // Two fresh observation windows let the TWAP absorb the first buyback's own price move.
-        for (uint256 i = 0; i < 2; i++) {
-            vm.warp(block.timestamp + 1801);
-            pool.sync();
+
+        // Nobody else touches the pool: each buyback's own price move must not wedge the next one.
+        vm.warp(block.timestamp + 1);
+        for (uint256 i = 0; i < 6; i++) {
+            uint256 balance = escrow.buybackBalance(address(token));
+            assertGt(escrow.buyback(address(token)), 0);
+            assertLt(escrow.buybackBalance(address(token)), balance);
+            vm.warp(block.timestamp + 1 hours);
         }
-        escrow.buyback(address(token));
-        assertEq(escrow.buybackBalance(address(token)), 0.45 ether);
+    }
+
+    function test_buyback_recoversOnAnIdlePoolAfterAMarketMove() public {
+        _graduate(3, 4 ether);
+        vm.warp(block.timestamp + 1801);
+        // A trader moves spot about 4% and the pool then goes quiet; without a sync the TWAP would
+        // stay at the old price forever and every buyback would skip.
+        _frontRun(0.2 ether);
+        uint256 burned;
+        for (uint256 i = 0; i < 2 && burned == 0; i++) {
+            vm.warp(block.timestamp + 1 hours);
+            burned = escrow.buyback(address(token));
+        }
+        assertGt(burned, 0);
     }
 
     function test_buyback_revertsWithNothingToBuy() public {
-        _graduate(2);
+        _graduate(3, 4 ether);
         CurveToken other = launchpad.createToken(SUPPLY, address(0), 0);
         launchpad.setPool(address(other), address(pool));
         vm.expectRevert(CurveFeeEscrow.NothingToBuy.selector);
@@ -193,46 +244,36 @@ contract FeeEscrowTest is Test {
     }
 
     function test_buyback_skipsWithTooFewObservations() public {
-        _graduate(1);
-        vm.expectEmit(address(escrow));
-        emit CurveFeeEscrow.BuybackSkipped(address(token), CurveFeeEscrow.SkipReason.FewObservations);
-        assertEq(escrow.buyback(address(token)), 0);
-        assertEq(escrow.buybackBalance(address(token)), 0.8 ether);
+        _graduate(2, 4 ether);
+        _expectSkip(CurveFeeEscrow.SkipReason.FewObservations);
     }
 
     function test_buyback_skipsWhenQuoteReverts() public {
-        _graduate(2);
+        _graduate(3, 4 ether);
         vm.mockCallRevert(address(pool), abi.encodeWithSelector(IIcarusPool.quote.selector), "");
-        vm.expectEmit(address(escrow));
-        emit CurveFeeEscrow.BuybackSkipped(address(token), CurveFeeEscrow.SkipReason.QuoteFailed);
-        assertEq(escrow.buyback(address(token)), 0);
-        assertEq(escrow.buybackBalance(address(token)), 0.8 ether);
+        _expectSkip(CurveFeeEscrow.SkipReason.QuoteFailed);
     }
 
     function test_buyback_skipsWhileIcarusIsPaused() public {
-        _graduate(2);
+        _graduate(3, 4 ether);
         factory.setPauseState(true);
-        vm.expectEmit(address(escrow));
-        emit CurveFeeEscrow.BuybackSkipped(address(token), CurveFeeEscrow.SkipReason.PoolPaused);
-        assertEq(escrow.buyback(address(token)), 0);
+        _expectSkip(CurveFeeEscrow.SkipReason.PoolPaused);
         assertEq(weth.balanceOf(address(pool)), 10 ether, "no quote left stranded in the pool");
 
-        // The skip doesn't start the interval, so the buyback runs as soon as the pause lifts.
         factory.setPauseState(false);
         assertGt(escrow.buyback(address(token)), 0);
     }
 
     function test_buyback_toleratesASmallFrontRun() public {
-        _graduate(2);
+        _graduate(3, 4 ether);
         _frontRun(0.01 ether);
         assertGt(escrow.buyback(address(token)), 0);
     }
 
-    function test_buyback_revertsWhenSandwichedBeyondTheBand() public {
-        _graduate(2);
+    function test_buyback_skipsWhenSandwichedBeyondTheBand() public {
+        _graduate(3, 4 ether);
         _frontRun(0.1 ether);
-        vm.expectRevert(CurveFeeEscrow.Slippage.selector);
-        escrow.buyback(address(token));
+        _expectSkip(CurveFeeEscrow.SkipReason.Slippage);
     }
 
     // ---------------------------------------------------------------- admin

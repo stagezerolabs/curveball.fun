@@ -80,6 +80,7 @@ contract LpLockerTest is Test {
         weth.mint(address(locker), 5 ether);
         launchpad.send(a, address(locker), 7 ether);
 
+        uint256 supplyA = a.totalSupply();
         (uint256 tokenFeesA, uint256 quoteFeesA) = locker.claim(address(poolA));
         (uint256 tokenFeesB, uint256 quoteFeesB) = locker.claim(address(poolB));
 
@@ -91,6 +92,7 @@ contract LpLockerTest is Test {
         assertEq(escrow.buybackBalance(address(a)), quoteFeesA * 2_000 / 10_000);
         assertEq(escrow.buybackBalance(address(b)), quoteFeesB * 2_000 / 10_000);
         assertEq(escrow.claimable(creator, address(a)), tokenFeesA * 5_000 / 10_000);
+        assertEq(a.totalSupply(), supplyA - tokenFeesA * 2_000 / 10_000, "meme-side buyback share is burned");
         assertEq(weth.balanceOf(address(locker)), 5 ether);
         assertEq(a.balanceOf(address(locker)), 7 ether);
         assertEq(poolA.balanceOf(address(locker)), lpA);
