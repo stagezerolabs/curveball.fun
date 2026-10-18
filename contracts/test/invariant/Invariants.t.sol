@@ -4,6 +4,7 @@ pragma solidity 0.8.24;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Fixture} from "../Fixture.sol";
 import {CurveLaunchpad} from "../../contracts/CurveLaunchpad.sol";
+import {MockIcarusPool} from "../mocks/MockIcarus.sol";
 import {Handler} from "./Handler.sol";
 
 /// @dev The plan's §5 invariants over every market the handler launched. Invariants 7–9 are checked
@@ -21,22 +22,27 @@ contract InvariantsTest is Fixture {
         super.setUp();
         handler = new Handler(launchpad, escrow, locker, reserve, weth, icarus, owner, guardian);
 
-        bytes4[] memory selectors = new bytes4[](15);
+        bytes4[] memory selectors = new bytes4[](20);
         selectors[0] = Handler.launch.selector;
         selectors[1] = Handler.buy.selector;
         selectors[2] = Handler.sell.selector;
-        selectors[3] = Handler.donateWeth.selector;
-        selectors[4] = Handler.donatePool.selector;
-        selectors[5] = Handler.donateToken.selector;
-        selectors[6] = Handler.warp.selector;
-        selectors[7] = Handler.graduate.selector;
-        selectors[8] = Handler.abort.selector;
-        selectors[9] = Handler.swap.selector;
-        selectors[10] = Handler.lpClaim.selector;
-        selectors[11] = Handler.feeClaim.selector;
-        selectors[12] = Handler.buyback.selector;
-        selectors[13] = Handler.reserveClaim.selector;
-        selectors[14] = Handler.pause.selector;
+        selectors[3] = Handler.oversell.selector;
+        selectors[4] = Handler.donateWeth.selector;
+        selectors[5] = Handler.donatePool.selector;
+        selectors[6] = Handler.donateToken.selector;
+        selectors[7] = Handler.transfer.selector;
+        selectors[8] = Handler.warp.selector;
+        selectors[9] = Handler.graduate.selector;
+        selectors[10] = Handler.abort.selector;
+        selectors[11] = Handler.swap.selector;
+        selectors[12] = Handler.lpClaim.selector;
+        selectors[13] = Handler.feeClaim.selector;
+        selectors[14] = Handler.buyback.selector;
+        selectors[15] = Handler.reserveClaim.selector;
+        selectors[16] = Handler.rescue.selector;
+        selectors[17] = Handler.admin.selector;
+        selectors[18] = Handler.pause.selector;
+        selectors[19] = Handler.icarusPause.selector;
         targetSelector(FuzzSelector(address(handler), selectors));
         targetContract(address(handler));
     }
@@ -56,7 +62,8 @@ contract InvariantsTest is Fixture {
         accounts[accounts.length - 1] = treasury;
     }
 
-    /// @dev 1. The launchpad holds at least what it owes curve sellers, and owes exactly Σ realQuote.
+    /// @dev 1. The launchpad owes exactly Σ realQuote and holds exactly that plus the WETH it owes
+    ///      nobody (donations and skimmed pool balances, less rescues).
     function invariant_launchpadBacksEveryCurve() public view {
         address[] memory tokens = _tokens();
         uint256 sum;
@@ -64,7 +71,23 @@ contract InvariantsTest is Fixture {
             sum += launchpad.market(tokens[i]).realQuote;
         }
         assertEq(launchpad.totalRealQuote(), sum);
-        assertGe(weth.balanceOf(address(launchpad)), sum);
+        assertEq(weth.balanceOf(address(launchpad)), sum + handler.launchpadSurplus());
+    }
+
+    /// @dev Every WETH ever minted is held by an actor, the treasury, the rescue sink, a singleton,
+    ///      or a pool and its fee holders: no fee is routed anywhere else.
+    function invariant_wethConserved() public view {
+        address[] memory accounts = _accounts();
+        uint256 sum = weth.balanceOf(handler.sink()) + weth.balanceOf(address(launchpad))
+            + weth.balanceOf(address(escrow)) + weth.balanceOf(address(locker)) + weth.balanceOf(address(reserve));
+        for (uint256 i = 0; i < accounts.length; i++) {
+            sum += weth.balanceOf(accounts[i]);
+        }
+        for (uint256 i = 0; i < handler.poolCount(); i++) {
+            MockIcarusPool pool = MockIcarusPool(handler.pools(i));
+            sum += weth.balanceOf(address(pool)) + weth.balanceOf(pool.poolFees()) + weth.balanceOf(pool.gaugeFees());
+        }
+        assertEq(sum, weth.totalSupply());
     }
 
     /// @dev 2 and 3. Curve reserves stay consistent; the launchpad holds every unsold curve token.
@@ -155,10 +178,14 @@ contract InvariantsTest is Fixture {
     function test_handler_reachesEveryAction() public {
         handler.buy(1, 0, 1 ether);
         handler.sell(1, 0, 5_000);
-        handler.donateWeth(1 ether);
+        handler.oversell(2, 0);
+        handler.donateWeth(1 ether, false);
         handler.donatePool(0, 0.1 ether, true);
         handler.donateToken(1, 0, 1_000);
+        handler.transfer(1, 0, true, 1_000);
         handler.warp(1 hours);
+        handler.admin(true, 100, 4_000, 3_000, 25);
+        handler.admin(false, 0, 0, 0, 2 ether);
         handler.launch(2, 0, 100, 0);
         handler.graduate(3, 0);
         for (uint256 i = 0; i < 4; i++) {
@@ -171,12 +198,31 @@ contract InvariantsTest is Fixture {
         handler.feeClaim(0, 0, true);
         handler.buyback(0);
         handler.reserveClaim(0, 0);
-        handler.abort(2, 1);
-        handler.pause(0);
+        handler.rescue(0, 0, 0.5 ether);
+        handler.abort(2, 1, 0);
+        handler.pause(true);
+        handler.icarusPause();
 
         for (uint256 i = 0; i < handler.ACTIONS(); i++) {
             assertGt(handler.reached(Handler.Action(i)), 0, vm.toString(i));
         }
+        assertGt(handler.earlyAbortsRejected(), 0);
+        assertEq(handler.violations(), 0, handler.lastViolation());
+    }
+
+    /// @dev The paths the fuzzer reaches least: an early abort, the inline abort inside a sell, a buy
+    ///      on an Aborted market, its re-sellout, and graduation from Aborted.
+    function test_handler_reachesTheRarePaths() public {
+        handler.abort(0, 1, 1); // sells out, rejects the early abort, does not wait
+        handler.warp(7 days);
+        handler.sell(0, 1, 5_000); // aborts inline
+        handler.buy(2, 1, 0.5 ether);
+        handler.graduate(3, 1); // re-sells out, graduates from Aborted
+
+        assertGt(handler.earlyAbortsRejected(), 0);
+        assertEq(handler.inlineAborts(), 1);
+        assertEq(handler.regraduations(), 1);
+        assertEq(uint8(launchpad.market(handler.tokens(1)).state), uint8(CurveLaunchpad.State.Graduated));
         assertEq(handler.violations(), 0, handler.lastViolation());
     }
 
