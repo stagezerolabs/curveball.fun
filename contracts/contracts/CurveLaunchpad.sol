@@ -142,6 +142,7 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
     error InvalidLaunch();
     error NotTrading();
     error Slippage();
+    error Expired();
     error NotGuardian();
     error EnforcedPause();
     error RenounceDisabled();
@@ -194,6 +195,68 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
         _emitLaunch(token, meta, taxBps, reserveTokens);
 
         if (maxSpend != 0) tokensOut = _buy(token, maxSpend, minOut);
+    }
+
+    // ---------------------------------------------------------------- trade
+
+    /// @notice Buys up to `maxSpend` quote (curve quote, fee and tax) of `token` for the caller.
+    /// @dev There is deliberately no recipient: curve tokens only ever reach the address that paid,
+    ///      so none can be routed into the graduation pool before it is seeded.
+    function buy(address token, uint256 maxSpend, uint256 minOut, uint256 deadline)
+        external
+        nonReentrant
+        whenNotPaused
+        returns (uint256 tokensOut)
+    {
+        if (block.timestamp > deadline) revert Expired();
+        tokensOut = _buy(token, maxSpend, minOut);
+    }
+
+    /// @notice Sells `amount` of `token` back to its curve; the caller must have approved it.
+    function sell(address token, uint256 amount, uint256 minOut, uint256 deadline)
+        external
+        nonReentrant
+        returns (uint256 net)
+    {
+        if (block.timestamp > deadline) revert Expired();
+        Market storage m = markets[token];
+        State state = m.state;
+        if (state != State.Trading && state != State.Aborted) revert NotTrading();
+        uint256 vT = m.virtualToken;
+        uint256 vQ = m.virtualQuote;
+        CurveMath.Sell memory q = CurveMath.quoteSell(vT, vQ, m.realQuote, amount, m.feeBps, m.taxBps);
+        if (q.net < minOut) revert Slippage();
+
+        // held[token][caller] >= amount bounds vT + amount by SUPPLY.
+        held[token][msg.sender] -= amount;
+        vT += amount;
+        vQ -= q.gross;
+        m.virtualToken = uint128(vT);
+        m.virtualQuote = uint128(vQ);
+        m.realQuote -= uint128(q.gross);
+        totalRealQuote -= q.gross;
+
+        IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+        IERC20(quoteToken).safeTransfer(msg.sender, q.net);
+        if (q.fee + q.tax != 0) {
+            IERC20(quoteToken).safeTransfer(escrow, q.fee + q.tax);
+            ICurveFeeEscrow(escrow).distribute(token, quoteToken, q.fee, q.tax);
+        }
+        emit Trade(token, msg.sender, false, q.net, amount, q.fee, q.tax, vT, vQ);
+        return q.net;
+    }
+
+    /// @notice What `buy(token, maxSpend, …)` would do now, ignoring pause and state.
+    function previewBuy(address token, uint256 maxSpend) external view returns (CurveMath.Buy memory) {
+        Market storage m = markets[token];
+        uint256 vT = m.virtualToken;
+        return CurveMath.quoteBuy(vT, m.virtualQuote, vT - (SUPPLY - CURVE_SUPPLY), maxSpend, m.feeBps, m.taxBps);
+    }
+
+    /// @notice What `sell(token, amount, …)` would pay now, ignoring state.
+    function previewSell(address token, uint256 amount) external view returns (CurveMath.Sell memory) {
+        Market storage m = markets[token];
+        return CurveMath.quoteSell(m.virtualToken, m.virtualQuote, m.realQuote, amount, m.feeBps, m.taxBps);
     }
 
     // ---------------------------------------------------------------- admin

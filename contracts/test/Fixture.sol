@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import {Test} from "forge-std/Test.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {CurveDeploy} from "../scripts/CurveDeploy.sol";
 import {CurveFeeEscrow} from "../contracts/CurveFeeEscrow.sol";
 import {CurveHolderReserve} from "../contracts/CurveHolderReserve.sol";
@@ -58,6 +59,26 @@ abstract contract Fixture is Test, CurveDeploy {
         _fund(who, LAUNCH_FEE + firstBuy);
         vm.prank(who);
         (token,) = launchpad.launch(_meta(), 0, reserveBps, firstBuy, 0);
+    }
+
+    /// @dev Buys with exactly `spend` freshly minted WETH and returns the tokens received.
+    function _buy(address who, address token, uint256 spend) internal returns (uint256) {
+        _fund(who, spend);
+        vm.prank(who);
+        return launchpad.buy(token, spend, 0, block.timestamp);
+    }
+
+    function _sell(address who, address token, uint256 amount) internal returns (uint256) {
+        vm.startPrank(who);
+        IERC20(token).approve(address(launchpad), amount);
+        uint256 net = launchpad.sell(token, amount, 0, block.timestamp);
+        vm.stopPrank();
+        return net;
+    }
+
+    /// @dev Buys the rest of the curve from `who`, leaving the market Ready.
+    function _sellOut(address who, address token) internal {
+        _buy(who, token, 100 ether);
     }
 
     /// @dev Mints `amount` WETH to `account` and approves the launchpad for all of it.
