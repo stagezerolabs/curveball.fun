@@ -2309,11 +2309,14 @@ select:focus-visible {
   min-width: 0;
 }
 .market-stat-summary {
+  align-items: center;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 14px;
   display: grid;
   gap: 20px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-height: 144px;
   padding: 22px 24px;
 }
 .market-headline-stats dt {
@@ -2991,6 +2994,8 @@ select:focus-visible {
     grid-template-columns: minmax(0, 1fr);
   }
   .market-stat-summary {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
     padding: 18px;
   }
   .market-chart-panel {
