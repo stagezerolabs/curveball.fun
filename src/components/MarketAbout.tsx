@@ -35,10 +35,11 @@ export function MarketAbout({ token }: { token: Token }) {
   const createdLabel = Number.isNaN(created.getTime())
     ? "—"
     : new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC", timeZoneName: "short" }).format(created);
+  const description = token.description?.trim() || metadataDescription;
 
   return <section className="market-about" aria-labelledby="market-about-title">
     <h2 id="market-about-title">About {token.name}</h2>
-    <p>{token.description?.trim() || metadataDescription || "No description provided for this market."}</p>
+    {description && <p>{description}</p>}
     <dl className="market-about-facts">
       {token.pool && <Fact label="Pool"><AddressValue address={token.pool} /></Fact>}
       <Fact label="Supply">{formatSupply(token.supply)} {token.symbol}</Fact>

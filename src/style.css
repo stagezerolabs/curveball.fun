@@ -4930,6 +4930,7 @@ img.profile-hero-avatar { background: var(--raise); object-fit: cover; }
 .market-about { background: var(--panel); border-radius: 14px; min-width: 0; padding: 28px 32px; }
 .market-about h2 { font-size: 22px; letter-spacing: -.035em; margin: 0; padding-bottom: 18px; }
 .market-about > p { border-top: 1px solid var(--line); color: var(--ink); font-size: 14px; line-height: 1.5; margin: 0; padding: 20px 0 22px; }
+.market-about > h2 + .market-about-facts { border-top: 1px solid var(--line); padding-top: 12px; }
 .market-about-facts { display: grid; gap: 0; margin: 0; }
 .market-about-fact { align-items: baseline; display: flex; gap: 14px; min-width: 0; padding: 10px 0; }
 .market-about-fact dt { color: var(--muted); flex: 0 0 auto; font-size: 13px; }
@@ -4940,9 +4941,9 @@ img.profile-hero-avatar { background: var(--raise); object-fit: cover; }
 .market-about-address:focus-visible { outline: 2px solid var(--lime); outline-offset: 3px; }
 .market-about-address svg { fill: none; height: 15px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; width: 15px; }
 .market-about-chain { margin-top: 18px; }
-.market-about-chain summary { color: var(--ink); cursor: pointer; font-size: 13px; font-weight: 700; list-style: none; padding: 10px 0; }
-.market-about-chain summary::after { content: "⌄"; display: inline-block; font-size: 17px; margin-left: 8px; transform: rotate(180deg); }
-.market-about-chain:not([open]) summary::after { transform: none; }
+.market-about-chain summary { align-items: center; color: var(--ink); cursor: pointer; display: inline-flex; font-size: 13px; font-weight: 700; gap: 9px; list-style: none; min-height: 36px; padding: 7px 0; }
+.market-about-chain summary::after { border-bottom: 2px solid currentColor; border-right: 2px solid currentColor; content: ""; display: block; height: 7px; transform: rotate(225deg) translateY(-2px); width: 7px; }
+.market-about-chain:not([open]) summary::after { transform: rotate(45deg) translateY(-2px); }
 .market-about-chain summary::-webkit-details-marker { display: none; }
 .market-about-chain summary:focus-visible { outline: 2px solid var(--lime); outline-offset: 3px; }
 @media (max-width: 640px) {
