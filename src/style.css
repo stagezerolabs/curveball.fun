@@ -2812,9 +2812,6 @@ select:focus-visible {
   font-weight: 600;
   gap: 6px;
 }
-.milestone-tag.done {
-  color: var(--orange-ink);
-}
 .milestone-bar-row {
   display: flex;
   font-size: 14px;

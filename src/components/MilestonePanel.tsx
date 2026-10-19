@@ -75,9 +75,9 @@ export function MilestonePanel({
     <section className="milestone-panel" aria-label="Graduation and fees">
       <header className="panel-head">
         <h2>Milestone</h2>
-        <span className={token.graduated ? "milestone-tag done" : "milestone-tag"}>
+        {!token.graduated && <span className="milestone-tag">
           {marketStatus.kind === "live" ? "On the curve" : marketStatus.label}
-        </span>
+        </span>}
       </header>
 
       {!token.graduated && <>
