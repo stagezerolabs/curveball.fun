@@ -453,6 +453,9 @@ async function profileDirectory(url, viewer, listAddress = null, relationship = 
     : relationship === "following"
       ? `AND EXISTS (SELECT 1 FROM follows f WHERE f.chain_id=p.chain_id
         AND f.followed_address=p.address AND f.follower_address=$5)` : "";
+  const params = relationClause
+    ? [config.chainId, viewer, search, after, listAddress, limit + 1]
+    : [config.chainId, viewer, search, after, limit + 1];
   const result = await query(`SELECT p.address,p.display_name,p.bio,
       (SELECT COUNT(*) FROM follows f WHERE f.chain_id=p.chain_id AND f.followed_address=p.address) AS followers,
       EXISTS (SELECT 1 FROM follows f WHERE f.chain_id=p.chain_id
@@ -464,7 +467,7 @@ async function profileDirectory(url, viewer, listAddress = null, relationship = 
       AND ($2::text IS NULL OR NOT EXISTS (SELECT 1 FROM blocks b WHERE b.chain_id=p.chain_id AND (
         (b.blocker_address=$2 AND b.blocked_address=p.address)
         OR (b.blocker_address=p.address AND b.blocked_address=$2))))
-    ORDER BY p.address LIMIT $6`, [config.chainId, viewer, search, after, listAddress, limit + 1]);
+    ORDER BY p.address LIMIT $${params.length}`, params);
   const hasMore = result.rows.length > limit;
   const rows = hasMore ? result.rows.slice(0, limit) : result.rows;
   return assertPageResponse({ items: rows.map((row) => ({

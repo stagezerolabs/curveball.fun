@@ -119,11 +119,15 @@ test("new follows require an opted-in profile and opting out removes incoming fo
 });
 
 test("profile discovery and relationship lists keep opt-in and block filters through pagination", async () => {
-  await withServer(async (sql) => {
-    if (sql.includes("FROM profiles p")) return [
+  await withServer(async (sql, params) => {
+    if (sql.includes("FROM profiles p")) {
+      const bound = [...new Set([...sql.matchAll(/\$(\d+)\b/g)].map((match) => Number(match[1])))].sort((a, b) => a - b);
+      assert.deepEqual(bound, params.map((_, index) => index + 1), "Every supplied SQL parameter must be used");
+      return [
       { address: wallets.followed, display_name: "Alice", bio: "", followers: "2", is_followed: true },
       { address: wallets.other, display_name: "Bob", bio: "", followers: "1", is_followed: false },
-    ];
+      ];
+    }
     throw new Error(`Unexpected query: ${sql}`);
   }, async ({ request, calls }) => {
     const first = await request("/v1/profiles?search=Alice&limit=1", { wallet: wallets.viewer });
