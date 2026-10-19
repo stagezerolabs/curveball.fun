@@ -14,8 +14,8 @@ describe("market chart options", () => {
     expect(options.series[1].data).toEqual([7, 9]);
     expect(options.series[1].xAxisIndex).toBe(1);
     expect(options.series[1].yAxisIndex).toBe(1);
-    expect(options.series[0].itemStyle.color).toBe(colors.lime);
-    expect(options.series[0].itemStyle.color0).toBe(colors.orange);
+    expect(options.series[0].itemStyle.borderColor).toBe(colors.lime);
+    expect(options.series[0].itemStyle.borderColor0).toBe(colors.orange);
   });
 
   test("labels daily candles with dates", () => {
@@ -24,5 +24,14 @@ describe("market chart options", () => {
     ], colors, 86_400);
 
     expect(options.xAxis[1].axisLabel.formatter(1_728_000)).toContain("Jan");
+  });
+
+  test("shows USD on the price axis when an exchange rate is available", () => {
+    const options = buildMarketChartOptions([
+      { time: 60, open: 2, high: 3, low: 1, close: 2, volume: 1 },
+    ], colors, 60, 2_000);
+
+    expect(options.yAxis[0].axisLabel.formatter?.(2)).toBe("$4K");
+    expect(options.series[0].markLine?.label.formatter).toBe("$4K");
   });
 });

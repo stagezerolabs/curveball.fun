@@ -7,15 +7,24 @@ type ChartColors = {
   orange: string;
 };
 
-function formatMarketCap(value: number) {
+function formatMarketCap(value: number, usdPerEth?: number | null) {
   if (!Number.isFinite(value)) return "—";
+  if (usdPerEth && Number.isFinite(usdPerEth)) {
+    const usd = value * usdPerEth;
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      notation: Math.abs(usd) >= 1_000 ? "compact" : "standard",
+      maximumFractionDigits: Math.abs(usd) >= 1 ? 2 : 4,
+    }).format(usd);
+  }
   return `${value.toLocaleString("en-US", {
     notation: Math.abs(value) >= 1_000 ? "compact" : "standard",
     maximumFractionDigits: Math.abs(value) >= 1 ? 2 : 4,
   })} WETH`;
 }
 
-export function buildMarketChartOptions(candles: readonly MarketCandle[], colors: ChartColors, intervalSeconds = 60) {
+export function buildMarketChartOptions(candles: readonly MarketCandle[], colors: ChartColors, intervalSeconds = 60, usdPerEth?: number | null) {
   const times = candles.map((candle) => candle.time);
   const latest = candles.at(-1);
   const axisLine = { show: false };
@@ -26,8 +35,8 @@ export function buildMarketChartOptions(candles: readonly MarketCandle[], colors
     backgroundColor: "transparent",
     textStyle: { color: colors.text, fontFamily: '"DM Sans", system-ui, sans-serif' },
     grid: [
-      { left: 8, right: 92, top: 12, height: "72%", containLabel: false },
-      { left: 8, right: 92, top: "79%", height: "13%", containLabel: false },
+      { left: 12, right: 96, top: 18, height: "64%", containLabel: false },
+      { left: 12, right: 96, top: "74%", height: "17%", containLabel: false },
     ],
     axisPointer: { link: [{ xAxisIndex: "all" }] },
     tooltip: {
@@ -63,11 +72,13 @@ export function buildMarketChartOptions(candles: readonly MarketCandle[], colors
         position: "right" as const,
         scale: true,
         splitNumber: 5,
+        min: (range: { min: number; max: number }) => range.min - Math.max((range.max - range.min) * 0.08, range.min * 0.01),
+        max: (range: { min: number; max: number }) => range.max + Math.max((range.max - range.min) * 0.08, range.max * 0.01),
         axisLine,
         axisTick,
-        axisLabel: { color: colors.text, margin: 14, formatter: (value: number) => formatMarketCap(value) },
+        axisLabel: { color: colors.text, margin: 14, formatter: (value: number) => formatMarketCap(value, usdPerEth) },
         splitLine: { lineStyle: { color: colors.grid } },
-        axisPointer: { show: true, label: { formatter: ({ value }: { value: number }) => formatMarketCap(value) } },
+        axisPointer: { show: true, label: { formatter: ({ value }: { value: number }) => formatMarketCap(value, usdPerEth) } },
       },
       {
         type: "value" as const,
@@ -85,21 +96,23 @@ export function buildMarketChartOptions(candles: readonly MarketCandle[], colors
         type: "candlestick" as const,
         name: "Market cap",
         data: candles.map((candle) => [candle.open, candle.close, candle.low, candle.high]),
-        barWidth: "55%",
+        barWidth: "58%",
+        barMaxWidth: 22,
         itemStyle: {
-          color: colors.lime,
-          color0: colors.orange,
+          color: `${colors.lime}aa`,
+          color0: `${colors.orange}aa`,
           borderColor: colors.lime,
           borderColor0: colors.orange,
+          borderWidth: 1,
         },
         markLine: latest ? {
           symbol: "none",
           silent: true,
-          lineStyle: { color: colors.lime, type: "dashed" as const, width: 1 },
+          lineStyle: { color: colors.lime, type: "dashed" as const, width: 1, opacity: 0.65 },
           label: {
             show: true,
             position: "end" as const,
-            formatter: formatMarketCap(latest.close),
+            formatter: formatMarketCap(latest.close, usdPerEth),
             color: "#10170f",
             backgroundColor: colors.lime,
             padding: [5, 8],
@@ -114,7 +127,8 @@ export function buildMarketChartOptions(candles: readonly MarketCandle[], colors
         xAxisIndex: 1,
         yAxisIndex: 1,
         data: candles.map((candle) => candle.volume),
-        barWidth: "55%",
+        barWidth: "58%",
+        barMaxWidth: 22,
         itemStyle: {
           color: (params: { dataIndex: number }) =>
             candles[params.dataIndex].close >= candles[params.dataIndex].open

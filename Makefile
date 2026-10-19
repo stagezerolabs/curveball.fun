@@ -141,7 +141,7 @@ docker-rebuild:
 
 # Rebuild and recreate only the frontend. Use this after frontend-only code changes.
 docker-frontend:
-	$(COMPOSE) up -d --build --force-recreate frontend
+	$(COMPOSE) up -d --build --force-recreate --no-deps frontend
 
 # Apply migrations, then rebuild and recreate the API, indexer, and worker.
 docker-social:

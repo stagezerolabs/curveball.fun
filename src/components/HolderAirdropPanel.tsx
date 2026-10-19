@@ -58,7 +58,7 @@ export function HolderAirdropPanel({ token }: { token: Token }) {
       <p className="panel-note">
         {displayAmount(reserved)} {token.symbol} ({percentOfSupply}% of supply) is held for curve buyers. After graduation, each
         wallet claims a share in proportion to the tokens it bought on the curve.
-        {reserve && <> <a href={`${activeExplorerUrl}/address/${reserve}`} target="_blank" rel="noreferrer">View reserve <span aria-hidden="true">↗</span></a></>}
+        {reserve && <> <a className="reserve-link" href={`${activeExplorerUrl}/address/${reserve}`} target="_blank" rel="noreferrer">View reserve <span aria-hidden="true">↗</span></a></>}
       </p>
       {!wallet ? <p className="panel-note">Connect a wallet to see your share.</p>
         : !token.graduated ? (

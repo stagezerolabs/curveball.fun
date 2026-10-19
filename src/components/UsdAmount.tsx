@@ -50,6 +50,10 @@ function getEthUsdRate() {
   return ethUsdRate;
 }
 
+export function useEthUsdRate() {
+  return useSyncExternalStore(subscribe, getEthUsdRate, getEthUsdRate);
+}
+
 export function formatUsd(value: number) {
   if (!Number.isFinite(value)) return "—";
   const absolute = Math.abs(value);
@@ -74,7 +78,7 @@ function formatCompactUsd(value: number) {
 }
 
 export function UsdAmount({ weth, suffix = "", compact = false }: { weth?: number | null; suffix?: string; compact?: boolean }) {
-  const usdPerEth = useSyncExternalStore(subscribe, getEthUsdRate, getEthUsdRate);
+  const usdPerEth = useEthUsdRate();
   if (weth === 0) return <>{formatUsd(0)}{suffix}</>;
   if (weth == null || usdPerEth == null) return <>—</>;
   const full = formatUsd(weth * usdPerEth);

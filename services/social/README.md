@@ -4,6 +4,8 @@ This service indexes factory launches, bonding-curve trades, ERC-20 transfers, p
 
 It never holds user wallet keys and never submits trades.
 
+Pulse reads are served by `GET /v1/pulse?scope=now|following&period=1h|24h`. The public Now result is cached for 30 seconds per API process; Following requires an authenticated wallet and honors the viewer's follow/block graph. `GET /v1/leaderboards/consistent` and `/new` return published qualified snapshots with rank evidence. The raw `GET /v1/feed` remains available for the opt-in Live view with cursor pagination. See [the architecture notes](../../docs/architecture/social-trading-backend.md) for capacity and methodology limits.
+
 ## Run
 
 Use Bun 1.4+ (or Node.js 20+ for the runtime) and a Supabase Postgres project.

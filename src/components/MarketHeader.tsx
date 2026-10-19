@@ -1,33 +1,11 @@
 import { TokenAvatar } from "./TokenAvatar";
-import {
-  formatAddress,
-  formatPercent,
-  formatRelativeTime,
-} from "../lib/format.js";
+import { formatPercent } from "../lib/format.js";
 import type { Token } from "../types";
 import { getMarketDisplayStatus } from "../lib/marketState";
-import { activeExplorerUrl } from "../lib/web3";
 import { UsdAmount } from "./UsdAmount";
 import type { MarketPriceChange } from "../lib/marketChart";
-
-const EXPLORER = `${activeExplorerUrl}/address/`;
-
-function ExplorerLink({ value, label }: { value: string; label: string }) {
-  return (
-    <a
-      className="market-address-link"
-      href={`${EXPLORER}${value}`}
-      target="_blank"
-      rel="noreferrer"
-      aria-label={`View ${label} ${formatAddress(value)} on the explorer`}
-    >
-      <code>{formatAddress(value)}</code>
-      <svg viewBox="0 0 20 20" aria-hidden="true">
-        <path d="M11 4h5v5M16 4l-7 7M15 12v3.5A1.5 1.5 0 0 1 13.5 17h-9A1.5 1.5 0 0 1 3 15.5v-9A1.5 1.5 0 0 1 4.5 5H8" />
-      </svg>
-    </a>
-  );
-}
+import type { MarketPreviewStats } from "../lib/marketPreviewStats";
+import { formatMarketAge, formatMarketCount } from "../lib/marketDisplay";
 
 function Socials({ token }: { token: Token }) {
   const links = [
@@ -47,7 +25,7 @@ function Socials({ token }: { token: Token }) {
   if (!links.length) return null;
 
   return (
-    <nav className="market-socials" aria-label="Token links">
+    <nav className="market-socials market-header-details" aria-label="Token links">
       {links.map((link) => (
         <a
           key={link.label}
@@ -73,7 +51,7 @@ function Socials({ token }: { token: Token }) {
   );
 }
 
-export function MarketHeader({ token, marketCapChange }: { token: Token; marketCapChange?: MarketPriceChange | null }) {
+export function MarketHeader({ token, marketCapChange, activityStats }: { token: Token; marketCapChange?: MarketPriceChange | null; activityStats?: MarketPreviewStats }) {
   const quoteSymbol = token.quoteSymbol ?? "WETH";
   const soldPercent = token.graduated ? 100 : Math.min(100, Math.max(0, token.progress ?? 0));
   const status = getMarketDisplayStatus(token);
@@ -109,23 +87,7 @@ export function MarketHeader({ token, marketCapChange }: { token: Token; marketC
           </div>
         </div>
 
-        <div className="market-header-details">
-          <dl className="market-meta">
-            <div>
-              <dt>CA</dt>
-              <dd><ExplorerLink value={token.address} label="contract" /></dd>
-            </div>
-            <div>
-              <dt>Created by</dt>
-              <dd><ExplorerLink value={token.creator} label="creator" /></dd>
-            </div>
-            <div>
-              <dt>Launched</dt>
-              <dd>{formatRelativeTime(token.createdAt)}</dd>
-            </div>
-          </dl>
-          <Socials token={token} />
-        </div>
+        <Socials token={token} />
       </div>
       <div className="market-headline-stats">
         <dl className="market-stat-summary">
@@ -148,6 +110,24 @@ export function MarketHeader({ token, marketCapChange }: { token: Token; marketC
           </div>
         </dl>
       </div>
+      <dl className="market-detail-activity" aria-label="Market activity">
+        <div><dt>1H</dt><dd className={changeClass(activityStats?.change1h)}>{formatChange(activityStats?.change1h)}</dd></div>
+        <div><dt>6H</dt><dd className={changeClass(activityStats?.change6h)}>{formatChange(activityStats?.change6h)}</dd></div>
+        <div><dt>24H</dt><dd className={changeClass(activityStats?.change24h)}>{formatChange(activityStats?.change24h)}</dd></div>
+        <div><dt>ATH</dt><dd><UsdAmount weth={activityStats?.athMarketCap} compact /></dd></div>
+        <div><dt>24HR VOL</dt><dd><UsdAmount weth={activityStats?.volume24h} compact /></dd></div>
+        <div><dt>AGE</dt><dd>{formatMarketAge(token.createdAt)}</dd></div>
+        <div><dt>TXNS</dt><dd>{formatMarketCount(activityStats?.transactions)}</dd></div>
+        <div><dt>TRADERS</dt><dd>{formatMarketCount(activityStats?.traders)}</dd></div>
+      </dl>
     </header>
   );
+}
+
+function formatChange(value: number | null | undefined) {
+  return value == null ? "—" : `${value > 0 ? "+" : ""}${value.toFixed(1)}%`;
+}
+
+function changeClass(value: number | null | undefined) {
+  return value == null || value === 0 ? "" : value > 0 ? "positive" : "negative";
 }
