@@ -35,6 +35,76 @@ export type SocialTrade = {
   isFollowed: boolean;
 };
 
+export type PulseMoment = {
+  tokenAddress: Address;
+  tokenName: string;
+  tokenSymbol: string;
+  firstAt: string;
+  latestAt: string;
+  tradeCount: number;
+  buyCount: number;
+  sellCount: number;
+  distinctWalletCount: number;
+  buyQuoteWei: string;
+  sellQuoteWei: string;
+  netQuoteWei: string;
+  followedTraderCount: number;
+  reason: "following" | "net_buying" | "net_selling" | "activity";
+  sampleTransactionHash: `0x${string}`;
+};
+
+export type PulsePeriod = "1h" | "24h";
+export type PulseScope = "now" | "following";
+
+export type PulseResponse = {
+  items: PulseMoment[];
+  asOf: string;
+  coveredFrom: string;
+  sampleTruncated: boolean;
+};
+
+export type LeaderboardMetrics = {
+  tradeCount?: number;
+  marketCount?: number;
+  tradingDayCount?: number;
+  recentTradingDayCount?: number;
+  recentMarketCount?: number;
+  investedWei?: string;
+  realizedPnlWei?: string;
+  unrealizedPnlWei?: string;
+  netPnlWei?: string;
+  returnBps?: number | null;
+  firstTradeAt?: string | null;
+  lastTradeAt?: string | null;
+  sampleLabel?: "established" | "provisional";
+  methodologyVersion?: string;
+  methodologyCaveat?: string;
+};
+
+export type LeaderboardTrader = {
+  address: Address;
+  displayName: string | null;
+  bio: string;
+  rank: number;
+  stats: TraderStats;
+  publishedMetrics: LeaderboardMetrics;
+  asOfBlock?: string;
+  calculatedAt?: string;
+  publishedAt?: string | null;
+  methodologyVersion?: string | null;
+  period?: string | null;
+};
+
+export type LeaderboardSnapshot = {
+  category: "consistent" | "new";
+  items: LeaderboardTrader[];
+  asOfBlock?: string | null;
+  calculatedAt?: string | null;
+  publishedAt?: string | null;
+  methodologyVersion?: string | null;
+  period?: string | null;
+};
+
 export type TraderPosition = {
   token_address: Address;
   token_name: string;

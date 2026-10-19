@@ -9,6 +9,8 @@ import { getMarketDisplayStatus } from "../lib/marketState";
 import { activeExplorerUrl } from "../lib/web3";
 import { UsdAmount } from "./UsdAmount";
 import type { MarketPriceChange } from "../lib/marketChart";
+import type { MarketPreviewStats } from "../lib/marketPreviewStats";
+import { formatMarketAge, formatMarketCount } from "../lib/marketDisplay";
 
 const EXPLORER = `${activeExplorerUrl}/address/`;
 
@@ -73,7 +75,7 @@ function Socials({ token }: { token: Token }) {
   );
 }
 
-export function MarketHeader({ token, marketCapChange }: { token: Token; marketCapChange?: MarketPriceChange | null }) {
+export function MarketHeader({ token, marketCapChange, activityStats }: { token: Token; marketCapChange?: MarketPriceChange | null; activityStats?: MarketPreviewStats }) {
   const quoteSymbol = token.quoteSymbol ?? "WETH";
   const soldPercent = token.graduated ? 100 : Math.min(100, Math.max(0, token.progress ?? 0));
   const status = getMarketDisplayStatus(token);
@@ -148,6 +150,24 @@ export function MarketHeader({ token, marketCapChange }: { token: Token; marketC
           </div>
         </dl>
       </div>
+      <dl className="market-detail-activity" aria-label="Market activity">
+        <div><dt>1H</dt><dd className={changeClass(activityStats?.change1h)}>{formatChange(activityStats?.change1h)}</dd></div>
+        <div><dt>6H</dt><dd className={changeClass(activityStats?.change6h)}>{formatChange(activityStats?.change6h)}</dd></div>
+        <div><dt>24H</dt><dd className={changeClass(activityStats?.change24h)}>{formatChange(activityStats?.change24h)}</dd></div>
+        <div><dt>ATH</dt><dd><UsdAmount weth={activityStats?.athMarketCap} compact /></dd></div>
+        <div><dt>24HR VOL</dt><dd><UsdAmount weth={activityStats?.volume24h} compact /></dd></div>
+        <div><dt>AGE</dt><dd>{formatMarketAge(token.createdAt)}</dd></div>
+        <div><dt>TXNS</dt><dd>{formatMarketCount(activityStats?.transactions)}</dd></div>
+        <div><dt>TRADERS</dt><dd>{formatMarketCount(activityStats?.traders)}</dd></div>
+      </dl>
     </header>
   );
+}
+
+function formatChange(value: number | null | undefined) {
+  return value == null ? "—" : `${value > 0 ? "+" : ""}${value.toFixed(1)}%`;
+}
+
+function changeClass(value: number | null | undefined) {
+  return value == null || value === 0 ? "" : value > 0 ? "positive" : "negative";
 }

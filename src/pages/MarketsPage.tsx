@@ -1,36 +1,36 @@
 import { useEffect, useMemo, useState } from "react";
-import { Tabs } from "@base-ui/react/tabs";
 import { usePublicClient } from "wagmi";
 import { Featured } from "../components/Featured";
 import { MarketList } from "../components/MarketList";
-import { UsdAmount } from "../components/UsdAmount";
-import { formatPercent } from "../lib/format.js";
 import { useStore } from "../app/useStore.js";
 import type { CreatorTokenClient } from "../creatorTokens";
 import { activeChainId } from "../lib/web3";
 import { useMarketPreviewStats } from "../lib/useMarketPreviewStats";
-import type { MarketPreviewStatsClient } from "../lib/marketPreviewStats";
+import type { MarketPreviewStatsByToken, MarketPreviewStatsClient } from "../lib/marketPreviewStats";
 import type { Navigate, Token } from "../types";
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: "trending", label: "Trending" },
-  { id: "new", label: "New" },
+type MarketFilter = "all" | "curve" | "graduated";
+type MarketSort = "market-cap" | "new" | "trending" | "volume-24h";
+
+const filters: { id: MarketFilter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "curve", label: "On the curve" },
   { id: "graduated", label: "Graduated" },
 ];
 
-type Tab = "trending" | "new" | "graduated";
-
-function selectTokens(tokens: Token[], tab: Tab) {
-  if (tab === "graduated") return tokens.filter((token) => token.graduated);
-  if (tab === "new") {
-    return [...tokens].sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    );
-  }
-  return [...tokens].sort(
-    (a, b) => (b.progress ?? -1) - (a.progress ?? -1),
-  );
+function sortMarkets(tokens: Token[], sort: MarketSort, stats: MarketPreviewStatsByToken) {
+  return [...tokens].sort((a, b) => {
+    const aStats = stats[a.address.toLowerCase()];
+    const bStats = stats[b.address.toLowerCase()];
+    let difference = 0;
+    switch (sort) {
+      case "new": difference = Date.parse(b.createdAt) - Date.parse(a.createdAt); break;
+      case "trending": difference = (bStats?.change24h ?? -Infinity) - (aStats?.change24h ?? -Infinity); break;
+      case "volume-24h": difference = (bStats?.volume24h ?? -1) - (aStats?.volume24h ?? -1); break;
+      default: difference = (b.marketCap ?? -1) - (a.marketCap ?? -1);
+    }
+    return difference || Date.parse(b.createdAt) - Date.parse(a.createdAt);
+  });
 }
 
 export function MarketsPage({ navigate }: { navigate: Navigate }) {
@@ -50,14 +50,26 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
     loading: boolean;
     loadMarkets: (client?: CreatorTokenClient, options?: { force?: boolean }) => Promise<Token[]>;
   };
-  const [tab, setTab] = useState<Tab>(lastCreatedToken ? "new" : "trending");
-  const visible = useMemo(() => selectTokens(tokens, tab), [tokens, tab]);
-  const tickerTokens = useMemo(() => selectTokens(tokens, "new").slice(0, 12), [tokens]);
+  const [filter, setFilter] = useState<MarketFilter>("all");
+  const [sort, setSort] = useState<MarketSort>(lastCreatedToken ? "new" : "market-cap");
+  const [view, setView] = useState<"cards" | "rows">("cards");
+  const [search, setSearch] = useState("");
   const previewStats = useMarketPreviewStats(
     publicClient as unknown as MarketPreviewStatsClient | undefined,
     tokens,
     marketsFetchedAt,
   );
+  const visible = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const filtered = tokens.filter((token) => {
+      if (filter === "curve" && token.graduated) return false;
+      if (filter === "graduated" && !token.graduated) return false;
+      return !query || token.name.toLowerCase().includes(query)
+        || token.symbol.toLowerCase().includes(query)
+        || token.address.toLowerCase().includes(query);
+    });
+    return sortMarkets(filtered, sort, previewStats);
+  }, [tokens, filter, search, sort, previewStats]);
   const initialLoading = !marketsFetchedAt && !tokens.length && !error;
   const awaitingPool = tokens.some((token) => !token.graduated && (token.pending || (token.progress ?? 0) >= 100));
 
@@ -85,80 +97,46 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
     return () => window.clearInterval(timer);
   }, [awaitingPool, loadMarkets, publicClient]);
 
-  const refreshMarkets = () => {
-    void loadMarkets(publicClient as unknown as CreatorTokenClient | undefined, { force: true }).catch(() => undefined);
-  };
-
   return (
     <main className="page-main">
       <section className="markets-page wrap" aria-labelledby="markets-title">
         <h1 id="markets-title" className="visually-hidden">Explore markets</h1>
         {lastCreatedToken && <p className="market-created-note" role="status">Your new token is listed below. Market data may take a moment to appear.</p>}
-        {error && (
-          <p className="notice" role="alert">
-            {error}
-          </p>
-        )}
+        {error && <p className="notice" role="alert">{error}</p>}
         <Featured tokens={tokens} loading={initialLoading} navigate={navigate} />
-        <Tabs.Root value={tab} onValueChange={(next) => setTab(next as Tab)}>
-          <div className="market-tabs-bar">
-            <Tabs.List className="market-tabs" aria-label="Market filters">
-              {TABS.map((item) => (
-                <Tabs.Tab
-                  key={item.id}
-                  value={item.id}
-                  className={tab === item.id ? "active" : ""}
-                >
-                  {item.label}
-                </Tabs.Tab>
-              ))}
-              <Tabs.Indicator className="market-tabs-indicator" />
-            </Tabs.List>
-            <div className="market-tabs-actions">
-              <button
-                type="button"
-                className="market-refresh"
-                onClick={refreshMarkets}
-                disabled={loading || !publicClient}
-                aria-label={loading ? "Refreshing markets" : "Refresh markets"}
-                aria-busy={loading}
-                title={loading ? "Refreshing markets" : "Refresh markets"}
-              >
-                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M16.8 8A7 7 0 1 0 17 11" />
-                  <path d="M17 3.5V8h-4.5" />
-                </svg>
+        <div className="market-directory-controls">
+          <label className="market-search">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" /><path d="m13 13 4 4" /></svg>
+            <span className="visually-hidden">Search markets by name, ticker, or address</span>
+            <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name, ticker or mint" />
+          </label>
+          <div className="market-filter-group" role="group" aria-label="Market status">
+            {filters.map((item) => <button key={item.id} type="button" className={filter === item.id ? "active" : ""} aria-pressed={filter === item.id} onClick={() => setFilter(item.id)}>{item.label}</button>)}
+          </div>
+          <div className="market-directory-actions">
+            <label className="market-sort"><span>Sort</span><select value={sort} onChange={(event) => setSort(event.target.value as MarketSort)}>
+              <option value="market-cap">Market cap</option>
+              <option value="new">New</option>
+              <option value="trending">Trending</option>
+              <option value="volume-24h">Volume 24h</option>
+            </select></label>
+            <div className="market-view-switch" role="group" aria-label="Market view">
+              <button type="button" aria-pressed={view === "cards"} className={view === "cards" ? "active" : ""} onClick={() => setView("cards")}>
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><rect x="2.5" y="2.5" width="6" height="6" rx="1" /><rect x="11.5" y="2.5" width="6" height="6" rx="1" /><rect x="2.5" y="11.5" width="6" height="6" rx="1" /><rect x="11.5" y="11.5" width="6" height="6" rx="1" /></svg>
+                Cards
+              </button>
+              <button type="button" aria-pressed={view === "rows"} className={view === "rows" ? "active" : ""} onClick={() => setView("rows")}>
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true"><path d="M3 4h2M8 4h9M3 10h2m3 0h9M3 16h2m3 0h9" /></svg>
+                Rows
               </button>
             </div>
+            <button type="button" className="market-refresh" onClick={() => void loadMarkets(publicClient as unknown as CreatorTokenClient | undefined, { force: true }).catch(() => undefined)} disabled={loading || !publicClient} aria-label={loading ? "Refreshing markets" : "Refresh markets"} aria-busy={loading} title="Refresh markets">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M16.8 8A7 7 0 1 0 17 11" /><path d="M17 3.5V8h-4.5" /></svg>
+            </button>
           </div>
-          <Tabs.Panel key={tab} value={tab} className="market-tab-panel">
-            <MarketList
-              tokens={visible}
-              loading={initialLoading}
-              navigate={navigate}
-              highlightedToken={lastCreatedToken}
-              previewStats={previewStats}
-            />
-          </Tabs.Panel>
-        </Tabs.Root>
+        </div>
+        <MarketList tokens={visible} loading={initialLoading} navigate={navigate} highlightedToken={lastCreatedToken} previewStats={previewStats} view={view} />
       </section>
-      {tickerTokens.length > 0 && (
-        <aside className="market-snapshot-ticker" aria-label="Latest market snapshots">
-          <div className="market-snapshot-track">
-            {[0, 1].map((copy) => (
-              <div className="market-snapshot-group" aria-hidden={copy === 1} key={copy}>
-                {tickerTokens.map((token) => (
-                  <span className="market-snapshot" key={token.address}>
-                    <strong>${token.symbol}</strong>
-                    <span><UsdAmount weth={token.marketCap} compact /> cap</span>
-                    <span>{formatPercent(token.progress)} sold</span>
-                  </span>
-                ))}
-              </div>
-            ))}
-          </div>
-        </aside>
-      )}
     </main>
   );
 }

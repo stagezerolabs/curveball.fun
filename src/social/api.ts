@@ -5,6 +5,10 @@ import { wagmiConfig } from "../lib/web3";
 import type {
   NotificationItem,
   ModerationReport,
+  LeaderboardSnapshot,
+  PulsePeriod,
+  PulseResponse,
+  PulseScope,
   SocialTrade,
   TraderProfile,
 } from "./types";
@@ -78,6 +82,13 @@ export const socialApi = {
     if (trader) query.set("trader", trader);
     const result = await api<{ items: Record<string, unknown>[]; nextCursor: string | null }>(`/v1/feed?${query}`);
     return { ...result, items: result.items.map(mapTrade) };
+  },
+  pulse(scope: PulseScope, period: PulsePeriod) {
+    const query = new URLSearchParams({ scope, period });
+    return api<PulseResponse>(`/v1/pulse?${query}`);
+  },
+  leaderboard(category: "consistent" | "new") {
+    return api<LeaderboardSnapshot>(`/v1/leaderboards/${category}`);
   },
   profile(address: Address) {
     return api<TraderProfile>(`/v1/profiles/${address}`);

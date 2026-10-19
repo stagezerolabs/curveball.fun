@@ -110,8 +110,8 @@ export function TraderProfilePage({ address: routeAddress, navigate, launches = 
 
   useEffect(() => setTab(initialTab), [traderAddress, initialTab]);
 
-  if (!traderAddress) return <main className="page-status wrap"><h1>Trader not found</h1><p>This wallet address is invalid.</p><AppLink className="primary-button" route="social" navigate={navigate}>Back to social</AppLink></main>;
-  if (!socialApiConfigured) return <main className="page-status wrap"><h1>Social service is not connected</h1><p>Configure the VPS API before loading trader profiles.</p><AppLink className="primary-button" route="social" navigate={navigate}>Back to social</AppLink></main>;
+  if (!traderAddress) return <main className="page-status wrap"><h1>Trader not found</h1><p>This wallet address is invalid.</p><AppLink className="primary-button" route="social" navigate={navigate}>Back to Pulse</AppLink></main>;
+  if (!socialApiConfigured) return <main className="page-status wrap"><h1>Social service is not connected</h1><p>Configure the VPS API before loading trader profiles.</p><AppLink className="primary-button" route="social" navigate={navigate}>Back to Pulse</AppLink></main>;
   if (profile.isLoading) return <TraderProfileSkeleton />;
   if (profile.isError || !profile.data) return <main className="page-status wrap"><h1>Profile unavailable</h1><p>{profile.error instanceof Error ? profile.error.message : "Try again shortly."}</p><button className="primary-button" type="button" onClick={() => void profile.refetch()}>Retry</button></main>;
 

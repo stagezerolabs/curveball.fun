@@ -6,6 +6,9 @@ import { config } from "./config.mjs";
 import { pool, transaction } from "./db.mjs";
 import { ACTIVE_WALLET_HEADER, createPrivyAuthenticator } from "./privyAuth.mjs";
 import { claimProfile } from "./profiles.mjs";
+import { shapePublicPulseMoments } from "./pulse.mjs";
+import { followingPulseSql, publicPulseSql } from "./pulseSql.mjs";
+import { createOutboxHub } from "./outboxHub.mjs";
 
 const JSON_LIMIT = 64 * 1024;
 const RNS_CHAIN_ID = 4153;
@@ -13,6 +16,37 @@ const RNS_NAME = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?\.rise$/;
 const privyClient = new PrivyClient({ appId: config.privyAppId, appSecret: config.privyAppSecret });
 const authenticatePrivyRequest = createPrivyAuthenticator({ client: privyClient });
 const requestAuthentication = new WeakMap();
+// Process-local abuse guard for authenticated social writes. Multi-instance
+// deployments also need a shared or edge rate limit to cover wallet/IP traffic.
+const socialWriteBuckets = new Map();
+let nextSocialWritePruneAt = 0;
+
+function limitSocialWrite(request, address) {
+  const now = Date.now();
+  if (now >= nextSocialWritePruneAt) {
+    for (const [key, bucket] of socialWriteBuckets) {
+      if (bucket.expires <= now) socialWriteBuckets.delete(key);
+    }
+    nextSocialWritePruneAt = now + 10_000;
+  }
+  // Socket IP may be the ingress proxy for every viewer, so this is only a
+  // coarse process safety ceiling. Wallet limits do the ordinary throttling.
+  const limits = [[`wallet:${address}`, 30], [`ip:${request.socket.remoteAddress || "unknown"}`, 100_000]];
+  for (const [key, maximum] of limits) {
+    const bucket = socialWriteBuckets.get(key);
+    if (bucket && bucket.count >= maximum) {
+      throw Object.assign(new Error("Too many social actions. Try again shortly."), {
+        status: 429, retryAfter: Math.max(1, Math.ceil((bucket.expires - now) / 1_000)),
+      });
+    }
+  }
+  for (const [key] of limits) {
+    const bucket = socialWriteBuckets.get(key);
+    if (bucket) bucket.count += 1;
+    else socialWriteBuckets.set(key, { count: 1, expires: now + 60_000 });
+  }
+  if (socialWriteBuckets.size > 10_000) socialWriteBuckets.delete(socialWriteBuckets.keys().next().value);
+}
 
 function addressParam(value) {
   return typeof value === "string" && isAddress(value) ? getAddress(value).toLowerCase() : null;
@@ -110,7 +144,7 @@ function decodeCursor(value) {
   }
 }
 
-async function openEventStream(request, response, subscribe) {
+function openEventStream(request, response, hub) {
   response.writeHead(200, {
     ...corsHeaders(request),
     "Content-Type": "text/event-stream",
@@ -120,43 +154,7 @@ async function openEventStream(request, response, subscribe) {
   });
   response.flushHeaders?.();
 
-  const suppliedId = request.headers["last-event-id"];
-  let cursor = typeof suppliedId === "string" && /^\d+$/.test(suppliedId) ? BigInt(suppliedId) : null;
-  if (cursor === null) {
-    const latest = await pool.query("SELECT COALESCE(MAX(id),0) AS id FROM notification_outbox");
-    cursor = BigInt(latest.rows[0].id);
-  }
-  response.write(`event: ready\ndata: ${JSON.stringify({ cursor: cursor.toString() })}\n\n`);
-
-  let closed = false;
-  let pumping = false;
-  const pump = async () => {
-    if (closed || pumping) return;
-    pumping = true;
-    try {
-      const result = await pool.query(`SELECT id,topic,payload FROM notification_outbox
-        WHERE id>$1 AND available_at<=now() ORDER BY id ASC LIMIT 100`, [cursor.toString()]);
-      for (const row of result.rows) {
-        if (closed) break;
-        cursor = BigInt(row.id);
-        response.write(`id: ${row.id}\nevent: ${row.topic}\ndata: ${JSON.stringify(row.payload)}\n\n`);
-      }
-      if (result.rows.length === 100) queueMicrotask(() => void pump());
-    } catch {
-      if (!closed) response.write("event: stream_error\ndata: {}\n\n");
-    } finally {
-      pumping = false;
-    }
-  };
-  const unsubscribe = subscribe?.(() => void pump());
-  const poll = setInterval(() => void pump(), 2_000);
-  const heartbeat = setInterval(() => response.write(": heartbeat\n\n"), 20_000);
-  request.on("close", () => {
-    closed = true;
-    clearInterval(poll);
-    clearInterval(heartbeat);
-    unsubscribe?.();
-  });
+  return hub.open(response, request.headers["last-event-id"]);
 }
 
 function shapeRns(address, primaryName, expiresAt) {
@@ -293,7 +291,89 @@ async function feed(url, viewer) {
     values,
   );
   const last = result.rows.at(-1);
-  return { items: result.rows, nextCursor: last ? encodeCursor({ at: last.block_timestamp, id: last.id }) : null };
+  return { items: result.rows, nextCursor: last && result.rows.length === limit
+    ? encodeCursor({ at: last.block_timestamp, id: last.id }) : null };
+}
+
+const pulseTradeCache = new Map();
+const pulseGraphCache = new Map();
+const pulseBlockedCache = new Map();
+
+async function pulseTrades(period, followingViewer = null, blockedViewer = null, blockedAddresses = []) {
+  const key = `${period}:${followingViewer || (blockedViewer ? `blocked:${blockedViewer}` : "public")}`;
+  const current = pulseTradeCache.get(key);
+  if (current && current.expires > Date.now()) return current.value;
+  const interval = period === "1h" ? "1 hour" : "24 hours";
+  const asOf = new Date();
+  const bucketSeconds = period === "1h" ? 900 : 7200;
+  const value = pool.query(followingViewer ? followingPulseSql : publicPulseSql,
+  [config.chainId, interval, followingViewer, bucketSeconds, asOf, blockedAddresses]).then((result) => ({
+    // SQL aggregates exact market totals and ranks candidates before transfer.
+    items: shapePublicPulseMoments(result.rows, { scope: followingViewer ? "following" : "now" }),
+    sampleTruncated: false, asOf: asOf.toISOString(),
+    coveredFrom: new Date(asOf.getTime() - (period === "1h" ? 60 * 60_000 : 24 * 60 * 60_000)).toISOString(),
+  }));
+  if (pulseTradeCache.size >= 500) pulseTradeCache.delete(pulseTradeCache.keys().next().value);
+  const entry = { expires: Infinity, value };
+  pulseTradeCache.set(key, entry);
+  try {
+    const result = await value;
+    entry.expires = Date.now() + (followingViewer || blockedViewer ? 20_000 : 30_000);
+    return result;
+  } catch (error) { pulseTradeCache.delete(key); throw error; }
+}
+
+async function pulseBlockedAddresses(viewer) {
+  if (!viewer) return new Set();
+  const cached = pulseBlockedCache.get(viewer);
+  if (cached && cached.expires > Date.now()) return cached.value;
+  const value = pool.query(`SELECT CASE WHEN blocker_address=$2 THEN blocked_address ELSE blocker_address END AS address
+    FROM blocks WHERE chain_id=$1 AND (blocker_address=$2 OR blocked_address=$2)`,
+  [config.chainId, viewer]).then((result) => new Set(result.rows.map((row) => row.address)));
+  if (pulseBlockedCache.size >= 5_000) pulseBlockedCache.delete(pulseBlockedCache.keys().next().value);
+  const entry = { expires: Infinity, value };
+  pulseBlockedCache.set(viewer, entry);
+  try {
+    const result = await value;
+    entry.expires = Date.now() + 60_000;
+    return result;
+  } catch (error) { pulseBlockedCache.delete(viewer); throw error; }
+}
+
+async function pulseGraph(viewer) {
+  if (!viewer) return { followed: new Set(), blocked: new Set() };
+  const cached = pulseGraphCache.get(viewer);
+  if (cached && cached.expires > Date.now()) return cached.value;
+  const value = Promise.all([
+    pool.query("SELECT followed_address AS address FROM follows WHERE chain_id=$1 AND follower_address=$2", [config.chainId, viewer]),
+    pool.query(`SELECT CASE WHEN blocker_address=$2 THEN blocked_address ELSE blocker_address END AS address
+      FROM blocks WHERE chain_id=$1 AND (blocker_address=$2 OR blocked_address=$2)`, [config.chainId, viewer]),
+  ]).then(([follows, blocks]) => ({
+    followed: new Set(follows.rows.map((row) => row.address)),
+    blocked: new Set(blocks.rows.map((row) => row.address)),
+  }));
+  if (pulseGraphCache.size >= 500) pulseGraphCache.delete(pulseGraphCache.keys().next().value);
+  pulseGraphCache.set(viewer, { expires: Date.now() + 10_000, value });
+  try { return await value; } catch (error) { pulseGraphCache.delete(viewer); throw error; }
+}
+
+async function pulse(url, viewer) {
+  const scope = url.searchParams.get("scope") || "now";
+  const period = url.searchParams.get("period") || "1h";
+  if (!["now", "following"].includes(scope) || !["1h", "24h"].includes(period)) {
+    throw Object.assign(new Error("Choose a supported Pulse scope and period."), { status: 400 });
+  }
+  if (scope === "following" && !viewer) {
+    throw Object.assign(new Error("Sign in to view followed traders."), { status: 401 });
+  }
+  const blocked = await pulseBlockedAddresses(viewer);
+  const trades = scope === "now"
+    ? await pulseTrades(period, null, blocked.size ? viewer : null, [...blocked])
+    : await pulseTrades(period, viewer, null, [...blocked]);
+  return {
+    items: trades.items,
+    asOf: trades.asOf, coveredFrom: trades.coveredFrom, sampleTruncated: trades.sampleTruncated,
+  };
 }
 
 async function profile(address, viewer) {
@@ -341,39 +421,68 @@ async function profile(address, viewer) {
   };
 }
 
+const leaderboardPublicCache = new Map();
+
+async function publishedBoard(category) {
+  const cached = leaderboardPublicCache.get(category);
+  if (cached && cached.expires > Date.now()) return cached.value;
+  const value = (async () => {
+    const snapshotResult = await pool.query(`SELECT id,period,methodology_version,as_of_block,calculated_at,published_at
+      FROM leaderboard_snapshots WHERE chain_id=$1 AND category=$2 AND published_at IS NOT NULL
+      ORDER BY as_of_block DESC,published_at DESC LIMIT 1`, [config.chainId, category]);
+    const snapshot = snapshotResult.rows[0];
+    return { snapshot: snapshot || null };
+  })();
+  leaderboardPublicCache.set(category, { expires: Date.now() + 30_000, value });
+  try { return await value; } catch (error) { leaderboardPublicCache.delete(category); throw error; }
+}
+
 async function leaderboards(url, viewer) {
   const category = url.pathname.split("/").pop();
   const allowed = new Set(["trending", "consistent", "followers", "new"]);
   if (!allowed.has(category)) throw Object.assign(new Error("Unknown leaderboard category."), { status: 404 });
-  const result = await pool.query(
-    `${statsSql}
-     SELECT w.*,p.display_name,p.bio,lr.rank,lr.metrics AS published_metrics,
-       (SELECT COUNT(*) FROM follows f WHERE f.chain_id = $1 AND f.followed_address = w.trader_address) AS follower_count,
-       EXISTS(SELECT 1 FROM follows fv WHERE fv.chain_id=$1 AND fv.follower_address=$4 AND fv.followed_address=w.trader_address) AS is_followed,
-       (SELECT COALESCE(SUM(net_trader_quote),0) FROM trades r WHERE r.chain_id=$1 AND r.trader_address=w.trader_address AND r.orphaned=false AND r.block_timestamp > now()-interval '7 days') AS recent_volume_wei,
-       CASE WHEN w.realized_cost_wei > 0 THEN w.realized_pnl_wei * 100.0 / w.realized_cost_wei END AS realized_return
-     FROM leaderboard_snapshots ls
-     JOIN leaderboard_rows lr ON lr.snapshot_id=ls.id AND lr.eligible=true
-     JOIN wallet w ON w.trader_address=lr.address
-     JOIN profiles p ON p.chain_id=$1 AND p.address=w.trader_address AND p.discoverable=true
-     WHERE ls.id=(SELECT id FROM leaderboard_snapshots WHERE chain_id=$1 AND category=$2 AND published_at IS NOT NULL ORDER BY as_of_block DESC LIMIT 1)
-       AND ($4::text = '' OR NOT EXISTS (SELECT 1 FROM blocks b WHERE b.chain_id=$1 AND (
-         (b.blocker_address=$4 AND b.blocked_address=w.trader_address)
-         OR (b.blocker_address=w.trader_address AND b.blocked_address=$4)
-       )))
-     ORDER BY lr.rank LIMIT $3`,
-    [config.chainId, category, boundedLimit(url, 12, 50), viewer || ""],
-  );
-  return { category, items: result.rows.map((row) => ({
-    address: row.trader_address,
-    displayName: row.display_name,
-    bio: row.bio,
-    followers: Number(row.follower_count || 0),
-    isFollowed: Boolean(row.is_followed),
-    recentVolumeWei: String(row.recent_volume_wei || 0),
-    stats: shapeStats(row),
-    confidence: Number(row.trade_count) >= 25 ? "established" : Number(row.trade_count) >= 8 ? "developing" : "new",
-  })) };
+  const [board, graph] = await Promise.all([publishedBoard(category), pulseGraph(viewer)]);
+  const { snapshot } = board;
+  if (!snapshot) return { category, period: null, asOfBlock: null, calculatedAt: null,
+    publishedAt: null, methodologyVersion: null, items: [] };
+  // Resolve discoverability on every read: a profile opt-out must not linger
+  // inside a process-local leaderboard cache (including on other API replicas).
+  const result = await pool.query(`SELECT lr.address,lr.rank,lr.metrics AS published_metrics,
+      p.display_name,p.bio,
+      (SELECT COUNT(*) FROM follows f WHERE f.chain_id=$1 AND f.followed_address=lr.address) AS follower_count
+    FROM leaderboard_rows lr
+    JOIN profiles p ON p.chain_id=$1 AND p.address=lr.address AND p.discoverable=true
+    WHERE lr.snapshot_id=$2 AND lr.eligible=true ORDER BY lr.rank LIMIT 100`,
+  [config.chainId, snapshot.id]);
+  const items = result.rows.filter((row) => !graph.blocked.has(row.address))
+    .slice(0, boundedLimit(url, 12, 50)).map((row) => {
+      const metrics = row.published_metrics || {};
+      const cost = Number(metrics.realizedCostWei || 0);
+      const pnl = Number(metrics.realizedPnlWei || 0);
+      const tradeCount = Number(metrics.tradeCount || 0);
+      return {
+        address: row.address, displayName: row.display_name, bio: row.bio,
+        rank: Number(row.rank), asOfBlock: String(snapshot.as_of_block),
+        calculatedAt: snapshot.calculated_at, publishedAt: snapshot.published_at,
+        methodologyVersion: snapshot.methodology_version, period: snapshot.period,
+        publishedMetrics: metrics,
+        followers: Number(row.follower_count || 0),
+        isFollowed: graph.followed.has(row.address),
+        recentVolumeWei: String(metrics.recentVolumeWei || 0),
+        stats: {
+          tradeCount, buyCount: Number(metrics.buyCount || 0), sellCount: Number(metrics.sellCount || 0),
+          volumeWei: String(metrics.volumeWei || 0), realizedPnlWei: String(metrics.realizedPnlWei || 0),
+          realizedCostWei: String(metrics.realizedCostWei || 0),
+          realizedReturnPct: cost > 0 ? pnl / cost * 100 : null,
+          marketsTraded: Number(metrics.marketCount || 0),
+          firstTrade: metrics.firstTradeAt || null, lastTrade: metrics.lastTradeAt || null,
+        },
+        confidence: metrics.sampleLabel || (tradeCount >= 25 ? "established" : tradeCount >= 8 ? "developing" : "new"),
+      };
+    });
+  return { category, period: snapshot.period, asOfBlock: String(snapshot.as_of_block),
+    calculatedAt: snapshot.calculated_at, publishedAt: snapshot.published_at,
+    methodologyVersion: snapshot.methodology_version, items };
 }
 
 function shapeMarket(row) {
@@ -610,6 +719,7 @@ async function protocolStats() {
 }
 
 export function createSocialServer({ subscribe } = {}) {
+  const eventHub = createOutboxHub({ query: (...args) => pool.query(...args), subscribe });
   return createServer(async (request, response) => {
     const url = new URL(request.url || "/", config.publicOrigin);
     try {
@@ -626,7 +736,7 @@ export function createSocialServer({ subscribe } = {}) {
         return send(request, response, 200, { ok: true, chainId: config.chainId, cursors: result.rows });
       }
       if (request.method === "GET" && url.pathname === "/v1/events") {
-        await openEventStream(request, response, subscribe);
+        await openEventStream(request, response, eventHub);
         return;
       }
 
@@ -643,6 +753,7 @@ export function createSocialServer({ subscribe } = {}) {
         return send(request, response, 200, { address });
       }
       if (request.method === "GET" && url.pathname === "/v1/feed") return send(request, response, 200, await feed(url, viewer));
+      if (request.method === "GET" && url.pathname === "/v1/pulse") return send(request, response, 200, await pulse(url, viewer));
       if (request.method === "GET" && url.pathname.startsWith("/v1/leaderboards/")) return send(request, response, 200, await leaderboards(url, viewer));
       if (request.method === "GET" && url.pathname === "/v1/markets") return send(request, response, 200, await markets(url));
       if (request.method === "GET" && url.pathname === "/v1/protocol/stats") return send(request, response, 200, await protocolStats());
@@ -672,6 +783,7 @@ export function createSocialServer({ subscribe } = {}) {
 
       if (request.method === "POST" && url.pathname === "/v1/profiles/me") {
         const address = await requirePrivyWallet(request);
+        limitSocialWrite(request, address);
         const body = await readJson(request);
         const displayName = typeof body.displayName === "string" ? body.displayName.trim().slice(0, 40) : null;
         const bio = typeof body.bio === "string" ? body.bio.trim().slice(0, 280) : "";
@@ -685,6 +797,7 @@ export function createSocialServer({ subscribe } = {}) {
       const followMatch = url.pathname.match(/^\/v1\/follows\/(0x[a-fA-F0-9]{40})$/);
       if (followMatch && ["POST", "DELETE"].includes(request.method)) {
         const follower = await requirePrivyWallet(request);
+        limitSocialWrite(request, follower);
         const followed = addressParam(followMatch[1]);
         if (!followed || followed === follower) throw Object.assign(new Error("Choose another trader to follow."), { status: 400 });
         if (request.method === "POST") {
@@ -704,12 +817,17 @@ export function createSocialServer({ subscribe } = {}) {
         } else {
           await pool.query("DELETE FROM follows WHERE chain_id=$1 AND follower_address=$2 AND followed_address=$3", [config.chainId, follower, followed]);
         }
+        pulseGraphCache.delete(follower);
+        pulseTradeCache.delete(`1h:${follower}`);
+        pulseTradeCache.delete(`24h:${follower}`);
+        leaderboardPublicCache.clear();
         return send(request, response, 200, { following: request.method === "POST" });
       }
 
       const blockMatch = url.pathname.match(/^\/v1\/blocks\/(0x[a-fA-F0-9]{40})$/);
       if (blockMatch && ["POST", "DELETE"].includes(request.method)) {
         const blocker = await requirePrivyWallet(request);
+        limitSocialWrite(request, blocker);
         const blocked = addressParam(blockMatch[1]);
         if (!blocked || blocked === blocker) throw Object.assign(new Error("Choose another trader to block."), { status: 400 });
         if (request.method === "POST") {
@@ -722,11 +840,22 @@ export function createSocialServer({ subscribe } = {}) {
         } else {
           await pool.query("DELETE FROM blocks WHERE chain_id=$1 AND blocker_address=$2 AND blocked_address=$3", [config.chainId, blocker, blocked]);
         }
+        pulseGraphCache.delete(blocker);
+        pulseGraphCache.delete(blocked);
+        pulseBlockedCache.delete(blocker);
+        pulseBlockedCache.delete(blocked);
+        for (const address of [blocker, blocked]) {
+          pulseTradeCache.delete(`1h:blocked:${address}`);
+          pulseTradeCache.delete(`24h:blocked:${address}`);
+          pulseTradeCache.delete(`1h:${address}`);
+          pulseTradeCache.delete(`24h:${address}`);
+        }
         return send(request, response, 200, { blocked: request.method === "POST" });
       }
 
       if (request.method === "POST" && url.pathname === "/v1/reports") {
         const reporter = await requirePrivyWallet(request);
+        limitSocialWrite(request, reporter);
         const body = await readJson(request);
         const subject = addressParam(body.subjectAddress);
         const allowed = new Set(["spam", "impersonation", "manipulation", "harmful_content", "other"]);
@@ -737,6 +866,7 @@ export function createSocialServer({ subscribe } = {}) {
 
       if (request.method === "POST" && url.pathname === "/v1/trade-notes") {
         const author = await requirePrivyWallet(request);
+        limitSocialWrite(request, author);
         const body = await readJson(request);
         const tradeId = typeof body.tradeId === "string" ? body.tradeId : "";
         const note = typeof body.note === "string" ? body.note.trim().slice(0, 240) : "";
@@ -753,6 +883,7 @@ export function createSocialServer({ subscribe } = {}) {
 
       if (request.method === "POST" && url.pathname === "/v1/trade-reactions") {
         const reactor = await requirePrivyWallet(request);
+        limitSocialWrite(request, reactor);
         const body = await readJson(request);
         const tradeId = typeof body.tradeId === "string" ? body.tradeId : "";
         const trade = await pool.query("SELECT 1 FROM trades WHERE logical_id=$1 AND chain_id=$2 AND orphaned=false", [tradeId, config.chainId]);
@@ -815,6 +946,7 @@ export function createSocialServer({ subscribe } = {}) {
       }
       if (request.method === "PATCH" && url.pathname === "/v1/notification-preferences") {
         const address = await requirePrivyWallet(request);
+        limitSocialWrite(request, address);
         const body = await readJson(request);
         const values = ["inApp", "tradeBuys", "tradeSells", "graduations"].map((key) => body[key] !== false);
         const result = await pool.query(`INSERT INTO notification_preferences (chain_id,address,in_app,trade_buys,trade_sells,graduations)
@@ -825,6 +957,7 @@ export function createSocialServer({ subscribe } = {}) {
       }
       if (request.method === "PATCH" && url.pathname === "/v1/notifications/read") {
         const address = await requirePrivyWallet(request);
+        limitSocialWrite(request, address);
         const body = await readJson(request);
         const ids = Array.isArray(body.ids)
           ? body.ids.filter((id) => (Number.isInteger(id) && id >= 0) || (typeof id === "string" && /^\d+$/.test(id))).slice(0, 100)
@@ -837,7 +970,9 @@ export function createSocialServer({ subscribe } = {}) {
     } catch (error) {
       const status = Number(error?.status) || 500;
       if (status >= 500) console.error(error);
-      return send(request, response, status, { error: status >= 500 ? "The social service could not complete this request." : error.message });
+      if (response.headersSent) return response.end();
+      return send(request, response, status, { error: status >= 500 ? "The social service could not complete this request." : error.message },
+        error.retryAfter ? { "Retry-After": String(error.retryAfter) } : {});
     }
   });
 }

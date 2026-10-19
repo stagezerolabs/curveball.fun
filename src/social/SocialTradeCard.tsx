@@ -42,7 +42,7 @@ export function SocialTradeCard({ trade, navigate }: {
       <footer>
         <div className="social-trade-actions">
           <a href={`${activeExplorerUrl}/tx/${trade.transactionHash}`} target="_blank" rel="noreferrer">View transaction <span aria-hidden="true">↗</span></a>
-          <AppLink route="market" params={{ address: trade.tokenAddress }} navigate={navigate} aria-label={`Copy ${trade.tokenName} trade`}>Copy</AppLink>
+          <AppLink route="market" params={{ address: trade.tokenAddress }} navigate={navigate} aria-label={`View ${trade.tokenName} market`}>View market</AppLink>
         </div>
       </footer>
     </article>

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useAccount, usePublicClient } from "wagmi";
 import { getAddress, isAddress, type Address } from "viem";
 import { useStore } from "../app/useStore.js";
@@ -10,6 +10,8 @@ import { TradePanel } from "../components/TradePanel";
 import { marketFields, readMarket, type CreatorTokenClient } from "../creatorTokens";
 import { activeChainId } from "../lib/web3";
 import type { MarketPriceChange } from "../lib/marketChart";
+import { useMarketPreviewStats } from "../lib/useMarketPreviewStats";
+import type { MarketPreviewStatsClient } from "../lib/marketPreviewStats";
 import { socialApiBaseUrl } from "../social/api";
 import type { Navigate, Token } from "../types";
 
@@ -56,6 +58,8 @@ export function MarketPage({
   const hasCachedResult = Object.prototype.hasOwnProperty.call(tokenCache, key);
   const resolvedToken = tokenCache[key];
   const fetchedAt = tokenFetchedAt[key];
+  const statsTokens = useMemo(() => resolvedToken ? [resolvedToken] : [], [resolvedToken]);
+  const activityStats = useMarketPreviewStats(publicClient as unknown as MarketPreviewStatsClient | undefined, statsTokens, fetchedAt ?? 0);
   const discoveryError = tokenErrors[key];
   const error = actionError || discoveryError;
   const [marketCapChange, setMarketCapChange] = useState<MarketPriceChange | null>(null);
@@ -115,7 +119,7 @@ export function MarketPage({
 
   return (
     <main className="market-page wrap">
-      <MarketHeader token={resolvedToken} marketCapChange={marketCapChange} />
+      <MarketHeader token={resolvedToken} marketCapChange={marketCapChange} activityStats={activityStats[key]} />
 
       <div className="market-workspace">
         <Suspense

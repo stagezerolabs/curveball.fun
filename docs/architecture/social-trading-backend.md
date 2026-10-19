@@ -50,7 +50,11 @@ Implemented:
 - Tuple-cursor feed pagination plus market discovery, detail, trade-history, candle, and protocol-stat reads.
 - Interval candle projection and frontend market-list/chart/activity cutover to backend reads when the service is configured.
 - Versioned known-basis performance snapshots and atomically published leaderboard snapshots.
+- Pulse signal desk: 1h/24h grouped market moments, followed-trader moments, qualified trader snapshots, and an opt-in cursor-paginated raw trade record. Public moment summaries are cached for 30 seconds; the raw record no longer polls or subscribes on every page view.
+- The web app currently shows explicitly labeled example data in Pulse's Now and Following tabs while the real follow-list/read-model experience is being designed. Leaderboard and Live remain service-backed; example addresses and transactions are not linked as real markets.
+- Trader rankings use the `curve-known-basis-v2` method: minimum sample/spend requirements, current curve marks for open positions, stale-price and outbound-transfer guards, and visible snapshot methodology. Track record ranks estimated net known-basis PnL divided by cumulative curve buy spend; Emerging ranks estimated net known-basis PnL for newer qualified wallets. Neither proves a wallet represents an independent human or predicts future performance.
 - Resumable Postgres-outbox SSE, cached RNS identity reads, and normalized token-metadata refresh.
+- A shared API-process outbox poller serves SSE clients with bounded replay/backpressure instead of one database poll per connection. Authenticated social writes have a per-wallet process-local limit.
 - Independently runnable API, advisory-locked indexer, and background worker processes.
 - Privy access-token verification with linked active-wallet authorization.
 - Profiles, follows, bidirectional block enforcement, reports, notes, conviction reactions, notifications, and preferences.
@@ -64,7 +68,13 @@ Still required for the end state:
 
 - Shared request/response validation.
 - A standalone notification delivery publisher for channels beyond in-app resumable SSE.
-- Structured telemetry and application-level rate limiting in addition to the required edge limiter.
+- Structured telemetry, load testing at the target concurrency, and shared/edge rate limiting across API replicas. The current in-process wallet limit is not a distributed abuse control.
+
+## Pulse capacity notes
+
+`GET /v1/pulse` aggregates the full requested trade window into token/trader/time buckets before ranking moments; it does not infer completeness from an arbitrary 5,000-trade cap. The database selects the strongest window per market and returns at most 12 cards. The public result is cached for 30 seconds per API process. Viewers with blocks get a filtered, short-lived result; block graph reads are cached for up to 60 seconds across API replicas. Following is calculated for an authenticated viewer and cached briefly. At larger trade volumes, measure query time, cache hit rate, and database CPU before launch; a persisted rollup may be needed. The 3,000-active-user target has not been load-tested.
+
+The published leaderboard is a read of a precomputed snapshot, not a request-time scan of all trades. Snapshot age, methodology version, sample requirements, and known-basis caveats are surfaced to readers. Existing v1 snapshots are deliberately withheld from the new Traders UI until a v2 publication succeeds.
 
 ## Cutover order
 

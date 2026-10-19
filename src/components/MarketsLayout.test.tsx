@@ -25,7 +25,7 @@ test("graduation feature shows only the top three live coins", () => {
   expect(html).toContain("MCAP");
 });
 
-test("market cards show artwork, identity, market data, and curve progress", () => {
+test("market cards show a compact overview and keep detailed activity off the directory", () => {
   const html = renderToStaticMarkup(<MarketList
     tokens={[tokens[0]]}
     loading={false}
@@ -43,24 +43,36 @@ test("market cards show artwork, identity, market data, and curve progress", () 
     }}
   />);
   expect(html).toContain('class="market-card-grid"');
-  expect(html).toContain('class="market-card-art"');
+  expect(html).toContain('class="market-card-top"');
   expect(html).not.toContain('class="market-card-social-preview"');
   expect(html).toContain("Coin 1");
-  expect(html).toContain("MCAP");
-  expect(html).not.toContain("PRICE");
-  expect(html).toContain("ATH");
-  expect(html).toContain("24HR VOL");
-  expect(html).toContain("AGE");
-  expect(html).toContain("TXNS");
-  expect(html).toContain("128");
-  expect(html).toContain("TRADERS");
+  expect(html).toContain("Market cap");
+  expect(html).toContain("Volume 24h");
+  expect(html).toContain("Traders");
   expect(html).toContain("42");
-  expect(html).toContain("+10.0%");
-  expect(html).toContain("-3.2%");
-  expect(html).toContain("10.0%");
+  expect(html).toContain("On the curve");
+  expect(html).toContain("10.0% sold");
+  expect(html).toContain('class="market-card-progress-track" value="10" max="100"');
+  expect(html).not.toContain("PRICE");
+  expect(html).not.toContain("ATH");
+  expect(html).not.toContain("TXNS");
+  expect(html).not.toContain("+10.0%");
   expect(html).toContain('/markets/');
   expect(html).not.toContain("V1");
   expect(html).not.toContain('class="market-card-address"');
+});
+
+test("row view uses a single-column list", () => {
+  const html = renderToStaticMarkup(<MarketList tokens={tokens} loading={false} navigate={() => undefined} view="rows" />);
+  expect(html).toContain('class="market-card-grid market-card-grid-rows"');
+  expect(html.match(/class="market-card /g)?.length).toBe(4);
+  expect(html.match(/class="market-card-progress-track"/g)?.length).toBe(4);
+});
+
+test("graduated markets keep a full progress bar", () => {
+  const html = renderToStaticMarkup(<MarketList tokens={[{ ...tokens[0], graduated: true }]} loading={false} navigate={() => undefined} />);
+  expect(html).toContain('class="market-card-progress-track" value="100" max="100"');
+  expect(html).toContain("Graduated · 100%");
 });
 
 test("a filled curve waiting for graduation is not marked live", () => {

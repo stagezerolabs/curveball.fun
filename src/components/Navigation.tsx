@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useQuery } from "@tanstack/react-query";
-import { useAccount, usePublicClient, useSwitchChain } from "wagmi";
+import { useAccount, useSwitchChain } from "wagmi";
 import type { AnchorHTMLAttributes, MouseEvent, ReactNode } from "react";
 import type { Address } from "viem";
 import { routeHref } from "../app/routeTree";
@@ -10,10 +10,7 @@ import type { Navigate } from "../types";
 import { activeExplorerUrl, launchpadAddress } from "../lib/web3";
 import { fetchRnsPrimaryName } from "../lib/rnsPrimary";
 import type { Theme } from "../lib/theme";
-import { useStore } from "../app/useStore.js";
 import { activeChainId } from "../lib/web3";
-import type { CreatorTokenClient } from "../creatorTokens";
-import type { Token } from "../types";
 import { AccountPopover } from "./AccountPopover";
 import { NotificationsPopover } from "./NotificationsPopover";
 
@@ -155,58 +152,6 @@ function WalletNavButton({ address, displayName, navigate, profileActive = false
   return <AccountPopover address={address} label={walletLabel} navigate={navigate} profileActive={profileActive} />;
 }
 
-function HeaderSearch({ navigate }: { navigate: Navigate }) {
-  const client = usePublicClient({ chainId: activeChainId });
-  const { tokens, loadMarkets } = useStore() as {
-    tokens: Token[];
-    loadMarkets: (client?: CreatorTokenClient) => Promise<Token[]>;
-  };
-  const [query, setQuery] = useState("");
-  const [focused, setFocused] = useState(false);
-  const results = query.trim()
-    ? tokens.filter((token) => `${token.name} ${token.symbol} ${token.address}`.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 6)
-    : [];
-  const select = (token: Token) => {
-    setQuery("");
-    setFocused(false);
-    navigate("market", { address: token.address });
-  };
-
-  return (
-    <div className="header-search" onBlur={(event) => {
-      if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false);
-    }}>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
-        <circle cx="10.5" cy="10.5" r="6.5" /><path d="m15.5 15.5 5 5" />
-      </svg>
-      <input
-        type="search"
-        aria-label="Search coins"
-        placeholder="Search coins"
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        onFocus={() => {
-          setFocused(true);
-          void loadMarkets(client as unknown as CreatorTokenClient | undefined).catch(() => undefined);
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Escape") { setFocused(false); event.currentTarget.blur(); }
-          if (event.key === "Enter" && results[0]) select(results[0]);
-        }}
-      />
-      {focused && query.trim() && (
-        <div className="header-search-results" role="status">
-          {results.length ? results.map((token) => (
-            <button key={token.address} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => select(token)}>
-              <strong>{token.name}</strong><span>${token.symbol}</span>
-            </button>
-          )) : <p>No matching coins</p>}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function Header({
   address,
   isAdmin,
@@ -307,7 +252,7 @@ export function Header({
         navigate={go}
         aria-current={socialClass ? "page" : undefined}
       >
-        Social
+        Pulse
       </AppLink>
       <AppLink
         className={`nav-link ${profileClass}`}
@@ -332,11 +277,10 @@ export function Header({
       </aside>}
       <header className="nav wrap">
         <Brand navigate={go} />
-        <HeaderSearch navigate={go} />
         <nav ref={primaryNavRef} className="nav-primary" aria-label="Main navigation">
           <span ref={activePillRef} className="nav-active-pill" aria-hidden="true" />
           <AppLink className={`nav-link ${marketsClass}`} route="markets" navigate={go} aria-current={marketsClass ? "page" : undefined}>Explore</AppLink>
-          <AppLink className={`nav-link ${socialClass}`} route="social" navigate={go} aria-current={socialClass ? "page" : undefined}>Social</AppLink>
+          <AppLink className={`nav-link ${socialClass}`} route="social" navigate={go} aria-current={socialClass ? "page" : undefined}>Pulse</AppLink>
           {isAdmin && <AppLink className={`nav-link ${adminClass}`} route="admin" navigate={go} aria-current={adminClass ? "page" : undefined}>Admin</AppLink>}
         </nav>
         <div className="nav-actions">
