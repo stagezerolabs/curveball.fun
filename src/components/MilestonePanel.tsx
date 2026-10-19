@@ -39,7 +39,7 @@ export function MilestonePanel({
     graduateMarket: (token: Address, factory?: Address) => Promise<void>;
   };
 
-  const progress = token.graduated ? 100 : (token.progress ?? 0);
+  const progress = token.progress ?? 0;
   const marketStatus = getMarketDisplayStatus(token);
   const marketFactory = launchpadAddress ? factoryForToken(token.factory) : undefined;
   const { data: escrow } = useReadContract({ address: marketFactory, abi: curveLaunchpadAbi, functionName: "escrow", chainId: activeChainId, query: { enabled: Boolean(marketFactory) } });
@@ -80,20 +80,22 @@ export function MilestonePanel({
         </span>
       </header>
 
-      <div className="milestone-bar-row">
-        <span>{token.graduated ? "Graduated" : "Progress to graduation"}</span>
-        <strong>{formatPercent(progress)}</strong>
-      </div>
-      <div
-        className="milestone-bar"
-        role="progressbar"
-        aria-valuenow={Math.round(progress)}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-label="Progress to graduation"
-      >
-        <span style={{ width: formatPercent(progress) }} />
-      </div>
+      {!token.graduated && <>
+        <div className="milestone-bar-row">
+          <span>Progress to graduation</span>
+          <strong>{formatPercent(progress)}</strong>
+        </div>
+        <div
+          className="milestone-bar"
+          role="progressbar"
+          aria-valuenow={Math.round(progress)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label="Progress to graduation"
+        >
+          <span style={{ width: formatPercent(progress) }} />
+        </div>
+      </>}
 
       <dl className="milestone-figures">
         {token.graduationTargetWeth && <div><dt>Pool WETH at graduation</dt><dd>{token.graduationTargetWeth} WETH</dd></div>}
