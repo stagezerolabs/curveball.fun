@@ -441,6 +441,9 @@ async function indexFactoryRange(fromBlock, toBlock) {
          FROM markets m JOIN follows f ON f.chain_id=m.chain_id AND f.followed_address=m.creator_address
          LEFT JOIN notification_preferences p ON p.chain_id=f.chain_id AND p.address=f.follower_address
          WHERE m.chain_id=$1 AND m.token_address=$4 AND COALESCE(p.in_app,true)=true AND COALESCE(p.graduations,true)=true
+           AND NOT EXISTS (SELECT 1 FROM blocks b WHERE b.chain_id=m.chain_id AND (
+             (b.blocker_address=f.follower_address AND b.blocked_address=m.creator_address)
+             OR (b.blocker_address=m.creator_address AND b.blocked_address=f.follower_address)))
          ON CONFLICT DO NOTHING`,
         [config.chainId, eventId, JSON.stringify({ tokenAddress: lower(log.args.token), poolAddress: lower(log.args.pool) }), lower(log.args.token)],
       );
@@ -532,6 +535,9 @@ async function indexTradeRange(fromBlock, toBlock, onEvent) {
          WHERE f.chain_id = $1 AND f.followed_address = $3
            AND COALESCE(p.in_app, true) = true
            AND CASE WHEN $6::boolean THEN COALESCE(p.trade_buys, true) ELSE COALESCE(p.trade_sells, true) END
+           AND NOT EXISTS (SELECT 1 FROM blocks b WHERE b.chain_id=f.chain_id AND (
+             (b.blocker_address=f.follower_address AND b.blocked_address=f.followed_address)
+             OR (b.blocker_address=f.followed_address AND b.blocked_address=f.follower_address)))
          ON CONFLICT DO NOTHING`,
         [config.chainId, log.args.isBuy ? "followed_buy" : "followed_sell", lower(log.args.trader), id,
           JSON.stringify({ tokenAddress: lower(log.args.token), transactionHash: lower(log.transactionHash) }), log.args.isBuy],
@@ -563,6 +569,9 @@ async function indexTradeRange(fromBlock, toBlock, onEvent) {
           FROM recipients r
           LEFT JOIN notification_preferences p ON p.chain_id=$1 AND p.address=r.recipient_address
           WHERE COALESCE(p.in_app,true)=true AND COALESCE(p.graduations,true)=true
+            AND NOT EXISTS (SELECT 1 FROM blocks b WHERE b.chain_id=$1 AND (
+              (b.blocker_address=r.recipient_address AND b.blocked_address=$3)
+              OR (b.blocker_address=$3 AND b.blocked_address=r.recipient_address)))
             AND NOT EXISTS (
               SELECT 1 FROM notifications n
               WHERE n.chain_id=$1 AND n.recipient_address=r.recipient_address AND n.kind='curve_milestone'

@@ -4337,6 +4337,50 @@ select:focus-visible {
 .social-service-state p { font-size: 12px; margin: 0 auto 16px; max-width: 540px; }
 .social-feed-state button,
 .social-feed-state a { background: transparent; border: 1px solid var(--line); border-radius: 7px; color: var(--ink); display: inline-flex; font-size: 12px; font-weight: 700; padding: 9px 12px; }
+.social-activity-section { display: grid; gap: 14px; margin-top: 42px; }
+.social-activity-section h2, .profile-connections h2 { font-size: 18px; margin: 0; }
+.social-load-more { display: block; margin: 18px auto 0; }
+.social-trade-note { border-left: 2px solid var(--lime); color: var(--ink); font-size: 13px; line-height: 1.5; margin: 0 0 14px; padding-left: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.social-trade-form { display: grid; gap: 8px; margin: 10px 0; }
+.social-trade-form label { font-size: 12px; font-weight: 700; }
+.social-trade-form textarea, .social-trade-form select, .market-trade-context textarea { background: var(--raise); border: 1px solid var(--line); border-radius: 7px; color: var(--ink); font: inherit; min-height: 38px; padding: 8px; width: 100%; }
+.social-trade-form > div { display: flex; gap: 8px; }
+.social-trade-form button, .market-trade-context button { background: transparent; border: 1px solid var(--line); border-radius: 7px; color: var(--ink); font-size: 11px; min-height: 30px; padding: 4px 9px; }
+.trader-directory { display: grid; gap: 16px; padding-top: 18px; }
+.trader-directory .market-search { max-width: 520px; }
+.trader-directory-list { display: grid; gap: 8px; list-style: none; margin: 0; padding: 0; }
+.trader-directory-list li { align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; display: flex; gap: 12px; justify-content: space-between; min-width: 0; padding: 12px; }
+.trader-directory-list li > div { min-width: 0; }
+.trader-directory-list small, .trader-directory-list p { color: var(--muted); font-size: 11px; margin: 3px 0 0; overflow-wrap: anywhere; }
+.profile-connections { display: grid; gap: 8px; margin: 20px 0; }
+.profile-hero-social button { background: none; border: 0; color: inherit; cursor: pointer; font: inherit; padding: 0; }
+.profile-hero-social button:hover { color: var(--ink); }
+.pulse-period-select { align-items: center; color: var(--muted); display: inline-flex; font-size: 11px; gap: 7px; white-space: nowrap; }
+.pulse-period-select select { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; color: var(--ink); font: inherit; min-height: 32px; }
+.notifications-page { padding-block: 34px 100px; width: min(760px, calc(100% - 48px)); }
+.notifications-page header { align-items: baseline; display: flex; justify-content: space-between; }
+.notifications-page h1 { font-family: "Instrument Serif", Georgia, serif; font-size: clamp(40px, 6vw, 64px); font-weight: 400; margin: 0 0 20px; }
+.notifications-page header p { color: var(--muted); font-size: 12px; }
+.notifications-inbox-list { display: grid; gap: 7px; list-style: none; margin: 0; padding: 0; }
+.notifications-inbox-list li a { align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; color: var(--ink); display: flex; gap: 14px; padding: 14px; text-decoration: none; }
+.notifications-inbox-list li { align-items: center; display: flex; gap: 8px; }
+.notifications-inbox-list li a.notification-primary { flex: 1; min-width: 0; }
+.notifications-inbox-list li a.notification-market-link { flex: 0 0 auto; font-size: 12px; padding: 10px; }
+.notifications-popover-list li { align-items: center; display: flex; gap: 3px; }
+.notifications-popover-list li > a.notification-primary { flex: 1; min-width: 0; }
+.notifications-popover-list li > a.notification-market-link { display: inline-flex; flex: 0 0 auto; font-size: 11px; min-height: 36px; padding: 5px; width: auto; }
+.notifications-inbox-list li.unread a { border-color: var(--lime); }
+.notifications-inbox-list li a > span:nth-child(2) { display: grid; gap: 4px; }
+.notifications-inbox-list time { color: var(--muted); font-size: 11px; }
+.market-trade-context { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+.market-trade-context p { flex-basis: 100%; font-size: 11px; margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.market-trade-context form { display: grid; flex-basis: 100%; gap: 5px; }
+.market-trade-context button:focus-visible, .market-trade-context textarea:focus-visible, .notifications-page a:focus-visible, .notifications-page button:focus-visible { outline: 2px solid var(--lime); outline-offset: 2px; }
+@media (max-width: 520px) {
+  .trader-directory-list li { align-items: flex-start; flex-direction: column; }
+  .notifications-page { width: min(100% - 32px, 760px); }
+  .notifications-page header { align-items: flex-start; flex-direction: column; }
+}
 
 /* Pulse: grouped activity first, rankings second. */
 .pulse-tabs { min-width: 0; }

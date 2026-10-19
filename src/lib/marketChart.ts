@@ -1,6 +1,10 @@
 import { formatEther, isAddress, type Address, type Hash } from "viem";
 
 export type TradeActivity = {
+  id?: string;
+  note?: string | null;
+  reactionCount?: number;
+  reacted?: boolean;
   trader: Address;
   participantRole: "trader" | "recipient";
   venue: "curve" | "pool";

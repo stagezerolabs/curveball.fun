@@ -50,6 +50,13 @@
       "when": 1792336539780,
       "tag": "0006_lean_launchpad",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792409545612,
+      "tag": "0007_aspiring_mad_thinker",
+      "breakpoints": true
     }
   ]
 }

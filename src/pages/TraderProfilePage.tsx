@@ -12,6 +12,8 @@ import type { Navigate } from "../types";
 import { FollowButton } from "../social/FollowButton";
 import { TraderAvatar } from "../social/TraderAvatar";
 import { NotificationPreferences } from "../social/NotificationPreferences";
+import { SocialFeed } from "../social/SocialFeed";
+import { TraderDirectory } from "../social/TraderDirectory";
 import { socialApi, socialApiConfigured } from "../social/api";
 import type { TraderProfile } from "../social/types";
 import { useSocialAuth } from "../social/useSocialAuth";
@@ -38,11 +40,12 @@ function ProfileEditor({ profile, onSaved }: {
   const { ensureAuthenticated } = useSocialAuth();
   const [displayName, setDisplayName] = useState(profile.displayName ?? "");
   const [bio, setBio] = useState(profile.bio);
-  const dirty = displayName !== (profile.displayName ?? "") || bio !== profile.bio;
+  const [discoverable, setDiscoverable] = useState(profile.discoverable);
+  const dirty = displayName !== (profile.displayName ?? "") || bio !== profile.bio || discoverable !== profile.discoverable;
   const mutation = useMutation({
     mutationFn: async () => {
       await ensureAuthenticated();
-      return socialApi.saveProfile({ displayName, bio, discoverable: profile.discoverable });
+      return socialApi.saveProfile({ displayName, bio, discoverable });
     },
     onSuccess: onSaved,
   });
@@ -53,6 +56,7 @@ function ProfileEditor({ profile, onSaved }: {
       <label htmlFor="trader-display-name">Display name</label>
       <input id="trader-display-name" maxLength={40} autoComplete="nickname" value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Your .rise name is shown first" />
     </div>
+    <label className="settings-toggle-row"><span className="settings-toggle-copy"><strong>Discoverable profile</strong><small>Allow other traders to find and follow you. Turning this off removes incoming follows.</small></span><input className="profile-switch" type="checkbox" role="switch" checked={discoverable} onChange={(event) => setDiscoverable(event.target.checked)} /></label>
     <div className="settings-field">
       <div className="settings-field-label"><label htmlFor="trader-bio">Bio</label><small aria-live="polite">{bio.length}/280</small></div>
       <textarea id="trader-bio" rows={3} maxLength={280} value={bio} onChange={(event) => setBio(event.target.value)} placeholder="How you trade, in a line or two" />
@@ -78,15 +82,11 @@ export function TraderProfilePage({ address: routeAddress, navigate, launches = 
   const [reportReason, setReportReason] = useState("spam");
   const [reportDetails, setReportDetails] = useState("");
   const [notice, setNotice] = useState("");
+  const [connectionView, setConnectionView] = useState<"followers" | "following" | null>(null);
   const isOwner = Boolean(traderAddress && walletAddress?.toLowerCase() === traderAddress.toLowerCase());
   const profile = useQuery({
     queryKey: ["social", "profile", traderAddress?.toLowerCase(), walletAddress?.toLowerCase()],
     queryFn: () => socialApi.profile(traderAddress!),
-    enabled: socialApiConfigured && Boolean(traderAddress),
-  });
-  const trades = useQuery({
-    queryKey: ["social", "profile-trades", traderAddress?.toLowerCase()],
-    queryFn: () => socialApi.feed("global", undefined, traderAddress!),
     enabled: socialApiConfigured && Boolean(traderAddress),
   });
   const rns = useQuery({
@@ -155,9 +155,9 @@ export function TraderProfilePage({ address: routeAddress, navigate, launches = 
             <a href={`${activeExplorerUrl}/address/${traderAddress}`} target="_blank" rel="noreferrer" title={traderAddress}>{formatAddress(traderAddress)} <span aria-hidden="true">↗</span></a>
           </p>
           {data.bio ? <p className="profile-hero-bio">{data.bio}</p> : null}
-          <p className="profile-hero-social"><span><strong>{data.followers}</strong> followers</span><span><strong>{data.following}</strong> following</span></p>
+          <p className="profile-hero-social"><button type="button" onClick={() => setConnectionView(connectionView === "followers" ? null : "followers")} aria-expanded={connectionView === "followers"}><strong>{data.followers}</strong> followers</button><button type="button" onClick={() => setConnectionView(connectionView === "following" ? null : "following")} aria-expanded={connectionView === "following"}><strong>{data.following}</strong> following</button></p>
           {!isOwner ? <div className="profile-hero-actions">
-            <FollowButton trader={traderAddress} following={data.isFollowed} onError={setNotice} />
+            {data.discoverable ? <FollowButton trader={traderAddress} following={data.isFollowed} onError={setNotice} /> : null}
             <Menu.Root>
               <Menu.Trigger className="profile-icon-button" aria-label="More actions" title="More actions"><span aria-hidden="true">⋯</span></Menu.Trigger>
               <Menu.Portal>
@@ -186,6 +186,7 @@ export function TraderProfilePage({ address: routeAddress, navigate, launches = 
         </dl>
       </section>
     </div>
+    {connectionView ? <div className="profile-connections"><h2>{connectionView === "followers" ? "Followers" : "Following"}</h2><TraderDirectory key={`${traderAddress}-${connectionView}`} navigate={navigate} address={traderAddress} kind={connectionView} /></div> : null}
 
     {reporting ? <form id="trader-report-form" className="profile-settings-card trader-report-form" aria-label="Report this profile" onSubmit={(event) => { event.preventDefault(); void reportProfile(); }}>
       <div><label htmlFor="trader-report-reason">Reason</label><select id="trader-report-reason" value={reportReason} onChange={(event) => setReportReason(event.target.value)}><option value="spam">Spam</option><option value="impersonation">Impersonation</option><option value="manipulation">Suspected manipulation</option><option value="harmful_content">Harmful content</option><option value="other">Other</option></select></div>
@@ -217,16 +218,7 @@ export function TraderProfilePage({ address: routeAddress, navigate, launches = 
       </Tabs.Panel>
 
       <Tabs.Panel value="activity" className="profile-section-panel">
-        {trades.isLoading ? <div className="profile-list-skeleton" aria-busy="true" aria-label="Loading activity">{Array.from({ length: 4 }, (_, index) => <span className="skeleton" key={index} />)}</div>
-          : trades.isError ? <EmptyState title="Activity is unavailable" action={<button className="profile-secondary-action" type="button" onClick={() => void trades.refetch()}>Retry</button>}>{trades.error instanceof Error ? trades.error.message : "Try again shortly."}</EmptyState>
-            : !trades.data?.items.length ? <EmptyState title="No trades yet">{isOwner ? "Your buys and sells on Curveball show up here." : "This trader hasn't traded on Curveball yet."}</EmptyState>
-              : <ul className="profile-list">{trades.data.items.slice(0, 20).map((trade) => <li key={trade.id}>
-                <AppLink className="profile-row" route="market" params={{ address: trade.tokenAddress }} navigate={navigate}>
-                  <span className={`social-side ${trade.isBuy ? "buy" : "sell"}`}>{trade.isBuy ? "Buy" : "Sell"}</span>
-                  <span className="profile-row-main"><strong>{trade.tokenName}</strong><small>${trade.tokenSymbol}</small></span>
-                  <span className="profile-row-value"><strong>{formatEthAmount(wethAmount(trade.quoteAmountWei))} WETH</strong><time dateTime={trade.blockTimestamp}>{formatRelativeTime(trade.blockTimestamp)}</time></span>
-                </AppLink>
-              </li>)}</ul>}
+        <SocialFeed scope="global" trader={traderAddress} navigate={navigate} />
       </Tabs.Panel>
 
       {launches ? <Tabs.Panel value="launches" className="profile-section-panel">{launches}</Tabs.Panel> : null}

@@ -3,6 +3,7 @@ import { formatEther } from "viem";
 import { formatAddress } from "../lib/format.js";
 import { tokenDescription } from "../lib/tokenMetadata";
 import { activeExplorerUrl } from "../lib/web3";
+import { routeHref } from "../app/routeTree";
 import type { Token } from "../types";
 
 function AddressValue({ address }: { address: string }) {
@@ -51,7 +52,7 @@ export function MarketAbout({ token }: { token: Token }) {
       <dl className="market-about-facts">
         <Fact label="Token contract"><AddressValue address={token.address} /></Fact>
         {token.factory && <Fact label="Launchpad"><AddressValue address={token.factory} /></Fact>}
-        <Fact label="Creator"><AddressValue address={token.creator} /></Fact>
+        <Fact label="Creator"><a className="market-about-address" href={routeHref("trader", { address: token.creator })}>View trader profile</a> <AddressValue address={token.creator} /></Fact>
       </dl>
     </details>
   </section>;

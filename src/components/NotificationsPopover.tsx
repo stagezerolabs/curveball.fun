@@ -4,25 +4,47 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { MouseEvent, ReactNode } from "react";
 import type { Address } from "viem";
 import { routeHref } from "../app/routeTree";
+import { activeExplorerUrl } from "../lib/web3";
 import { formatAddress, formatRelativeTime } from "../lib/format.js";
 import { socialApi, socialApiConfigured } from "../social/api";
 import type { NotificationItem } from "../social/types";
 import type { Navigate } from "../types";
 
-function NotificationLink({ address, navigate, children }: { address: Address; navigate: Navigate; children: ReactNode }) {
-  return <a href={routeHref("market", { address })} onClick={(event: MouseEvent<HTMLAnchorElement>) => {
+export function NotificationLink({ item, navigate, onOpen, children }: { item: NotificationItem; navigate: Navigate; onOpen?: () => void; children: ReactNode }) {
+  if ((item.kind === "followed_buy" || item.kind === "followed_sell" || item.kind === "reaction") && item.payload.transactionHash) {
+    return <a className="notification-primary" href={`${activeExplorerUrl}/tx/${item.payload.transactionHash}`} target="_blank" rel="noreferrer" onClick={onOpen}>{children}<span className="visually-hidden">View transaction on explorer</span></a>;
+  }
+  const market = item.payload.tokenAddress;
+  const actor = item.actor_address;
+  const route = market ? "market" : actor ? "trader" : "notifications";
+  const address = market || actor;
+  return <a className="notification-primary" href={routeHref(route, address ? { address } : {})} onClick={(event: MouseEvent<HTMLAnchorElement>) => {
     if (event.button || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
-    navigate("market", { address });
+    onOpen?.();
+    navigate(route, address ? { address } : undefined);
   }}>{children}</a>;
 }
 
-function notificationCopy(item: NotificationItem) {
+export function NotificationMarketLink({ item, navigate }: { item: NotificationItem; navigate: Navigate }) {
+  const address = item.payload.tokenAddress;
+  if (!address || !item.payload.transactionHash || !["followed_buy", "followed_sell", "reaction"].includes(item.kind)) return null;
+  return <a className="notification-market-link" href={routeHref("market", { address })} onClick={(event) => {
+    if (event.button || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    navigate("market", { address });
+  }}>Market</a>;
+}
+
+export function notificationCopy(item: NotificationItem) {
   const token = item.payload.tokenName || item.payload.tokenSymbol || "A token";
   const trader = item.payload.actorDisplayName
     || (item.actor_address ? formatAddress(item.actor_address) : "A trader you follow");
   if (item.kind === "followed_buy") return { badge: "Buy", text: `${trader} bought ${token}` };
   if (item.kind === "followed_sell") return { badge: "Sell", text: `${trader} sold ${token}` };
+  if (item.kind === "new_follower") return { badge: "+", text: `${trader} followed you` };
+  if (item.kind === "graduation") return { badge: "100%", text: `${token} graduated` };
+  if (item.kind === "reaction") return { badge: "♥", text: `${trader} reacted to your trade` };
   const milestone = item.payload.milestone ?? 100;
   return { badge: `${milestone}%`, text: `${token} reached ${milestone}% of its curve sold` };
 }
@@ -43,20 +65,18 @@ export function NotificationsPopover({ address, navigate }: { address: Address; 
     mutationFn: (ids: string[]) => socialApi.markNotificationsRead(ids),
     onSuccess: (_result, ids) => {
       const readAt = new Date().toISOString();
-      queryClient.setQueryData<{ items: NotificationItem[] }>(queryKey, (current) => current ? {
+      queryClient.setQueryData<{ items: NotificationItem[]; nextCursor: string | null; unreadCount: number }>(queryKey, (current) => current ? {
+        ...current,
+        unreadCount: Math.max(0, current.unreadCount - current.items.filter((item) => ids.includes(item.id) && !item.read_at).length),
         items: current.items.map((item) => ids.includes(item.id) ? { ...item, read_at: readAt } : item),
       } : current);
     },
   });
-  const unreadCount = notifications.data?.items.filter((item) => !item.read_at).length ?? 0;
+  const unreadCount = notifications.data?.unreadCount ?? 0;
 
   function handleOpenChange(next: boolean) {
     setOpen(next);
-    if (!next) return;
-    void notifications.refetch().then(({ data }) => {
-      const ids = data?.items.filter((item) => !item.read_at).map((item) => item.id) ?? [];
-      if (ids.length) markRead.mutate(ids);
-    });
+    if (next) void notifications.refetch();
   }
 
   const go: Navigate = (route, params) => {
@@ -77,7 +97,8 @@ export function NotificationsPopover({ address, navigate }: { address: Address; 
       <Popover.Positioner className="notifications-popover-positioner" sideOffset={10} align="end" collisionPadding={12}>
         <Popover.Popup className="notifications-popover" aria-busy={notifications.isLoading}>
           <Popover.Title className="notifications-popover-title">Notifications</Popover.Title>
-          {notifications.isLoading ? <div className="notifications-popover-loading" aria-label="Loading notifications"><span className="skeleton" /><span className="skeleton" /><span className="skeleton" /></div>
+          {!socialApiConfigured ? <div className="notifications-popover-state"><strong>Notifications are unavailable</strong></div>
+            : notifications.isLoading ? <div className="notifications-popover-loading" aria-label="Loading notifications"><span className="skeleton" /><span className="skeleton" /><span className="skeleton" /></div>
             : notifications.isError ? <div className="notifications-popover-state" role="alert"><strong>Notifications unavailable</strong><button type="button" onClick={() => void notifications.refetch()}>Try again</button></div>
               : !notifications.data?.items.length ? <div className="notifications-popover-state"><strong>You’re all caught up</strong><p>Follow traders to see their trades and token milestones here.</p></div>
                 : <ol className="notifications-popover-list">{notifications.data.items.map((item) => {
@@ -85,14 +106,11 @@ export function NotificationsPopover({ address, navigate }: { address: Address; 
                   const content = <>
                     <span className={`notification-kind ${item.kind}`} aria-hidden="true">{copy.badge}</span>
                     <span><strong>{copy.text}</strong><time dateTime={item.created_at}>{formatRelativeTime(item.created_at)}</time></span>
-                    {!item.read_at ? <i className="notification-unread-dot" aria-label="Unread" /> : null}
+                    {!item.read_at ? <span className="notification-unread-dot"><span className="visually-hidden">Unread</span></span> : null}
                   </>;
-                  return <li key={item.id}>{item.payload.tokenAddress
-                    ? <NotificationLink address={item.payload.tokenAddress} navigate={go}>{content}</NotificationLink>
-                    : <div>{content}</div>}
-                  </li>;
+                  return <li key={item.id}><NotificationLink item={item} navigate={go} onOpen={() => { if (!item.read_at) markRead.mutate([item.id]); }}>{content}</NotificationLink><NotificationMarketLink item={item} navigate={go} /></li>;
                 })}</ol>}
-          <footer><button type="button" onClick={() => { setOpen(false); navigate("profileSettings"); }}>Notification settings <span aria-hidden="true">›</span></button></footer>
+          <footer><button type="button" onClick={() => { setOpen(false); navigate("notifications"); }}>View all notifications <span aria-hidden="true">›</span></button><button type="button" onClick={() => { setOpen(false); navigate("profileSettings"); }}>Notification settings <span aria-hidden="true">›</span></button></footer>
         </Popover.Popup>
       </Popover.Positioner>
     </Popover.Portal>

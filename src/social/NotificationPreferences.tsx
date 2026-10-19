@@ -8,14 +8,17 @@ type Preferences = {
   trade_buys: boolean;
   trade_sells: boolean;
   graduations: boolean;
+  new_followers: boolean;
 };
 
 const glyph = (path: string) => <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={path} /></svg>;
 
 const options = [
+  ["in_app", "In-app notifications", "Receive alerts in Curveball", "milestone", glyph("M10 3a6 6 0 0 0-6 6v5l-2 2h16l-2-2V9a6 6 0 0 0-6-6")],
   ["trade_buys", "Buys", "From traders you follow", "buy", glyph("M5 15 15 5M7 5h8v8")],
   ["trade_sells", "Sells", "From traders you follow", "sell", glyph("M5 5l10 10M15 7v8H7")],
   ["graduations", "Milestones", "Curves at 25, 50, 70 and 100%", "milestone", glyph("M5 17V3.5M5 4h9l-2 3.5 2 3.5H5")],
+  ["new_followers", "New followers", "When someone follows your profile", "follow", glyph("M10 4v12M4 10h12")],
 ] as const;
 
 export function NotificationPreferences({ address }: { address: Address }) {
@@ -35,6 +38,7 @@ export function NotificationPreferences({ address }: { address: Address }) {
         tradeBuys: next.trade_buys,
         tradeSells: next.trade_sells,
         graduations: next.graduations,
+        newFollowers: next.new_followers,
       });
     },
     onSuccess: (next) => queryClient.setQueryData(["social", "notification-preferences", address.toLowerCase()], next),

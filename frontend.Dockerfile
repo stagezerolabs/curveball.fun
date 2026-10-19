@@ -11,6 +11,7 @@ COPY services/social/package.json ./services/social/package.json
 RUN bun install --frozen-lockfile
 
 COPY index.html vite.config.js tsconfig.json ./
+COPY packages/social-contract ./packages/social-contract
 COPY api ./api
 COPY src ./src
 

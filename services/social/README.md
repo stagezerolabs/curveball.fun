@@ -4,7 +4,7 @@ This service indexes factory launches, bonding-curve trades, ERC-20 transfers, p
 
 It never holds user wallet keys and never submits trades.
 
-Pulse reads are served by `GET /v1/pulse?scope=now|following&period=1h|24h`. The public Now result is cached for 30 seconds per API process; Following requires an authenticated wallet and honors the viewer's follow/block graph. `GET /v1/leaderboards/consistent` and `/new` return published qualified snapshots with rank evidence. The raw `GET /v1/feed` remains available for the opt-in Live view with cursor pagination. See [the architecture notes](../../docs/architecture/social-trading-backend.md) for capacity and methodology limits.
+Pulse reads are served by `GET /v1/pulse?scope=now|following&period=1h|24h`. The public Now result is cached for 30 seconds per API process. Following reads require an authenticated linked wallet; `GET /v1/following/buys?period=1h|24h` includes only opted-in followed traders whose latest canonical trade in the window is a buy. `GET /v1/profiles?search=&cursor=` and `/v1/profiles/:address/followers|following` paginate opted-in discovery. `GET /v1/feed` paginates global, Following, and trader trades. Leaderboards support `consistent`, `new`, `trending`, and `followers`, with labeled provisional results when a current published snapshot is unavailable. `GET /v1/notifications?cursor=` returns all persisted kinds, unread count, and the next page; preferences include new-follower alerts. See [the architecture notes](../../docs/architecture/social-trading-backend.md) for capacity and methodology limits.
 
 ## Run
 

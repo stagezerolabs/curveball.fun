@@ -9,6 +9,7 @@ COPY services/social/package.json ./services/social/package.json
 RUN bun install --frozen-lockfile
 
 COPY packages/db ./packages/db
+COPY packages/social-contract ./packages/social-contract
 RUN bun run --cwd packages/db build
 COPY services/social/src ./services/social/src
 COPY services/social/certs ./services/social/certs

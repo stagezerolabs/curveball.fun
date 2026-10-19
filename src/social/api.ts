@@ -1,6 +1,7 @@
 import { getAccessToken } from "@privy-io/react-auth";
 import { getAccount } from "@wagmi/core";
 import { getAddress, type Address } from "viem";
+import { assertFollowingBuysResponse, assertNotificationsResponse, assertPageResponse, parseFollowingPeriod, parseProfileUpdate, parseReportBody, parseNotificationPreferencesPatch } from "../../packages/social-contract/index.mjs";
 import { wagmiConfig } from "../lib/web3";
 import type {
   FollowingBuy,
@@ -12,6 +13,9 @@ import type {
   PulseScope,
   SocialTrade,
   TraderProfile,
+  TraderSummary,
+  Page,
+  NotificationPage,
 } from "./types";
 const configuredBaseUrl = String(import.meta.env.VITE_SOCIAL_API_URL || "").trim().replace(/\/$/, "");
 export const socialApiBaseUrl = configuredBaseUrl;
@@ -69,6 +73,7 @@ function mapTrade(row: Record<string, unknown>): SocialTrade {
     reacted: Boolean(row.reacted),
     followerCount: Number(row.follower_count || 0),
     isFollowed: Boolean(row.is_followed),
+    discoverable: Boolean(row.discoverable),
   };
 }
 
@@ -88,17 +93,27 @@ export const socialApi = {
     const query = new URLSearchParams({ scope, period });
     return api<PulseResponse>(`/v1/pulse?${query}`);
   },
-  followingBuys() {
-    return api<{ scope: "following" | "all"; items: FollowingBuy[] }>("/v1/following/buys");
+  followingBuys(period: PulsePeriod) {
+    return api<{ scope: "following"; period: PulsePeriod; items: FollowingBuy[] }>(`/v1/following/buys?period=${parseFollowingPeriod(period)}`).then((result) => assertFollowingBuysResponse<typeof result>(result));
   },
-  leaderboard(category: "consistent" | "new") {
+  leaderboard(category: LeaderboardSnapshot["category"]) {
     return api<LeaderboardSnapshot>(`/v1/leaderboards/${category}`);
   },
   profile(address: Address) {
     return api<TraderProfile>(`/v1/profiles/${address}`);
   },
+  discoverTraders(search = "", cursor?: string) {
+    const query = new URLSearchParams({ search, limit: "20" });
+    if (cursor) query.set("cursor", cursor);
+    return api<Page<TraderSummary>>(`/v1/profiles?${query}`).then((result) => assertPageResponse<typeof result>(result));
+  },
+  profileConnections(address: Address, kind: "followers" | "following", cursor?: string) {
+    const query = new URLSearchParams({ limit: "20" });
+    if (cursor) query.set("cursor", cursor);
+    return api<Page<TraderSummary>>(`/v1/profiles/${address}/${kind}?${query}`).then((result) => assertPageResponse<typeof result>(result));
+  },
   saveProfile(input: { displayName: string; bio: string; discoverable: boolean }) {
-    return api<TraderProfile>("/v1/profiles/me", { method: "POST", body: input });
+    return api<TraderProfile>("/v1/profiles/me", { method: "POST", body: parseProfileUpdate(input) });
   },
   follow(address: Address, following: boolean) {
     return api<{ following: boolean }>(`/v1/follows/${address}`, { method: following ? "POST" : "DELETE" });
@@ -106,8 +121,8 @@ export const socialApi = {
   block(address: Address, blocked: boolean) {
     return api<{ blocked: boolean }>(`/v1/blocks/${address}`, { method: blocked ? "POST" : "DELETE" });
   },
-  report(subjectAddress: Address, reason: string, details = "") {
-    return api<{ ok: true }>("/v1/reports", { method: "POST", body: { subjectAddress, reason, details } });
+  report(subjectAddress: Address, reason: string, details = "", tradeId?: string) {
+    return api<{ ok: true }>("/v1/reports", { method: "POST", body: parseReportBody({ subjectAddress, reason, details, ...(tradeId ? { tradeId } : {}) }) });
   },
   saveTradeNote(tradeId: string, note: string) {
     return api<{ note: string | null }>("/v1/trade-notes", { method: "POST", body: { tradeId, note } });
@@ -115,17 +130,19 @@ export const socialApi = {
   reactToTrade(tradeId: string, active: boolean) {
     return api<{ active: boolean; count: number }>("/v1/trade-reactions", { method: "POST", body: { tradeId, active } });
   },
-  notifications(limit = 8) {
-    return api<{ items: NotificationItem[] }>(`/v1/notifications?limit=${limit}`);
+  notifications(limit = 8, cursor?: string) {
+    const query = new URLSearchParams({ limit: String(limit) });
+    if (cursor) query.set("cursor", cursor);
+    return api<NotificationPage>(`/v1/notifications?${query}`).then((result) => assertNotificationsResponse<typeof result>(result));
   },
   notificationPreferences() {
-    return api<{ in_app: boolean; trade_buys: boolean; trade_sells: boolean; graduations: boolean }>("/v1/notification-preferences");
+    return api<{ in_app: boolean; trade_buys: boolean; trade_sells: boolean; graduations: boolean; new_followers: boolean }>("/v1/notification-preferences");
   },
-  saveNotificationPreferences(input: { inApp: boolean; tradeBuys: boolean; tradeSells: boolean; graduations: boolean }) {
-    return api<{ in_app: boolean; trade_buys: boolean; trade_sells: boolean; graduations: boolean }>("/v1/notification-preferences", { method: "PATCH", body: input });
+  saveNotificationPreferences(input: { inApp: boolean; tradeBuys: boolean; tradeSells: boolean; graduations: boolean; newFollowers: boolean }) {
+    return api<{ in_app: boolean; trade_buys: boolean; trade_sells: boolean; graduations: boolean; new_followers: boolean }>("/v1/notification-preferences", { method: "PATCH", body: parseNotificationPreferencesPatch(input) });
   },
   markNotificationsRead(ids: string[]) {
-    return api<{ ok: true }>("/v1/notifications/read", { method: "PATCH", body: { ids: ids.map(Number) } });
+    return api<{ ok: true }>("/v1/notifications/read", { method: "PATCH", body: { ids } });
   },
   moderationReports(status: "open" | "reviewing" | "actioned" | "dismissed" | "all" = "open") {
     return api<{ items: ModerationReport[] }>(`/v1/admin/reports?status=${status}`);

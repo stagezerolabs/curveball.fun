@@ -33,6 +33,7 @@ export type SocialTrade = {
   reacted: boolean;
   followerCount: number;
   isFollowed: boolean;
+  discoverable?: boolean;
 };
 
 export type PulseMoment = {
@@ -74,6 +75,7 @@ export type PulseResponse = {
 
 export type LeaderboardMetrics = {
   tradeCount?: number;
+  recentTradeCount?: number;
   marketCount?: number;
   tradingDayCount?: number;
   recentTradingDayCount?: number;
@@ -97,6 +99,7 @@ export type LeaderboardTrader = {
   rank: number;
   stats: TraderStats;
   publishedMetrics: LeaderboardMetrics;
+  followers?: number;
   asOfBlock?: string;
   calculatedAt?: string;
   publishedAt?: string | null;
@@ -105,7 +108,7 @@ export type LeaderboardTrader = {
 };
 
 export type LeaderboardSnapshot = {
-  category: "consistent" | "new";
+  category: "consistent" | "new" | "trending" | "followers";
   /** Ranked from stored per-trader performance while no current snapshot has qualified traders. */
   provisional?: boolean;
   items: LeaderboardTrader[];
@@ -146,7 +149,7 @@ export type TraderProfile = {
 
 export type NotificationItem = {
   id: string;
-  kind: "followed_buy" | "followed_sell" | "curve_milestone";
+  kind: "followed_buy" | "followed_sell" | "curve_milestone" | "new_follower" | "graduation" | "reaction";
   actor_address: Address | null;
   payload: {
     tokenAddress?: Address;
@@ -155,10 +158,22 @@ export type NotificationItem = {
     tokenSymbol?: string;
     actorDisplayName?: string;
     milestone?: 25 | 50 | 70 | 100;
+    tradeId?: string;
   };
   read_at: string | null;
   created_at: string;
 };
+
+export type TraderSummary = {
+  address: Address;
+  displayName: string | null;
+  bio: string;
+  followers: number;
+  isFollowed: boolean;
+};
+
+export type Page<T> = { items: T[]; nextCursor: string | null };
+export type NotificationPage = Page<NotificationItem> & { unreadCount: number };
 
 export type ModerationReport = {
   id: string;

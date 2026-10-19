@@ -1,0 +1,11 @@
+export type FollowingPeriod = "1h" | "24h";
+export type ProfileUpdate = { displayName: string; bio: string; discoverable: boolean };
+export type ReportBody = { subjectAddress: string; reason: "spam" | "impersonation" | "manipulation" | "harmful_content" | "other"; details: string; tradeId: string | null };
+export type NotificationPreferencesPatch = Partial<{ inApp: boolean; tradeBuys: boolean; tradeSells: boolean; graduations: boolean; newFollowers: boolean }>;
+export function parseFollowingPeriod(value: unknown): FollowingPeriod;
+export function parseProfileUpdate(value: unknown): ProfileUpdate;
+export function parseReportBody(value: unknown): ReportBody;
+export function parseNotificationPreferencesPatch(value: unknown): NotificationPreferencesPatch;
+export function assertPageResponse<T extends { items: unknown[]; nextCursor: string | null }>(value: unknown): T;
+export function assertFollowingBuysResponse<T extends { scope: "following"; period: FollowingPeriod; items: unknown[] }>(value: unknown): T;
+export function assertNotificationsResponse<T extends { items: unknown[]; nextCursor: string | null; unreadCount: number }>(value: unknown): T;

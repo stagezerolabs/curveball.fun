@@ -1,8 +1,11 @@
 import { formatEther, getAddress, type Address, type Hash } from "viem";
+import { getAccessToken } from "@privy-io/react-auth";
+import { getAccount } from "@wagmi/core";
 import type { MarketCandle, MarketPriceChange, TradeActivity } from "../lib/marketChart";
 import type { MarketPreviewStatsByToken } from "../lib/marketPreviewStats";
 import { socialApiBaseUrl } from "../social/api";
 import { launchpadAddress } from "../lib/web3";
+import { wagmiConfig } from "../lib/web3";
 import type { Token } from "../types";
 import type { MarketLifecycle } from "../sdk/sdk";
 
@@ -16,6 +19,10 @@ type CandleRow = {
 };
 
 type TradeRow = {
+  id: string;
+  note: string | null;
+  reactionCount: number;
+  reacted: boolean;
   participantAddress: Address;
   participantRole: "trader" | "recipient";
   executionSenderAddress: Address | null;
@@ -66,7 +73,9 @@ type MarketRow = {
 
 async function request<T>(path: string, signal?: AbortSignal): Promise<T> {
   if (!socialApiBaseUrl) throw new Error("Curveball data service is not configured.");
-  const response = await fetch(`${socialApiBaseUrl}${path}`, { credentials: "include", signal });
+  const account = getAccount(wagmiConfig);
+  const token = account.address ? await getAccessToken().catch(() => null) : null;
+  const response = await fetch(`${socialApiBaseUrl}${path}`, { credentials: "omit", signal, headers: token && account.address ? { Authorization: `Bearer ${token}`, "X-Curveball-Wallet-Address": account.address } : {} });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(typeof payload.error === "string" ? payload.error : `Data request failed (${response.status}).`);
   return payload as T;
@@ -146,8 +155,16 @@ export async function fetchMarket(tokenAddress: Address, signal?: AbortSignal): 
 }
 
 export async function fetchCreatorMarkets(creator: Address, signal?: AbortSignal): Promise<Token[]> {
-  const tokens = await fetchMarkets(signal);
-  return tokens.filter((token) => token.creator.toLowerCase() === creator.toLowerCase());
+  const rows: MarketRow[] = [];
+  let cursor: string | null = null;
+  do {
+    const query = new URLSearchParams({ creator, tab: "all", limit: "50" });
+    if (cursor) query.set("cursor", cursor);
+    const page: { items: MarketRow[]; nextCursor: string | null } = await request(`/v1/markets?${query}`, signal);
+    rows.push(...page.items);
+    cursor = page.nextCursor;
+  } while (cursor);
+  return Promise.all(rows.map(marketRowToToken));
 }
 
 export async function fetchMarketCandles(token: Token, interval: number, signal?: AbortSignal): Promise<MarketCandle[]> {
@@ -167,9 +184,15 @@ export async function fetchMarketCandles(token: Token, interval: number, signal?
   }));
 }
 
-export async function fetchMarketTrades(tokenAddress: Address, signal?: AbortSignal): Promise<TradeActivity[]> {
-  const result = await request<{ items: TradeRow[] }>(`/v1/markets/${tokenAddress}/trades?limit=100`, signal);
-  return result.items.map((row) => ({
+export async function fetchMarketTradesPage(tokenAddress: Address, cursor?: string, signal?: AbortSignal): Promise<{ items: TradeActivity[]; nextCursor: string | null }> {
+  const query = new URLSearchParams({ limit: "50" });
+  if (cursor) query.set("cursor", cursor);
+  const result = await request<{ items: TradeRow[]; nextCursor: string | null }>(`/v1/markets/${tokenAddress}/trades?${query}`, signal);
+  return { nextCursor: result.nextCursor, items: result.items.map((row) => ({
+    id: row.id,
+    note: row.note,
+    reactionCount: row.reactionCount,
+    reacted: row.reacted,
     trader: getAddress(row.participantAddress),
     participantRole: row.participantRole,
     venue: row.venueType,
@@ -182,7 +205,11 @@ export async function fetchMarketTrades(tokenAddress: Address, signal?: AbortSig
     blockNumber: BigInt(row.blockNumber),
     logIndex: row.logIndex,
     transactionHash: row.transactionHash,
-  }));
+  })) };
+}
+
+export async function fetchMarketTrades(tokenAddress: Address, signal?: AbortSignal): Promise<TradeActivity[]> {
+  return (await fetchMarketTradesPage(tokenAddress, undefined, signal)).items;
 }
 
 export async function fetchMarketHolders(tokenAddress: Address, atBlock: bigint, signal?: AbortSignal): Promise<{

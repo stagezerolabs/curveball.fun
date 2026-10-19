@@ -52,7 +52,7 @@ export function PulseFollowingCard({ buy, token, navigate }: {
     </div>
     <div className="pulse-now-net">
       <strong>{formatEthAmount(Number(formatEther(BigInt(buy.boughtQuoteWei))))} <small>WETH</small></strong>
-      <span>bought by follows</span>
+      <span>buy volume in window</span>
     </div>
   </article>;
 }

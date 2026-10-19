@@ -15,7 +15,9 @@ const pulseActorWindowsSql = (following) => `WITH actor_windows AS (
       AND pa.address=t.trader_address AND pa.is_user_attributable=false)
     AND NOT (t.trader_address=ANY($6::text[]))
     ${following ? `AND t.trader_address=ANY(ARRAY(
-      SELECT f.followed_address FROM follows f WHERE f.chain_id=$1 AND f.follower_address=$3
+      SELECT f.followed_address FROM follows f JOIN profiles p ON p.chain_id=f.chain_id
+        AND p.address=f.followed_address AND p.discoverable=true
+      WHERE f.chain_id=$1 AND f.follower_address=$3
     ))` : ""}
   GROUP BY t.token_address,t.trader_address,bucket
 )`;
@@ -66,25 +68,53 @@ export const nowPulseSql = `SELECT t.token_address,m.name AS token_name,m.symbol
     - COALESCE(SUM(t.net_trader_quote) FILTER (WHERE NOT t.is_buy),0) DESC,latest_at DESC
   LIMIT 12`;
 
-// Leaderboard fallback while no current-method snapshot is published: every trader's latest stored
-// performance, ranked by return. Params: $1 chain, $2 limit.
-export const provisionalLeaderboardSql = `SELECT ps.address,p.display_name,p.bio,ps.methodology_version,
-    ps.return_bps,ps.realized_pnl_quote,ps.unrealized_pnl_quote,ps.invested_quote,ps.trade_count,ps.market_count
-  FROM (SELECT DISTINCT ON (address) * FROM trader_performance_snapshots
-    WHERE chain_id=$1 ORDER BY address,as_of_block DESC) ps
-  LEFT JOIN profiles p ON p.chain_id=$1 AND p.address=ps.address
-  WHERE ps.trade_count>0
-    AND NOT EXISTS (SELECT 1 FROM protocol_accounts pa WHERE pa.chain_id=$1
+// Lightweight, category-specific preview when no current published snapshot exists.
+// Params: $1 chain, $2 category, $3 limit. These are not publish-eligible scores.
+export const provisionalLeaderboardSql = `WITH latest AS (
+    SELECT DISTINCT ON (address) * FROM trader_performance_snapshots
+    WHERE chain_id=$1 ORDER BY address,as_of_block DESC
+  ), candidates AS (
+    SELECT ps.address,p.display_name,p.bio,ps.methodology_version,ps.return_bps,
+      ps.realized_pnl_quote,ps.unrealized_pnl_quote,ps.invested_quote,ps.trade_count,ps.market_count,
+      ps.wallet_cash_turnover,activity.buy_count,activity.sell_count,
+      activity.recent_trade_count,activity.first_trade_at,activity.last_trade_at,
+      (SELECT COUNT(*) FROM follows f WHERE f.chain_id=$1 AND f.followed_address=ps.address) AS follower_count
+    FROM latest ps JOIN profiles p ON p.chain_id=$1 AND p.address=ps.address AND p.discoverable=true
+    CROSS JOIN LATERAL (
+      SELECT COUNT(*) FILTER (WHERE t.is_buy) AS buy_count,
+        COUNT(*) FILTER (WHERE NOT t.is_buy) AS sell_count,
+        COUNT(*) FILTER (WHERE t.block_timestamp>=now()-interval '7 days') AS recent_trade_count,
+        MIN(t.block_timestamp) AS first_trade_at,MAX(t.block_timestamp) AS last_trade_at
+      FROM trades t WHERE t.chain_id=$1 AND t.trader_address=ps.address AND t.orphaned=false
+    ) activity
+    WHERE ps.trade_count>0 AND NOT EXISTS (SELECT 1 FROM protocol_accounts pa WHERE pa.chain_id=$1
       AND pa.address=ps.address AND pa.is_user_attributable=false)
-  ORDER BY ps.return_bps DESC NULLS LAST,ps.invested_quote DESC LIMIT $2`;
+  ), scored AS (
+    SELECT *,CASE $2::text
+      WHEN 'trending' THEN recent_trade_count::numeric
+      WHEN 'consistent' THEN return_bps
+      WHEN 'followers' THEN follower_count::numeric
+      WHEN 'new' THEN realized_pnl_quote+unrealized_pnl_quote END AS score
+    FROM candidates WHERE CASE $2::text
+      WHEN 'trending' THEN recent_trade_count>0
+      WHEN 'consistent' THEN return_bps IS NOT NULL AND trade_count>=8
+      WHEN 'followers' THEN follower_count>0
+      WHEN 'new' THEN first_trade_at>=now()-interval '30 days' END
+  ) SELECT * FROM scored ORDER BY score DESC NULLS LAST,invested_quote DESC,address ASC LIMIT $3`;
 
-// Following: markets the given wallets bought, with each buyer and their WETH spend. When $2 is
-// null every user wallet counts (follows are not live yet). Params: $1 chain, $2 followed wallets,
-// $3 blocked wallets.
+// Params: $1 chain, $2 viewer, $3 blocked wallets, $4 interval, $5 as-of time.
+// A buyer remains visible only when their latest canonical trade in the selected window is a buy.
 export const followingBuysSql = `WITH buyers AS (
-    SELECT t.token_address,t.trader_address,SUM(t.net_trader_quote) AS bought
-    FROM trades t WHERE t.chain_id=$1 AND t.orphaned=false AND t.is_buy
-      AND ($2::text[] IS NULL OR t.trader_address=ANY($2::text[]))
+    SELECT t.token_address,t.trader_address,
+      (ARRAY_AGG(t.is_buy ORDER BY t.block_timestamp DESC,t.block_number DESC,t.log_index DESC))[1] AS latest_is_buy,
+      SUM(t.net_trader_quote) FILTER (WHERE t.is_buy) AS bought
+    FROM trades t WHERE t.chain_id=$1 AND t.orphaned=false
+      AND t.block_timestamp >= $5::timestamptz-$4::interval AND t.block_timestamp <= $5::timestamptz
+      AND EXISTS (SELECT 1 FROM follows f WHERE f.chain_id=t.chain_id
+        AND f.follower_address=$2 AND f.followed_address=t.trader_address
+        AND NOT EXISTS (SELECT 1 FROM blocks bl WHERE bl.chain_id=f.chain_id AND (
+          (bl.blocker_address=$2 AND bl.blocked_address=f.followed_address)
+          OR (bl.blocker_address=f.followed_address AND bl.blocked_address=$2))))
       AND NOT (t.trader_address=ANY($3::text[]))
       AND NOT EXISTS (SELECT 1 FROM protocol_accounts pa WHERE pa.chain_id=t.chain_id
         AND pa.address=t.trader_address AND pa.is_user_attributable=false)
@@ -94,6 +124,7 @@ export const followingBuysSql = `WITH buyers AS (
     JSON_AGG(JSON_BUILD_OBJECT('address',b.trader_address,'displayName',p.display_name) ORDER BY b.bought DESC) AS buyers
   FROM buyers b
   JOIN markets m ON m.chain_id=$1 AND m.token_address=b.token_address AND m.orphaned=false
-  LEFT JOIN profiles p ON p.chain_id=$1 AND p.address=b.trader_address
+  JOIN profiles p ON p.chain_id=$1 AND p.address=b.trader_address AND p.discoverable=true
+  WHERE b.latest_is_buy
   GROUP BY b.token_address,m.name,m.symbol
   ORDER BY COUNT(*) DESC,SUM(b.bought) DESC LIMIT 12`;

@@ -11,11 +11,13 @@ import { LaunchPage } from "../pages/LaunchPage";
 import { MarketPage } from "../pages/MarketPage";
 import { MarketsPage } from "../pages/MarketsPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
+import { NotificationsPage } from "../pages/NotificationsPage";
 import { ProfilePage } from "../pages/ProfilePage";
 import { StatsPage } from "../pages/StatsPage";
 import { AdminPage } from "../pages/AdminPage";
 import { useRouter } from "./useRouter.js";
 import { isAdminAddress } from "../lib/adminAccess";
+import { useSocialEvents } from "../social/useSocialEvents";
 import {
   applyTheme,
   readStoredTheme,
@@ -30,6 +32,7 @@ function SocialPageFallback() {
 }
 
 export function App() {
+  useSocialEvents();
   const { navigate, route } = useRouter();
   const [theme, setTheme] = useState<Theme>(readStoredTheme);
   const { address } = useAccount();
@@ -55,6 +58,9 @@ export function App() {
       break;
     case "social":
       page = <Suspense fallback={<SocialPageFallback />}><SocialPage navigate={navigate} /></Suspense>;
+      break;
+    case "notifications":
+      page = <NotificationsPage navigate={navigate} />;
       break;
     case "market":
       page = (
