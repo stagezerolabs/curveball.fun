@@ -53,6 +53,15 @@ export type PulseMoment = {
   sampleTransactionHash: `0x${string}`;
 };
 
+/** A market wallets you follow have bought into, with who bought and the WETH they put in. */
+export type FollowingBuy = {
+  tokenAddress: Address;
+  tokenName: string;
+  tokenSymbol: string;
+  buyers: { address: Address; displayName: string | null }[];
+  boughtQuoteWei: string;
+};
+
 export type PulsePeriod = "1h" | "24h";
 export type PulseScope = "now" | "following";
 
@@ -97,6 +106,8 @@ export type LeaderboardTrader = {
 
 export type LeaderboardSnapshot = {
   category: "consistent" | "new";
+  /** Ranked from stored per-trader performance while no current snapshot has qualified traders. */
+  provisional?: boolean;
   items: LeaderboardTrader[];
   asOfBlock?: string | null;
   calculatedAt?: string | null;

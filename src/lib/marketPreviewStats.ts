@@ -33,6 +33,9 @@ export type MarketTradeSample = {
   timestamp: number;
   price: number;
   volume: number;
+  isBuy?: boolean;
+  /** What the trader paid on a buy or received on a sell, matching the backend's net_trader_quote. */
+  quoteWei?: bigint;
 };
 
 type TradeLog = {
@@ -118,8 +121,17 @@ export async function loadMarketPreviewStats(
   tokens: readonly Token[],
   deploymentBlock: bigint,
 ): Promise<MarketPreviewStatsByToken> {
+  return summarizeMarketPreviewStats(tokens, await loadMarketTradeSamples(client, tokens, deploymentBlock));
+}
+
+/** Reads every curve Trade for the given markets, refreshing the shared cache from its last block. */
+export async function loadMarketTradeSamples(
+  client: MarketPreviewStatsClient,
+  tokens: readonly Token[],
+  deploymentBlock: bigint,
+): Promise<MarketTradeSample[]> {
   const markets = tokens.filter((token): token is Token & { factory: Address } => Boolean(token.factory));
-  if (!markets.length) return summarizeMarketPreviewStats(tokens, []);
+  if (!markets.length) return [];
   const launchpads = [...new Set(markets.map((token) => token.factory))];
 
   const latestBlock = await client.getBlockNumber();
@@ -171,7 +183,7 @@ export async function loadMarketPreviewStats(
   ));
 
   const newSamples = logs.flatMap((log): MarketTradeSample[] => {
-    const { token, trader } = log.args ?? {};
+    const { token, trader, isBuy, quoteAmount } = log.args ?? {};
     if (!token || log.blockNumber == null) return [];
     const point = tradeLogToPoint(log.args, timestamps.get(log.blockNumber));
     if (!point || !Number.isFinite(point.price)) return [];
@@ -180,6 +192,8 @@ export async function loadMarketPreviewStats(
       trader,
       transactionHash: log.transactionHash,
       eventId: `${log.blockNumber}:${log.logIndex ?? 0}`,
+      isBuy,
+      quoteWei: quoteAmount,
       ...point,
     }];
   });
@@ -187,5 +201,5 @@ export async function loadMarketPreviewStats(
   const samples = [...(cached?.samples ?? []), ...newSamples];
   tradeSampleCache = { marketSignature, lastBlock: latestBlock, samples };
 
-  return summarizeMarketPreviewStats(tokens, samples);
+  return samples;
 }

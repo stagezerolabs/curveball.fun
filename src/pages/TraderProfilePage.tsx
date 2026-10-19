@@ -10,6 +10,7 @@ import { fetchRnsPrimaryName } from "../lib/rnsPrimary";
 import { activeExplorerUrl } from "../lib/web3";
 import type { Navigate } from "../types";
 import { FollowButton } from "../social/FollowButton";
+import { TraderAvatar } from "../social/TraderAvatar";
 import { NotificationPreferences } from "../social/NotificationPreferences";
 import { socialApi, socialApiConfigured } from "../social/api";
 import type { TraderProfile } from "../social/types";
@@ -24,18 +25,6 @@ function wethAmount(wei: string) {
 function signedWeth(value: string) {
   const amount = wethAmount(value);
   return `${amount >= 0 ? "+" : ""}${formatEthAmount(amount)} WETH`;
-}
-
-function ProfileAvatar({ address, name }: { address: Address; name: string }) {
-  const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [address]);
-  if (failed) return <div className="profile-hero-avatar" aria-hidden="true">{name.replace(/^0x/i, "").slice(0, 2).toUpperCase()}</div>;
-  return <img
-    className="profile-hero-avatar"
-    src={`https://api.dicebear.com/10.x/thumbs/svg?seed=${address.toLowerCase()}`}
-    alt=""
-    onError={() => setFailed(true)}
-  />;
 }
 
 function EmptyState({ title, children, action }: { title: string; children?: ReactNode; action?: ReactNode }) {
@@ -159,7 +148,7 @@ export function TraderProfilePage({ address: routeAddress, navigate, launches = 
 
     <div className="profile-top">
       <header className="profile-hero" aria-labelledby="trader-profile-name">
-        <ProfileAvatar address={traderAddress} name={name} />
+        <TraderAvatar className="profile-hero-avatar" address={traderAddress} name={name} />
         <div className="profile-hero-copy">
           <h1 id="trader-profile-name">{name}</h1>
           <p className="profile-hero-meta">

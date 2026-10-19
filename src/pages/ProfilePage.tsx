@@ -10,9 +10,9 @@ import { HolderAirdropPanel } from "../components/HolderAirdropPanel";
 import { TokenAvatar } from "../components/TokenAvatar";
 import { UsdAmount } from "../components/UsdAmount";
 import type { CreatorTokenClient } from "../creatorTokens";
-import { formatAddress, formatRelativeTime } from "../lib/format.js";
+import { formatRelativeTime } from "../lib/format.js";
 import { getMarketDisplayStatus } from "../lib/marketState";
-import { activeChainId, activeExplorerUrl } from "../lib/web3";
+import { activeChainId } from "../lib/web3";
 import type { Navigate, Token } from "../types";
 import type { ProfileTab } from "./TraderProfilePage";
 
@@ -104,10 +104,9 @@ function CreatorLaunchDashboard({ address, navigate }: { address: Address; navig
       <div className="profile-detail" aria-live="polite">
         {selectedToken ? <>
           <header className="profile-token-header">
-            <div className="profile-token-identity"><TokenAvatar token={selectedToken} className="profile-token-avatar" /><div><h3>{selectedToken.name}</h3><p>${selectedToken.symbol} <span aria-hidden="true">·</span> <a className="profile-token-address" href={`${activeExplorerUrl}/address/${selectedToken.address}`} target="_blank" rel="noreferrer" title={selectedToken.address} aria-label={`View ${selectedToken.name} token address ${selectedToken.address} on explorer`}>{formatAddress(selectedToken.address)} <span aria-hidden="true">↗</span></a></p></div></div>
+            <div className="profile-token-identity"><TokenAvatar token={selectedToken} className="profile-token-avatar" /><div><h3>{selectedToken.name}</h3><p><span>${selectedToken.symbol}</span><span>MC <UsdAmount weth={selectedToken.marketCap} compact /></span><span>Launched {formatRelativeTime(selectedToken.createdAt)}</span></p></div></div>
             <div className="profile-token-actions"><AppLink className="profile-market-link" route="market" params={{ address: selectedToken.address }} navigate={navigate}>View market <span aria-hidden="true">↗</span></AppLink></div>
           </header>
-          <dl className="profile-token-facts"><div><dt>Market cap</dt><dd><UsdAmount weth={selectedToken.marketCap} /></dd></div><div><dt>Launched</dt><dd>{formatRelativeTime(selectedToken.createdAt)}</dd></div></dl>
           <Tabs.Root value={activeSection} onValueChange={(value) => setActiveSection(value as ProfileSection)}>
             <Tabs.List className="profile-section-nav profile-subnav" aria-label="Selected token view">
               <Tabs.Tab value="holders" className={activeSection === "holders" ? "active" : ""}>Holders</Tabs.Tab>

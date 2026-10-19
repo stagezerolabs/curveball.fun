@@ -3,6 +3,7 @@ import { getAccount } from "@wagmi/core";
 import { getAddress, type Address } from "viem";
 import { wagmiConfig } from "../lib/web3";
 import type {
+  FollowingBuy,
   NotificationItem,
   ModerationReport,
   LeaderboardSnapshot,
@@ -86,6 +87,9 @@ export const socialApi = {
   pulse(scope: PulseScope, period: PulsePeriod) {
     const query = new URLSearchParams({ scope, period });
     return api<PulseResponse>(`/v1/pulse?${query}`);
+  },
+  followingBuys() {
+    return api<{ scope: "following" | "all"; items: FollowingBuy[] }>("/v1/following/buys");
   },
   leaderboard(category: "consistent" | "new") {
     return api<LeaderboardSnapshot>(`/v1/leaderboards/${category}`);

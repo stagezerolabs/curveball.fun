@@ -26,3 +26,10 @@ test("Following labels filtered wallet count and the reason accurately", () => {
   assert.equal(moment.reason, "following");
   assert.equal(moment.netQuoteWei, "-30");
 });
+
+test("Now SQL keeps only net-buying markets and ranks them by net inflow", async () => {
+  const { nowPulseSql } = await import("./pulseSql.mjs");
+  assert.match(nowPulseSql, /HAVING COALESCE\(SUM\(t\.net_trader_quote\) FILTER \(WHERE t\.is_buy\),0\)\s+> COALESCE/);
+  assert.match(nowPulseSql, /- COALESCE\(SUM\(t\.net_trader_quote\) FILTER \(WHERE NOT t\.is_buy\),0\) DESC,latest_at DESC/);
+  assert.match(nowPulseSql, /LIMIT 12/);
+});

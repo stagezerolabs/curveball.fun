@@ -7,7 +7,8 @@ import { pool, transaction } from "./db.mjs";
 import { ACTIVE_WALLET_HEADER, createPrivyAuthenticator } from "./privyAuth.mjs";
 import { claimProfile } from "./profiles.mjs";
 import { shapePublicPulseMoments } from "./pulse.mjs";
-import { followingPulseSql, publicPulseSql } from "./pulseSql.mjs";
+import { PERFORMANCE_METHODOLOGY } from "./performance.mjs";
+import { followingBuysSql, followingPulseSql, nowPulseSql, provisionalLeaderboardSql } from "./pulseSql.mjs";
 import { createOutboxHub } from "./outboxHub.mjs";
 
 const JSON_LIMIT = 64 * 1024;
@@ -306,8 +307,9 @@ async function pulseTrades(period, followingViewer = null, blockedViewer = null,
   const interval = period === "1h" ? "1 hour" : "24 hours";
   const asOf = new Date();
   const bucketSeconds = period === "1h" ? 900 : 7200;
-  const value = pool.query(followingViewer ? followingPulseSql : publicPulseSql,
-  [config.chainId, interval, followingViewer, bucketSeconds, asOf, blockedAddresses]).then((result) => ({
+  const value = (followingViewer
+    ? pool.query(followingPulseSql, [config.chainId, interval, followingViewer, bucketSeconds, asOf, blockedAddresses])
+    : pool.query(nowPulseSql, [config.chainId, interval, asOf, blockedAddresses])).then((result) => ({
     // SQL aggregates exact market totals and ranks candidates before transfer.
     items: shapePublicPulseMoments(result.rows, { scope: followingViewer ? "following" : "now" }),
     sampleTruncated: false, asOf: asOf.toISOString(),
@@ -443,8 +445,7 @@ async function leaderboards(url, viewer) {
   if (!allowed.has(category)) throw Object.assign(new Error("Unknown leaderboard category."), { status: 404 });
   const [board, graph] = await Promise.all([publishedBoard(category), pulseGraph(viewer)]);
   const { snapshot } = board;
-  if (!snapshot) return { category, period: null, asOfBlock: null, calculatedAt: null,
-    publishedAt: null, methodologyVersion: null, items: [] };
+  if (!snapshot || snapshot.methodology_version !== PERFORMANCE_METHODOLOGY) return provisionalBoard(category, url, graph);
   // Resolve discoverability on every read: a profile opt-out must not linger
   // inside a process-local leaderboard cache (including on other API replicas).
   const result = await pool.query(`SELECT lr.address,lr.rank,lr.metrics AS published_metrics,
@@ -480,9 +481,49 @@ async function leaderboards(url, viewer) {
         confidence: metrics.sampleLabel || (tradeCount >= 25 ? "established" : tradeCount >= 8 ? "developing" : "new"),
       };
     });
+  if (!items.length) return provisionalBoard(category, url, graph);
   return { category, period: snapshot.period, asOfBlock: String(snapshot.as_of_block),
     calculatedAt: snapshot.calculated_at, publishedAt: snapshot.published_at,
     methodologyVersion: snapshot.methodology_version, items };
+}
+
+// Until a current-method snapshot has qualified traders, rank every trader by their latest stored
+// performance. Marked provisional; not filtered by profile discoverability.
+async function provisionalBoard(category, url, graph) {
+  const result = await pool.query(provisionalLeaderboardSql, [config.chainId, 100]);
+  const items = result.rows.filter((row) => !graph.blocked.has(row.address))
+    .slice(0, boundedLimit(url, 12, 50)).map((row, index) => ({
+      address: row.address, displayName: row.display_name, bio: row.bio || "", rank: index + 1,
+      methodologyVersion: row.methodology_version,
+      publishedMetrics: {
+        returnBps: row.return_bps == null ? null : Number(row.return_bps),
+        investedWei: String(row.invested_quote),
+        netPnlWei: (BigInt(row.realized_pnl_quote) + BigInt(row.unrealized_pnl_quote)).toString(),
+        tradeCount: Number(row.trade_count), marketCount: Number(row.market_count),
+        sampleLabel: "provisional",
+      },
+      followers: 0, isFollowed: graph.followed.has(row.address),
+      stats: {
+        tradeCount: Number(row.trade_count), buyCount: 0, sellCount: 0, volumeWei: "0",
+        realizedPnlWei: String(row.realized_pnl_quote), realizedCostWei: "0", realizedReturnPct: null,
+        marketsTraded: Number(row.market_count), firstTrade: null, lastTrade: null,
+      },
+    }));
+  return { category, period: null, asOfBlock: null, calculatedAt: null, publishedAt: null,
+    methodologyVersion: null, provisional: true, items };
+}
+
+async function followingBuys(viewer) {
+  const graph = await pulseGraph(viewer);
+  const followed = viewer && graph.followed.size ? [...graph.followed] : null;
+  const result = await pool.query(followingBuysSql, [config.chainId, followed, [...graph.blocked]]);
+  return {
+    scope: followed ? "following" : "all",
+    items: result.rows.map((row) => ({
+      tokenAddress: row.token_address, tokenName: row.token_name, tokenSymbol: row.token_symbol,
+      boughtQuoteWei: row.bought_quote_wei, buyers: row.buyers,
+    })),
+  };
 }
 
 function shapeMarket(row) {
@@ -754,6 +795,7 @@ export function createSocialServer({ subscribe } = {}) {
       }
       if (request.method === "GET" && url.pathname === "/v1/feed") return send(request, response, 200, await feed(url, viewer));
       if (request.method === "GET" && url.pathname === "/v1/pulse") return send(request, response, 200, await pulse(url, viewer));
+      if (request.method === "GET" && url.pathname === "/v1/following/buys") return send(request, response, 200, await followingBuys(viewer));
       if (request.method === "GET" && url.pathname.startsWith("/v1/leaderboards/")) return send(request, response, 200, await leaderboards(url, viewer));
       if (request.method === "GET" && url.pathname === "/v1/markets") return send(request, response, 200, await markets(url));
       if (request.method === "GET" && url.pathname === "/v1/protocol/stats") return send(request, response, 200, await protocolStats());

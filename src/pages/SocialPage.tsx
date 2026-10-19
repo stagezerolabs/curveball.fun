@@ -3,11 +3,12 @@ import { Tabs } from "@base-ui/react/tabs";
 import { useQuery } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 import type { Navigate } from "../types";
-import { exampleFollowingTraders, mockPulseMoments } from "../social/mockPulse";
-import { PulseMomentCard } from "../social/PulseMomentCard";
+import { PulseFollowingCard } from "../social/PulseFollowingCard";
+import { PulseNowCard } from "../social/PulseNowCard";
 import { PulseTraders } from "../social/PulseTraders";
 import { socialApi, socialApiConfigured } from "../social/api";
-import type { PulsePeriod } from "../social/types";
+import { useFollowingBuys } from "../social/useFollowingBuys";
+import { useNowPulse } from "../social/useNowPulse";
 
 type PulseTab = "now" | "following" | "leaderboard";
 
@@ -27,11 +28,9 @@ function LoadingState() {
 export function SocialPage({ navigate }: { navigate: Navigate }) {
   const { address } = useAccount();
   const [tab, setTab] = useState<PulseTab>("now");
-  const [period, setPeriod] = useState<PulsePeriod>("24h");
-  const [board, setBoard] = useState<"consistent" | "new">("consistent");
-  const [mockAsOf] = useState(Date.now);
-  const nowMoments = mockPulseMoments("now", period, mockAsOf);
-  const followingMoments = mockPulseMoments("following", period, mockAsOf);
+  const board = "consistent";
+  const now = useNowPulse("24h", tab === "now");
+  const following = useFollowingBuys(tab === "following");
   const leaders = useQuery({
     queryKey: ["social", "leaderboard", board, address?.toLowerCase()],
     queryFn: () => socialApi.leaderboard(board),
@@ -55,45 +54,39 @@ export function SocialPage({ navigate }: { navigate: Navigate }) {
           <Tabs.Tab value="leaderboard" className={tab === "leaderboard" ? "active" : ""}>Leaderboard</Tabs.Tab>
         </Tabs.List>
         <div className="pulse-toolbar-controls">
-          {tab === "now" || tab === "following" ? <div className="social-segmented" role="group" aria-label="Activity window">
-            <button type="button" aria-pressed={period === "1h"} onClick={() => setPeriod("1h")}>1h</button>
-            <button type="button" aria-pressed={period === "24h"} onClick={() => setPeriod("24h")}>24h</button>
-          </div> : <>
-            <div className="social-segmented" role="group" aria-label="Trader ranking">
-              <button type="button" aria-pressed={board === "consistent"} onClick={() => setBoard("consistent")}>Track record</button>
-              <button type="button" aria-pressed={board === "new"} onClick={() => setBoard("new")}>Emerging</button>
-            </div>
-            <button className="pulse-refresh" type="button" onClick={() => void leaders.refetch()} disabled={!socialApiConfigured || leaders.isFetching} aria-label={leaders.isFetching ? "Updating leaderboard" : "Refresh leaderboard"}>
-              <span aria-hidden="true">↻</span> {leaders.isFetching ? "Updating" : "Refresh"}
-            </button>
-          </>}
+          {tab === "leaderboard" ? <button type="button" className="market-refresh" onClick={() => void leaders.refetch()} disabled={!socialApiConfigured || leaders.isFetching} aria-label={leaders.isFetching ? "Refreshing leaderboard" : "Refresh leaderboard"} aria-busy={leaders.isFetching} title="Refresh leaderboard">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M16.8 8A7 7 0 1 0 17 11" /><path d="M17 3.5V8h-4.5" /></svg>
+          </button> : null}
         </div>
       </div>
 
       <Tabs.Panel value="now" className="pulse-panel">
-        <section className="pulse-content" aria-label="Example market moments">
-          <div className="pulse-moment-list">{nowMoments.map((moment) => <PulseMomentCard key={moment.tokenAddress} moment={moment} navigate={navigate} newSinceVisit={false} preview />)}</div>
+        <section className="pulse-content" aria-label="Markets being bought into" aria-busy={now.isPending}>
+          {now.isPending ? <LoadingState />
+            : now.isError ? <FeedState title="Pulse is unavailable." detail={now.error.message} retry={() => void now.refetch()} />
+            : !now.data.length ? <FeedState
+              title="No markets are being bought into right now."
+              detail="Markets show up here when buy value beats sell value."
+            />
+            : <div className="pulse-moment-list pulse-now-list">{now.data.map(({ moment, token }) => <PulseNowCard key={moment.tokenAddress} moment={moment} token={token} navigate={navigate} />)}</div>}
         </section>
-        <p className="pulse-context">The live version will group confirmed curve trades by market. Wallet count will not prove independent traders.</p>
       </Tabs.Panel>
 
       <Tabs.Panel value="following" className="pulse-panel">
-        <section className="pulse-content" aria-label="Example followed trader moments">
-          <div className="pulse-example-following">
-            <div><h2>Example follows</h2><p>A sample of how your followed traders will appear here.</p></div>
-            <ul>{exampleFollowingTraders.map((trader) => <li key={trader.name}><span className="trader-avatar" aria-hidden="true">{trader.name.slice(0, 2).toUpperCase()}</span><span><strong>{trader.name}</strong><small>{trader.focus}</small></span></li>)}</ul>
-          </div>
-          <div className="pulse-moment-list">{followingMoments.map((moment) => <PulseMomentCard key={moment.tokenAddress} moment={moment} navigate={navigate} newSinceVisit={false} preview />)}</div>
+        <section className="pulse-content" aria-label="Markets your follows are buying">
+          {following.isPending ? <LoadingState />
+            : following.isError ? <FeedState title="Following is unavailable." detail={following.error.message} retry={() => void following.refetch()} />
+            : !following.data.length ? <FeedState title="No buys yet." detail="Markets traders buy into will show here." />
+            : <div className="pulse-moment-list">{following.data.map(({ buy, token }) => <PulseFollowingCard key={buy.tokenAddress} buy={buy} token={token} navigate={navigate} />)}</div>}
         </section>
-        <p className="pulse-context">The connected version will use your followed wallets and exclude blocked wallets before grouping activity.</p>
       </Tabs.Panel>
 
       <Tabs.Panel value="leaderboard" className="pulse-panel">
         <section className="pulse-content" aria-label="Trader leaderboard" aria-busy={socialApiConfigured && leaders.isPending}>
-          {!socialApiConfigured ? <FeedState title="Leaderboard is not connected." detail="Configure VITE_SOCIAL_API_URL to load published trader rankings." />
+          {!socialApiConfigured ? <FeedState title="Leaderboard is not connected." detail="Configure VITE_SOCIAL_API_URL to load trader rankings." />
             : leaders.isPending ? <LoadingState />
             : leaders.isError ? <FeedState title="Rankings are unavailable." detail={leaders.error.message} retry={() => void leaders.refetch()} />
-              : leaders.data ? <PulseTraders category={board} data={leaders.data} navigate={navigate} /> : null}
+            : <PulseTraders category={board} data={leaders.data} navigate={navigate} />}
         </section>
       </Tabs.Panel>
     </Tabs.Root>

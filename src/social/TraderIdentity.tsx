@@ -4,6 +4,7 @@ import type { Navigate } from "../types";
 import { formatAddress } from "../lib/format.js";
 import { fetchRnsPrimaryName } from "../lib/rnsPrimary";
 import { AppLink } from "../components/Navigation";
+import { TraderAvatar } from "./TraderAvatar";
 
 export function TraderIdentity({
   address,
@@ -34,7 +35,7 @@ export function TraderIdentity({
       navigate={navigate}
       title={showAddress ? address : undefined}
     >
-      <span className="trader-avatar" aria-hidden="true">{(name ?? address.slice(2, 4)).slice(0, 2).toUpperCase()}</span>
+      <TraderAvatar address={address} name={name ?? address} />
       <span>
         <strong>{name ?? formatAddress(address)}</strong>
         {name && !compact && showAddress ? <small>{formatAddress(address)}</small> : null}
