@@ -2183,8 +2183,6 @@ select:focus-visible {
   min-width: 0;
 }
 .market-header-details {
-  display: grid;
-  gap: 8px;
   min-width: 0;
 }
 .market-token-summary {
@@ -2373,14 +2371,6 @@ select:focus-visible {
 .market-stat-progress progress::-webkit-progress-bar { background: var(--raise); border-radius: 999px; }
 .market-stat-progress progress::-webkit-progress-value { background: var(--lime); border-radius: 999px; }
 .market-stat-progress progress::-moz-progress-bar { background: var(--lime); border-radius: 999px; }
-.market-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px 16px;
-  margin: 0;
-  padding: 0;
-}
-
 /* Chart + trade workspace */
 .market-workspace {
   align-items: start;
@@ -2571,61 +2561,6 @@ select:focus-visible {
   position: absolute;
   z-index: 2;
 }
-.market-meta > div {
-  align-items: center;
-  display: flex;
-  gap: 7px;
-  min-width: 0;
-}
-.market-meta dt {
-  color: var(--muted);
-  font-size: 11px;
-}
-.market-meta dd {
-  align-items: center;
-  display: flex;
-  font-size: 12px;
-  gap: 2px;
-  margin: 0;
-  min-width: 0;
-}
-.market-meta code {
-  font-family: ui-monospace, "SF Mono", monospace;
-  font-size: 11px;
-  margin-right: 2px;
-}
-.market-address-link {
-  align-items: center;
-  border-radius: 6px;
-  color: inherit;
-  display: inline-flex;
-  gap: 10px;
-  min-height: 28px;
-  min-width: 0;
-  padding: 0 4px;
-  text-decoration: none;
-  transition: background-color 120ms ease-out, color 120ms ease-out;
-}
-.market-address-link:hover {
-  background: var(--raise);
-  color: var(--lime);
-}
-.market-address-link:hover code {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-.market-address-link:focus-visible { outline: 2px solid var(--lime); outline-offset: 2px; }
-.market-address-link svg {
-  fill: none;
-  height: 13px;
-  flex: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.8;
-  width: 13px;
-}
-
 /* Trade panel */
 .side-toggle {
   background: var(--raise);
@@ -3060,11 +2995,6 @@ select:focus-visible {
   .market-stat-summary {
     padding: 18px;
   }
-  .market-meta {
-    display: grid;
-    gap: 2px;
-    grid-template-columns: minmax(0, 1fr);
-  }
   .market-chart-panel {
     border-radius: 12px;
   }
@@ -3093,22 +3023,6 @@ select:focus-visible {
   }
   .market-sidebar {
     grid-template-columns: minmax(0, 1fr);
-  }
-  .market-meta > div {
-    display: grid;
-    gap: 4px;
-    grid-template-columns: 72px minmax(0, 1fr);
-    min-height: 30px;
-  }
-  .market-meta dd {
-    justify-content: flex-start;
-    white-space: nowrap;
-  }
-  .market-meta code {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
   .amount-head {
     align-items: center;

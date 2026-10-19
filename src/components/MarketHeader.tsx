@@ -1,35 +1,11 @@
 import { TokenAvatar } from "./TokenAvatar";
-import {
-  formatAddress,
-  formatPercent,
-  formatRelativeTime,
-} from "../lib/format.js";
+import { formatPercent } from "../lib/format.js";
 import type { Token } from "../types";
 import { getMarketDisplayStatus } from "../lib/marketState";
-import { activeExplorerUrl } from "../lib/web3";
 import { UsdAmount } from "./UsdAmount";
 import type { MarketPriceChange } from "../lib/marketChart";
 import type { MarketPreviewStats } from "../lib/marketPreviewStats";
 import { formatMarketAge, formatMarketCount } from "../lib/marketDisplay";
-
-const EXPLORER = `${activeExplorerUrl}/address/`;
-
-function ExplorerLink({ value, label }: { value: string; label: string }) {
-  return (
-    <a
-      className="market-address-link"
-      href={`${EXPLORER}${value}`}
-      target="_blank"
-      rel="noreferrer"
-      aria-label={`View ${label} ${formatAddress(value)} on the explorer`}
-    >
-      <code>{formatAddress(value)}</code>
-      <svg viewBox="0 0 20 20" aria-hidden="true">
-        <path d="M11 4h5v5M16 4l-7 7M15 12v3.5A1.5 1.5 0 0 1 13.5 17h-9A1.5 1.5 0 0 1 3 15.5v-9A1.5 1.5 0 0 1 4.5 5H8" />
-      </svg>
-    </a>
-  );
-}
 
 function Socials({ token }: { token: Token }) {
   const links = [
@@ -49,7 +25,7 @@ function Socials({ token }: { token: Token }) {
   if (!links.length) return null;
 
   return (
-    <nav className="market-socials" aria-label="Token links">
+    <nav className="market-socials market-header-details" aria-label="Token links">
       {links.map((link) => (
         <a
           key={link.label}
@@ -111,23 +87,7 @@ export function MarketHeader({ token, marketCapChange, activityStats }: { token:
           </div>
         </div>
 
-        <div className="market-header-details">
-          <dl className="market-meta">
-            <div>
-              <dt>CA</dt>
-              <dd><ExplorerLink value={token.address} label="contract" /></dd>
-            </div>
-            <div>
-              <dt>Created by</dt>
-              <dd><ExplorerLink value={token.creator} label="creator" /></dd>
-            </div>
-            <div>
-              <dt>Launched</dt>
-              <dd>{formatRelativeTime(token.createdAt)}</dd>
-            </div>
-          </dl>
-          <Socials token={token} />
-        </div>
+        <Socials token={token} />
       </div>
       <div className="market-headline-stats">
         <dl className="market-stat-summary">
