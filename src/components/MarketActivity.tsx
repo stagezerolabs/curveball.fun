@@ -19,12 +19,9 @@ function ParticipantLink({ address, role }: { address: Address; role: TradeActiv
     retry: 1,
   });
   const label = role === "recipient" ? "Pool recipient" : "Trader";
-  return <span className="market-activity-participant">
-    <small>{label}</small>
-    <a className="market-activity-trader" href={`/profile/${address}`} title={`${label}: ${address}`} aria-label={name ? `View ${name}'s Curveball profile` : `View ${address}'s Curveball profile`}>
-      <span className={name ? "market-activity-name" : ""}>{name ?? formatAddress(address)}</span>
-    </a>
-  </span>;
+  return <a className="market-activity-trader" href={`/profile/${address}`} title={`${label}: ${address}`} aria-label={name ? `View ${name}'s Curveball profile` : `View ${address}'s Curveball profile`}>
+    <span className={name ? "market-activity-name" : ""}>{name ?? formatAddress(address)}</span>
+  </a>;
 }
 
 function tokenAmount(value: bigint) {

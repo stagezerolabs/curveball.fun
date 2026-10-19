@@ -2437,8 +2437,6 @@ select:focus-visible {
 .market-activity-price strong { color: var(--ink); }
 .market-activity-age time { color: var(--muted); font-weight: 600; }
 .market-activity-person { align-items: center; display: flex; gap: 10px; }
-.market-activity-participant { display: grid; gap: 2px; }
-.market-activity-participant > small { color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
 .market-activity-side { align-items: center; display: inline-flex; font-size: 12px; font-weight: 700; gap: 6px; }
 .market-activity-side > span { font-size: 15px; line-height: 1; }
 .market-activity-side.buy { color: var(--lime-ink); }
