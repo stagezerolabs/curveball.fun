@@ -6,7 +6,7 @@ import { DataZoomComponent, GridComponent, MarkLineComponent, TooltipComponent }
 import { CanvasRenderer } from "echarts/renderers";
 import { usePublicClient } from "wagmi";
 import { MarketActivity } from "./MarketActivity";
-import { UsdAmount } from "./UsdAmount";
+import { UsdAmount, useEthUsdRate } from "./UsdAmount";
 import { curveLaunchpadAbi } from "../sdk/contracts";
 import {
   activeChainId,
@@ -21,6 +21,7 @@ import {
   tradeLogToActivity,
   tradeLogToPoint,
   type TradeActivity,
+  type MarketCandle,
   type MarketPriceChange,
   type TradePoint,
   type TradeLogValues,
@@ -164,6 +165,7 @@ export function MarketChart({
   onMarketCapChange?: (change: MarketPriceChange | null) => void;
 }) {
   const publicClient = usePublicClient({ chainId: activeChainId });
+  const usdPerEth = useEthUsdRate();
   const backendEnabled = Boolean(socialApiBaseUrl);
   const chartRef = useRef<HTMLDivElement>(null);
   const [points, setPoints] = useState<TradePoint[]>([]);
@@ -172,7 +174,7 @@ export function MarketChart({
   const [rpcLoading, setRpcLoading] = useState(true);
   const [rpcError, setRpcError] = useState("");
   const [themeVersion, setThemeVersion] = useState(0);
-  const [hover, setHover] = useState<{ close: number; volume: number } | null>(null);
+  const [hover, setHover] = useState<MarketCandle | null>(null);
   const backendCandles = useQuery({
     queryKey: ["markets", "candles", token.address, interval, refreshKey],
     queryFn: ({ signal }) => fetchMarketCandles(token, interval, signal),
@@ -249,21 +251,18 @@ export function MarketChart({
       grid: styles.getPropertyValue("--chart-grid").trim(),
       lime: styles.getPropertyValue("--lime").trim(),
       orange: styles.getPropertyValue("--orange").trim(),
-    }, interval));
-    setHover({
-      close: candles[candles.length - 1].close,
-      volume: candles[candles.length - 1].volume,
-    });
+    }, interval, usdPerEth));
+    setHover(candles[candles.length - 1]);
     chart.on("updateAxisPointer", (event) => {
       const pointer = event as { axesInfo?: { value?: number }[] };
       const index = pointer.axesInfo?.[0]?.value;
       if (index !== undefined && candles[index]) {
-        setHover({ close: candles[index].close, volume: candles[index].volume });
+        setHover(candles[index]);
       }
     });
     chart.getZr().on("globalout", () => {
       const latest = candles[candles.length - 1];
-      setHover({ close: latest.close, volume: latest.volume });
+      setHover(latest);
     });
     const observer = new ResizeObserver(() => chart.resize());
     observer.observe(container);
@@ -271,16 +270,19 @@ export function MarketChart({
       observer.disconnect();
       chart.dispose();
     };
-  }, [candles, interval, themeVersion]);
+  }, [candles, interval, themeVersion, usdPerEth]);
 
   return (
     <div className="market-main">
     <section className="market-chart-panel" aria-label={`${token.symbol} market cap chart`}>
       <header className="market-chart-head">
-        <div>
-          <strong><UsdAmount weth={hover?.close} compact /></strong>
-          {hover && <small>Market cap · Volume <UsdAmount weth={hover.volume} compact /></small>}
-        </div>
+        <dl className="market-chart-ohlc" aria-label="Candle market cap and volume">
+          <div><dt>O</dt><dd><UsdAmount weth={hover?.open} compact /></dd></div>
+          <div><dt>H</dt><dd><UsdAmount weth={hover?.high} compact /></dd></div>
+          <div><dt>L</dt><dd><UsdAmount weth={hover?.low} compact /></dd></div>
+          <div><dt>C</dt><dd><UsdAmount weth={hover?.close} compact /></dd></div>
+          <div><dt>Vol</dt><dd><UsdAmount weth={hover?.volume} compact /></dd></div>
+        </dl>
         <div className="chart-intervals" role="group" aria-label="Chart interval">
           {INTERVALS.map((item) => (
             <button

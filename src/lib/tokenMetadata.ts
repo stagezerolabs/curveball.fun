@@ -1,6 +1,6 @@
 const CID = /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|baf[a-z2-7]{20,})(\/[^\s?#]*)?$/i;
 const MAX_METADATA_BYTES = 32_000;
-const cache = new Map<string, Promise<string | null>>();
+const cache = new Map<string, Promise<{ image: string | null; description: string | null } | null>>();
 
 async function readMetadata(response: Response): Promise<unknown> {
   if (!response.body || Number(response.headers.get("content-length")) > MAX_METADATA_BYTES) return null;
@@ -37,7 +37,7 @@ export function publicContentUrl(uri: string): string | null {
   }
 }
 
-export function tokenArtworkUrl(uri: string): Promise<string | null> {
+async function tokenMetadata(uri: string) {
   const existing = cache.get(uri);
   if (existing) return existing;
   const metadataUrl = publicContentUrl(uri);
@@ -49,12 +49,24 @@ export function tokenArtworkUrl(uri: string): Promise<string | null> {
       const metadata = await readMetadata(response);
       if (!metadata || typeof metadata !== "object") return null;
       const image = "image" in metadata ? metadata.image : null;
-      return typeof image === "string" ? publicContentUrl(image) : null;
+      const description = "description" in metadata ? metadata.description : null;
+      return {
+        image: typeof image === "string" ? publicContentUrl(image) : null,
+        description: typeof description === "string" ? description.trim().slice(0, 2_000) || null : null,
+      };
     } catch {
       return null;
     }
   })();
   cache.set(uri, request);
-  void request.then((url) => { if (!url) cache.delete(uri); });
+  void request.then((value) => { if (!value) cache.delete(uri); });
   return request;
+}
+
+export async function tokenArtworkUrl(uri: string): Promise<string | null> {
+  return (await tokenMetadata(uri))?.image ?? null;
+}
+
+export async function tokenDescription(uri: string): Promise<string | null> {
+  return (await tokenMetadata(uri))?.description ?? null;
 }

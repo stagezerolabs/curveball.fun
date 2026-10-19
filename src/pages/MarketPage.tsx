@@ -4,6 +4,7 @@ import { getAddress, isAddress, type Address } from "viem";
 import { useStore } from "../app/useStore.js";
 import { AppLink } from "../components/Navigation";
 import { MarketHeader } from "../components/MarketHeader";
+import { MarketAbout } from "../components/MarketAbout";
 import { HolderAirdropPanel } from "../components/HolderAirdropPanel";
 import { MilestonePanel } from "../components/MilestonePanel";
 import { TradePanel } from "../components/TradePanel";
@@ -144,6 +145,8 @@ export function MarketPage({
           {resolvedToken.reserveTokens !== "0" && <HolderAirdropPanel token={resolvedToken} />}
         </aside>
       </div>
+
+      <MarketAbout token={resolvedToken} />
 
       {error && (
         <div className="notice notice-dismissible floating-notice" role="alert">
