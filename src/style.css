@@ -2957,6 +2957,11 @@ select:focus-visible {
   gap: 12px;
   padding-top: 16px;
 }
+.reserve-link { color: var(--ink); text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px; transition: color 150ms ease, text-decoration-color 150ms ease; white-space: nowrap; }
+.reserve-link span { display: inline-block; transition: transform 150ms ease; }
+.reserve-link:hover { color: var(--lime-ink); text-decoration-color: currentColor; }
+.reserve-link:hover span { transform: translate(2px, -2px); }
+.reserve-link:focus-visible { border-radius: 2px; outline: 2px solid var(--lime); outline-offset: 3px; }
 .claim-button {
   justify-content: center;
   width: 100%;
