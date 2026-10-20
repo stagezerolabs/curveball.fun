@@ -141,7 +141,7 @@ export async function publishLeaderboards(db, asOfBlock) {
       SELECT latest.*,activity.*,pricing.*,
         (SELECT COALESCE(SUM(cost.realized_cost_basis_quote),0)::text FROM curve_positions cost
           WHERE cost.chain_id=$1 AND cost.trader_address=latest.address) AS realized_cost_wei
-      FROM latest JOIN profiles p ON p.chain_id=$1 AND p.address=latest.address AND p.discoverable=true
+      FROM latest
       CROSS JOIN LATERAL (
         SELECT COUNT(DISTINCT (t.block_timestamp AT TIME ZONE 'UTC')::date) AS trading_day_count,
           MIN(t.block_timestamp) AS first_trade_at,MAX(t.block_timestamp) AS last_trade_at,

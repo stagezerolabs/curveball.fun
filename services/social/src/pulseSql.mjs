@@ -68,32 +68,46 @@ export const nowPulseSql = `SELECT t.token_address,m.name AS token_name,m.symbol
 
 // Leaderboard fallback while no current-method snapshot is published: every trader's latest stored
 // performance, ranked by return. Params: $1 chain, $2 limit.
-export const provisionalLeaderboardSql = `SELECT ps.address,p.display_name,p.bio,ps.methodology_version,
+export const provisionalLeaderboardSql = `SELECT ps.address,ps.methodology_version,
     ps.return_bps,ps.realized_pnl_quote,ps.unrealized_pnl_quote,ps.invested_quote,ps.trade_count,ps.market_count
   FROM (SELECT DISTINCT ON (address) * FROM trader_performance_snapshots
     WHERE chain_id=$1 ORDER BY address,as_of_block DESC) ps
-  LEFT JOIN profiles p ON p.chain_id=$1 AND p.address=ps.address
   WHERE ps.trade_count>0
     AND NOT EXISTS (SELECT 1 FROM protocol_accounts pa WHERE pa.chain_id=$1
       AND pa.address=ps.address AND pa.is_user_attributable=false)
   ORDER BY ps.return_bps DESC NULLS LAST,ps.invested_quote DESC LIMIT $2`;
 
-// Following: markets the given wallets bought, with each buyer and their WETH spend. When $2 is
-// null every user wallet counts (follows are not live yet). Params: $1 chain, $2 followed wallets,
-// $3 blocked wallets.
-export const followingBuysSql = `WITH buyers AS (
-    SELECT t.token_address,t.trader_address,SUM(t.net_trader_quote) AS bought
-    FROM trades t WHERE t.chain_id=$1 AND t.orphaned=false AND t.is_buy
-      AND ($2::text[] IS NULL OR t.trader_address=ANY($2::text[]))
+// Following: markets the given wallets created, bought or sold, newest activity first, with each
+// actor's address and WETH size. The caller must supply at least one followed wallet: this read has
+// no "every wallet" mode, because a Following tab that lists strangers is not a follow graph.
+// Params: $1 chain, $2 followed wallets, $3 blocked wallets.
+export const followingActivitySql = `WITH events AS (
+    SELECT m.token_address,m.creator_address AS actor_address,'launch'::text AS action,
+      0::numeric AS quote_amount,m.launched_at AS occurred_at
+    FROM markets m
+    WHERE m.chain_id=$1 AND m.orphaned=false
+      AND m.creator_address=ANY($2::text[])
+      AND NOT (m.creator_address=ANY($3::text[]))
+    UNION ALL
+    SELECT t.token_address,t.trader_address,CASE WHEN t.is_buy THEN 'buy' ELSE 'sell' END,
+      t.net_trader_quote,t.block_timestamp
+    FROM trades t
+    WHERE t.chain_id=$1 AND t.orphaned=false
+      AND t.trader_address=ANY($2::text[])
       AND NOT (t.trader_address=ANY($3::text[]))
       AND NOT EXISTS (SELECT 1 FROM protocol_accounts pa WHERE pa.chain_id=t.chain_id
         AND pa.address=t.trader_address AND pa.is_user_attributable=false)
-    GROUP BY t.token_address,t.trader_address
   )
-  SELECT b.token_address,m.name AS token_name,m.symbol AS token_symbol,SUM(b.bought)::text AS bought_quote_wei,
-    JSON_AGG(JSON_BUILD_OBJECT('address',b.trader_address,'displayName',p.display_name) ORDER BY b.bought DESC) AS buyers
-  FROM buyers b
-  JOIN markets m ON m.chain_id=$1 AND m.token_address=b.token_address AND m.orphaned=false
-  LEFT JOIN profiles p ON p.chain_id=$1 AND p.address=b.trader_address
-  GROUP BY b.token_address,m.name,m.symbol
-  ORDER BY COUNT(*) DESC,SUM(b.bought) DESC LIMIT 12`;
+  SELECT a.token_address,m.name AS token_name,m.symbol AS token_symbol,
+    COALESCE(SUM(a.quote_amount) FILTER (WHERE a.action='buy'),0)::text AS bought_quote_wei,
+    COALESCE(SUM(a.quote_amount) FILTER (WHERE a.action='sell'),0)::text AS sold_quote_wei,
+    MAX(a.occurred_at) AS latest_at,
+    JSON_AGG(JSON_BUILD_OBJECT('address',a.actor_address,'action',a.action,'amountQuoteWei',a.quote_amount::text)
+      ORDER BY a.quote_amount DESC,a.occurred_at DESC) AS actors
+  FROM (
+    SELECT token_address,actor_address,action,SUM(quote_amount) AS quote_amount,MAX(occurred_at) AS occurred_at
+    FROM events GROUP BY token_address,actor_address,action
+  ) a
+  JOIN markets m ON m.chain_id=$1 AND m.token_address=a.token_address AND m.orphaned=false
+  GROUP BY a.token_address,m.name,m.symbol
+  ORDER BY MAX(a.occurred_at) DESC,COUNT(*) DESC LIMIT 12`;

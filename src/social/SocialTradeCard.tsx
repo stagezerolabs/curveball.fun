@@ -25,7 +25,7 @@ export function SocialTradeCard({ trade, navigate }: {
   return (
     <article className="social-trade-card">
       <header>
-        <TraderIdentity address={trade.traderAddress} displayName={trade.displayName} navigate={navigate} showAddress={false} />
+        <TraderIdentity address={trade.traderAddress} navigate={navigate} showAddress={false} />
         <time dateTime={trade.blockTimestamp} title={new Date(trade.blockTimestamp).toLocaleString()}>{formatRelativeTime(trade.blockTimestamp)}</time>
       </header>
       <div className="social-trade-body">

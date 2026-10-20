@@ -12,7 +12,7 @@ function TraderRow({ trader, rank, navigate }: { trader: LeaderboardTrader; rank
   const returnBps = metrics.returnBps;
   return <li className={`pulse-leader${rank <= 3 ? " is-podium" : ""}`}>
     <span className="pulse-leader-rank" aria-label={`Rank ${rank}`}>{rank}</span>
-    <TraderIdentity address={trader.address} displayName={trader.displayName} navigate={navigate} />
+    <TraderIdentity address={trader.address} navigate={navigate} />
     <div className="pulse-leader-return">
       <strong className={returnBps != null && returnBps < 0 ? "negative" : ""}>{percent(returnBps)}</strong>
       <span>est. return</span>

@@ -1,0 +1,2 @@
+ALTER TABLE "curveball"."reports" ADD COLUMN "subject_trade_id" text;--> statement-breakpoint
+CREATE INDEX "reports_trade_moderation_idx" ON "curveball"."reports" USING btree ("chain_id","subject_trade_id","status");

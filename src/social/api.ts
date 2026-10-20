@@ -3,10 +3,11 @@ import { getAccount } from "@wagmi/core";
 import { getAddress, type Address } from "viem";
 import { wagmiConfig } from "../lib/web3";
 import type {
-  FollowingBuy,
-  NotificationItem,
+  FollowingActivity,
   ModerationReport,
   LeaderboardSnapshot,
+  Notification,
+  NotificationPreferences,
   PulsePeriod,
   PulseResponse,
   PulseScope,
@@ -63,12 +64,26 @@ function mapTrade(row: Record<string, unknown>): SocialTrade {
     tokenName: String(row.token_name),
     tokenSymbol: String(row.token_symbol),
     launchpadAddress: getAddress(String(row.launchpad_address)),
-    displayName: typeof row.display_name === "string" ? row.display_name : null,
     note: typeof row.note === "string" ? row.note : null,
     reactionCount: Number(row.reaction_count || 0),
     reacted: Boolean(row.reacted),
     followerCount: Number(row.follower_count || 0),
     isFollowed: Boolean(row.is_followed),
+  };
+}
+
+function mapNotification(row: Record<string, unknown>): Notification {
+  const payload = (row.payload ?? {}) as Record<string, unknown>;
+  return {
+    id: String(row.id),
+    kind: String(row.kind) as Notification["kind"],
+    actorAddress: typeof row.actor_address === "string" ? getAddress(row.actor_address) : null,
+    tokenAddress: typeof payload.tokenAddress === "string" ? getAddress(payload.tokenAddress) : null,
+    tokenName: typeof payload.tokenName === "string" ? payload.tokenName : null,
+    tokenSymbol: typeof payload.tokenSymbol === "string" ? payload.tokenSymbol : null,
+    milestone: typeof payload.milestone === "number" ? payload.milestone : null,
+    readAt: typeof row.read_at === "string" ? row.read_at : null,
+    createdAt: String(row.created_at),
   };
 }
 
@@ -88,17 +103,14 @@ export const socialApi = {
     const query = new URLSearchParams({ scope, period });
     return api<PulseResponse>(`/v1/pulse?${query}`);
   },
-  followingBuys() {
-    return api<{ scope: "following" | "all"; items: FollowingBuy[] }>("/v1/following/buys");
+  followingActivity() {
+    return api<{ scope: "following"; followedCount: number; items: FollowingActivity[] }>("/v1/following/activity");
   },
   leaderboard(category: "consistent" | "new") {
     return api<LeaderboardSnapshot>(`/v1/leaderboards/${category}`);
   },
   profile(address: Address) {
     return api<TraderProfile>(`/v1/profiles/${address}`);
-  },
-  saveProfile(input: { displayName: string; bio: string; discoverable: boolean }) {
-    return api<TraderProfile>("/v1/profiles/me", { method: "POST", body: input });
   },
   follow(address: Address, following: boolean) {
     return api<{ following: boolean }>(`/v1/follows/${address}`, { method: following ? "POST" : "DELETE" });
@@ -115,20 +127,40 @@ export const socialApi = {
   reactToTrade(tradeId: string, active: boolean) {
     return api<{ active: boolean; count: number }>("/v1/trade-reactions", { method: "POST", body: { tradeId, active } });
   },
-  notifications(limit = 8) {
-    return api<{ items: NotificationItem[] }>(`/v1/notifications?limit=${limit}`);
-  },
-  notificationPreferences() {
-    return api<{ in_app: boolean; trade_buys: boolean; trade_sells: boolean; graduations: boolean }>("/v1/notification-preferences");
-  },
-  saveNotificationPreferences(input: { inApp: boolean; tradeBuys: boolean; tradeSells: boolean; graduations: boolean }) {
-    return api<{ in_app: boolean; trade_buys: boolean; trade_sells: boolean; graduations: boolean }>("/v1/notification-preferences", { method: "PATCH", body: input });
-  },
-  markNotificationsRead(ids: string[]) {
-    return api<{ ok: true }>("/v1/notifications/read", { method: "PATCH", body: { ids: ids.map(Number) } });
-  },
   moderationReports(status: "open" | "reviewing" | "actioned" | "dismissed" | "all" = "open") {
     return api<{ items: ModerationReport[] }>(`/v1/admin/reports?status=${status}`);
+  },
+  async notifications(limit = 30) {
+    const result = await api<{ items: Record<string, unknown>[]; unreadCount: number }>(`/v1/notifications?limit=${limit}`);
+    return { items: result.items.map(mapNotification), unreadCount: result.unreadCount };
+  },
+  markNotificationsRead(ids: string[]) {
+    return api<{ ok: true }>("/v1/notifications/read", { method: "PATCH", body: { ids } });
+  },
+  async notificationPreferences() {
+    const row = await api<{ in_app: boolean; trade_buys: boolean; trade_sells: boolean; launches: boolean; graduations: boolean; new_followers: boolean }>("/v1/notification-preferences");
+    return {
+      inApp: row.in_app,
+      tradeBuys: row.trade_buys,
+      tradeSells: row.trade_sells,
+      launches: row.launches,
+      graduations: row.graduations,
+      newFollowers: row.new_followers,
+    } satisfies NotificationPreferences;
+  },
+  async updateNotificationPreferences(preferences: NotificationPreferences) {
+    const row = await api<{ in_app: boolean; trade_buys: boolean; trade_sells: boolean; launches: boolean; graduations: boolean; new_followers: boolean }>("/v1/notification-preferences", {
+      method: "PATCH",
+      body: preferences,
+    });
+    return {
+      inApp: row.in_app,
+      tradeBuys: row.trade_buys,
+      tradeSells: row.trade_sells,
+      launches: row.launches,
+      graduations: row.graduations,
+      newFollowers: row.new_followers,
+    } satisfies NotificationPreferences;
   },
   updateModerationReport(id: string, status: "reviewing" | "actioned" | "dismissed", resolutionNote: string) {
     return api<{ id: string; status: string; resolution_note: string; resolved_at: string | null }>(`/v1/admin/reports/${id}`, {

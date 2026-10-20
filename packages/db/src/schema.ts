@@ -426,20 +426,15 @@ export const tradeReactions = curveball.table("trade_reactions", {
   index("trade_reactions_reactor_idx").on(table.chainId, table.reactorAddress, table.createdAt),
 ]);
 
+// A profile is the fact that a wallet has signed in. Names come from RNS, never
+// from anything a user typed, so there is nothing here to edit or moderate.
 export const profiles = curveball.table("profiles", {
   chainId: chainId(),
   address: text("address").notNull(),
-  displayName: text("display_name"),
-  bio: text("bio").notNull().default(""),
-  discoverable: boolean("discoverable").notNull().default(false),
   claimedAt: timestamp("claimed_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: updatedAt(),
 }, (table) => [
   primaryKey({ columns: [table.chainId, table.address] }),
-  index("profiles_discoverable_idx").on(table.chainId, table.discoverable)
-    .where(sql`${table.discoverable} = true`),
-  check("profiles_name_length_check", sql`${table.displayName} is null or char_length(${table.displayName}) between 2 and 40`),
-  check("profiles_bio_length_check", sql`char_length(${table.bio}) <= 280`),
 ]);
 
 export const rnsCache = curveball.table("rns_cache", {
@@ -538,6 +533,7 @@ export const reports = curveball.table("reports", {
   chainId: chainId(),
   reporterAddress: text("reporter_address").notNull(),
   subjectAddress: text("subject_address").notNull(),
+  subjectTradeId: text("subject_trade_id"),
   reason: text("reason").notNull(),
   details: text("details").notNull().default(""),
   status: text("status").notNull().default("open"),
@@ -546,6 +542,7 @@ export const reports = curveball.table("reports", {
   createdAt: createdAt(),
 }, (table) => [
   index("reports_moderation_idx").on(table.status, table.createdAt),
+  index("reports_trade_moderation_idx").on(table.chainId, table.subjectTradeId, table.status),
   check("reports_reason_check", sql`${table.reason} in ('spam','impersonation','manipulation','harmful_content','other')`),
   check("reports_status_check", sql`${table.status} in ('open','reviewing','actioned','dismissed')`),
   check("reports_not_self_check", sql`${table.reporterAddress} <> ${table.subjectAddress}`),
@@ -558,6 +555,7 @@ export const notificationPreferences = curveball.table("notification_preferences
   inApp: boolean("in_app").notNull().default(true),
   tradeBuys: boolean("trade_buys").notNull().default(true),
   tradeSells: boolean("trade_sells").notNull().default(true),
+  launches: boolean("launches").notNull().default(true),
   graduations: boolean("graduations").notNull().default(true),
   newFollowers: boolean("new_followers").notNull().default(true),
   updatedAt: updatedAt(),
@@ -579,7 +577,7 @@ export const notifications = curveball.table("notifications", {
   uniqueIndex("notifications_event_uidx").on(table.chainId, table.recipientAddress, table.kind, table.logicalEventId)
     .where(sql`${table.logicalEventId} is not null`),
   index("notifications_recipient_idx").on(table.chainId, table.recipientAddress, table.createdAt),
-  check("notifications_kind_check", sql`${table.kind} in ('followed_buy','followed_sell','new_follower','curve_milestone','graduation','reaction')`),
+  check("notifications_kind_check", sql`${table.kind} in ('followed_buy','followed_sell','followed_launch','new_follower','curve_milestone','graduation','reaction')`),
 ]);
 
 export const notificationOutbox = curveball.table("notification_outbox", {

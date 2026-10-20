@@ -37,7 +37,6 @@ export function useNowPulse(period: PulsePeriod, enabled = true) {
     enabled: enabled && (socialApiConfigured || Boolean(publicClient)),
     staleTime: 15_000,
     refetchInterval: 15_000,
-    refetchOnWindowFocus: true,
     retry: 1,
   });
 }

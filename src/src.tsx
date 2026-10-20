@@ -9,7 +9,19 @@ import { ProfileClaimSync } from "./social/ProfileClaimSync";
 import { wagmiConfig } from "./lib/web3";
 import "./style.css";
 
-const queryClient = new QueryClient();
+// Defaults kill the window-focus refetch storm: without them react-query refetches
+// every active query (Pulse feed, balances, RNS, charts) on every tab focus.
+// Per-query overrides still apply; social feeds opt back in where fresh data matters.
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      staleTime: 30_000,
+      gcTime: 5 * 60_000,
+      retry: 1,
+    },
+  },
+});
 const privyAppId = String(import.meta.env.VITE_PRIVY_APP_ID || "").trim();
 const privyClientId = String(import.meta.env.VITE_PRIVY_CLIENT_ID || "").trim();
 if (!privyAppId) throw new Error("VITE_PRIVY_APP_ID is required.");

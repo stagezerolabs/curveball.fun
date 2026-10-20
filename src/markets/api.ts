@@ -16,6 +16,7 @@ type CandleRow = {
 };
 
 type TradeRow = {
+  id: string;
   participantAddress: Address;
   participantRole: "trader" | "recipient";
   executionSenderAddress: Address | null;
@@ -28,6 +29,11 @@ type TradeRow = {
   blockNumber: string;
   logIndex: number;
   blockTimestamp: string;
+  note: string | null;
+  reactionCount: number;
+  reacted: boolean;
+  isFollowed: boolean;
+  followerCount: number;
 };
 
 type MarketRow = {
@@ -167,35 +173,51 @@ export async function fetchMarketCandles(token: Token, interval: number, signal?
   }));
 }
 
-export async function fetchMarketTrades(tokenAddress: Address, signal?: AbortSignal): Promise<TradeActivity[]> {
-  const result = await request<{ items: TradeRow[] }>(`/v1/markets/${tokenAddress}/trades?limit=100`, signal);
-  return result.items.map((row) => ({
-    trader: getAddress(row.participantAddress),
-    participantRole: row.participantRole,
-    venue: row.venueType,
-    venueAddress: getAddress(row.venueAddress),
-    executionSender: row.executionSenderAddress ? getAddress(row.executionSenderAddress) : undefined,
-    isBuy: row.side === "buy",
-    tokenAmount: BigInt(row.tokenAmount),
-    quoteAmount: BigInt(row.walletQuoteAmount),
-    timestamp: Math.floor(Date.parse(row.blockTimestamp) / 1_000),
-    blockNumber: BigInt(row.blockNumber),
-    logIndex: row.logIndex,
-    transactionHash: row.transactionHash,
-  }));
+export async function fetchMarketTrades(tokenAddress: Address, signal?: AbortSignal): Promise<{
+  followingTraderCount: number;
+  items: TradeActivity[];
+}> {
+  const result = await request<{ followingTraderCount: number; items: TradeRow[] }>(`/v1/markets/${tokenAddress}/trades?limit=100`, signal);
+  return {
+    followingTraderCount: Number(result.followingTraderCount || 0),
+    items: result.items.map((row) => ({
+      id: row.id,
+      trader: getAddress(row.participantAddress),
+      participantRole: row.participantRole,
+      venue: row.venueType,
+      venueAddress: getAddress(row.venueAddress),
+      executionSender: row.executionSenderAddress ? getAddress(row.executionSenderAddress) : undefined,
+      isBuy: row.side === "buy",
+      tokenAmount: BigInt(row.tokenAmount),
+      quoteAmount: BigInt(row.walletQuoteAmount),
+      timestamp: Math.floor(Date.parse(row.blockTimestamp) / 1_000),
+      blockNumber: BigInt(row.blockNumber),
+      logIndex: row.logIndex,
+      transactionHash: row.transactionHash,
+      note: row.note,
+      reactionCount: row.reactionCount,
+      reacted: row.reacted,
+      isFollowed: row.isFollowed,
+      followerCount: row.followerCount,
+    })),
+  };
 }
 
-export async function fetchMarketHolders(tokenAddress: Address, atBlock: bigint, signal?: AbortSignal): Promise<{
+export async function fetchMarketHolders(tokenAddress: Address, atBlock: bigint | null, signal?: AbortSignal): Promise<{
+  atBlock: string | null;
   eligibleSupply: bigint;
-  items: Array<{ address: Address; balance: bigint }>;
+  followedHolderCount: number;
+  items: Array<{ address: Address; balance: bigint; isFollowed: boolean }>;
 }> {
-  const result = await request<{ eligibleSupply: string; items: Array<{ address: Address; balance: string }> }>(
-    `/v1/markets/${tokenAddress}/holders?atBlock=${atBlock}&limit=500`,
+  const result = await request<{ atBlock: string | null; eligibleSupply: string; followedHolderCount: number; items: Array<{ address: Address; balance: string; isFollowed: boolean }> }>(
+    `/v1/markets/${tokenAddress}/holders?atBlock=${atBlock === null ? "" : atBlock}&limit=500`,
     signal,
   );
   return {
+    atBlock: result.atBlock,
     eligibleSupply: BigInt(result.eligibleSupply),
-    items: result.items.map((holder) => ({ address: getAddress(holder.address), balance: BigInt(holder.balance) })),
+    followedHolderCount: Number(result.followedHolderCount || 0),
+    items: result.items.map((holder) => ({ address: getAddress(holder.address), balance: BigInt(holder.balance), isFollowed: Boolean(holder.isFollowed) })),
   };
 }
 

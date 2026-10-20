@@ -47,15 +47,22 @@ The standalone worker in [`keeper/`](keeper/README.md) discovers launches and se
 
 ## Run with Docker
 
-`compose.yaml` runs the Vite frontend and the keeper against the deployment in `.env.local` (written by `make configure-testnet`). The project is named `curveball-lean`, so it runs beside any other Curveball stack on the same host.
+For the local stack, `compose.yaml` runs the frontend, social API, indexer, worker, keeper, and a
+local Postgres database in one stack — no external database. The frontend reads its launchpad
+configuration from `.env.local` (written by `make configure-testnet`).
 
 ```bash
 # .env: shared values such as PINATA_JWT and VITE_WALLETCONNECT_PROJECT_ID
-# keeper/.env: KEEPER_* from keeper/.env.example, with a dedicated funded key
+# services/social/.env: chain, Privy, and Sentry settings (database URLs default to the local stack)
+# keeper/.env: keeper and Sentry settings
 docker compose up -d --build
 ```
 
-The frontend serves on `http://127.0.0.1:5174` (set `FRONTEND_PORT` to change it). Secrets are injected from the ignored env files at runtime and never baked into the images. Rebuild the frontend after source changes: `docker compose up -d --build frontend`.
+Open `http://127.0.0.1:5173` for the frontend and `http://127.0.0.1:8787/health` for the API. Set
+`FRONTEND_PORT`, `SOCIAL_API_PORT`, or `POSTGRES_PORT` to move any host port. The database persists in
+the `preview_postgres` Docker volume. Secrets are injected from the ignored env files at runtime and
+never baked into the images. Rebuild the frontend after source changes with
+`docker compose up -d --build frontend`.
 
 ## Run locally
 

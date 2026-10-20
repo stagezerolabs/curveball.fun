@@ -21,7 +21,7 @@ export function AccountPopover({ address, label, navigate, profileActive = false
   profileActive?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const balance = useBalance({ address, chainId: activeChainId, query: { refetchOnWindowFocus: true } });
+  const balance = useBalance({ address, chainId: activeChainId });
   const { logout } = useLogout();
 
   const balanceLabel = balance.data

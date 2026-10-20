@@ -4,6 +4,7 @@ import { pool } from "./db.mjs";
 import { startIndexer } from "./indexer.mjs";
 import { startMetadataWorker } from "./metadata.mjs";
 import { createSocialServer } from "./server.mjs";
+import { captureBackendException, flushBackendEvents } from "./instrument.mjs";
 
 const events = new EventEmitter();
 events.setMaxListeners(1_000);
@@ -17,10 +18,16 @@ const server = createSocialServer({
 
 const stopIndexer = startIndexer({
   onEvent: (event) => events.emit("social", event),
-  onError: (error) => console.error("Social indexer error", error),
+  onError: (error) => {
+    captureBackendException(error, "indexer");
+    console.error("Social indexer error", error);
+  },
 });
 const stopMetadataWorker = startMetadataWorker({
-  onError: (error) => console.error("Metadata worker error", error),
+  onError: (error) => {
+    captureBackendException(error, "worker");
+    console.error("Metadata worker error", error);
+  },
 });
 
 server.listen(config.port, () => {
@@ -33,6 +40,7 @@ async function shutdown(signal) {
   stopMetadataWorker();
   server.close(async () => {
     await pool.end();
+    await flushBackendEvents();
     process.exit(0);
   });
   setTimeout(() => process.exit(1), 10_000).unref();

@@ -29,7 +29,7 @@ import {
 import { buildMarketChartOptions } from "../lib/marketChartOptions";
 import { candlePriceChange, fetchMarketCandles, fetchMarketTrades } from "../markets/api";
 import { socialApiBaseUrl } from "../social/api";
-import type { Token } from "../types";
+import type { Navigate, Token } from "../types";
 
 echarts.use([BarChart, CandlestickChart, DataZoomComponent, GridComponent, MarkLineComponent, TooltipComponent, CanvasRenderer]);
 
@@ -158,10 +158,12 @@ async function loadTradePoints(client: ChartClient, token: Token) {
 export function MarketChart({
   token,
   refreshKey,
+  navigate,
   onMarketCapChange,
 }: {
   token: Token;
   refreshKey?: number;
+  navigate: Navigate;
   onMarketCapChange?: (change: MarketPriceChange | null) => void;
 }) {
   const publicClient = usePublicClient({ chainId: activeChainId });
@@ -175,15 +177,18 @@ export function MarketChart({
   const [rpcError, setRpcError] = useState("");
   const [themeVersion, setThemeVersion] = useState(0);
   const [hover, setHover] = useState<MarketCandle | null>(null);
+  // refreshKey deliberately excluded from the keys: the market status poll ticks
+  // it every 10s, and including it re-downloaded 2,000 candles and re-triggered
+  // the chart rebuild on every tick. The refetch intervals keep data fresh.
   const backendCandles = useQuery({
-    queryKey: ["markets", "candles", token.address, interval, refreshKey],
+    queryKey: ["markets", "candles", token.address, interval],
     queryFn: ({ signal }) => fetchMarketCandles(token, interval, signal),
     enabled: backendEnabled,
     staleTime: 8_000,
     refetchInterval: 10_000,
   });
   const backendTrades = useQuery({
-    queryKey: ["markets", "trades", token.address, refreshKey],
+    queryKey: ["markets", "trades", token.address],
     queryFn: ({ signal }) => fetchMarketTrades(token.address, signal),
     enabled: backendEnabled,
     staleTime: 8_000,
@@ -195,7 +200,7 @@ export function MarketChart({
   );
   const rpcCandles = useMemo(() => buildCandles(marketCapPoints, interval), [marketCapPoints, interval]);
   const candles = backendEnabled ? (backendCandles.data ?? []) : rpcCandles;
-  const trades = backendEnabled ? (backendTrades.data ?? []) : rpcTrades;
+  const trades = backendEnabled ? (backendTrades.data?.items ?? []) : rpcTrades;
   const loading = backendEnabled ? backendCandles.isPending || backendTrades.isPending : rpcLoading;
   const error = backendEnabled ? backendCandles.error || backendTrades.error : rpcError;
 
@@ -241,35 +246,61 @@ export function MarketChart({
     onMarketCapChange?.(candlePriceChange(backendCandles.data ?? []));
   }, [backendCandles.data, backendEnabled, onMarketCapChange]);
 
+  const chartInstanceRef = useRef<ReturnType<typeof echarts.init> | null>(null);
+  const latestCandlesRef = useRef<MarketCandle[]>([]);
+  const hoveringRef = useRef(false);
+  useEffect(() => { latestCandlesRef.current = candles; }, [candles]);
+
+  // Initialize the chart once; the update effect below pushes new data in
+  // place via setOption. Re-initializing on every candles/interval/theme change
+  // disposed and recreated the canvas each poll, which is the visible flicker.
   useEffect(() => {
     const container = chartRef.current;
-    if (!container || !candles.length) return undefined;
-    const styles = getComputedStyle(document.documentElement);
+    if (!container) return undefined;
     const chart = echarts.init(container, undefined, { renderer: "canvas" });
-    chart.setOption(buildMarketChartOptions(candles, {
-      text: styles.getPropertyValue("--muted").trim(),
-      grid: styles.getPropertyValue("--chart-grid").trim(),
-      lime: styles.getPropertyValue("--lime").trim(),
-      orange: styles.getPropertyValue("--orange").trim(),
-    }, interval, usdPerEth));
-    setHover(candles[candles.length - 1]);
+    chartInstanceRef.current = chart;
     chart.on("updateAxisPointer", (event) => {
       const pointer = event as { axesInfo?: { value?: number }[] };
+      const current = latestCandlesRef.current;
       const index = pointer.axesInfo?.[0]?.value;
-      if (index !== undefined && candles[index]) {
-        setHover(candles[index]);
+      if (index !== undefined && current[index]) {
+        hoveringRef.current = true;
+        setHover(current[index]);
       }
     });
     chart.getZr().on("globalout", () => {
-      const latest = candles[candles.length - 1];
-      setHover(latest);
+      hoveringRef.current = false;
+      const current = latestCandlesRef.current;
+      setHover(current[current.length - 1]);
     });
     const observer = new ResizeObserver(() => chart.resize());
     observer.observe(container);
     return () => {
       observer.disconnect();
       chart.dispose();
+      chartInstanceRef.current = null;
     };
+  }, []);
+
+  const previousIntervalRef = useRef(interval);
+  useEffect(() => {
+    const chart = chartInstanceRef.current;
+    if (!chart || !candles.length) return undefined;
+    const styles = getComputedStyle(document.documentElement);
+    chart.setOption(buildMarketChartOptions(candles, {
+      text: styles.getPropertyValue("--muted").trim(),
+      grid: styles.getPropertyValue("--chart-grid").trim(),
+      lime: styles.getPropertyValue("--lime").trim(),
+      orange: styles.getPropertyValue("--orange").trim(),
+    }, interval, usdPerEth));
+    // Don't yank the OHLC readout back to the latest candle while the user is
+    // examining an earlier bar; a fresh poll shouldn't disturb an active hover.
+    // Switching interval rebuilds the view, so reset then.
+    if (!hoveringRef.current || previousIntervalRef.current !== interval) {
+      previousIntervalRef.current = interval;
+      setHover(candles[candles.length - 1]);
+    }
+    return undefined;
   }, [candles, interval, themeVersion, usdPerEth]);
 
   return (
@@ -306,7 +337,15 @@ export function MarketChart({
         <div ref={chartRef} className="market-chart-canvas" />
       </div>
     </section>
-    <MarketActivity key={token.address} token={token} trades={trades} loading={loading} error={Boolean(error)} />
+    <MarketActivity
+      key={token.address}
+      token={token}
+      trades={trades}
+      loading={loading}
+      error={Boolean(error)}
+      followingTraderCount={backendEnabled ? backendTrades.data?.followingTraderCount ?? 0 : 0}
+      navigate={navigate}
+    />
     </div>
   );
 }

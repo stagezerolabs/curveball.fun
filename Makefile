@@ -11,8 +11,8 @@ SERVICE ?=
 
 .PHONY: help dev build build-testnet test typecheck contracts-test testnet-preflight deploy-testnet record-testnet configure-testnet production-preflight deploy-production record-production configure-production \
 	docker-up docker-up-build docker-build docker-build-no-cache docker-down docker-stop docker-start docker-restart docker-recreate docker-rebuild \
-	docker-frontend docker-social docker-migrate docker-status docker-images docker-top docker-config docker-logs docker-logs-api docker-logs-frontend docker-logs-social \
-	docker-shell-api docker-shell-frontend docker-build-service docker-recreate-service docker-logs-service docker-clean
+	docker-frontend docker-social docker-keeper docker-migrate docker-status docker-images docker-top docker-config docker-logs docker-logs-api docker-logs-frontend docker-logs-social docker-logs-keeper \
+	docker-shell-api docker-shell-frontend docker-db-shell docker-build-service docker-recreate-service docker-logs-service docker-clean
 
 help:
 	@echo "make dev                 Run the static frontend"
@@ -42,6 +42,7 @@ help:
 	@echo "make docker-rebuild            Rebuild and recreate the complete stack"
 	@echo "make docker-frontend           Rebuild and recreate only the frontend"
 	@echo "make docker-social             Migrate, rebuild, and recreate social services"
+	@echo "make docker-keeper             Rebuild and recreate only the keeper"
 	@echo "make docker-migrate            Run database migrations once"
 	@echo "make docker-status             Show container status"
 	@echo "make docker-images             Show Compose images"
@@ -51,8 +52,10 @@ help:
 	@echo "make docker-logs-api           Follow API logs"
 	@echo "make docker-logs-frontend      Follow frontend logs"
 	@echo "make docker-logs-social        Follow API, indexer, and worker logs"
+	@echo "make docker-logs-keeper        Follow keeper logs"
 	@echo "make docker-shell-api          Open a shell in the API container"
 	@echo "make docker-shell-frontend     Open a shell in the frontend container"
+	@echo "make docker-db-shell           Open psql in the local Postgres container"
 	@echo "make docker-build-service SERVICE=api"
 	@echo "make docker-recreate-service SERVICE=api"
 	@echo "make docker-logs-service SERVICE=api"
@@ -147,6 +150,10 @@ docker-frontend:
 docker-social:
 	$(COMPOSE) up -d --build --force-recreate migrate api indexer worker
 
+# Rebuild and recreate only the keeper. Use after keeper-only code changes.
+docker-keeper:
+	$(COMPOSE) up -d --build --force-recreate --no-deps keeper
+
 # Run the one-shot database migration service and remove its temporary container afterward.
 docker-migrate:
 	$(COMPOSE) run --rm migrate
@@ -183,6 +190,10 @@ docker-logs-frontend:
 docker-logs-social:
 	$(COMPOSE) logs --follow --tail=$(TAIL) api indexer worker
 
+# Follow only keeper logs. Override history with TAIL=<lines>.
+docker-logs-keeper:
+	$(COMPOSE) logs --follow --tail=$(TAIL) keeper
+
 # Open an interactive Alpine shell inside the running API container.
 docker-shell-api:
 	$(COMPOSE) exec api sh
@@ -190,6 +201,10 @@ docker-shell-api:
 # Open an interactive Alpine shell inside the running frontend container.
 docker-shell-frontend:
 	$(COMPOSE) exec frontend sh
+
+# Open psql in the local Postgres container.
+docker-db-shell:
+	$(COMPOSE) exec postgres psql -U curveball -d curveball
 
 # Build one service image, for example: make docker-build-service SERVICE=api.
 docker-build-service:

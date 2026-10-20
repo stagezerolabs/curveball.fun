@@ -73,7 +73,7 @@ export function MarketPage({
       publicClient as unknown as CreatorTokenClient | undefined,
       address,
     ).catch(() => undefined);
-  }, [address, fetchedAt, loadToken, publicClient]);
+  }, [address, loadToken, publicClient]);
 
   useEffect(() => {
     if (!address || !resolvedToken?.factory || resolvedToken.graduated || (!publicClient && !backendEnabled)) return;
@@ -131,7 +131,7 @@ export function MarketPage({
             />
           }
         >
-          <MarketChart token={resolvedToken} refreshKey={fetchedAt} onMarketCapChange={setMarketCapChange} />
+          <MarketChart token={resolvedToken} refreshKey={fetchedAt} navigate={navigate} onMarketCapChange={setMarketCapChange} />
         </Suspense>
         <aside className="market-sidebar" aria-label="Market actions">
           <TradePanel
@@ -146,7 +146,7 @@ export function MarketPage({
         </aside>
       </div>
 
-      <MarketAbout token={resolvedToken} />
+      <MarketAbout token={resolvedToken} navigate={navigate} />
 
       {error && (
         <div className="notice notice-dismissible floating-notice" role="alert">

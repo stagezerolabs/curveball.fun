@@ -12,6 +12,7 @@ export function MarketList({
   navigate,
   highlightedToken,
   previewStats = {},
+  followSignal = {},
   view = "cards",
 }: {
   tokens: Token[];
@@ -19,6 +20,8 @@ export function MarketList({
   navigate: Navigate;
   highlightedToken?: string | null;
   previewStats?: MarketPreviewStatsByToken;
+  /** Wallets the viewer last acted on each market, keyed by lowercase token address. */
+  followSignal?: Record<string, number>;
   view?: "cards" | "rows";
 }) {
   return (
@@ -70,6 +73,9 @@ export function MarketList({
                     <div><dt>Volume 24h</dt><dd><UsdAmount weth={stats?.volume24h} compact /></dd></div>
                     <div><dt>Traders</dt><dd>{formatMarketCount(stats?.traders)}</dd></div>
                   </dl>
+                  {followSignal[token.address.toLowerCase()] ? <p className="market-card-follows">
+                    {followSignal[token.address.toLowerCase()]} {followSignal[token.address.toLowerCase()] === 1 ? "follow" : "follows"} active here
+                  </p> : null}
                   <progress className="market-card-progress-track" value={soldPercent} max={100} aria-label={`${token.name} curve sold`} />
                   <div className="market-card-footer">
                     <span className="market-card-fee">{token.feeBps == null ? "Fee unavailable" : `Fee ${(token.feeBps / 100).toFixed(2)}%`}</span>

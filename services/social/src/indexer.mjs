@@ -3,6 +3,7 @@ import { config } from "./config.mjs";
 import { pool, transaction } from "./db.mjs";
 import { crossedCurveMilestones } from "./milestones.mjs";
 import { publishLeaderboards, refreshPerformanceSnapshot } from "./performance.mjs";
+import { traceBackendTask } from "./instrument.mjs";
 
 // The lean launchpad (docs/adr/0003-lean-singleton-launchpad.md): one contract runs every market's
 // curve, and the fee escrow, LP locker and holder reserve are singletons discovered from it.
@@ -413,6 +414,14 @@ async function indexFactoryRange(fromBlock, toBlock) {
         name=EXCLUDED.name,symbol=EXCLUDED.symbol,metadata_uri=EXCLUDED.metadata_uri,updated_at=now()`,
       [config.chainId, lower(log.args.token), log.args.name, log.args.symbol, log.args.uri]);
       const eventId = logicalId(log);
+      await db.query(`INSERT INTO notifications (chain_id,recipient_address,kind,actor_address,logical_event_id,payload)
+        SELECT $1,f.follower_address,'followed_launch',$2,$3,$4::jsonb
+        FROM follows f
+        LEFT JOIN notification_preferences p ON p.chain_id=f.chain_id AND p.address=f.follower_address
+        WHERE f.chain_id=$1 AND f.followed_address=$2
+          AND COALESCE(p.in_app,true)=true AND COALESCE(p.launches,true)=true
+        ON CONFLICT DO NOTHING`,
+      [config.chainId, lower(log.args.creator), eventId, JSON.stringify({ tokenAddress: lower(log.args.token) })]);
       await db.query(`INSERT INTO notification_outbox (event_key,topic,payload)
         VALUES ($1,'launch',$2::jsonb) ON CONFLICT (event_key) DO NOTHING`,
       [`chain:${config.chainId}:launch:${eventId}`, JSON.stringify({ id: eventId, type: "launch", tokenAddress: lower(log.args.token) })]);
@@ -436,11 +445,19 @@ async function indexFactoryRange(fromBlock, toBlock) {
       [config.chainId, lower(log.args.pool)]);
       const eventId = logicalId(log);
       await db.query(
-        `INSERT INTO notifications (chain_id,recipient_address,kind,actor_address,logical_event_id,payload)
-         SELECT $1,f.follower_address,'graduation',m.creator_address,$2,$3::jsonb
-         FROM markets m JOIN follows f ON f.chain_id=m.chain_id AND f.followed_address=m.creator_address
-         LEFT JOIN notification_preferences p ON p.chain_id=f.chain_id AND p.address=f.follower_address
-         WHERE m.chain_id=$1 AND m.token_address=$4 AND COALESCE(p.in_app,true)=true AND COALESCE(p.graduations,true)=true
+        `WITH recipients AS (
+           SELECT m.chain_id,m.creator_address AS recipient_address FROM markets m
+             WHERE m.chain_id=$1 AND m.token_address=$4
+           UNION
+           SELECT m.chain_id,f.follower_address FROM markets m
+             JOIN follows f ON f.chain_id=m.chain_id AND f.followed_address=m.creator_address
+             WHERE m.chain_id=$1 AND m.token_address=$4
+         )
+         INSERT INTO notifications (chain_id,recipient_address,kind,actor_address,logical_event_id,payload)
+         SELECT $1,r.recipient_address,'graduation',m.creator_address,$2,$3::jsonb
+         FROM recipients r JOIN markets m ON m.chain_id=r.chain_id AND m.token_address=$4
+         LEFT JOIN notification_preferences p ON p.chain_id=r.chain_id AND p.address=r.recipient_address
+         WHERE COALESCE(p.in_app,true)=true AND COALESCE(p.graduations,true)=true
          ON CONFLICT DO NOTHING`,
         [config.chainId, eventId, JSON.stringify({ tokenAddress: lower(log.args.token), poolAddress: lower(log.args.pool) }), lower(log.args.token)],
       );
@@ -916,7 +933,7 @@ export function startIndexer({ onEvent, onError } = {}) {
     return true;
   };
 
-  const tick = async () => {
+  const tick = async () => traceBackendTask("social.indexer.tick", async () => {
     if (stopped) return;
     try {
       if (!await acquireLeadership()) return;
@@ -937,7 +954,7 @@ export function startIndexer({ onEvent, onError } = {}) {
     } finally {
       if (!stopped) timer = setTimeout(tick, config.pollIntervalMs);
     }
-  };
+  });
 
   void tick();
   return () => {

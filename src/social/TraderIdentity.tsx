@@ -1,31 +1,32 @@
-import { useQuery } from "@tanstack/react-query";
 import type { Address } from "viem";
-import type { Navigate } from "../types";
 import { formatAddress } from "../lib/format.js";
-import { fetchRnsPrimaryName } from "../lib/rnsPrimary";
 import { AppLink } from "../components/Navigation";
+import type { Navigate } from "../types";
 import { TraderAvatar } from "./TraderAvatar";
+import { useTraderName } from "./useTraderName";
+
+/** Inline trader name that links to the profile, for places where a full identity row does not fit. */
+export function TraderName({ address, navigate }: { address: Address; navigate: Navigate }) {
+  const { label } = useTraderName(address);
+  return (
+    <AppLink className="trader-name" route="trader" params={{ address }} navigate={navigate} title={address}>
+      {label}
+    </AppLink>
+  );
+}
 
 export function TraderIdentity({
   address,
-  displayName,
   navigate,
   compact = false,
   showAddress = true,
 }: {
   address: Address;
-  displayName?: string | null;
   navigate: Navigate;
   compact?: boolean;
   showAddress?: boolean;
 }) {
-  const { data: rnsName } = useQuery({
-    queryKey: ["rns", "primary", address.toLowerCase()],
-    queryFn: ({ signal }) => fetchRnsPrimaryName(address, signal),
-    staleTime: 60_000,
-    retry: 1,
-  });
-  const name = rnsName ?? displayName;
+  const { name, label } = useTraderName(address);
 
   return (
     <AppLink
@@ -37,7 +38,7 @@ export function TraderIdentity({
     >
       <TraderAvatar address={address} name={name ?? address} />
       <span>
-        <strong>{name ?? formatAddress(address)}</strong>
+        <strong>{label}</strong>
         {name && !compact && showAddress ? <small>{formatAddress(address)}</small> : null}
       </span>
     </AppLink>

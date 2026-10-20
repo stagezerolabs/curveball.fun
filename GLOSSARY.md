@@ -35,8 +35,8 @@ _Avoid_: Bot, admin wallet
 ## Social trading
 
 **Trader Profile**:
-The wallet-owned public identity and visibility settings attached to a trading address.
-_Avoid_: User account, creator profile
+The record that a wallet signed in to Curveball. Identity is the wallet's RNS primary name, falling back to the wallet address; there are no editable profile fields.
+_Avoid_: User account, creator profile, display name
 
 **Trade Note**:
 Short context authored by the wallet responsible for a specific Curve Trade.

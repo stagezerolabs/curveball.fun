@@ -1,5 +1,6 @@
 import { config } from "./config.mjs";
 import { pool } from "./db.mjs";
+import { traceBackendTask } from "./instrument.mjs";
 
 const CID = /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|baf[a-z2-7]{20,})(\/[^\s]*)?$/i;
 const MAX_METADATA_BYTES = 256 * 1024;
@@ -68,7 +69,7 @@ export async function refreshMetadataBatch() {
 export function startMetadataWorker({ onError } = {}) {
   let stopped = false;
   let timer;
-  const tick = async () => {
+  const tick = async () => traceBackendTask("social.metadata.tick", async () => {
     try {
       let refreshed;
       do {
@@ -79,7 +80,7 @@ export function startMetadataWorker({ onError } = {}) {
     } finally {
       if (!stopped) timer = setTimeout(tick, config.metadataRefreshMs);
     }
-  };
+  });
   void tick();
   return () => {
     stopped = true;

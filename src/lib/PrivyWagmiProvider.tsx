@@ -1,4 +1,4 @@
-import { useEffect, type PropsWithChildren } from "react";
+import { useEffect, useRef, type PropsWithChildren } from "react";
 import { usePrivy, useWallets, type ConnectedWallet } from "@privy-io/react-auth";
 import {
   WagmiProvider,
@@ -74,17 +74,35 @@ function PrivyWalletSync() {
   const { wallets, ready: walletsReady } = useWallets();
   const config = useConfig();
   const { reconnect } = useReconnect();
+  // Key the effect on a stable wallet signature instead of the wallet array
+  // identity, so unrelated re-renders can never re-run the sync and reconnect a
+  // session that is already connected (the cause of repeated "already logged in"
+  // provider warnings).
+  const walletSignature = wallets
+    .map((wallet) => `${wallet.walletClientType}:${wallet.address}`)
+    .sort()
+    .join(",");
+  const walletCount = wallets.length;
+  // reconnect() is only meaningful once per sign-in: replaying it against a
+  // provider whose session is already active is what makes wallets complain.
+  // Key the guard on the wallet set rather than a one-shot flag so a changed set
+  // (disconnect/reconnect, switching wallets) re-registers the connector and
+  // restores the address, while unrelated re-renders stay inert.
+  const connectedSignatureRef = useRef<string | null>(null);
 
   useEffect(() => {
-    const action = selectWalletSyncAction({ ready: privyReady && walletsReady, authenticated, walletCount: wallets.length });
+    const action = selectWalletSyncAction({ ready: privyReady && walletsReady, authenticated, walletCount });
     if (action === "wait") return;
+    if (action === "clear") {
+      connectedSignatureRef.current = null;
+      clearWallets(config);
+      return;
+    }
+    if (connectedSignatureRef.current === walletSignature) return;
+    connectedSignatureRef.current = walletSignature;
     let cancelled = false;
 
     void (async () => {
-      if (action === "clear") {
-        clearWallets(config);
-        return;
-      }
 
       // Move every Privy wallet onto Wagmi's only chain so both libraries agree before anything signs.
       const [appChain] = config.chains;
@@ -102,13 +120,14 @@ function PrivyWalletSync() {
 
       if (!cancelled && config.state.status !== "connected") reconnect();
     })().catch((error) => {
+      connectedSignatureRef.current = null;
       console.error("Could not sync the signed-in Privy wallet with Wagmi", error);
     });
 
     return () => {
       cancelled = true;
     };
-  }, [authenticated, config, privyReady, reconnect, wallets, walletsReady]);
+  }, [authenticated, config, privyReady, reconnect, walletSignature, walletCount, walletsReady]);
 
   return null;
 }

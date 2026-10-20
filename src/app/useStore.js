@@ -23,6 +23,70 @@ let marketsRequest = null;
 const tokenRequests = new Map();
 const creatorRequests = new Map();
 
+// The market cache can hold hundreds of tokens; zustand serializes and writes it
+// synchronously on every set(), and polling updates tokenLoading/tokenFetchedAt
+// a dozen times a minute. Batching writes into one commit every few seconds (and
+// flushing when the tab hides) removes that main-thread jank on the market pages.
+function createDebouncedLocalStorage(delayMs = 3_000) {
+  let pending = null;
+  let timer = null;
+  let flushBound = false;
+
+  const commit = () => {
+    timer = null;
+    if (!pending) return;
+    const { name, value } = pending;
+    pending = null;
+    try {
+      window.localStorage.setItem(name, value);
+    } catch {
+      // Quota or blocked storage: the in-memory store keeps working regardless.
+    }
+  };
+
+  const flush = () => {
+    if (timer !== null) window.clearTimeout(timer);
+    timer = null;
+    commit();
+  };
+
+  const schedule = () => {
+    if (timer !== null) return;
+    if (!flushBound && typeof window !== "undefined" && typeof document !== "undefined") {
+      flushBound = true;
+      window.addEventListener("pagehide", flush);
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "hidden") flush();
+      });
+    }
+    timer = window.setTimeout(commit, delayMs);
+  };
+
+  return {
+    getItem: (name) => {
+      try {
+        return window.localStorage.getItem(name);
+      } catch {
+        return null;
+      }
+    },
+    setItem: (name, value) => {
+      pending = { name, value };
+      schedule();
+    },
+    removeItem: (name) => {
+      if (pending?.name === name) pending = null;
+      if (timer !== null) window.clearTimeout(timer);
+      timer = null;
+      try {
+        window.localStorage.removeItem(name);
+      } catch {
+        // Ignore storage errors; the in-memory store is unaffected.
+      }
+    },
+  };
+}
+
 const cacheKey = (address) => address.toLowerCase();
 const isFresh = (fetchedAt) =>
   Boolean(fetchedAt) && Date.now() - fetchedAt < MARKET_CACHE_TTL_MS;
@@ -488,7 +552,7 @@ export const useStore = create(persist((set, get) => ({
 }), {
   name: `curveball-chain-cache:${activeChainId}:${launchpadAddress ?? "unconfigured"}:current`,
   version: 5,
-  storage: createJSONStorage(() => localStorage),
+  storage: createJSONStorage(() => createDebouncedLocalStorage()),
   partialize: (state) => ({
     tokens: state.tokens,
     marketsFetchedAt: state.marketsFetchedAt,
