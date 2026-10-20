@@ -29,7 +29,7 @@ import {
 import { buildMarketChartOptions } from "../lib/marketChartOptions";
 import { candlePriceChange, fetchMarketCandles, fetchMarketTrades } from "../markets/api";
 import { socialApiBaseUrl } from "../social/api";
-import type { Navigate, Token } from "../types";
+import type { Token } from "../types";
 
 echarts.use([BarChart, CandlestickChart, DataZoomComponent, GridComponent, MarkLineComponent, TooltipComponent, CanvasRenderer]);
 
@@ -158,12 +158,10 @@ async function loadTradePoints(client: ChartClient, token: Token) {
 export function MarketChart({
   token,
   refreshKey,
-  navigate,
   onMarketCapChange,
 }: {
   token: Token;
   refreshKey?: number;
-  navigate: Navigate;
   onMarketCapChange?: (change: MarketPriceChange | null) => void;
 }) {
   const publicClient = usePublicClient({ chainId: activeChainId });
@@ -344,7 +342,6 @@ export function MarketChart({
       loading={loading}
       error={Boolean(error)}
       followingTraderCount={backendEnabled ? backendTrades.data?.followingTraderCount ?? 0 : 0}
-      navigate={navigate}
     />
     </div>
   );

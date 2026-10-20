@@ -47,7 +47,7 @@ export function AccountPopover({ address, label, navigate, profileActive = false
             </div>
 
             <nav className="account-popover-links" aria-label="Account">
-              <button type="button" onClick={() => { setOpen(false); navigate("profile"); }}>View profile <span aria-hidden="true">›</span></button>
+              <button type="button" onClick={() => { setOpen(false); navigate("profile"); }}>View profile</button>
               <button className="account-popover-logout" type="button" onClick={() => void logout()}>Log out</button>
             </nav>
           </Popover.Popup>

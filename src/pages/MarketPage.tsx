@@ -131,7 +131,7 @@ export function MarketPage({
             />
           }
         >
-          <MarketChart token={resolvedToken} refreshKey={fetchedAt} navigate={navigate} onMarketCapChange={setMarketCapChange} />
+          <MarketChart token={resolvedToken} refreshKey={fetchedAt} onMarketCapChange={setMarketCapChange} />
         </Suspense>
         <aside className="market-sidebar" aria-label="Market actions">
           <TradePanel
@@ -146,7 +146,7 @@ export function MarketPage({
         </aside>
       </div>
 
-      <MarketAbout token={resolvedToken} navigate={navigate} />
+      <MarketAbout token={resolvedToken} />
 
       {error && (
         <div className="notice notice-dismissible floating-notice" role="alert">

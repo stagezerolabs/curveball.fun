@@ -20,6 +20,14 @@ function TraderRow({ trader, rank, navigate }: { trader: LeaderboardTrader; rank
   </li>;
 }
 
+/**
+ * Ranking methodology is intentionally not exposed in the product UI: publishing exact thresholds
+ * would make the board easier to game. The canonical, tested rules live in
+ * `services/social/src/performance.mjs` (`LEADERBOARD_RULES`, `scoreExpressions`, and
+ * `eligibleExpressions`). In brief, Track record scores qualified wallets by known-basis estimated
+ * return, Emerging scores qualified recent wallets by known-basis estimated net P&L, and the API
+ * supplies a return-ranked provisional board when no wallet qualifies.
+ */
 export function PulseTraders({ category, data, navigate }: {
   category: "consistent" | "new";
   data: LeaderboardSnapshot;
@@ -34,13 +42,5 @@ export function PulseTraders({ category, data, navigate }: {
     {ranked.length ? <ol className="pulse-leader-list" aria-label={isRecord ? "Track record ranking" : "Emerging trader ranking"}>
       {ranked.map(({ trader, rank }) => <TraderRow key={trader.address} trader={trader} rank={rank} navigate={navigate} />)}
     </ol> : <div className="social-feed-state"><strong>No traders qualify yet.</strong><p>Rankings appear after traders meet the activity and accounting requirements.</p></div>}
-    <details className="pulse-methodology">
-      <summary>How ranks are calculated</summary>
-      {data.provisional ? <p>No trader qualifies under the current rules yet, so this provisional board ranks every trader by their latest estimated return.</p> : null}
-      <p>{isRecord
-        ? "Track record requires at least 6 trades across 3 UTC days and 2 markets, at least 0.01 WETH in buys, positive estimated net P&L, and priced open positions. Rank is estimated net P&L divided by cumulative buy spend."
-        : "Emerging requires a first trade within 14 days, at least 4 trades across 2 UTC days and 2 markets, at least 0.01 WETH in buys, positive estimated net P&L, and priced open positions. Rank is estimated net P&L."}</p>
-      <p>Known-basis curve P&L includes marked open positions. It does not measure complete wallet performance or risk. Multiple wallets may have one owner. Rankings are snapshots, not a recommendation to copy trades.</p>
-    </details>
   </>;
 }

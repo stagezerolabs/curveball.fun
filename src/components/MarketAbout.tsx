@@ -1,13 +1,9 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { formatEther } from "viem";
-import { useQuery } from "@tanstack/react-query";
 import { formatAddress } from "../lib/format.js";
 import { tokenDescription } from "../lib/tokenMetadata";
 import { activeExplorerUrl } from "../lib/web3";
-import { socialApi, socialApiConfigured } from "../social/api";
-import { FollowButton } from "../social/FollowButton";
-import { TraderIdentity } from "../social/TraderIdentity";
-import type { Navigate, Token } from "../types";
+import type { Token } from "../types";
 
 function AddressValue({ address }: { address: string }) {
   return <a className="market-about-address" href={`${activeExplorerUrl}/address/${address}`} target="_blank" rel="noreferrer" title={address}>
@@ -20,30 +16,12 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
   return <div className="market-about-fact"><dt>{label}</dt><dd>{children}</dd></div>;
 }
 
-/** The launcher is a trader like any other: who they are, whether you follow them, and how many others do. */
-function CreatorRow({ creator, navigate }: { creator: `0x${string}`; navigate: Navigate }) {
-  const profile = useQuery({
-    queryKey: ["social", "profile", creator.toLowerCase()],
-    queryFn: () => socialApi.profile(creator),
-    enabled: socialApiConfigured,
-    staleTime: 60_000,
-    retry: 1,
-  });
-  if (!socialApiConfigured) return <AddressValue address={creator} />;
-  const data = profile.data;
-  return <div className="market-creator-row">
-    <TraderIdentity address={creator} navigate={navigate} compact />
-    {data ? <span className="market-creator-followers">{data.followers} {data.followers === 1 ? "follower" : "followers"}</span> : null}
-    <FollowButton trader={creator} following={Boolean(data?.isFollowed)} />
-  </div>;
-}
-
 function formatSupply(supply?: string | null) {
   if (!supply || !/^\d+$/.test(supply)) return "—";
   return Number(formatEther(BigInt(supply))).toLocaleString("en-US", { maximumFractionDigits: 2 });
 }
 
-export function MarketAbout({ token, navigate }: { token: Token; navigate: Navigate }) {
+export function MarketAbout({ token }: { token: Token }) {
   const [metadataDescription, setMetadataDescription] = useState<string | null>(null);
   useEffect(() => {
     let active = true;
@@ -68,12 +46,12 @@ export function MarketAbout({ token, navigate }: { token: Token; navigate: Navig
       <Fact label="Created">{createdLabel}</Fact>
       <Fact label="Status">{token.graduated ? "Graduated" : token.pending ? "Ready to graduate" : "On the curve"}</Fact>
     </dl>
-    <details className="market-about-chain" open>
+    <details className="market-about-chain">
       <summary>On chain</summary>
       <dl className="market-about-facts">
         <Fact label="Token contract"><AddressValue address={token.address} /></Fact>
         {token.factory && <Fact label="Launchpad"><AddressValue address={token.factory} /></Fact>}
-        <Fact label="Creator"><CreatorRow creator={token.creator} navigate={navigate} /></Fact>
+        <Fact label="Creator"><AddressValue address={token.creator} /></Fact>
       </dl>
     </details>
   </section>;

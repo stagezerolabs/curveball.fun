@@ -44,16 +44,16 @@ export function HolderAirdropPanel({ token }: { token: Token }) {
   });
 
   if (reserved === undefined) {
-    return <section className="claim-block" aria-busy="true"><h3 className="panel-subhead">Holder reserve</h3><p className="panel-note">Reading the holder reserve…</p></section>;
+    return <section className="claim-block holder-reserve-panel" aria-busy="true"><h3 className="panel-subhead">Holder reserve</h3><p className="panel-note">Reading the holder reserve…</p></section>;
   }
   if (reserved === 0n) {
-    return <section className="claim-block"><h3 className="panel-subhead">Holder reserve</h3><p className="panel-note">This launch has no holder reserve.</p></section>;
+    return <section className="claim-block holder-reserve-panel"><h3 className="panel-subhead">Holder reserve</h3><p className="panel-note">This launch has no holder reserve.</p></section>;
   }
 
   const share = held !== undefined ? reserved * held / CURVE_SUPPLY : null;
   const percentOfSupply = Number(reserved * 10_000n / TOKEN_SUPPLY) / 100;
   return (
-    <section className="claim-block" aria-labelledby={`reserve-${token.address}`}>
+    <section className="claim-block holder-reserve-panel" aria-labelledby={`reserve-${token.address}`}>
       <h3 id={`reserve-${token.address}`} className="panel-subhead">Holder reserve</h3>
       <p className="panel-note">
         {displayAmount(reserved)} {token.symbol} ({percentOfSupply}% of supply) is held for curve buyers. After graduation, each
