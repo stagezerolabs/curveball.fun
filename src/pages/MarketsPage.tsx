@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { usePublicClient } from "wagmi";
 import { Featured } from "../components/Featured";
 import { MarketList } from "../components/MarketList";
+import { MarketStatusFilter, type MarketStatusFilterValue } from "../components/MarketStatusFilter";
+import { MarketViewSwitch, type MarketView } from "../components/MarketViewSwitch";
 import { useStore } from "../app/useStore.js";
 import type { CreatorTokenClient } from "../creatorTokens";
 import { activeChainId } from "../lib/web3";
@@ -12,14 +14,7 @@ import type { FollowingActivity } from "../social/types";
 import { socialApiConfigured } from "../social/api";
 import { useFollowingActivity } from "../social/useFollowingActivity";
 
-type MarketFilter = "all" | "curve" | "graduated";
 type MarketSort = "market-cap" | "new" | "trending" | "volume-24h";
-
-const filters: { id: MarketFilter; label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "curve", label: "On the curve" },
-  { id: "graduated", label: "Graduated" },
-];
 
 /** Distinct followed wallets that last acted on each market, keyed by lowercase token address. */
 function followSignal(items: readonly FollowingActivity[]): Record<string, number> {
@@ -62,14 +57,14 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
     loading: boolean;
     loadMarkets: (client?: CreatorTokenClient, options?: { force?: boolean }) => Promise<Token[]>;
   };
-  const [filter, setFilter] = useState<MarketFilter>("all");
+  const [filter, setFilter] = useState<MarketStatusFilterValue>("all");
   const following = useFollowingActivity(socialApiConfigured);
   // Only badge cards from the viewer's own follow graph, never the no-backend wallet scan.
   const marketFollowSignal = following.data?.scope === "following"
     ? followSignal(following.data.items.map((item) => item.activity))
     : {};
   const [sort, setSort] = useState<MarketSort>(lastCreatedToken ? "new" : "market-cap");
-  const [view, setView] = useState<"cards" | "rows">("cards");
+  const [view, setView] = useState<MarketView>("cards");
   const [search, setSearch] = useState("");
   const previewStats = useMarketPreviewStats(
     publicClient as unknown as MarketPreviewStatsClient | undefined,
@@ -127,9 +122,7 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
             <span className="visually-hidden">Search markets by name, ticker, or address</span>
             <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name, ticker or mint" />
           </label>
-          <div className="market-filter-group" role="group" aria-label="Market status">
-            {filters.map((item) => <button key={item.id} type="button" className={filter === item.id ? "active" : ""} aria-pressed={filter === item.id} onClick={() => setFilter(item.id)}>{item.label}</button>)}
-          </div>
+          <MarketStatusFilter value={filter} onChange={setFilter} />
           <div className="market-directory-actions">
             <label className="market-sort"><span>Sort</span><select value={sort} onChange={(event) => setSort(event.target.value as MarketSort)}>
               <option value="market-cap">Market cap</option>
@@ -137,16 +130,7 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
               <option value="trending">Trending</option>
               <option value="volume-24h">Volume 24h</option>
             </select></label>
-            <div className="market-view-switch" role="group" aria-label="Market view">
-              <button type="button" aria-pressed={view === "cards"} className={view === "cards" ? "active" : ""} onClick={() => setView("cards")}>
-                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><rect x="2.5" y="2.5" width="6" height="6" rx="1" /><rect x="11.5" y="2.5" width="6" height="6" rx="1" /><rect x="2.5" y="11.5" width="6" height="6" rx="1" /><rect x="11.5" y="11.5" width="6" height="6" rx="1" /></svg>
-                Cards
-              </button>
-              <button type="button" aria-pressed={view === "rows"} className={view === "rows" ? "active" : ""} onClick={() => setView("rows")}>
-                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true"><path d="M3 4h2M8 4h9M3 10h2m3 0h9M3 16h2m3 0h9" /></svg>
-                Rows
-              </button>
-            </div>
+            <MarketViewSwitch value={view} onChange={setView} />
             <button type="button" className="market-refresh" onClick={() => void loadMarkets(publicClient as unknown as CreatorTokenClient | undefined, { force: true }).catch(() => undefined)} disabled={loading || !publicClient} aria-label={loading ? "Refreshing markets" : "Refresh markets"} aria-busy={loading} title="Refresh markets">
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M16.8 8A7 7 0 1 0 17 11" /><path d="M17 3.5V8h-4.5" /></svg>
             </button>
