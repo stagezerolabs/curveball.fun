@@ -11,7 +11,7 @@
     "indexer": "bun run --cwd ../../packages/db build && node --enable-source-maps --import ./src/instrument.mjs src/indexer-runner.mjs",
     "worker": "bun run --cwd ../../packages/db build && node --enable-source-maps --import ./src/instrument.mjs src/worker.mjs",
     "migrate": "bun run --cwd ../../packages/db build && node src/migrate.mjs",
-    "test": "bun test src/*.test.mjs"
+    "test": "bun run --cwd ../../packages/db build && bun test src/*.test.mjs"
   },
   "dependencies": {
     "@curveball/db": "workspace:*",

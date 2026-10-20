@@ -275,7 +275,10 @@ async function feed(url, viewer) {
        (SELECT COUNT(*) FROM follows f2 WHERE f2.chain_id = t.chain_id AND f2.followed_address = t.trader_address) AS follower_count
      FROM trades t
      JOIN markets m ON m.chain_id = t.chain_id AND m.token_address = t.token_address AND m.orphaned = false
-     LEFT JOIN trade_notes n ON n.logical_trade_id = t.logical_id
+     LEFT JOIN trade_notes n ON n.logical_trade_id = t.logical_id AND NOT EXISTS (
+       SELECT 1 FROM reports r
+       WHERE r.chain_id=t.chain_id AND r.subject_trade_id=t.logical_id AND r.status='actioned'
+     )
      WHERE t.chain_id = $1 AND t.orphaned = false
        AND ($3::timestamptz IS NULL OR t.block_timestamp < $3::timestamptz
          OR (t.block_timestamp=$3::timestamptz AND $7::text IS NOT NULL AND t.logical_id < $7))
@@ -651,7 +654,10 @@ async function marketTrades(url, tokenAddress, viewer) {
       (a.participant_address=ANY($7::text[])) AS is_followed,
       (SELECT COUNT(*) FROM follows f2 WHERE f2.chain_id=$1 AND f2.followed_address=a.participant_address) AS follower_count
     FROM activity a
-    LEFT JOIN trade_notes n ON n.logical_trade_id=a.logical_id
+    LEFT JOIN trade_notes n ON n.logical_trade_id=a.logical_id AND NOT EXISTS (
+      SELECT 1 FROM reports r
+      WHERE r.chain_id=$1 AND r.subject_trade_id=a.logical_id AND r.status='actioned'
+    )
     WHERE true
       AND ($4::timestamptz IS NULL OR block_timestamp<$4::timestamptz
         OR (block_timestamp=$4::timestamptz AND $5::text IS NOT NULL AND logical_id<$5))
@@ -918,8 +924,24 @@ export function createSocialServer({ subscribe } = {}) {
         const body = await readJson(request);
         const subject = addressParam(body.subjectAddress);
         const allowed = new Set(["spam", "impersonation", "manipulation", "harmful_content", "other"]);
-        if (!subject || subject === reporter || !allowed.has(body.reason)) throw Object.assign(new Error("Choose a valid report reason."), { status: 400 });
-        await pool.query("INSERT INTO reports (chain_id,reporter_address,subject_address,reason,details) VALUES ($1,$2,$3,$4,$5)", [config.chainId, reporter, subject, body.reason, typeof body.details === "string" ? body.details.slice(0, 1000) : ""]);
+        const tradeId = body.tradeId == null ? null
+          : typeof body.tradeId === "string" && body.tradeId.length <= 256 ? body.tradeId : "";
+        if (!subject || subject === reporter || !allowed.has(body.reason) || (body.tradeId != null && !tradeId)) {
+          throw Object.assign(new Error("Choose a valid report reason."), { status: 400 });
+        }
+        if (tradeId) {
+          const trade = await pool.query(
+            "SELECT trader_address FROM trades WHERE logical_id=$1 AND chain_id=$2 AND orphaned=false",
+            [tradeId, config.chainId],
+          );
+          if (!trade.rows[0] || trade.rows[0].trader_address !== subject) {
+            throw Object.assign(new Error("The reported trade does not belong to that wallet."), { status: 400 });
+          }
+        }
+        await pool.query(
+          "INSERT INTO reports (chain_id,reporter_address,subject_address,subject_trade_id,reason,details) VALUES ($1,$2,$3,$4,$5,$6)",
+          [config.chainId, reporter, subject, tradeId, body.reason, typeof body.details === "string" ? body.details.slice(0, 1000) : ""],
+        );
         return send(request, response, 201, { ok: true });
       }
 
@@ -970,7 +992,7 @@ export function createSocialServer({ subscribe } = {}) {
         if (!new Set(["open", "reviewing", "actioned", "dismissed", "all"]).has(status)) {
           throw Object.assign(new Error("Unknown report status."), { status: 400 });
         }
-        const result = await pool.query(`SELECT id,reporter_address,subject_address,reason,details,status,
+        const result = await pool.query(`SELECT id,reporter_address,subject_address,subject_trade_id,reason,details,status,
             resolution_note,resolved_at,created_at FROM reports
           WHERE chain_id=$1 AND ($2='all' OR status=$2) ORDER BY created_at ASC LIMIT $3`,
         [config.chainId, status, boundedLimit(url, 50, 100)]);

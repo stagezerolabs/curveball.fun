@@ -32,7 +32,7 @@ export async function saveNotificationPreferences(queryClient: ReturnType<typeof
   return saved;
 }
 
-const STREAM_EVENTS = ["launch", "trade", "graduation"];
+const STREAM_EVENTS = ["ready", "launch", "trade", "graduation", "market_update", "social_update"];
 const FEED_REFRESH_MS = 10_000;
 const INBOX_REFRESH_MS = 30_000;
 

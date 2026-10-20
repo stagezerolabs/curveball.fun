@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
+import { useQuery } from "@tanstack/react-query";
 import { Tabs } from "@base-ui/react/tabs";
 import { useAccount, usePublicClient } from "wagmi";
 import type { Address } from "viem";
@@ -12,6 +13,8 @@ import { UsdAmount } from "../components/UsdAmount";
 import type { CreatorTokenClient } from "../creatorTokens";
 import { formatRelativeTime } from "../lib/format.js";
 import { getMarketDisplayStatus } from "../lib/marketState";
+import { fetchCreatorMarkets } from "../markets/api";
+import { socialApiConfigured } from "../social/api";
 import { activeChainId } from "../lib/web3";
 import type { Navigate, Token } from "../types";
 import type { ProfileTab } from "./TraderProfilePage";
@@ -35,17 +38,26 @@ function CreatorLaunchDashboard({ address, navigate }: { address: Address; navig
     ) => Promise<Token[]>;
   };
   const hasCachedResult = Object.prototype.hasOwnProperty.call(creatorTokens, key);
-  const tokens = creatorTokens[key] ?? [];
-  const error = creatorErrors[key];
-  const initialLoading = !hasCachedResult && !error;
+  const creatorMarkets = useQuery({
+    queryKey: ["markets", "creator", key],
+    queryFn: ({ signal }) => fetchCreatorMarkets(address, signal),
+    enabled: socialApiConfigured,
+    staleTime: 15_000,
+  });
+  const tokens = socialApiConfigured ? creatorMarkets.data ?? [] : creatorTokens[key] ?? [];
+  const error = socialApiConfigured
+    ? creatorMarkets.error instanceof Error ? creatorMarkets.error.message : null
+    : creatorErrors[key];
+  const initialLoading = socialApiConfigured ? creatorMarkets.isPending : !hasCachedResult && !error;
   const awaitingPool = tokens.some((token) => !token.graduated && (token.pending || (token.progress ?? 0) >= 100));
 
   useEffect(() => {
+    if (socialApiConfigured) return;
     void loadCreatorTokens(publicClient as unknown as CreatorTokenClient | undefined, address).catch(() => undefined);
   }, [address, loadCreatorTokens, publicClient]);
 
   useEffect(() => {
-    if (!awaitingPool) return;
+    if (socialApiConfigured || !awaitingPool) return;
     const timer = window.setInterval(() => {
       if (document.visibilityState === "visible") {
         void loadCreatorTokens(publicClient as unknown as CreatorTokenClient | undefined, address, { force: true }).catch(() => undefined);

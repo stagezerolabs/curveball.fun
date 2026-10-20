@@ -45,7 +45,7 @@ export function App() {
   const { authenticated, ready: privyReady } = usePrivy();
   const isAdmin = isAdminAddress(address);
   const adminAccessReady = privyReady && (!authenticated || Boolean(address));
-  useSocialStream(authenticated);
+  useSocialStream();
 
   useEffect(() => applyTheme(theme), [theme]);
   useEffect(() => {

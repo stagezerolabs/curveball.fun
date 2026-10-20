@@ -533,6 +533,7 @@ export const reports = curveball.table("reports", {
   chainId: chainId(),
   reporterAddress: text("reporter_address").notNull(),
   subjectAddress: text("subject_address").notNull(),
+  subjectTradeId: text("subject_trade_id"),
   reason: text("reason").notNull(),
   details: text("details").notNull().default(""),
   status: text("status").notNull().default("open"),
@@ -541,6 +542,7 @@ export const reports = curveball.table("reports", {
   createdAt: createdAt(),
 }, (table) => [
   index("reports_moderation_idx").on(table.status, table.createdAt),
+  index("reports_trade_moderation_idx").on(table.chainId, table.subjectTradeId, table.status),
   check("reports_reason_check", sql`${table.reason} in ('spam','impersonation','manipulation','harmful_content','other')`),
   check("reports_status_check", sql`${table.status} in ('open','reviewing','actioned','dismissed')`),
   check("reports_not_self_check", sql`${table.reporterAddress} <> ${table.subjectAddress}`),
