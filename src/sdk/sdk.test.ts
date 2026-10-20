@@ -327,3 +327,34 @@ test("a wallet whose provider is still on chain 1 is switched before the launch 
   expect(switched).toEqual([RISE_TESTNET_CHAIN_ID]);
   expect(result.token).toBe(token);
 });
+
+test("a launch rechecks the same wallet connector when its provider changes before signing", async () => {
+  let providerChainId: number = RISE_TESTNET_CHAIN_ID;
+  const connector = { uid: "launch-wallet", getChainId: async () => providerChainId };
+  const switched: Array<{ chainId: number; connector?: unknown }> = [];
+  const actions = {
+    getAccount: () => ({ address: wallet, chainId: RISE_TESTNET_CHAIN_ID, connector }),
+    switchChain: async (_config: Config, request: { chainId: number; connector?: unknown }) => {
+      switched.push(request);
+      if (request.connector === connector) providerChainId = request.chainId;
+      return { id: request.chainId };
+    },
+    readContract: reads(),
+    simulateContract: async (_config: unknown, request: object) => {
+      // Privy's provider can finish initializing after the SDK's initial check and fall back to chain 1.
+      providerChainId = 1;
+      return { request };
+    },
+    writeContract: async (_config: unknown, request: { connector?: unknown }) => {
+      if (request.connector !== connector || providerChainId !== RISE_TESTNET_CHAIN_ID) {
+        throw new Error(`The current chain of the wallet (id: ${providerChainId}) does not match the target chain for the transaction (id: ${RISE_TESTNET_CHAIN_ID} – undefined).`);
+      }
+      return hash;
+    },
+    waitForTransactionReceipt: async () => ({ status: "success", logs: [launchLog()] }),
+  } as unknown as WagmiActions;
+
+  const result = await createCurveballSdk({} as Config, deployment, actions).createToken({ name: "Test", symbol: "TST", uri });
+  expect(switched).toEqual([{ chainId: RISE_TESTNET_CHAIN_ID, connector }]);
+  expect(result.token).toBe(token);
+});

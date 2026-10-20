@@ -4,6 +4,8 @@ export const PERFORMANCE_METHODOLOGY = "curve-known-basis-v2";
 
 // Quote amounts use the chain's 18-decimal WETH. These are sample floors, not
 // claims that a ranked wallet is safe to follow or that its trades were human.
+// Trading-day counts bucket each wallet's trades into 24-hour windows anchored at that wallet's
+// first trade, so a session crossing a global midnight counts once instead of twice.
 export const LEADERBOARD_RULES = Object.freeze({
   minimumInvestedWei: "10000000000000000", // 0.01 WETH in cumulative curve buys
   minimumFollowerInvestedWei: "5000000000000000", // 0.005 WETH
@@ -143,9 +145,13 @@ export async function publishLeaderboards(db, asOfBlock) {
           WHERE cost.chain_id=$1 AND cost.trader_address=latest.address) AS realized_cost_wei
       FROM latest
       CROSS JOIN LATERAL (
-        SELECT COUNT(DISTINCT (t.block_timestamp AT TIME ZONE 'UTC')::date) AS trading_day_count,
+        SELECT (EXTRACT(EPOCH FROM MIN(t.block_timestamp)))::bigint AS day0_epoch
+        FROM trades t WHERE t.chain_id=$1 AND t.trader_address=latest.address AND t.orphaned=false
+      ) activity_window
+      CROSS JOIN LATERAL (
+        SELECT COUNT(DISTINCT (EXTRACT(EPOCH FROM t.block_timestamp)::bigint-activity_window.day0_epoch)/86400) AS trading_day_count,
           MIN(t.block_timestamp) AS first_trade_at,MAX(t.block_timestamp) AS last_trade_at,
-          COUNT(DISTINCT (t.block_timestamp AT TIME ZONE 'UTC')::date)
+          COUNT(DISTINCT (EXTRACT(EPOCH FROM t.block_timestamp)::bigint-activity_window.day0_epoch)/86400)
             FILTER (WHERE t.block_timestamp>now()-interval '${LEADERBOARD_RULES.activeWindowDays} days') AS recent_trading_day_count,
           COUNT(DISTINCT t.token_address)
             FILTER (WHERE t.block_timestamp>now()-interval '${LEADERBOARD_RULES.activeWindowDays} days') AS recent_market_count,

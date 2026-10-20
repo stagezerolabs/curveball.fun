@@ -50,6 +50,34 @@ function limitSocialWrite(request, address) {
   if (socialWriteBuckets.size > 10_000) socialWriteBuckets.delete(socialWriteBuckets.keys().next().value);
 }
 
+// Process-local abuse guard for the unauthenticated RNS resolution path. It only counts lookups
+// that miss the cache (the path that calls the upstream API); cached answers stay free. Socket IP
+// may be an ingress proxy for every viewer, so like the write limiter this is a coarse process
+// safety ceiling, not a substitute for an edge rate limit when the service is public.
+const rnsLookupBuckets = new Map();
+const RNS_LOOKUPS_PER_MINUTE = 120;
+let nextRnsLookupPruneAt = 0;
+
+function limitRnsLookup(remoteAddress) {
+  const now = Date.now();
+  if (now >= nextRnsLookupPruneAt) {
+    for (const [key, bucket] of rnsLookupBuckets) {
+      if (bucket.expires <= now) rnsLookupBuckets.delete(key);
+    }
+    nextRnsLookupPruneAt = now + 10_000;
+  }
+  const key = `ip:${remoteAddress || "unknown"}`;
+  const bucket = rnsLookupBuckets.get(key);
+  if (bucket && bucket.count >= RNS_LOOKUPS_PER_MINUTE) {
+    throw Object.assign(new Error("Too many name lookups. Try again shortly."), {
+      status: 429, retryAfter: Math.max(1, Math.ceil((bucket.expires - now) / 1_000)),
+    });
+  }
+  if (bucket) bucket.count += 1;
+  else rnsLookupBuckets.set(key, { count: 1, expires: now + 60_000 });
+  if (rnsLookupBuckets.size > 10_000) rnsLookupBuckets.delete(rnsLookupBuckets.keys().next().value);
+}
+
 function addressParam(value) {
   return typeof value === "string" && isAddress(value) ? getAddress(value).toLowerCase() : null;
 }
@@ -157,7 +185,7 @@ function openEventStream(request, response, hub) {
   });
   response.flushHeaders?.();
 
-  return hub.open(response, request.headers["last-event-id"]);
+  return hub.open(response, request.headers["last-event-id"], request.socket.remoteAddress);
 }
 
 function shapeRns(address, primaryName, expiresAt) {
@@ -170,10 +198,11 @@ function shapeRns(address, primaryName, expiresAt) {
   };
 }
 
-async function resolveRns(address) {
+async function resolveRns(address, remoteAddress) {
   const cached = await pool.query(`SELECT primary_name,status,expires_at FROM rns_cache
     WHERE chain_id=$1 AND address=$2 AND expires_at>now()`, [RNS_CHAIN_ID, address]);
   if (cached.rows[0]) return shapeRns(address, cached.rows[0].status === "resolved" ? cached.rows[0].primary_name : null, cached.rows[0].expires_at);
+  limitRnsLookup(remoteAddress);
 
   let primaryName = null;
   let status = "not_found";
@@ -821,7 +850,7 @@ export function createSocialServer({ subscribe } = {}) {
       const rnsMatch = url.pathname.match(/^\/v1\/rns\/primary\/(0x[a-fA-F0-9]{40})$/);
       if (request.method === "GET" && rnsMatch) {
         const address = addressParam(rnsMatch[1]);
-        return send(request, response, 200, await resolveRns(address));
+        return send(request, response, 200, await resolveRns(address, request.socket.remoteAddress));
       }
       if (request.method === "GET" && url.pathname === "/v1/me") return send(request, response, 200, { address: viewer });
       if (request.method === "POST" && url.pathname === "/v1/me") {

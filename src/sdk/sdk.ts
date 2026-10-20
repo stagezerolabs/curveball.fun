@@ -2,7 +2,7 @@ import {
   getAccount, getBalance, getBytecode, getTransactionReceipt, readContract, simulateContract, switchChain,
   waitForTransactionReceipt, writeContract,
 } from "wagmi/actions";
-import type { Config } from "wagmi";
+import type { Config, Connector } from "wagmi";
 import { decodeEventLog, getAddress, zeroAddress, type Address, type Hash, type TransactionReceipt } from "viem";
 import { applySlippage, createDeadline, validateTokenInput, type CurveballDeployment, type TokenInput } from "./curveballSdk";
 import { curveFeeEscrowAbi, curveHolderReserveAbi, curveLaunchpadAbi, curveLpLockerAbi, erc20Abi } from "./contracts";
@@ -27,6 +27,7 @@ export type ConfirmedTrade = ConfirmedWrite & Readonly<{
   marketState: ConfirmedTradeMarketState | null;
 }>;
 export type LaunchInput = TokenInput & { creatorTaxBps?: number; holderReserveBps?: number };
+type WalletSession = Readonly<{ address: Address; connector?: Connector }>;
 
 /** The launchpad's market lifecycle, in its on-chain enum order. */
 export const MARKET_STATES = ["none", "trading", "ready", "graduated", "aborted"] as const;
@@ -99,17 +100,37 @@ export function createCurveballSdk(config: Config, deployment: CurveballDeployme
   const launchpad = deployment.launchpad;
   const chainId = deployment.chainId;
 
-  async function ensureWallet(): Promise<Address> {
+  async function ensureWalletChain(connector?: Connector, fallbackChainId?: number) {
+    if (!connector && fallbackChainId === undefined) return;
+    const walletChainId = connector
+      ? await connector.getChainId().catch(() => fallbackChainId)
+      : fallbackChainId;
+    if (walletChainId !== chainId) {
+      const switched = await actions.switchChain(config, { chainId, ...(connector ? { connector } : {}) });
+      if (switched.id !== chainId) throw new CurveballSdkError("Switch your wallet to the configured Curveball network.");
+    }
+    if (connector && await connector.getChainId().catch(() => undefined) !== chainId) {
+      throw new CurveballSdkError("Your wallet did not switch to the configured Curveball network. Switch it manually and try again.");
+    }
+  }
+
+  async function ensureWallet(): Promise<WalletSession> {
     const account = actions.getAccount(config);
     if (!account.address) throw new CurveballSdkError("Connect a wallet to continue.");
     // Wagmi's cached chain can lag the provider: Privy's embedded wallet provider starts on chain 1
     // without Wagmi seeing it, and viem then rejects the write. Ask the wallet itself.
-    const walletChainId = await account.connector?.getChainId().catch(() => account.chainId) ?? account.chainId;
-    if (walletChainId !== chainId) {
-      const switched = await actions.switchChain(config, { chainId });
-      if (switched.id !== chainId) throw new CurveballSdkError("Switch your wallet to the configured Curveball network.");
-    }
-    return getAddress(account.address);
+    await ensureWalletChain(account.connector, account.chainId);
+    return { address: getAddress(account.address), connector: account.connector };
+  }
+
+  async function writeWithWallet(wallet: WalletSession, request: object) {
+    // Provider initialization and multi-wallet updates can happen after the first check. Recheck at the
+    // signature boundary, and pin the connector so Wagmi cannot submit through a different current wallet.
+    await ensureWalletChain(wallet.connector);
+    return actions.writeContract(config, {
+      ...request,
+      ...(wallet.connector ? { connector: wallet.connector } : {}),
+    } as Parameters<WagmiActions["writeContract"]>[1]);
   }
 
   async function confirm(hash: Hash): Promise<ConfirmedWrite> {
@@ -153,11 +174,12 @@ export function createCurveballSdk(config: Config, deployment: CurveballDeployme
 
   /** Wraps any missing ETH into the quote token and approves the launchpad for `amount` of `asset`. */
   async function ensureApproval(
-    account: Address,
+    wallet: WalletSession,
     asset: Address,
     amount: bigint,
     options: { wrap: boolean; onPhase?: (phase: "wrapWallet" | "wrapConfirming" | "approveWallet" | "approveConfirming", hash?: Hash) => void },
   ): Promise<{ approved: boolean; wrapped: bigint }> {
+    const account = wallet.address;
     if (amount === 0n) return { approved: false, wrapped: 0n };
     const balance = await actions.readContract(config, { address: asset, abi: erc20Abi, functionName: "balanceOf", args: [account], chainId });
     let wrapped = 0n;
@@ -168,7 +190,7 @@ export function createCurveballSdk(config: Config, deployment: CurveballDeployme
       if (native.value < wrapped + NATIVE_GAS_RESERVE) throw new CurveballSdkError("Not enough ETH to cover this transaction and network fees.");
       const wrapping = await actions.simulateContract(config, { account, address: asset, abi: erc20Abi, functionName: "deposit", value: wrapped, chainId });
       options.onPhase?.("wrapWallet");
-      const wrapHash = await actions.writeContract(config, wrapping.request);
+      const wrapHash = await writeWithWallet(wallet, wrapping.request);
       options.onPhase?.("wrapConfirming", wrapHash);
       await confirm(wrapHash);
     }
@@ -176,7 +198,7 @@ export function createCurveballSdk(config: Config, deployment: CurveballDeployme
     if (allowance >= amount) return { approved: false, wrapped };
     const approval = await actions.simulateContract(config, { account, address: asset, abi: erc20Abi, functionName: "approve", args: [launchpad, amount], chainId });
     options.onPhase?.("approveWallet");
-    const approvalHash = await actions.writeContract(config, approval.request);
+    const approvalHash = await writeWithWallet(wallet, approval.request);
     options.onPhase?.("approveConfirming", approvalHash);
     await confirm(approvalHash);
     await waitForAllowance(asset, account, amount);
@@ -208,7 +230,8 @@ export function createCurveballSdk(config: Config, deployment: CurveballDeployme
   /** Launches a token, with an optional first buy for the creator in the same transaction. */
   async function launch(input: LaunchInput, initialBuy: bigint, onProgress?: LaunchProgress) {
     onProgress?.("preparing");
-    const account = await ensureWallet();
+    const wallet = await ensureWallet();
+    const account = wallet.address;
     const token = validateTokenInput(input);
     const policy = await readLaunchPolicy();
     const tax = input.creatorTaxBps ?? 0;
@@ -226,13 +249,13 @@ export function createCurveballSdk(config: Config, deployment: CurveballDeployme
     if (initialBuy > 0n && minOut <= 0n) throw new CurveballSdkError("Initial buy is too small.");
 
     const quote = await readQuoteToken();
-    const { approved } = await ensureApproval(account, quote, policy.launchFee + initialBuy, { wrap: true, onPhase: onProgress });
+    const { approved } = await ensureApproval(wallet, quote, policy.launchFee + initialBuy, { wrap: true, onPhase: onProgress });
     const meta = { name: token.name, symbol: token.symbol, uri: token.uri };
     const simulation = await simulateAfterApproval(() => actions.simulateContract(config, {
       account, address: launchpad, abi: curveLaunchpadAbi, functionName: "launch", args: [meta, tax, reserveBps, initialBuy, minOut], chainId,
     }), approved);
     onProgress?.("wallet");
-    const hash = await actions.writeContract(config, simulation.request);
+    const hash = await writeWithWallet(wallet, simulation.request);
     onProgress?.("confirming", hash);
     const confirmed = await confirm(hash);
     return { ...confirmed, ...launchedFromReceipt(confirmed.receipt), minimumOutput: minOut };
@@ -258,11 +281,12 @@ export function createCurveballSdk(config: Config, deployment: CurveballDeployme
   async function trade(side: TradeSide, token: Address, input: bigint, onProgress?: TradeProgress): Promise<ConfirmedTrade> {
     onProgress?.("preparing");
     if (input <= 0n) throw new CurveballSdkError("Trade amount must be greater than zero.");
-    const account = await ensureWallet();
+    const wallet = await ensureWallet();
+    const account = wallet.address;
     const tokenAddress = getAddress(token);
     await readMarket(tokenAddress);
     const asset = side === "buy" ? await readQuoteToken() : tokenAddress;
-    const { approved, wrapped } = await ensureApproval(account, asset, input, { wrap: side === "buy", onPhase: (phase) => onProgress?.(phase) });
+    const { approved, wrapped } = await ensureApproval(wallet, asset, input, { wrap: side === "buy", onPhase: (phase) => onProgress?.(phase) });
     const quotedOutput = await quoteTrade(side, tokenAddress, input);
     const minimumOutput = applySlippage(quotedOutput, deployment.slippageBps);
     if (minimumOutput <= 0n) throw new CurveballSdkError("Trade output is too small.");
@@ -271,7 +295,7 @@ export function createCurveballSdk(config: Config, deployment: CurveballDeployme
       account, address: launchpad, abi: curveLaunchpadAbi, functionName: side, args: [tokenAddress, input, minimumOutput, deadline], chainId,
     }), approved);
     onProgress?.("tradeWallet");
-    const tradeHash = await actions.writeContract(config, simulation.request);
+    const tradeHash = await writeWithWallet(wallet, simulation.request);
     onProgress?.("tradeConfirming");
     const confirmed = await confirm(tradeHash);
     const event = tradeFromReceipt(confirmed.receipt, launchpad, tokenAddress, account, side);
@@ -290,17 +314,18 @@ export function createCurveballSdk(config: Config, deployment: CurveballDeployme
 
   async function unwrapWeth(amount: bigint, expectedWeth: Address): Promise<ConfirmedWrite> {
     if (amount <= 0n) throw new CurveballSdkError("WETH amount must be greater than zero.");
-    const account = await ensureWallet();
+    const wallet = await ensureWallet();
+    const account = wallet.address;
     const quote = await readQuoteToken();
     if (getAddress(quote) !== getAddress(expectedWeth)) throw new CurveballSdkError("This market does not use the expected WETH token.");
     const balance = await actions.readContract(config, { address: quote, abi: erc20Abi, functionName: "balanceOf", args: [account], chainId });
     if (balance < amount) throw new CurveballSdkError("The WETH from this sale is no longer in your wallet.");
     const simulation = await actions.simulateContract(config, { account, address: quote, abi: erc20Abi, functionName: "withdraw", args: [amount], chainId });
-    return confirm(await actions.writeContract(config, simulation.request));
+    return confirm(await writeWithWallet(wallet, simulation.request));
   }
 
   async function sellAllForEth(token: Address, expectedWeth: Address, onProgress?: (phase: "approving" | "selling" | "sold" | "unwrapping", amount?: bigint, hash?: Hash) => void) {
-    const account = await ensureWallet();
+    const account = (await ensureWallet()).address;
     const quote = await readQuoteToken();
     if (getAddress(quote) !== getAddress(expectedWeth)) throw new CurveballSdkError("This market does not use the expected WETH token.");
     const tokenAddress = getAddress(token);
@@ -320,9 +345,9 @@ export function createCurveballSdk(config: Config, deployment: CurveballDeployme
   }
 
   async function write(address: Address, abi: unknown, functionName: string, args: readonly unknown[]): Promise<ConfirmedWrite> {
-    const account = await ensureWallet();
-    const simulation = await actions.simulateContract(config, { account, address, abi, functionName, args, chainId } as Parameters<WagmiActions["simulateContract"]>[1]);
-    return confirm(await actions.writeContract(config, simulation.request));
+    const wallet = await ensureWallet();
+    const simulation = await actions.simulateContract(config, { account: wallet.address, address, abi, functionName, args, chainId } as Parameters<WagmiActions["simulateContract"]>[1]);
+    return confirm(await writeWithWallet(wallet, simulation.request));
   }
 
   const readSingleton = (functionName: "escrow" | "locker" | "reserve") =>

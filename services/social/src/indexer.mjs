@@ -915,6 +915,9 @@ export function startIndexer({ onEvent, onError } = {}) {
   let timer;
   let initialized = false;
   let leadershipClient = null;
+  // The API caches RNS name answers in rns_cache; expired rows are never read again, so the
+  // leader prunes them hourly to keep the table bounded by one hour of lookups.
+  let nextRnsPruneAt = 0;
 
   const acquireLeadership = async () => {
     if (leadershipClient) return true;
@@ -940,6 +943,11 @@ export function startIndexer({ onEvent, onError } = {}) {
       if (!initialized) {
         await initializeIndexerState();
         initialized = true;
+      }
+      const now = Date.now();
+      if (now >= nextRnsPruneAt) {
+        nextRnsPruneAt = now + 3_600_000;
+        await pool.query(`DELETE FROM rns_cache WHERE expires_at < now() - interval '1 hour'`);
       }
       const head = await client.getBlockNumber();
       const safeHead = head > config.confirmations ? head - config.confirmations : 0n;

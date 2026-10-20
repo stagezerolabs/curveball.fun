@@ -30,6 +30,12 @@ const LOG_SCAN_CONCURRENCY = 4;
 const STATUS_CONCURRENCY = 8;
 const FAILURE_RETRY_MS = 60_000;
 const MAX_RETRY_MS = 6 * 3_600_000;
+/// `tick` leaves unread any market it recently read in a state that only changes slowly: a trading
+/// curve only turns actionable when someone trades it, and an idle graduated curve only when pool
+/// fees accrue. These cooldowns add detection latency, never a wrong action: `decide` is the
+/// correctness guard whatever the read set looks like.
+const TRADING_POLL_MS = 60_000;
+const IDLE_BUYBACK_POLL_MS = 10 * 60_000;
 
 async function mapConcurrent(items, limit, task) {
   const results = new Array(items.length);
@@ -66,6 +72,7 @@ export function createGraduationKeeper({ publicClient, walletClient, launchpad, 
   const markets = new Map();
   const retryAfter = new Map();
   const failures = new Map();
+  const lastStatus = new Map();
   let nextBlock = deploymentBlock;
   let constants;
 
@@ -192,13 +199,24 @@ export function createGraduationKeeper({ publicClient, walletClient, launchpad, 
   async function tick() {
     constants ??= await readConstants();
     await discoverLaunches();
-    // Reads are independent; writes remain serial for the keeper wallet nonce.
-    const entries = [...markets];
-    const statuses = await mapConcurrent(entries, STATUS_CONCURRENCY, ([, token]) => readStatus(token));
-    for (const [index, [key, token]] of entries.entries()) {
-      if ((retryAfter.get(key) ?? 0) > now()) continue;
+    // Reads are independent; writes remain serial for the keeper wallet nonce. Markets that are
+    // backing off, or that were recently read in a state which only changes slowly, are left
+    // unread so the sweep's read cost stays with the markets that can actually act.
+    const nowMs = now();
+    const reads = [...markets].filter(([key]) => {
+      if ((retryAfter.get(key) ?? 0) > nowMs) return false;
+      const last = lastStatus.get(key);
+      if (!last) return true;
+      const age = nowMs - last.readAt;
+      if (last.value.state === "graduated" && last.value.buyback?.balance === 0n) return age >= IDLE_BUYBACK_POLL_MS;
+      if (last.value.state === "trading") return age >= TRADING_POLL_MS;
+      return true;
+    });
+    const statuses = await mapConcurrent(reads, STATUS_CONCURRENCY, ([, token]) => readStatus(token));
+    for (const [index, [key, token]] of reads.entries()) {
       try {
         if (statuses[index].error) throw statuses[index].error;
+        lastStatus.set(key, { value: statuses[index].value, readAt: now() });
         await act(key, token, statuses[index].value);
       } catch (error) {
         captureKeeperException(error, "market-action");

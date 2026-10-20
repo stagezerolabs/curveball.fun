@@ -1,7 +1,7 @@
 const MAX_REPLAY_EVENTS = 1_000;
 const MAX_QUEUED_EVENTS = 512;
 
-export function createOutboxHub({ query, subscribe, pollMs = 2_000, heartbeatMs = 20_000 }) {
+export function createOutboxHub({ query, subscribe, pollMs = 2_000, heartbeatMs = 20_000, maxClients = 500, maxClientsPerIp = 200 }) {
   const clients = new Set();
   let cursor = 0n;
   let started;
@@ -76,13 +76,28 @@ export function createOutboxHub({ query, subscribe, pollMs = 2_000, heartbeatMs 
     await started;
   }
 
-  async function open(response, suppliedId) {
+  async function open(response, suppliedId, remoteAddress) {
     await ensureStarted();
     if (response.destroyed || response.writableEnded) return;
+    // Bounded per connection: each client holds a socket, a heartbeat timer and a replay queue,
+    // so an unauthenticated flood must not grow the hub without limit. Rejected clients are asked
+    // to retry in a minute instead of reconnecting every three seconds.
+    const ip = typeof remoteAddress === "string" && remoteAddress ? remoteAddress : "unknown";
+    let ipCount = 0;
+    for (const client of clients) {
+      if (client.ip === ip) ipCount += 1;
+    }
+    if (clients.size >= maxClients || ipCount >= maxClientsPerIp) {
+      const reason = clients.size >= maxClients ? "server_full" : "too_many_connections";
+      write({ response, closed: false }, `retry: 60000\nevent: stream_rejected\ndata: ${JSON.stringify({ reason })}\n\n`);
+      if (typeof response.destroy === "function") response.destroy();
+      else response.end();
+      return;
+    }
     const watermark = cursor;
     const replayFrom = typeof suppliedId === "string" && /^\d+$/.test(suppliedId)
       ? BigInt(suppliedId) > watermark ? watermark : BigInt(suppliedId) : watermark;
-    const client = { response, lastSent: replayFrom, replaying: true, queue: [], closed: false, heartbeat: null };
+    const client = { response, ip, lastSent: replayFrom, replaying: true, queue: [], closed: false, heartbeat: null };
     clients.add(client);
     if (!pollTimer) {
       unsubscribe = subscribe?.(() => void pump());

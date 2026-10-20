@@ -46,7 +46,8 @@ describe("published trader rankings", () => {
     expect(sql).toMatch(/AS marked_unrealized_pnl_quote/);
     expect(sql).toMatch(/holdings\.effective_balance\*COALESCE\(holdings\.current_price_x18,0\)/);
     expect(sql).toMatch(/candidate\.stale_open_market_count=0 AND candidate\.external_outbound_count=0/);
-    expect(sql).toMatch(/COUNT\(DISTINCT \(t\.block_timestamp AT TIME ZONE 'UTC'\)::date\)/);
+    expect(sql).toMatch(/activity_window\.day0_epoch/);
+    expect(sql).toMatch(/COUNT\(DISTINCT \(EXTRACT\(EPOCH FROM t\.block_timestamp\)::bigint-activity_window\.day0_epoch\)\/86400\)/);
     expect(sql).toMatch(/'realizedCostWei'/);
     expect(sql).toMatch(/'netPnlWei'/);
     expect(sql).toMatch(/'tradingDayCount'/);

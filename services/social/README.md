@@ -40,5 +40,7 @@ When the indexer starts on a launchpad other than the one it last indexed, it re
 - Origins are allowlisted and state-changing requests require a matching Origin header.
 - Raw log occurrences retain block hashes; the indexer rescans an overlap and marks replaced events orphaned.
 - Icarus pool swaps retain both the contract caller and output recipient; neither is silently promoted to a human trader for PnL or leaderboards.
+- Unauthored RNS name lookups that miss the cache are rate-limited per socket IP (120/minute) as a coarse ceiling; cached answers are free, and the indexer leader prunes expired `rns_cache` rows hourly.
+- The live event stream caps concurrent clients at 500 total and 200 per socket IP; clients over the cap are told to retry in 60 seconds instead of reconnecting every few seconds.
 - Application tables live in the private `curveball` schema rather than Supabase's API-exposed `public` schema.
 - Put TLS and request-rate limiting in front of the service on the VPS.
