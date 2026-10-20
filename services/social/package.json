@@ -3,19 +3,21 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": "^20.19.0 || ^22.12.0 || >=23.2.0"
   },
   "scripts": {
-    "start": "bun run --cwd ../../packages/db build && node src/main.mjs",
-    "api": "bun run --cwd ../../packages/db build && node src/api.mjs",
-    "indexer": "bun run --cwd ../../packages/db build && node src/indexer-runner.mjs",
-    "worker": "bun run --cwd ../../packages/db build && node src/worker.mjs",
+    "start": "bun run --cwd ../../packages/db build && node --enable-source-maps --import ./src/instrument.mjs src/main.mjs",
+    "api": "bun run --cwd ../../packages/db build && node --enable-source-maps --import ./src/instrument.mjs src/api.mjs",
+    "indexer": "bun run --cwd ../../packages/db build && node --enable-source-maps --import ./src/instrument.mjs src/indexer-runner.mjs",
+    "worker": "bun run --cwd ../../packages/db build && node --enable-source-maps --import ./src/instrument.mjs src/worker.mjs",
     "migrate": "bun run --cwd ../../packages/db build && node src/migrate.mjs",
     "test": "bun test src/*.test.mjs"
   },
   "dependencies": {
     "@curveball/db": "workspace:*",
     "@privy-io/node": "0.36.0",
+    "@sentry/bun": "^11.8.0",
+    "@sentry/node": "^11.8.0",
     "pg": "^8.16.3",
     "viem": "2.57.3"
   }

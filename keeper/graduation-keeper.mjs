@@ -2,6 +2,7 @@ import { createPublicClient, createWalletClient, decodeEventLog, defineChain, ge
 import { privateKeyToAccount } from "viem/accounts";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { captureKeeperException, flushKeeperEvents, traceKeeperSweep } from "./instrument.mjs";
 
 const launchpadAbi = parseAbi([
   "function escrow() view returns (address)",
@@ -200,6 +201,7 @@ export function createGraduationKeeper({ publicClient, walletClient, launchpad, 
         if (statuses[index].error) throw statuses[index].error;
         await act(key, token, statuses[index].value);
       } catch (error) {
+        captureKeeperException(error, "market-action");
         logger.error(`Keeper action failed for ${token}: ${error instanceof Error ? error.message : String(error)}`);
         backOff(key, token, "Keeper action failed", FAILURE_RETRY_MS);
       }
@@ -236,12 +238,21 @@ export async function main() {
   process.on("SIGTERM", () => { stopping = true; });
   console.info(`Keeper started for launchpad ${getAddress(launchpad)} on chain ${chainId}.`);
   while (!stopping) {
-    try { await keeper.tick(); }
-    catch (error) { console.error(`Keeper sweep failed: ${error instanceof Error ? error.message : String(error)}`); }
+    try { await traceKeeperSweep(() => keeper.tick()); }
+    catch (error) {
+      captureKeeperException(error, "sweep");
+      console.error(`Keeper sweep failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
     if (!stopping) await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
+  await flushKeeperEvents();
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  main().catch((error) => { console.error(error instanceof Error ? error.message : String(error)); process.exitCode = 1; });
+  main().catch(async (error) => {
+    captureKeeperException(error, "startup");
+    console.error(error instanceof Error ? error.message : String(error));
+    await flushKeeperEvents();
+    process.exitCode = 1;
+  });
 }

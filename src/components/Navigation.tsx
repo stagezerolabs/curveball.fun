@@ -1,6 +1,5 @@
 import { forwardRef, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { usePrivy } from "@privy-io/react-auth";
-import { useQuery } from "@tanstack/react-query";
+import { useConnectWallet, usePrivy } from "@privy-io/react-auth";
 import { useAccount, useSwitchChain } from "wagmi";
 import type { AnchorHTMLAttributes, MouseEvent, ReactNode } from "react";
 import type { Address } from "viem";
@@ -8,11 +7,12 @@ import { routeHref } from "../app/routeTree";
 import { formatAddress } from "../lib/format.js";
 import type { Navigate } from "../types";
 import { activeExplorerUrl, launchpadAddress } from "../lib/web3";
-import { fetchRnsPrimaryName } from "../lib/rnsPrimary";
+import { socialApiConfigured } from "../social/api";
+import { useNotifications } from "../social/useNotifications";
+import { useTraderName } from "../social/useTraderName";
 import type { Theme } from "../lib/theme";
-import { activeChainId } from "../lib/web3";
+import { activeChainId, riseTestnet } from "../lib/web3";
 import { AccountPopover } from "./AccountPopover";
-import { NotificationsPopover } from "./NotificationsPopover";
 
 const RISK_NOTICE_DISMISSED_KEY = "curveball:risk-notice-dismissed";
 
@@ -109,21 +109,18 @@ export function RiseLogo() {
   );
 }
 
-function WalletNavButton({ address, displayName, navigate, profileActive = false }: { address?: Address; displayName?: string | null; navigate: Navigate; profileActive?: boolean }) {
+function WalletNavButton({ address, navigate, profileActive = false }: { address?: Address; navigate: Navigate; profileActive?: boolean }) {
   const { ready, authenticated, login } = usePrivy();
+  const { connectWallet } = useConnectWallet();
   const { chainId } = useAccount();
   const { switchChain } = useSwitchChain();
-  const { data: primaryName } = useQuery({
-    queryKey: ["rns", "primary", address?.toLowerCase()],
-    queryFn: ({ signal }) => fetchRnsPrimaryName(address!, signal),
-    enabled: Boolean(address),
-    staleTime: 60_000,
-    refetchOnWindowFocus: "always",
-    retry: 1,
-  });
+  const { label: traderLabel } = useTraderName(address);
 
   const wrongNetwork = authenticated && Boolean(address && chainId && chainId !== activeChainId);
-  const walletLabel = primaryName ?? displayName ?? (address ? `${address.slice(0, 5)}…${address.slice(-4)}` : "Sign in");
+  // The Privy session can outlive the injected wallet connection (e.g. the site was
+  // disconnected inside the wallet). In that state login() would relog an already
+  // authenticated user, so offer connectWallet() instead of hiding the pill entirely.
+  const walletLabel = address ? traderLabel : authenticated ? "Connect wallet" : "Sign in";
   const label = <span className="privy-pill-label">
     <svg className="wallet-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
       <path d="M3 5.5A2.5 2.5 0 0 1 5.5 3H15v3H5.5A2.5 2.5 0 0 0 3 8.5v6A2.5 2.5 0 0 0 5.5 17H17V7H5.5" />
@@ -148,8 +145,25 @@ function WalletNavButton({ address, displayName, navigate, profileActive = false
     </button>;
   }
 
-  if (!address) return null;
+  if (!address) {
+    return <button className="wallet-button" type="button" disabled={!ready} onClick={connectWallet} aria-label="Connect a wallet to Curveball">
+      {label}
+    </button>;
+  }
   return <AccountPopover address={address} label={walletLabel} navigate={navigate} profileActive={profileActive} />;
+}
+
+function NotificationBell({ address, navigate }: { address?: Address; navigate: Navigate }) {
+  const inbox = useNotifications(address, socialApiConfigured);
+  if (!socialApiConfigured || !address) return null;
+  const unread = inbox.data?.unreadCount ?? 0;
+  return <AppLink className="nav-bell" route="notifications" navigate={navigate} aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"} title="Notifications">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M6 8.5a4 4 0 1 1 8 0c0 3 1.2 4.3 1.2 4.3H4.8S6 11.5 6 8.5Z" />
+      <path d="M8.4 15.2a1.7 1.7 0 0 0 3.2 0" />
+    </svg>
+    {unread ? <span className="nav-bell-count" aria-hidden="true">{unread > 9 ? "9+" : unread}</span> : null}
+  </AppLink>;
 }
 
 export function Header({
@@ -233,7 +247,7 @@ export function Header({
   };
   const marketsClass = ["markets", "market"].includes(routeId) ? "active" : "";
   const socialClass = ["social", "trader"].includes(routeId) ? "active" : "";
-  const profileClass = routeId === "profile" || routeId === "profileSettings" ? "active" : "";
+  const profileClass = routeId === "profile" ? "active" : "";
   const adminClass = routeId === "admin" ? "active" : "";
 
   const primaryLinks = (
@@ -286,8 +300,8 @@ export function Header({
         <div className="nav-actions">
           <ThemeToggle theme={theme} onToggle={onThemeToggle} />
           <AppLink className="nav-create" route="launch" navigate={go} aria-current={routeId === "launch" ? "page" : undefined}><span aria-hidden="true">＋</span> Create</AppLink>
-          <WalletNavButton address={address} displayName={address ? `${address.slice(0, 5)}…${address.slice(-4)}` : null} navigate={go} profileActive={Boolean(profileClass)} />
-          {address ? <NotificationsPopover address={address} navigate={go} /> : null}
+          <NotificationBell address={address} navigate={go} />
+          <WalletNavButton address={address} navigate={go} profileActive={Boolean(profileClass)} />
         </div>
         <button
           className="nav-menu"
@@ -324,7 +338,8 @@ export function LandingHeader({ address, isAdmin, navigate, theme, onThemeToggle
       <div className="landing-nav-actions">
         {isAdmin && <AppLink className="nav-link" route="admin" navigate={navigate}>Admin</AppLink>}
         <ThemeToggle theme={theme} onToggle={onThemeToggle} />
-        <WalletNavButton address={address} displayName={address ? `${address.slice(0, 5)}…${address.slice(-4)}` : null} navigate={navigate} />
+        <NotificationBell address={address} navigate={navigate} />
+        <WalletNavButton address={address} navigate={navigate} />
       </div>
     </header>
   );
@@ -344,11 +359,12 @@ export function LandingFooter({ navigate }: { navigate: Navigate }) {
           <AppLink route="markets" navigate={navigate}>Markets</AppLink>
           <AppLink route="stats" navigate={navigate}>Stats</AppLink>
           <AppLink route="launch" navigate={navigate}>Launch</AppLink>
+          <a href="#landing-faq-title">Docs</a>
         </nav>
 
         <nav className="landing-footer-column" aria-label="Network">
           <h2>Network</h2>
-          <span>RISE Mainnet</span>
+          <span>{riseTestnet.name}</span>
           <a href={activeExplorerUrl} target="_blank" rel="noreferrer">
             Explorer ↗
           </a>

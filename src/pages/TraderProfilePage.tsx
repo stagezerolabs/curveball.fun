@@ -1,22 +1,21 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Menu } from "@base-ui/react/menu";
 import { Tabs } from "@base-ui/react/tabs";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatEther, getAddress, isAddress, type Address } from "viem";
 import { useAccount } from "wagmi";
 import { AppLink } from "../components/Navigation";
 import { formatAddress, formatEthAmount, formatRelativeTime } from "../lib/format.js";
-import { fetchRnsPrimaryName } from "../lib/rnsPrimary";
 import { activeExplorerUrl } from "../lib/web3";
-import type { Navigate } from "../types";
+import type { Navigate, Token } from "../types";
 import { FollowButton } from "../social/FollowButton";
 import { TraderAvatar } from "../social/TraderAvatar";
-import { NotificationPreferences } from "../social/NotificationPreferences";
+import { useTraderName } from "../social/useTraderName";
+import { fetchCreatorMarkets } from "../markets/api";
 import { socialApi, socialApiConfigured } from "../social/api";
-import type { TraderProfile } from "../social/types";
 import { useSocialAuth } from "../social/useSocialAuth";
 
-export type ProfileTab = "holdings" | "activity" | "launches" | "settings";
+export type ProfileTab = "holdings" | "activity" | "launches";
 
 function wethAmount(wei: string) {
   return Number(formatEther(BigInt(wei || "0")));
@@ -31,35 +30,15 @@ function EmptyState({ title, children, action }: { title: string; children?: Rea
   return <div className="profile-empty-state"><strong>{title}</strong>{children ? <p>{children}</p> : null}{action}</div>;
 }
 
-function ProfileEditor({ profile, onSaved }: {
-  profile: TraderProfile;
-  onSaved: () => void;
-}) {
-  const { ensureAuthenticated } = useSocialAuth();
-  const [displayName, setDisplayName] = useState(profile.displayName ?? "");
-  const [bio, setBio] = useState(profile.bio);
-  const dirty = displayName !== (profile.displayName ?? "") || bio !== profile.bio;
-  const mutation = useMutation({
-    mutationFn: async () => {
-      await ensureAuthenticated();
-      return socialApi.saveProfile({ displayName, bio, discoverable: profile.discoverable });
-    },
-    onSuccess: onSaved,
-  });
-
-  return <form className="profile-settings-card" aria-labelledby="profile-editor-title" onSubmit={(event) => { event.preventDefault(); mutation.mutate(); }}>
-    <h2 id="profile-editor-title">Profile</h2>
-    <div className="settings-field">
-      <label htmlFor="trader-display-name">Display name</label>
-      <input id="trader-display-name" maxLength={40} autoComplete="nickname" value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Your .rise name is shown first" />
-    </div>
-    <div className="settings-field">
-      <div className="settings-field-label"><label htmlFor="trader-bio">Bio</label><small aria-live="polite">{bio.length}/280</small></div>
-      <textarea id="trader-bio" rows={3} maxLength={280} value={bio} onChange={(event) => setBio(event.target.value)} placeholder="How you trade, in a line or two" />
-    </div>
-    {mutation.error ? <p className="social-form-error" role="alert">{mutation.error.message}</p> : null}
-    <button className="primary-button settings-save" type="submit" disabled={!dirty || mutation.isPending}>{mutation.isPending ? "Saving…" : "Save changes"}</button>
-  </form>;
+/** Tokens this trader launched, for anyone reading their profile. */
+function CreatorMarketList({ tokens, navigate }: { tokens: Token[]; navigate: Navigate }) {
+  return <ul className="profile-list">{tokens.map((token) => <li key={token.address}>
+    <AppLink className="profile-row" route="market" params={{ address: token.address }} navigate={navigate}>
+      <span className="profile-row-main"><strong>{token.name}</strong><small>${token.symbol} · launched {formatRelativeTime(token.createdAt)}</small></span>
+      <span className="profile-row-value"><strong>{formatEthAmount(token.marketCap ?? 0)} WETH</strong><small>{token.graduated ? "Graduated" : `${Math.round(token.progress ?? 0)}% sold`}</small></span>
+      <span className="profile-row-chevron" aria-hidden="true">›</span>
+    </AppLink>
+  </li>)}</ul>;
 }
 
 export function TraderProfilePage({ address: routeAddress, navigate, launches = null, initialTab = "holdings" }: {
@@ -89,10 +68,11 @@ export function TraderProfilePage({ address: routeAddress, navigate, launches = 
     queryFn: () => socialApi.feed("global", undefined, traderAddress!),
     enabled: socialApiConfigured && Boolean(traderAddress),
   });
-  const rns = useQuery({
-    queryKey: ["rns", "primary", traderAddress?.toLowerCase()],
-    queryFn: ({ signal }) => fetchRnsPrimaryName(traderAddress!, signal),
-    enabled: Boolean(traderAddress),
+  const rns = useTraderName(traderAddress);
+  const creatorMarkets = useQuery({
+    queryKey: ["markets", "creator", traderAddress?.toLowerCase()],
+    queryFn: ({ signal }) => fetchCreatorMarkets(traderAddress!, signal),
+    enabled: socialApiConfigured && !launches && Boolean(traderAddress),
     staleTime: 60_000,
     retry: 1,
   });
@@ -105,7 +85,7 @@ export function TraderProfilePage({ address: routeAddress, navigate, launches = 
   if (profile.isError || !profile.data) return <main className="page-status wrap"><h1>Profile unavailable</h1><p>{profile.error instanceof Error ? profile.error.message : "Try again shortly."}</p><button className="primary-button" type="button" onClick={() => void profile.refetch()}>Retry</button></main>;
 
   const data = profile.data;
-  const name = rns.data ?? data.displayName ?? formatAddress(traderAddress);
+  const name = rns.label;
   const positions = data.positions.map((position) => {
     const balance = wethAmount(position.balance_wei);
     const rate = Number(position.virtual_token_after) > 0
@@ -154,7 +134,6 @@ export function TraderProfilePage({ address: routeAddress, navigate, launches = 
           <p className="profile-hero-meta">
             <a href={`${activeExplorerUrl}/address/${traderAddress}`} target="_blank" rel="noreferrer" title={traderAddress}>{formatAddress(traderAddress)} <span aria-hidden="true">↗</span></a>
           </p>
-          {data.bio ? <p className="profile-hero-bio">{data.bio}</p> : null}
           <p className="profile-hero-social"><span><strong>{data.followers}</strong> followers</span><span><strong>{data.following}</strong> following</span></p>
           {!isOwner ? <div className="profile-hero-actions">
             <FollowButton trader={traderAddress} following={data.isFollowed} onError={setNotice} />
@@ -197,8 +176,7 @@ export function TraderProfilePage({ address: routeAddress, navigate, launches = 
       <Tabs.List className="profile-section-nav" aria-label="Profile sections">
         <Tabs.Tab value="holdings">Holdings{positions.length ? <span>{positions.length}</span> : null}</Tabs.Tab>
         <Tabs.Tab value="activity">Activity</Tabs.Tab>
-        {launches ? <Tabs.Tab value="launches">Launches</Tabs.Tab> : null}
-        {isOwner ? <Tabs.Tab value="settings">Settings</Tabs.Tab> : null}
+        {launches || creatorMarkets.data?.length ? <Tabs.Tab value="launches">Launches{creatorMarkets.data?.length ? <span>{creatorMarkets.data.length}</span> : null}</Tabs.Tab> : null}
         <Tabs.Indicator className="profile-section-indicator" />
       </Tabs.List>
 
@@ -223,18 +201,14 @@ export function TraderProfilePage({ address: routeAddress, navigate, launches = 
               : <ul className="profile-list">{trades.data.items.slice(0, 20).map((trade) => <li key={trade.id}>
                 <AppLink className="profile-row" route="market" params={{ address: trade.tokenAddress }} navigate={navigate}>
                   <span className={`social-side ${trade.isBuy ? "buy" : "sell"}`}>{trade.isBuy ? "Buy" : "Sell"}</span>
-                  <span className="profile-row-main"><strong>{trade.tokenName}</strong><small>${trade.tokenSymbol}</small></span>
-                  <span className="profile-row-value"><strong>{formatEthAmount(wethAmount(trade.quoteAmountWei))} WETH</strong><time dateTime={trade.blockTimestamp}>{formatRelativeTime(trade.blockTimestamp)}</time></span>
+                  <span className="profile-row-main"><strong>{trade.tokenName}</strong><small>{trade.note ? `"${trade.note}"` : `$${trade.tokenSymbol}`}</small></span>
+                  <span className="profile-row-value"><strong>{formatEthAmount(wethAmount(trade.quoteAmountWei))} WETH</strong>{trade.reactionCount ? <small>{trade.reactionCount} {trade.reactionCount === 1 ? "conviction" : "convictions"}</small> : null}<time dateTime={trade.blockTimestamp}>{formatRelativeTime(trade.blockTimestamp)}</time></span>
                 </AppLink>
               </li>)}</ul>}
       </Tabs.Panel>
 
-      {launches ? <Tabs.Panel value="launches" className="profile-section-panel">{launches}</Tabs.Panel> : null}
+      {launches || creatorMarkets.data?.length ? <Tabs.Panel value="launches" className="profile-section-panel">{launches ?? <CreatorMarketList tokens={creatorMarkets.data ?? []} navigate={navigate} />}</Tabs.Panel> : null}
 
-      {isOwner ? <Tabs.Panel value="settings" className="profile-section-panel profile-settings">
-        <ProfileEditor profile={data} onSaved={() => { setNotice("Profile saved."); void queryClient.invalidateQueries({ queryKey: ["social", "profile", traderAddress.toLowerCase()] }); }} />
-        <NotificationPreferences address={traderAddress} />
-      </Tabs.Panel> : null}
     </Tabs.Root>
   </main>;
 }

@@ -15,6 +15,7 @@ import { getMarketDisplayStatus } from "../lib/marketState";
 import { activeChainId } from "../lib/web3";
 import type { Navigate, Token } from "../types";
 import type { ProfileTab } from "./TraderProfilePage";
+import { selectProfileAuthView } from "./profileAuthGate";
 
 type LaunchFilter = "all" | "live" | "ready" | "graduated";
 type ProfileSection = "holders" | "airdrops";
@@ -49,7 +50,7 @@ function CreatorLaunchDashboard({ address, navigate }: { address: Address; navig
       if (document.visibilityState === "visible") {
         void loadCreatorTokens(publicClient as unknown as CreatorTokenClient | undefined, address, { force: true }).catch(() => undefined);
       }
-    }, 10_000);
+    }, 30_000);
     return () => window.clearInterval(timer);
   }, [address, awaitingPool, loadCreatorTokens, publicClient]);
 
@@ -114,7 +115,7 @@ function CreatorLaunchDashboard({ address, navigate }: { address: Address; navig
               <Tabs.Indicator className="profile-section-indicator" />
             </Tabs.List>
             <Tabs.Panel key={`${selectedToken.address}-${activeSection}`} value={activeSection} className="profile-token-workspace profile-section-panel">
-              {activeSection === "holders" ? <CreatorTokenInsights token={selectedToken} /> : <HolderAirdropPanel token={selectedToken} />}
+              {activeSection === "holders" ? <CreatorTokenInsights token={selectedToken} navigate={navigate} /> : <HolderAirdropPanel token={selectedToken} />}
             </Tabs.Panel>
           </Tabs.Root>
         </> : <p className="profile-directory-empty">Choose a launch to view its details.</p>}
@@ -127,7 +128,16 @@ export function ProfilePage({ navigate, initialTab }: { navigate: Navigate; init
   const { address } = useAccount();
   const { ready: privyReady, authenticated, login } = usePrivy();
 
-  if (!address || !authenticated) {
+  // On a refresh the Privy session restores asynchronously and wagmi's address
+  // arrives only after the wallet sync finishes. Gate on both before showing
+  // the sign-in screen, otherwise /profile flashes a login page at every load
+  // and offers "Create account or sign in" while a session is already live.
+  const view = selectProfileAuthView({ ready: privyReady, authenticated, hasAddress: Boolean(address) });
+  if (view === "loading" || view === "restoring") {
+    return <main className="page-main profile-page wrap" aria-busy="true" aria-label={view === "loading" ? "Loading profile" : "Restoring signed-in session"}><div className="trader-profile-skeleton skeleton" /></main>;
+  }
+
+  if (view === "login" || !address || !authenticated) {
     return <main className="page-main profile-page wrap">
       <h1 className="visually-hidden">Profile</h1>
       <section className="profile-connect" aria-labelledby="profile-connect-title">

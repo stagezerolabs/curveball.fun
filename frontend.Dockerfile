@@ -8,7 +8,7 @@ COPY package.json bun.lock ./
 COPY contracts/package.json ./contracts/package.json
 COPY packages/db/package.json ./packages/db/package.json
 COPY services/social/package.json ./services/social/package.json
-RUN bun install --frozen-lockfile
+RUN bun install --frozen-lockfile --network-concurrency=8
 
 COPY index.html vite.config.js tsconfig.json ./
 COPY api ./api

@@ -14,14 +14,16 @@ export function FollowButton({ trader, following, onError }: {
   const [optimistic, setOptimistic] = useState<boolean | null>(null);
   const shown = optimistic ?? following;
   const mutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async ({ shouldFollow }: { shouldFollow: boolean }) => {
       await ensureAuthenticated();
-      return socialApi.follow(trader, !shown);
+      return socialApi.follow(trader, shouldFollow);
     },
-    onMutate: () => setOptimistic(!shown),
+    onMutate: ({ shouldFollow }) => setOptimistic(shouldFollow),
     onSuccess: async () => {
       setOptimistic(null);
       await queryClient.invalidateQueries({ queryKey: ["social"] });
+      // Trader rows show a Following tag, so market activity has to re-read its follow flags.
+      await queryClient.invalidateQueries({ queryKey: ["markets", "trades"] });
     },
     onError: (error) => {
       setOptimistic(null);
@@ -36,7 +38,7 @@ export function FollowButton({ trader, following, onError }: {
       type="button"
       aria-pressed={shown}
       disabled={mutation.isPending}
-      onClick={() => mutation.mutate()}
+      onClick={() => mutation.mutate({ shouldFollow: !shown })}
     >
       {mutation.isPending ? "Saving…" : shown ? "Following" : "Follow"}
     </button>

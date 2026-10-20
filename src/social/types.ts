@@ -27,7 +27,6 @@ export type SocialTrade = {
   tokenName: string;
   tokenSymbol: string;
   launchpadAddress: Address;
-  displayName: string | null;
   note: string | null;
   reactionCount: number;
   reacted: boolean;
@@ -53,13 +52,22 @@ export type PulseMoment = {
   sampleTransactionHash: `0x${string}`;
 };
 
-/** A market wallets you follow have bought into, with who bought and the WETH they put in. */
-export type FollowingBuy = {
+/** What a followed wallet did on a market: created it, bought in, or sold out. */
+export type FollowingActor = {
+  address: Address;
+  action: "launch" | "buy" | "sell";
+  amountQuoteWei: string;
+};
+
+/** A market wallets you follow touched, with who acted and the WETH they moved. */
+export type FollowingActivity = {
   tokenAddress: Address;
   tokenName: string;
   tokenSymbol: string;
-  buyers: { address: Address; displayName: string | null }[];
+  actors: FollowingActor[];
   boughtQuoteWei: string;
+  soldQuoteWei: string;
+  latestAt: string;
 };
 
 export type PulsePeriod = "1h" | "24h";
@@ -92,8 +100,6 @@ export type LeaderboardMetrics = {
 
 export type LeaderboardTrader = {
   address: Address;
-  displayName: string | null;
-  bio: string;
   rank: number;
   stats: TraderStats;
   publishedMetrics: LeaderboardMetrics;
@@ -132,9 +138,6 @@ export type TraderPosition = {
 export type TraderProfile = {
   address: Address;
   claimed: boolean;
-  displayName: string | null;
-  bio: string;
-  discoverable: boolean;
   claimedAt: string | null;
   stats: TraderStats;
   followers: number;
@@ -144,20 +147,34 @@ export type TraderProfile = {
   positions: TraderPosition[];
 };
 
-export type NotificationItem = {
+export type NotificationKind =
+  | "followed_buy"
+  | "followed_sell"
+  | "followed_launch"
+  | "new_follower"
+  | "curve_milestone"
+  | "graduation"
+  | "reaction";
+
+export type Notification = {
   id: string;
-  kind: "followed_buy" | "followed_sell" | "curve_milestone";
-  actor_address: Address | null;
-  payload: {
-    tokenAddress?: Address;
-    transactionHash?: `0x${string}`;
-    tokenName?: string;
-    tokenSymbol?: string;
-    actorDisplayName?: string;
-    milestone?: 25 | 50 | 70 | 100;
-  };
-  read_at: string | null;
-  created_at: string;
+  kind: NotificationKind;
+  actorAddress: Address | null;
+  tokenAddress: Address | null;
+  tokenName: string | null;
+  tokenSymbol: string | null;
+  milestone: number | null;
+  readAt: string | null;
+  createdAt: string;
+};
+
+export type NotificationPreferences = {
+  inApp: boolean;
+  tradeBuys: boolean;
+  tradeSells: boolean;
+  launches: boolean;
+  graduations: boolean;
+  newFollowers: boolean;
 };
 
 export type ModerationReport = {

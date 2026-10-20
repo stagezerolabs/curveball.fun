@@ -60,7 +60,7 @@ export function TradePanel({
     fetchQuote,
   } = useStore();
   const [explain, setExplain] = useState(false);
-  const { ready: privyReady, login } = usePrivy();
+  const { ready: privyReady, authenticated, login } = usePrivy();
   const marketFactory = launchpadAddress ? factoryForToken(token.factory) : undefined;
   const { data: paused } = useReadContract({
     address: marketFactory, abi: curveLaunchpadAbi,
@@ -91,7 +91,7 @@ export function TradePanel({
     abi: erc20Abi,
     functionName: "balanceOf",
     args: address ? [address] : undefined,
-    query: { enabled: Boolean(balanceOf && address), refetchInterval: 5_000, refetchOnWindowFocus: true },
+    query: { enabled: Boolean(balanceOf && address), refetchInterval: 15_000 }, // indexer-backed app: 5s RPC polling is churn, not freshness
   });
   const { data: nativeBalance } = useBalance({ address });
 
@@ -234,6 +234,13 @@ export function TradePanel({
           onClick={() => trade(side, token)}
         >
           <span aria-live="polite" aria-atomic="true">{tradeProgress ? tradeButtonLabel(tradeProgress.side, tradeProgress.phase) : tradeButtonLabel(side, null)}</span>
+        </button>
+      ) : authenticated ? (
+        // Session restored but wagmi is still syncing the wallet: a working
+        // "Sign in" button here would call login() on an active session and
+        // surface the wallet's "already logged in" warning.
+        <button className={`trade-submit ${side}`} type="button" disabled aria-busy="true">
+          Connecting session…
         </button>
       ) : (
         <button className={`trade-submit ${side}`} type="button" disabled={!privyReady} onClick={login}>

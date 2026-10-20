@@ -7,7 +7,7 @@ This document records the backend shape derived from the current Curveball UI, c
 - **Chain ingestion** verifies the configured chain, stores canonical block/log identity, indexes launch/trade/graduation events, and compensates for reorgs.
 - **Accounting projector** turns canonical events into curve positions, market metrics, candles, and versioned performance snapshots. Its projections are rebuildable.
 - **Market read model** owns discovery, search, market detail, trade history, candles, holder views, and protocol statistics.
-- **Social graph** owns profiles, follows, blocks, notes, conviction reactions, reports, and discovery visibility.
+- **Social graph** owns follows, blocks, notes, conviction reactions, and reports. Trader identity is the wallet plus its RNS name, with no editable fields and no visibility opt-out ([ADR 0004](../adr/0004-rns-only-trader-identity.md)).
 - **Notification delivery** writes recipient records and a durable outbox; realtime delivery is downstream of the committed row.
 - **Copy Assist** owns preferences, immutable intents/status events, and receipt-verified executions. Wallet signing and trade submission remain in the web app.
 
@@ -51,7 +51,7 @@ Implemented:
 - Interval candle projection and frontend market-list/chart/activity cutover to backend reads when the service is configured.
 - Versioned known-basis performance snapshots and atomically published leaderboard snapshots.
 - Pulse signal desk: 1h/24h grouped market moments, followed-trader moments, qualified trader snapshots, and an opt-in cursor-paginated raw trade record. Public moment summaries are cached for 30 seconds; the raw record no longer polls or subscribes on every page view.
-- The web app currently shows explicitly labeled example data in Pulse's Now and Following tabs while the real follow-list/read-model experience is being designed. Leaderboard and Live remain service-backed; example addresses and transactions are not linked as real markets.
+- Pulse is fully service-backed: Now ranks net-buying markets, Following lists the markets the viewer's follows created, bought, or sold, and the leaderboard ranks traders. Market trade history and holder lists carry the viewer's follow flags, trade notes, and Conviction counts.
 - Trader rankings use the `curve-known-basis-v2` method: minimum sample/spend requirements, current curve marks for open positions, stale-price and outbound-transfer guards, and visible snapshot methodology. Track record ranks estimated net known-basis PnL divided by cumulative curve buy spend; Emerging ranks estimated net known-basis PnL for newer qualified wallets. Neither proves a wallet represents an independent human or predicts future performance.
 - Resumable Postgres-outbox SSE, cached RNS identity reads, and normalized token-metadata refresh.
 - A shared API-process outbox poller serves SSE clients with bounded replay/backpressure instead of one database poll per connection. Authenticated social writes have a per-wallet process-local limit.

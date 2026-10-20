@@ -8,6 +8,9 @@ import { activeChainId } from "../lib/web3";
 import { useMarketPreviewStats } from "../lib/useMarketPreviewStats";
 import type { MarketPreviewStatsByToken, MarketPreviewStatsClient } from "../lib/marketPreviewStats";
 import type { Navigate, Token } from "../types";
+import type { FollowingActivity } from "../social/types";
+import { socialApiConfigured } from "../social/api";
+import { useFollowingActivity } from "../social/useFollowingActivity";
 
 type MarketFilter = "all" | "curve" | "graduated";
 type MarketSort = "market-cap" | "new" | "trending" | "volume-24h";
@@ -17,6 +20,15 @@ const filters: { id: MarketFilter; label: string }[] = [
   { id: "curve", label: "On the curve" },
   { id: "graduated", label: "Graduated" },
 ];
+
+/** Distinct followed wallets that last acted on each market, keyed by lowercase token address. */
+function followSignal(items: readonly FollowingActivity[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const item of items) {
+    counts[item.tokenAddress.toLowerCase()] = new Set(item.actors.map((actor) => actor.address.toLowerCase())).size;
+  }
+  return counts;
+}
 
 function sortMarkets(tokens: Token[], sort: MarketSort, stats: MarketPreviewStatsByToken) {
   return [...tokens].sort((a, b) => {
@@ -51,6 +63,11 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
     loadMarkets: (client?: CreatorTokenClient, options?: { force?: boolean }) => Promise<Token[]>;
   };
   const [filter, setFilter] = useState<MarketFilter>("all");
+  const following = useFollowingActivity(socialApiConfigured);
+  // Only badge cards from the viewer's own follow graph, never the no-backend wallet scan.
+  const marketFollowSignal = following.data?.scope === "following"
+    ? followSignal(following.data.items.map((item) => item.activity))
+    : {};
   const [sort, setSort] = useState<MarketSort>(lastCreatedToken ? "new" : "market-cap");
   const [view, setView] = useState<"cards" | "rows">("cards");
   const [search, setSearch] = useState("");
@@ -93,7 +110,7 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
       if (document.visibilityState === "visible") {
         void loadMarkets(publicClient as unknown as CreatorTokenClient | undefined, { force: true }).catch(() => undefined);
       }
-    }, 10_000);
+    }, 15_000);
     return () => window.clearInterval(timer);
   }, [awaitingPool, loadMarkets, publicClient]);
 
@@ -135,7 +152,7 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
             </button>
           </div>
         </div>
-        <MarketList tokens={visible} loading={initialLoading} navigate={navigate} highlightedToken={lastCreatedToken} previewStats={previewStats} view={view} />
+        <MarketList tokens={visible} loading={initialLoading} navigate={navigate} highlightedToken={lastCreatedToken} previewStats={previewStats} followSignal={marketFollowSignal} view={view} />
       </section>
     </main>
   );

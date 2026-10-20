@@ -48,12 +48,14 @@ const metadata = metadataConfiguration();
 const rnsApiUrl = process.env.SOCIAL_RNS_API_URL?.trim() || "https://api.stage0.xyz/api/public/rns/resolve/address/";
 if (!rnsApiUrl.startsWith("https://")) throw new Error("SOCIAL_RNS_API_URL must use HTTPS.");
 
+// Defaults match the local stack (RISE testnet 11155931). Set SOCIAL_CHAIN_ID/SOCIAL_RPC_URL
+// explicitly for RISE mainnet (4153, https://rpc.risechain.com).
 export const config = Object.freeze({
   databaseUrl: required("SOCIAL_DATABASE_URL"),
   directDatabaseUrl: process.env.SOCIAL_DIRECT_DATABASE_URL?.trim() || process.env.SOCIAL_DATABASE_URL?.trim(),
-  rpcUrl: process.env.SOCIAL_RPC_URL?.trim() || "https://rpc.risechain.com",
-  chainId: positiveInteger("SOCIAL_CHAIN_ID", 4153),
-  chainName: process.env.SOCIAL_CHAIN_NAME?.trim() || "Rise",
+  rpcUrl: process.env.SOCIAL_RPC_URL?.trim() || "https://testnet.riselabs.xyz",
+  chainId: positiveInteger("SOCIAL_CHAIN_ID", 11_155_931),
+  chainName: process.env.SOCIAL_CHAIN_NAME?.trim() || "Rise Testnet",
   nativeSymbol: process.env.SOCIAL_NATIVE_SYMBOL?.trim() || "ETH",
   launchpadAddress: getAddress(launchpad),
   adminAddress: getAddress(admin).toLowerCase(),

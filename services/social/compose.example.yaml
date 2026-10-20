@@ -7,8 +7,9 @@ services:
     environment: &social-env
       SOCIAL_DATABASE_URL: ${SOCIAL_DATABASE_URL:?set the Supabase pooled runtime URL}
       SOCIAL_DIRECT_DATABASE_URL: ${SOCIAL_DIRECT_DATABASE_URL:?set the Supabase direct migration URL}
-      SOCIAL_RPC_URL: ${SOCIAL_RPC_URL:-https://rpc.risechain.com}
-      SOCIAL_CHAIN_ID: ${SOCIAL_CHAIN_ID:-4153}
+      # Defaults to the RISE testnet local stack; RISE mainnet is chain 4153 (https://rpc.risechain.com).
+      SOCIAL_RPC_URL: ${SOCIAL_RPC_URL:-https://testnet.riselabs.xyz}
+      SOCIAL_CHAIN_ID: ${SOCIAL_CHAIN_ID:-11155931}
       SOCIAL_LAUNCHPAD_ADDRESS: ${SOCIAL_LAUNCHPAD_ADDRESS:?set SOCIAL_LAUNCHPAD_ADDRESS}
       SOCIAL_DEPLOYMENT_BLOCK: ${SOCIAL_DEPLOYMENT_BLOCK:?set SOCIAL_DEPLOYMENT_BLOCK}
       SOCIAL_ALLOWED_ORIGINS: ${SOCIAL_ALLOWED_ORIGINS:-https://curveball.fun}
@@ -18,12 +19,15 @@ services:
       SOCIAL_DATABASE_SSL: "true"
       SOCIAL_DATABASE_CA_FILE: certs/supabase-root-2021.crt
       SOCIAL_PROTOCOL_ACCOUNTS: ${SOCIAL_PROTOCOL_ACCOUNTS:-}
+      SENTRY_DSN: ${SENTRY_BACKEND_DSN:?set the Curveball Backend Sentry DSN}
+      SENTRY_ENVIRONMENT: production
+      SENTRY_RELEASE: ${SENTRY_BACKEND_RELEASE:?set curveball-backend@deployed-commit}
 
   api:
     build:
       context: ../..
       dockerfile: services/social/Dockerfile
-    command: ["bun", "services/social/src/api.mjs"]
+    command: ["bun", "--preload", "./services/social/src/instrument.mjs", "services/social/src/api.mjs"]
     restart: unless-stopped
     environment: *social-env
     ports:
@@ -41,7 +45,7 @@ services:
     build:
       context: ../..
       dockerfile: services/social/Dockerfile
-    command: ["bun", "services/social/src/indexer-runner.mjs"]
+    command: ["bun", "--preload", "./services/social/src/instrument.mjs", "services/social/src/indexer-runner.mjs"]
     restart: unless-stopped
     environment: *social-env
     depends_on:
@@ -52,7 +56,7 @@ services:
     build:
       context: ../..
       dockerfile: services/social/Dockerfile
-    command: ["bun", "services/social/src/worker.mjs"]
+    command: ["bun", "--preload", "./services/social/src/instrument.mjs", "services/social/src/worker.mjs"]
     restart: unless-stopped
     environment: *social-env
     depends_on:

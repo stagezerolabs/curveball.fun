@@ -1,7 +1,9 @@
 import type { Address } from "viem";
 import { socialApiBaseUrl } from "../social/api";
+import { RISE_MAINNET_CHAIN_ID } from "../sdk/curveballSdk";
 
-const RISE_MAINNET_CHAIN_ID = 4153;
+// RISE Name Service primary names are only resolvable from the mainnet registry,
+// so lookup sites at RISE_MAINNET_CHAIN_ID even when the app runs on testnet.
 const RNS_NAME = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?\.rise$/;
 
 export function parseRnsPrimaryName(payload: unknown, address: string): string | null {

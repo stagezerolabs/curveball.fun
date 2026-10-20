@@ -13,6 +13,13 @@ export type TradeActivity = {
   blockNumber: bigint;
   logIndex: number;
   transactionHash: Hash;
+  /** Social fields come from the indexed read model; RPC-built rows have none. */
+  id?: string;
+  note?: string | null;
+  reactionCount?: number;
+  reacted?: boolean;
+  isFollowed?: boolean;
+  followerCount?: number;
 };
 
 /** A Trade's quoteAmount is what the trader paid on a buy (fee and tax included) or received on a sell. */

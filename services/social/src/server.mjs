@@ -8,7 +8,8 @@ import { ACTIVE_WALLET_HEADER, createPrivyAuthenticator } from "./privyAuth.mjs"
 import { claimProfile } from "./profiles.mjs";
 import { shapePublicPulseMoments } from "./pulse.mjs";
 import { PERFORMANCE_METHODOLOGY } from "./performance.mjs";
-import { followingBuysSql, followingPulseSql, nowPulseSql, provisionalLeaderboardSql } from "./pulseSql.mjs";
+import { followingActivitySql, followingPulseSql, nowPulseSql, provisionalLeaderboardSql } from "./pulseSql.mjs";
+import { captureBackendException } from "./instrument.mjs";
 import { createOutboxHub } from "./outboxHub.mjs";
 
 const JSON_LIMIT = 64 * 1024;
@@ -64,6 +65,7 @@ function corsHeaders(request) {
 }
 
 function send(request, response, status, body, extraHeaders = {}) {
+  console.log(`${request.method} ${request.url} -> ${status} origin=${request.headers.origin || "-"}`);
   const payload = JSON.stringify(body);
   response.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
@@ -266,14 +268,13 @@ async function feed(url, viewer) {
     `SELECT t.logical_id AS id, t.trader_address, t.is_buy, t.net_trader_quote AS quote_amount_wei,
        t.token_amount AS token_amount_wei, t.virtual_quote_after, t.virtual_token_after,
        t.transaction_hash, t.log_index, t.block_timestamp, m.token_address, m.name AS token_name,
-       m.symbol AS token_symbol, m.launchpad_address, p.display_name, n.note,
+       m.symbol AS token_symbol, m.launchpad_address, n.note,
        (SELECT COUNT(*) FROM trade_reactions rx WHERE rx.logical_trade_id=t.logical_id) AS reaction_count,
        EXISTS(SELECT 1 FROM trade_reactions rx WHERE rx.logical_trade_id=t.logical_id AND rx.reactor_address=$4) AS reacted,
        EXISTS(SELECT 1 FROM follows fv WHERE fv.chain_id=t.chain_id AND fv.follower_address=$4 AND fv.followed_address=t.trader_address) AS is_followed,
        (SELECT COUNT(*) FROM follows f2 WHERE f2.chain_id = t.chain_id AND f2.followed_address = t.trader_address) AS follower_count
      FROM trades t
      JOIN markets m ON m.chain_id = t.chain_id AND m.token_address = t.token_address AND m.orphaned = false
-     LEFT JOIN profiles p ON p.chain_id = t.chain_id AND p.address = t.trader_address
      LEFT JOIN trade_notes n ON n.logical_trade_id = t.logical_id
      WHERE t.chain_id = $1 AND t.orphaned = false
        AND ($3::timestamptz IS NULL OR t.block_timestamp < $3::timestamptz
@@ -380,7 +381,7 @@ async function pulse(url, viewer) {
 
 async function profile(address, viewer) {
   const [profileResult, statsResult, countsResult, positionsResult] = await Promise.all([
-    pool.query("SELECT display_name, bio, discoverable, claimed_at, updated_at FROM profiles WHERE chain_id = $1 AND address = $2", [config.chainId, address]),
+    pool.query("SELECT claimed_at, updated_at FROM profiles WHERE chain_id = $1 AND address = $2", [config.chainId, address]),
     pool.query(`${statsSql} SELECT * FROM wallet WHERE trader_address = $2`, [config.chainId, address]),
     pool.query(`SELECT
       (SELECT COUNT(*) FROM follows WHERE chain_id = $1 AND followed_address = $2) AS followers,
@@ -410,9 +411,6 @@ async function profile(address, viewer) {
   return {
     address,
     claimed: Boolean(claimed),
-    displayName: claimed?.display_name || null,
-    bio: claimed?.bio || "",
-    discoverable: claimed?.discoverable || false,
     claimedAt: claimed?.claimed_at || null,
     stats: shapeStats(statsResult.rows[0]),
     followers: Number(countsResult.rows[0]?.followers || 0),
@@ -446,14 +444,10 @@ async function leaderboards(url, viewer) {
   const [board, graph] = await Promise.all([publishedBoard(category), pulseGraph(viewer)]);
   const { snapshot } = board;
   if (!snapshot || snapshot.methodology_version !== PERFORMANCE_METHODOLOGY) return provisionalBoard(category, url, graph);
-  // Resolve discoverability on every read: a profile opt-out must not linger
-  // inside a process-local leaderboard cache (including on other API replicas).
   const result = await pool.query(`SELECT lr.address,lr.rank,lr.metrics AS published_metrics,
-      p.display_name,p.bio,
-      (SELECT COUNT(*) FROM follows f WHERE f.chain_id=$1 AND f.followed_address=lr.address) AS follower_count
-    FROM leaderboard_rows lr
-    JOIN profiles p ON p.chain_id=$1 AND p.address=lr.address AND p.discoverable=true
-    WHERE lr.snapshot_id=$2 AND lr.eligible=true ORDER BY lr.rank LIMIT 100`,
+  (SELECT COUNT(*) FROM follows f WHERE f.chain_id=$1 AND f.followed_address=lr.address) AS follower_count
+  FROM leaderboard_rows lr
+  WHERE lr.snapshot_id=$2 AND lr.eligible=true ORDER BY lr.rank LIMIT 100`,
   [config.chainId, snapshot.id]);
   const items = result.rows.filter((row) => !graph.blocked.has(row.address))
     .slice(0, boundedLimit(url, 12, 50)).map((row) => {
@@ -462,7 +456,7 @@ async function leaderboards(url, viewer) {
       const pnl = Number(metrics.realizedPnlWei || 0);
       const tradeCount = Number(metrics.tradeCount || 0);
       return {
-        address: row.address, displayName: row.display_name, bio: row.bio,
+        address: row.address,
         rank: Number(row.rank), asOfBlock: String(snapshot.as_of_block),
         calculatedAt: snapshot.calculated_at, publishedAt: snapshot.published_at,
         methodologyVersion: snapshot.methodology_version, period: snapshot.period,
@@ -488,12 +482,12 @@ async function leaderboards(url, viewer) {
 }
 
 // Until a current-method snapshot has qualified traders, rank every trader by their latest stored
-// performance. Marked provisional; not filtered by profile discoverability.
+// performance. Marked provisional.
 async function provisionalBoard(category, url, graph) {
   const result = await pool.query(provisionalLeaderboardSql, [config.chainId, 100]);
   const items = result.rows.filter((row) => !graph.blocked.has(row.address))
     .slice(0, boundedLimit(url, 12, 50)).map((row, index) => ({
-      address: row.address, displayName: row.display_name, bio: row.bio || "", rank: index + 1,
+      address: row.address, rank: index + 1,
       methodologyVersion: row.methodology_version,
       publishedMetrics: {
         returnBps: row.return_bps == null ? null : Number(row.return_bps),
@@ -513,15 +507,19 @@ async function provisionalBoard(category, url, graph) {
     methodologyVersion: null, provisional: true, items };
 }
 
-async function followingBuys(viewer) {
+async function followingActivity(viewer) {
+  if (!viewer) throw Object.assign(new Error("Sign in to see your follows."), { status: 401 });
   const graph = await pulseGraph(viewer);
-  const followed = viewer && graph.followed.size ? [...graph.followed] : null;
-  const result = await pool.query(followingBuysSql, [config.chainId, followed, [...graph.blocked]]);
+  const followed = [...graph.followed];
+  if (!followed.length) return { scope: "following", followedCount: 0, items: [] };
+  const result = await pool.query(followingActivitySql, [config.chainId, followed, [...graph.blocked]]);
   return {
-    scope: followed ? "following" : "all",
+    scope: "following",
+    followedCount: followed.length,
     items: result.rows.map((row) => ({
       tokenAddress: row.token_address, tokenName: row.token_name, tokenSymbol: row.token_symbol,
-      boughtQuoteWei: row.bought_quote_wei, buyers: row.buyers,
+      boughtQuoteWei: row.bought_quote_wei, soldQuoteWei: row.sold_quote_wei,
+      latestAt: row.latest_at, actors: row.actors,
     })),
   };
 }
@@ -628,12 +626,16 @@ async function market(address) {
   return shapeMarket(result.rows[0]);
 }
 
-async function marketTrades(url, tokenAddress) {
+async function marketTrades(url, tokenAddress, viewer) {
   const limit = boundedLimit(url, 50, 100);
   const cursor = decodeCursor(url.searchParams.get("cursor"));
   const beforeAt = typeof cursor?.at === "string" ? cursor.at : null;
   const beforeId = typeof cursor?.id === "string" ? cursor.id : null;
-  const result = await pool.query(`WITH activity AS (
+  const graph = await pulseGraph(viewer);
+  const followed = [...graph.followed];
+  const blocked = [...graph.blocked];
+  const [result, followedHere] = await Promise.all([
+    pool.query(`WITH activity AS (
       SELECT logical_id,trader_address AS participant_address,'trader'::text AS participant_role,
         NULL::text AS execution_sender_address,'curve'::text AS venue_type,launchpad_address AS venue_address,
         is_buy,gross_curve_quote,net_trader_quote,fee_quote,creator_tax_quote,token_amount,
@@ -643,12 +645,26 @@ async function marketTrades(url, tokenAddress) {
       SELECT logical_id,recipient_address,'recipient',sender_address,'pool',pool_address,is_buy,
         quote_amount,quote_amount,0,0,token_amount,NULL,NULL,NULL,transaction_hash,block_number,log_index,block_timestamp
       FROM venue_swaps WHERE chain_id=$1 AND token_address=$2 AND orphaned=false
-    ) SELECT * FROM activity
+    ) SELECT a.*,n.note,
+      (SELECT COUNT(*) FROM trade_reactions rx WHERE rx.logical_trade_id=a.logical_id) AS reaction_count,
+      EXISTS(SELECT 1 FROM trade_reactions rx WHERE rx.logical_trade_id=a.logical_id AND rx.reactor_address=$6) AS reacted,
+      (a.participant_address=ANY($7::text[])) AS is_followed,
+      (SELECT COUNT(*) FROM follows f2 WHERE f2.chain_id=$1 AND f2.followed_address=a.participant_address) AS follower_count
+    FROM activity a
+    LEFT JOIN trade_notes n ON n.logical_trade_id=a.logical_id
     WHERE true
       AND ($4::timestamptz IS NULL OR block_timestamp<$4::timestamptz
         OR (block_timestamp=$4::timestamptz AND $5::text IS NOT NULL AND logical_id<$5))
+      AND NOT (a.participant_address=ANY($8::text[]))
     ORDER BY block_timestamp DESC,logical_id DESC LIMIT $3`,
-  [config.chainId, tokenAddress, limit, beforeAt, beforeId]);
+    [config.chainId, tokenAddress, limit, beforeAt, beforeId, viewer || "", followed, blocked]),
+    followed.length
+      ? pool.query(`SELECT COUNT(*) AS traders FROM (
+          SELECT trader_address AS participant FROM trades WHERE chain_id=$1 AND token_address=$2 AND orphaned=false
+          UNION SELECT recipient_address FROM venue_swaps WHERE chain_id=$1 AND token_address=$2 AND orphaned=false
+        ) actors WHERE actors.participant=ANY($3::text[])`, [config.chainId, tokenAddress, followed])
+      : Promise.resolve({ rows: [{ traders: 0 }] }),
+  ]);
   const items = result.rows.map((row) => ({
     id: row.logical_id,
     participantAddress: row.participant_address,
@@ -669,9 +685,18 @@ async function marketTrades(url, tokenAddress) {
     blockNumber: String(row.block_number),
     logIndex: Number(row.log_index),
     blockTimestamp: row.block_timestamp,
+    note: row.note || null,
+    reactionCount: Number(row.reaction_count || 0),
+    reacted: Boolean(row.reacted),
+    isFollowed: Boolean(row.is_followed),
+    followerCount: Number(row.follower_count || 0),
   }));
   const last = result.rows.at(-1);
-  return { items, nextCursor: last ? encodeCursor({ at: last.block_timestamp, id: last.logical_id }) : null };
+  return {
+    followingTraderCount: Number(followedHere.rows[0]?.traders || 0),
+    items,
+    nextCursor: last ? encodeCursor({ at: last.block_timestamp, id: last.logical_id }) : null,
+  };
 }
 
 async function marketCandles(url, tokenAddress) {
@@ -701,10 +726,12 @@ async function marketCandles(url, tokenAddress) {
   })) };
 }
 
-async function marketHolders(url, tokenAddress) {
+async function marketHolders(url, tokenAddress, viewer) {
   const atBlockValue = url.searchParams.get("atBlock");
   const atBlock = atBlockValue && /^\d+$/.test(atBlockValue) ? atBlockValue : null;
   const limit = boundedLimit(url, 100, 500);
+  const graph = await pulseGraph(viewer);
+  const followed = [...graph.followed];
   const result = await pool.query(`WITH balances AS (
       SELECT wallet,SUM(delta) AS balance FROM (
         SELECT to_address AS wallet,amount AS delta FROM asset_transfers
@@ -717,13 +744,16 @@ async function marketHolders(url, tokenAddress) {
       SELECT wallet,balance FROM balances b WHERE balance>0 AND NOT EXISTS (
         SELECT 1 FROM protocol_accounts pa WHERE pa.chain_id=$1 AND pa.address=b.wallet AND pa.is_user_attributable=false
       )
-    ) SELECT wallet AS address,balance,SUM(balance) OVER () AS eligible_supply
+    ) SELECT wallet AS address,balance,(wallet=ANY($5::text[])) AS is_followed,
+      SUM(balance) OVER () AS eligible_supply,
+      COUNT(*) FILTER (WHERE wallet=ANY($5::text[])) OVER () AS followed_count
     FROM eligible ORDER BY balance DESC,wallet ASC LIMIT $4`,
-  [config.chainId, tokenAddress, atBlock, limit]);
+  [config.chainId, tokenAddress, atBlock, limit, followed]);
   return {
     atBlock,
     eligibleSupply: String(result.rows[0]?.eligible_supply || 0),
-    items: result.rows.map((row) => ({ address: row.address, balance: String(row.balance) })),
+    followedHolderCount: Number(result.rows[0]?.followed_count || 0),
+    items: result.rows.map((row) => ({ address: row.address, balance: String(row.balance), isFollowed: Boolean(row.is_followed) })),
   };
 }
 
@@ -795,14 +825,14 @@ export function createSocialServer({ subscribe } = {}) {
       }
       if (request.method === "GET" && url.pathname === "/v1/feed") return send(request, response, 200, await feed(url, viewer));
       if (request.method === "GET" && url.pathname === "/v1/pulse") return send(request, response, 200, await pulse(url, viewer));
-      if (request.method === "GET" && url.pathname === "/v1/following/buys") return send(request, response, 200, await followingBuys(viewer));
+      if (request.method === "GET" && url.pathname === "/v1/following/activity") return send(request, response, 200, await followingActivity(viewer));
       if (request.method === "GET" && url.pathname.startsWith("/v1/leaderboards/")) return send(request, response, 200, await leaderboards(url, viewer));
       if (request.method === "GET" && url.pathname === "/v1/markets") return send(request, response, 200, await markets(url));
       if (request.method === "GET" && url.pathname === "/v1/protocol/stats") return send(request, response, 200, await protocolStats());
 
       const marketTradesMatch = url.pathname.match(/^\/v1\/markets\/(0x[a-fA-F0-9]{40})\/trades$/);
       if (request.method === "GET" && marketTradesMatch) {
-        return send(request, response, 200, await marketTrades(url, addressParam(marketTradesMatch[1])));
+        return send(request, response, 200, await marketTrades(url, addressParam(marketTradesMatch[1]), viewer));
       }
       const marketCandlesMatch = url.pathname.match(/^\/v1\/markets\/(0x[a-fA-F0-9]{40})\/candles$/);
       if (request.method === "GET" && marketCandlesMatch) {
@@ -810,7 +840,7 @@ export function createSocialServer({ subscribe } = {}) {
       }
       const marketHoldersMatch = url.pathname.match(/^\/v1\/markets\/(0x[a-fA-F0-9]{40})\/holders$/);
       if (request.method === "GET" && marketHoldersMatch) {
-        return send(request, response, 200, await marketHolders(url, addressParam(marketHoldersMatch[1])));
+        return send(request, response, 200, await marketHolders(url, addressParam(marketHoldersMatch[1]), viewer));
       }
       const marketMatch = url.pathname.match(/^\/v1\/markets\/(0x[a-fA-F0-9]{40})$/);
       if (request.method === "GET" && marketMatch) {
@@ -821,19 +851,6 @@ export function createSocialServer({ subscribe } = {}) {
       if (request.method === "GET" && profileMatch) {
         const address = addressParam(profileMatch[1]);
         return send(request, response, 200, await profile(address, viewer));
-      }
-
-      if (request.method === "POST" && url.pathname === "/v1/profiles/me") {
-        const address = await requirePrivyWallet(request);
-        limitSocialWrite(request, address);
-        const body = await readJson(request);
-        const displayName = typeof body.displayName === "string" ? body.displayName.trim().slice(0, 40) : null;
-        const bio = typeof body.bio === "string" ? body.bio.trim().slice(0, 280) : "";
-        const discoverable = body.discoverable === true;
-        await pool.query(`INSERT INTO profiles (chain_id,address,display_name,bio,discoverable) VALUES ($1,$2,$3,$4,$5)
-          ON CONFLICT (chain_id,address) DO UPDATE SET display_name=EXCLUDED.display_name,bio=EXCLUDED.bio,discoverable=EXCLUDED.discoverable,updated_at=now()`,
-        [config.chainId, address, displayName || null, bio, discoverable]);
-        return send(request, response, 200, await profile(address, address));
       }
 
       const followMatch = url.pathname.match(/^\/v1\/follows\/(0x[a-fA-F0-9]{40})$/);
@@ -928,10 +945,21 @@ export function createSocialServer({ subscribe } = {}) {
         limitSocialWrite(request, reactor);
         const body = await readJson(request);
         const tradeId = typeof body.tradeId === "string" ? body.tradeId : "";
-        const trade = await pool.query("SELECT 1 FROM trades WHERE logical_id=$1 AND chain_id=$2 AND orphaned=false", [tradeId, config.chainId]);
+        const trade = await pool.query("SELECT trader_address,token_address FROM trades WHERE logical_id=$1 AND chain_id=$2 AND orphaned=false", [tradeId, config.chainId]);
         if (!trade.rows[0]) throw Object.assign(new Error("Trade not found."), { status: 404 });
         if (body.active === false) await pool.query("DELETE FROM trade_reactions WHERE logical_trade_id=$1 AND reactor_address=$2", [tradeId, reactor]);
-        else await pool.query("INSERT INTO trade_reactions (logical_trade_id,chain_id,reactor_address) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING", [tradeId, config.chainId, reactor]);
+        else {
+          await pool.query("INSERT INTO trade_reactions (logical_trade_id,chain_id,reactor_address) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING", [tradeId, config.chainId, reactor]);
+          // Conviction is only worth telling someone about when another wallet gave it.
+          if (trade.rows[0].trader_address !== reactor) {
+            await pool.query(`INSERT INTO notifications (chain_id,recipient_address,kind,actor_address,logical_event_id,payload)
+              SELECT $1,$2,'reaction',$3,$4,$5::jsonb
+              WHERE COALESCE((SELECT in_app FROM notification_preferences WHERE chain_id=$1 AND address=$2),true)=true
+              ON CONFLICT DO NOTHING`,
+            [config.chainId, trade.rows[0].trader_address, reactor, `${tradeId}:reaction:${reactor}`,
+              JSON.stringify({ tradeId, tokenAddress: trade.rows[0].token_address })]);
+          }
+        }
         const count = await pool.query("SELECT COUNT(*) AS count FROM trade_reactions WHERE logical_trade_id=$1", [tradeId]);
         return send(request, response, 200, { active: body.active !== false, count: Number(count.rows[0].count) });
       }
@@ -968,33 +996,38 @@ export function createSocialServer({ subscribe } = {}) {
 
       if (request.method === "GET" && url.pathname === "/v1/notifications") {
         const address = await requirePrivyWallet(request, false);
-        const result = await pool.query(`SELECT n.id,n.kind,n.actor_address,
-            n.payload || jsonb_strip_nulls(jsonb_build_object(
-              'tokenName',m.name,'tokenSymbol',m.symbol,'actorDisplayName',p.display_name
-            )) AS payload,n.read_at,n.created_at
-          FROM notifications n
-          LEFT JOIN markets m ON m.chain_id=n.chain_id AND m.token_address=n.payload->>'tokenAddress'
-          LEFT JOIN profiles p ON p.chain_id=n.chain_id AND p.address=n.actor_address
-          WHERE n.chain_id=$1 AND n.recipient_address=$2
-            AND n.kind=ANY($3::text[])
-          ORDER BY n.created_at DESC LIMIT $4`,
-        [config.chainId, address, ["followed_buy", "followed_sell", "curve_milestone"], boundedLimit(url, 8, 20)]);
-        return send(request, response, 200, { items: result.rows });
+        const [result, unread] = await Promise.all([
+          pool.query(`SELECT n.id,n.kind,n.actor_address,
+              n.payload || jsonb_strip_nulls(jsonb_build_object(
+                'tokenName',m.name,'tokenSymbol',m.symbol
+              )) AS payload,n.read_at,n.created_at
+            FROM notifications n
+            LEFT JOIN markets m ON m.chain_id=n.chain_id AND m.token_address=n.payload->>'tokenAddress'
+            WHERE n.chain_id=$1 AND n.recipient_address=$2
+              AND ($3::text[] IS NULL OR n.kind=ANY($3::text[]))
+            ORDER BY n.created_at DESC LIMIT $4`,
+          [config.chainId, address, url.searchParams.getAll("kind").length ? url.searchParams.getAll("kind") : null, boundedLimit(url, 30, 100)]),
+          pool.query("SELECT COUNT(*) AS unread FROM notifications WHERE chain_id=$1 AND recipient_address=$2 AND read_at IS NULL", [config.chainId, address]),
+        ]);
+        return send(request, response, 200, { items: result.rows, unreadCount: Number(unread.rows[0]?.unread || 0) });
       }
       if (request.method === "GET" && url.pathname === "/v1/notification-preferences") {
         const address = await requirePrivyWallet(request, false);
-        const result = await pool.query("SELECT in_app,trade_buys,trade_sells,graduations FROM notification_preferences WHERE chain_id=$1 AND address=$2", [config.chainId, address]);
-        return send(request, response, 200, result.rows[0] || { in_app: true, trade_buys: true, trade_sells: true, graduations: true });
+        const result = await pool.query("SELECT in_app,trade_buys,trade_sells,launches,graduations,new_followers FROM notification_preferences WHERE chain_id=$1 AND address=$2", [config.chainId, address]);
+        return send(request, response, 200, result.rows[0] || {
+          in_app: true, trade_buys: true, trade_sells: true, launches: true, graduations: true, new_followers: true,
+        });
       }
       if (request.method === "PATCH" && url.pathname === "/v1/notification-preferences") {
         const address = await requirePrivyWallet(request);
         limitSocialWrite(request, address);
         const body = await readJson(request);
-        const values = ["inApp", "tradeBuys", "tradeSells", "graduations"].map((key) => body[key] !== false);
-        const result = await pool.query(`INSERT INTO notification_preferences (chain_id,address,in_app,trade_buys,trade_sells,graduations)
-          VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (chain_id,address) DO UPDATE SET
-          in_app=EXCLUDED.in_app,trade_buys=EXCLUDED.trade_buys,trade_sells=EXCLUDED.trade_sells,graduations=EXCLUDED.graduations
-          RETURNING in_app,trade_buys,trade_sells,graduations`, [config.chainId, address, ...values]);
+        const values = ["inApp", "tradeBuys", "tradeSells", "launches", "graduations", "newFollowers"].map((key) => body[key] !== false);
+        const result = await pool.query(`INSERT INTO notification_preferences (chain_id,address,in_app,trade_buys,trade_sells,launches,graduations,new_followers)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (chain_id,address) DO UPDATE SET
+          in_app=EXCLUDED.in_app,trade_buys=EXCLUDED.trade_buys,trade_sells=EXCLUDED.trade_sells,
+          launches=EXCLUDED.launches,graduations=EXCLUDED.graduations,new_followers=EXCLUDED.new_followers
+          RETURNING in_app,trade_buys,trade_sells,launches,graduations,new_followers`, [config.chainId, address, ...values]);
         return send(request, response, 200, result.rows[0]);
       }
       if (request.method === "PATCH" && url.pathname === "/v1/notifications/read") {
@@ -1011,7 +1044,10 @@ export function createSocialServer({ subscribe } = {}) {
       return send(request, response, 404, { error: "Endpoint not found." });
     } catch (error) {
       const status = Number(error?.status) || 500;
-      if (status >= 500) console.error(error);
+      if (status >= 500) {
+        captureBackendException(error, "api");
+        console.error(error);
+      }
       if (response.headersSent) return response.end();
       return send(request, response, status, { error: status >= 500 ? "The social service could not complete this request." : error.message },
         error.retryAfter ? { "Retry-After": String(error.retryAfter) } : {});

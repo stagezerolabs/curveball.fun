@@ -1,7 +1,8 @@
-# Local stack: the Supabase-backed social service, the market keeper, and the Vite frontend, all on
-# the launchpad recorded in deployments/<chainId>/curveball.json. Secrets stay in the per-service
-# ignored .env files and are injected at runtime, never baked into images. Host ports can be moved
-# with FRONTEND_PORT and SOCIAL_API_PORT to run beside another Curveball stack.
+# Local stack: Postgres-backed social service (API, indexer, worker), the market keeper, and the Vite
+# frontend, all wired to the launchpad recorded in deployments/<chainId>/curveball.json. Everything runs
+# locally: Postgres persists in the preview_postgres volume, and the chain values (RPC, chain id,
+# launchpad) come from the per-service ignored .env files injected at runtime, never baked into images.
+# Host ports can be moved with FRONTEND_PORT, SOCIAL_API_PORT, and POSTGRES_PORT.
 name: curveball
 
 x-social: &social
@@ -10,19 +11,45 @@ x-social: &social
     dockerfile: services/social/Dockerfile
   image: curveball-social:local
   env_file: services/social/.env
+  environment: &local-db
+    # Local Postgres on the compose network; overrides the fallback URLs in services/social/.env.
+    SOCIAL_DATABASE_URL: postgres://curveball:curveball_preview@postgres:5432/curveball
+    SOCIAL_DIRECT_DATABASE_URL: postgres://curveball:curveball_preview@postgres:5432/curveball
+    SOCIAL_DATABASE_SSL: "false"
 
 services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: curveball
+      POSTGRES_USER: curveball
+      POSTGRES_PASSWORD: curveball_preview
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - preview_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U curveball -d curveball"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   migrate:
     <<: *social
     command: ["bun", "services/social/src/migrate.mjs"]
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   api:
     <<: *social
-    command: ["bun", "services/social/src/api.mjs"]
+    command: ["bun", "--preload", "./services/social/src/instrument.mjs", "services/social/src/api.mjs"]
     restart: unless-stopped
     ports:
       - "127.0.0.1:${SOCIAL_API_PORT:-8787}:8787"
     depends_on:
+      postgres:
+        condition: service_healthy
       migrate:
         condition: service_completed_successfully
     healthcheck:
@@ -33,17 +60,21 @@ services:
 
   indexer:
     <<: *social
-    command: ["bun", "services/social/src/indexer-runner.mjs"]
+    command: ["bun", "--preload", "./services/social/src/instrument.mjs", "services/social/src/indexer-runner.mjs"]
     restart: unless-stopped
     depends_on:
+      postgres:
+        condition: service_healthy
       migrate:
         condition: service_completed_successfully
 
   worker:
     <<: *social
-    command: ["bun", "services/social/src/worker.mjs"]
+    command: ["bun", "--preload", "./services/social/src/instrument.mjs", "services/social/src/worker.mjs"]
     restart: unless-stopped
     depends_on:
+      postgres:
+        condition: service_healthy
       migrate:
         condition: service_completed_successfully
 
@@ -75,3 +106,6 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
+
+volumes:
+  preview_postgres:
