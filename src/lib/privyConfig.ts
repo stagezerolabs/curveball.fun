@@ -7,7 +7,8 @@ export const privyConfig = {
     theme: "dark",
     accentColor: "#c8f135",
     landingHeader: "Join Curveball",
-    loginMessage: "Connect and sign with your wallet to create your Curveball trader profile.",
+    loginMessage:
+      "Connect and sign with your wallet to create your Curveball trader profile.",
     walletChainType: "ethereum-only",
   },
   defaultChain: riseTestnet,

@@ -8,6 +8,9 @@ export function databaseSsl() {
   if (!caFile) return { rejectUnauthorized: true };
   return {
     rejectUnauthorized: true,
-    ca: readFileSync(fileURLToPath(new URL(caFile, new URL("../", import.meta.url))), "utf8"),
+    ca: readFileSync(
+      fileURLToPath(new URL(caFile, new URL("../", import.meta.url))),
+      "utf8",
+    ),
   };
 }

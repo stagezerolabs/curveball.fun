@@ -1,6 +1,7 @@
 # Replace the V1 service mesh with a lean singleton launchpad
 
 Curveball's contracts move from twelve wired service contracts plus two per-launch deployments to one `CurveLaunchpad` singleton that holds every market's virtual-reserve curve. The other pieces are:
+
 - an EIP-1167 `CurveToken` clone per launch;
 - a `CurveFeeEscrow` that owns the single fee split, the pull claims and a pool-only buyback that burns what it buys;
 - a `CurveLpLocker` that holds graduated LP forever;

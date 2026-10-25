@@ -9,8 +9,12 @@ describe("Privy authentication", () => {
   });
 
   test("Privy and Wagmi are configured for the same single chain", () => {
-    expect(wagmiConfig.chains.map((chain) => chain.id)).toEqual([activeChainId]);
+    expect(wagmiConfig.chains.map((chain) => chain.id)).toEqual([
+      activeChainId,
+    ]);
     expect(privyConfig.defaultChain.id).toBe(activeChainId);
-    expect(privyConfig.supportedChains.map((chain) => chain.id)).toEqual([activeChainId]);
+    expect(privyConfig.supportedChains.map((chain) => chain.id)).toEqual([
+      activeChainId,
+    ]);
   });
 });

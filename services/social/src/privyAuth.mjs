@@ -14,11 +14,13 @@ function bearerToken(request) {
 }
 
 function ethereumWallets(user) {
-  return (user?.linked_accounts || []).filter((account) =>
-    account?.type === "wallet"
-    && account.chain_type === "ethereum"
-    && typeof account.address === "string"
-    && isAddress(account.address));
+  return (user?.linked_accounts || []).filter(
+    (account) =>
+      account?.type === "wallet" &&
+      account.chain_type === "ethereum" &&
+      typeof account.address === "string" &&
+      isAddress(account.address),
+  );
 }
 
 export function createPrivyAuthenticator({
@@ -55,7 +57,10 @@ export function createPrivyAuthenticator({
     try {
       claims = await client.utils().auth().verifyAccessToken(token);
     } catch {
-      throw httpError("Your Privy session is invalid or expired. Sign in again to continue.", 401);
+      throw httpError(
+        "Your Privy session is invalid or expired. Sign in again to continue.",
+        401,
+      );
     }
 
     const requestedAddress = request.headers[ACTIVE_WALLET_HEADER];
@@ -67,11 +72,16 @@ export function createPrivyAuthenticator({
     try {
       user = await userFor(claims.user_id);
     } catch {
-      throw httpError("Curveball could not confirm your Privy wallet. Try again.", 503);
+      throw httpError(
+        "Curveball could not confirm your Privy wallet. Try again.",
+        503,
+      );
     }
 
     const address = getAddress(requestedAddress).toLowerCase();
-    const wallet = ethereumWallets(user).find((account) => account.address.toLowerCase() === address);
+    const wallet = ethereumWallets(user).find(
+      (account) => account.address.toLowerCase() === address,
+    );
     if (!wallet) {
       throw httpError("This wallet is not linked to your Privy account.", 403);
     }

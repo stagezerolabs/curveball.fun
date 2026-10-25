@@ -14,9 +14,13 @@ const pulseActorWindowsSql = (following) => `WITH actor_windows AS (
     AND NOT EXISTS (SELECT 1 FROM protocol_accounts pa WHERE pa.chain_id=t.chain_id
       AND pa.address=t.trader_address AND pa.is_user_attributable=false)
     AND NOT (t.trader_address=ANY($6::text[]))
-    ${following ? `AND t.trader_address=ANY(ARRAY(
+    ${
+      following
+        ? `AND t.trader_address=ANY(ARRAY(
       SELECT f.followed_address FROM follows f WHERE f.chain_id=$1 AND f.follower_address=$3
-    ))` : ""}
+    ))`
+        : ""
+    }
   GROUP BY t.token_address,t.trader_address,bucket
 )`;
 

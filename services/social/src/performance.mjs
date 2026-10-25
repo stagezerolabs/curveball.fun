@@ -23,10 +23,12 @@ export const LEADERBOARD_RULES = Object.freeze({
   openPriceMaxAgeDays: 7,
 });
 
-const methodologyCaveat = "Estimated from known-basis curve trades and last curve prices; transfers and other venues can make wallet PnL incomplete. Open positions and future outcomes may differ.";
+const methodologyCaveat =
+  "Estimated from known-basis curve trades and last curve prices; transfers and other venues can make wallet PnL incomplete. Open positions and future outcomes may differ.";
 
 export async function refreshPerformanceSnapshot(db, address, asOfBlock) {
-  await db.query(`WITH position_values AS (
+  await db.query(
+    `WITH position_values AS (
       SELECT cp.realized_pnl_quote,
         CASE WHEN cp.known_basis_token_balance>0 THEN floor(cp.remaining_cost_basis_quote*
           LEAST(cp.known_basis_token_balance,GREATEST(0,COALESCE(tb.balance,cp.known_basis_token_balance)))/cp.known_basis_token_balance) ELSE 0 END AS remaining_cost_basis_quote,
@@ -73,16 +75,21 @@ export async function refreshPerformanceSnapshot(db, address, asOfBlock) {
       return_bps=EXCLUDED.return_bps,max_drawdown_bps=EXCLUDED.max_drawdown_bps,
       concentration_bps=EXCLUDED.concentration_bps,trade_count=EXCLUDED.trade_count,
       market_count=EXCLUDED.market_count,profitable_market_count=EXCLUDED.profitable_market_count,
-      calculated_at=now()`, [config.chainId, address, asOfBlock.toString(), PERFORMANCE_METHODOLOGY]);
+      calculated_at=now()`,
+    [config.chainId, address, asOfBlock.toString(), PERFORMANCE_METHODOLOGY],
+  );
 }
 
 const scoreExpressions = {
   // Bounded breadth favors repeated participation across days and markets,
   // without paying a rank bonus for every bot-generated swap or gross volume.
-  trending: "LEAST(activity.recent_trading_day_count,7)*8+LEAST(activity.recent_market_count,4)",
-  consistent: "(latest.realized_pnl_quote+pricing.marked_unrealized_pnl_quote)*10000.0/NULLIF(latest.invested_quote,0)",
+  trending:
+    "LEAST(activity.recent_trading_day_count,7)*8+LEAST(activity.recent_market_count,4)",
+  consistent:
+    "(latest.realized_pnl_quote+pricing.marked_unrealized_pnl_quote)*10000.0/NULLIF(latest.invested_quote,0)",
   // Only followers with a recorded curve trade count toward this social signal.
-  followers: "(SELECT COUNT(*) FROM follows f WHERE f.chain_id=$1 AND f.followed_address=latest.address AND EXISTS (SELECT 1 FROM trades ft WHERE ft.chain_id=$1 AND ft.trader_address=f.follower_address AND ft.orphaned=false))",
+  followers:
+    "(SELECT COUNT(*) FROM follows f WHERE f.chain_id=$1 AND f.followed_address=latest.address AND EXISTS (SELECT 1 FROM trades ft WHERE ft.chain_id=$1 AND ft.trader_address=f.follower_address AND ft.orphaned=false))",
   new: "(latest.realized_pnl_quote+pricing.marked_unrealized_pnl_quote)/1000000000000000000.0",
 };
 
@@ -115,27 +122,43 @@ export async function publishLeaderboards(db, asOfBlock) {
   const categories = Object.keys(scoreExpressions);
   const snapshotIds = [];
   for (const category of categories) {
-    const snapshot = await db.query(`INSERT INTO leaderboard_snapshots
+    const snapshot = await db.query(
+      `INSERT INTO leaderboard_snapshots
       (chain_id,category,period,methodology_version,as_of_block,published_at)
       VALUES ($1,$2,'all',$3,$4,now())
       ON CONFLICT (chain_id,category,period,as_of_block,methodology_version) DO UPDATE SET
         calculated_at=now(),published_at=now() RETURNING id`,
-    [config.chainId, category, PERFORMANCE_METHODOLOGY, asOfBlock.toString()]);
+      [config.chainId, category, PERFORMANCE_METHODOLOGY, asOfBlock.toString()],
+    );
     const snapshotId = snapshot.rows[0].id;
-    await db.query("DELETE FROM leaderboard_rows WHERE snapshot_id=$1", [snapshotId]);
+    await db.query("DELETE FROM leaderboard_rows WHERE snapshot_id=$1", [
+      snapshotId,
+    ]);
     snapshotIds.push(snapshotId);
   }
 
-  const candidateExpression = (expression) => expression.replace(/\b(?:latest|activity|pricing)\./g, "candidate.");
-  const categoryRows = categories.map((category, index) => `('${category}',$${index + 5}::uuid)`).join(",");
-  const scores = categories.map((category) =>
-    `WHEN categories.category='${category}' THEN ${candidateExpression(scoreExpressions[category])}`).join(" ");
-  const eligibility = categories.map((category) =>
-    `(categories.category='${category}' AND ${candidateExpression(eligibleExpressions[category])})`).join(" OR ");
+  const candidateExpression = (expression) =>
+    expression.replace(/\b(?:latest|activity|pricing)\./g, "candidate.");
+  const categoryRows = categories
+    .map((category, index) => `('${category}',$${index + 5}::uuid)`)
+    .join(",");
+  const scores = categories
+    .map(
+      (category) =>
+        `WHEN categories.category='${category}' THEN ${candidateExpression(scoreExpressions[category])}`,
+    )
+    .join(" ");
+  const eligibility = categories
+    .map(
+      (category) =>
+        `(categories.category='${category}' AND ${candidateExpression(eligibleExpressions[category])})`,
+    )
+    .join(" OR ");
 
   // MATERIALIZED makes the wallet activity/price work happen once per publish,
   // even though the same candidates appear in four category rankings.
-  await db.query(`WITH latest AS (
+  await db.query(
+    `WITH latest AS (
       SELECT DISTINCT ON (address) * FROM trader_performance_snapshots
       WHERE chain_id=$1 AND period='all' AND methodology_version IN ('curve-known-basis-v1',$2) AND as_of_block<=$3
       ORDER BY address,as_of_block DESC,methodology_version DESC
@@ -226,5 +249,12 @@ export async function publishLeaderboards(db, asOfBlock) {
     )
     INSERT INTO leaderboard_rows (snapshot_id,address,rank,score,metrics)
     SELECT snapshot_id,address,rank,score,metrics FROM ranked WHERE rank<=100`,
-  [config.chainId, PERFORMANCE_METHODOLOGY, asOfBlock.toString(), methodologyCaveat, ...snapshotIds]);
+    [
+      config.chainId,
+      PERFORMANCE_METHODOLOGY,
+      asOfBlock.toString(),
+      methodologyCaveat,
+      ...snapshotIds,
+    ],
+  );
 }

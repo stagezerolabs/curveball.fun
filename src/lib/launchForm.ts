@@ -15,7 +15,9 @@ type LaunchFormInput = {
 };
 
 export function hasPublishedArtwork(artworkUri: string): boolean {
-  return /^ipfs:\/\/(Qm[1-9A-HJ-NP-Za-km-z]{44}|baf[a-z2-7]{20,})$/i.test(artworkUri);
+  return /^ipfs:\/\/(Qm[1-9A-HJ-NP-Za-km-z]{44}|baf[a-z2-7]{20,})$/i.test(
+    artworkUri,
+  );
 }
 
 /** Basis points from a percent string with at most two decimals, or null when it isn't one. */
@@ -30,13 +32,28 @@ export function percentToBps(percent: string): number | null {
  * MAX_RESERVE_BPS and a tax above the cap, so each is checked here before the wallet is asked.
  */
 export function canSubmitLaunch(input: LaunchFormInput): boolean {
-  if (!input.name.trim() || !input.symbol.trim() || input.launchFee === undefined) return false;
+  if (
+    !input.name.trim() ||
+    !input.symbol.trim() ||
+    input.launchFee === undefined
+  )
+    return false;
   if (input.launchFee > 0n && !input.feeAccepted) return false;
   if (!hasPublishedArtwork(input.artworkUri)) return false;
   const reserveBps = percentToBps(input.reservePercent);
-  if (reserveBps === null || input.maxReserveBps === undefined || reserveBps > input.maxReserveBps) return false;
+  if (
+    reserveBps === null ||
+    input.maxReserveBps === undefined ||
+    reserveBps > input.maxReserveBps
+  )
+    return false;
   const taxBps = percentToBps(input.taxPercent || "0");
-  if (taxBps === null || input.taxCapBps === undefined || taxBps > input.taxCapBps) return false;
+  if (
+    taxBps === null ||
+    input.taxCapBps === undefined ||
+    taxBps > input.taxCapBps
+  )
+    return false;
   if (!input.initialBuy.trim()) return true;
   try {
     const amount = input.initialBuy.trim();

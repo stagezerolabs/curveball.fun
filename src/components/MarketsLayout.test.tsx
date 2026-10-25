@@ -17,7 +17,9 @@ const tokens: Token[] = [1, 2, 3, 4].map((number) => ({
 }));
 
 test("graduation feature shows only the top three live coins", () => {
-  const html = renderToStaticMarkup(<Featured tokens={tokens} loading={false} navigate={() => undefined} />);
+  const html = renderToStaticMarkup(
+    <Featured tokens={tokens} loading={false} navigate={() => undefined} />,
+  );
   expect(html).toContain("$C4");
   expect(html).toContain("$C3");
   expect(html).toContain("$C2");
@@ -26,22 +28,24 @@ test("graduation feature shows only the top three live coins", () => {
 });
 
 test("market cards show a compact overview and keep detailed activity off the directory", () => {
-  const html = renderToStaticMarkup(<MarketList
-    tokens={[tokens[0]]}
-    loading={false}
-    navigate={() => undefined}
-    previewStats={{
-      [tokens[0].address.toLowerCase()]: {
-        athMarketCap: 1_500,
-        transactions: 128,
-        traders: 42,
-        volume24h: 8.25,
-        change1h: 10,
-        change6h: -3.2,
-        change24h: 0,
-      },
-    }}
-  />);
+  const html = renderToStaticMarkup(
+    <MarketList
+      tokens={[tokens[0]]}
+      loading={false}
+      navigate={() => undefined}
+      previewStats={{
+        [tokens[0].address.toLowerCase()]: {
+          athMarketCap: 1_500,
+          transactions: 128,
+          traders: 42,
+          volume24h: 8.25,
+          change1h: 10,
+          change6h: -3.2,
+          change24h: 0,
+        },
+      }}
+    />,
+  );
   expect(html).toContain('class="market-card-grid"');
   expect(html).toContain('class="market-card-top"');
   expect(html).not.toContain('class="market-card-social-preview"');
@@ -52,32 +56,55 @@ test("market cards show a compact overview and keep detailed activity off the di
   expect(html).toContain("42");
   expect(html).toContain("On the curve");
   expect(html).toContain("10.0% sold");
-  expect(html).toContain('class="market-card-progress-track" value="10" max="100"');
+  expect(html).toContain(
+    'class="market-card-progress-track" value="10" max="100"',
+  );
   expect(html).not.toContain("PRICE");
   expect(html).not.toContain("ATH");
   expect(html).not.toContain("TXNS");
   expect(html).not.toContain("+10.0%");
-  expect(html).toContain('/markets/');
+  expect(html).toContain("/markets/");
   expect(html).not.toContain("V1");
   expect(html).not.toContain('class="market-card-address"');
 });
 
 test("row view uses a single-column list", () => {
-  const html = renderToStaticMarkup(<MarketList tokens={tokens} loading={false} navigate={() => undefined} view="rows" />);
+  const html = renderToStaticMarkup(
+    <MarketList
+      tokens={tokens}
+      loading={false}
+      navigate={() => undefined}
+      view="rows"
+    />,
+  );
   expect(html).toContain('class="market-card-grid market-card-grid-rows"');
   expect(html.match(/class="market-card /g)?.length).toBe(4);
   expect(html.match(/class="market-card-progress-track"/g)?.length).toBe(4);
 });
 
 test("graduated markets keep a full progress bar", () => {
-  const html = renderToStaticMarkup(<MarketList tokens={[{ ...tokens[0], graduated: true }]} loading={false} navigate={() => undefined} />);
-  expect(html).toContain('class="market-card-progress-track" value="100" max="100"');
+  const html = renderToStaticMarkup(
+    <MarketList
+      tokens={[{ ...tokens[0], graduated: true }]}
+      loading={false}
+      navigate={() => undefined}
+    />,
+  );
+  expect(html).toContain(
+    'class="market-card-progress-track" value="100" max="100"',
+  );
   expect(html).toContain("Graduated · 100%");
 });
 
 test("a filled curve waiting for graduation is not marked live", () => {
   for (const pending of [true, false]) {
-    const html = renderToStaticMarkup(<MarketList tokens={[{ ...tokens[0], progress: 100, pending }]} loading={false} navigate={() => undefined} />);
+    const html = renderToStaticMarkup(
+      <MarketList
+        tokens={[{ ...tokens[0], progress: 100, pending }]}
+        loading={false}
+        navigate={() => undefined}
+      />,
+    );
     expect(html).toContain("Bonding complete");
     expect(html).not.toContain("Live");
   }

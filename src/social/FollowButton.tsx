@@ -4,7 +4,11 @@ import type { Address } from "viem";
 import { socialApi } from "./api";
 import { useSocialAuth } from "./useSocialAuth";
 
-export function FollowButton({ trader, following, onError }: {
+export function FollowButton({
+  trader,
+  following,
+  onError,
+}: {
   trader: Address;
   following: boolean;
   onError?: (message: string) => void;
@@ -27,7 +31,9 @@ export function FollowButton({ trader, following, onError }: {
     },
     onError: (error) => {
       setOptimistic(null);
-      onError?.(error instanceof Error ? error.message : "Follow request failed.");
+      onError?.(
+        error instanceof Error ? error.message : "Follow request failed.",
+      );
     },
   });
 

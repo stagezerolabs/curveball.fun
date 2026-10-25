@@ -20,18 +20,33 @@ type MarketEvents = {
  */
 export function buildFollowingActivity(
   samples: readonly MarketTradeSample[],
-  tokens: readonly Pick<Token, "address" | "name" | "symbol" | "creator" | "createdAt">[],
+  tokens: readonly Pick<
+    Token,
+    "address" | "name" | "symbol" | "creator" | "createdAt"
+  >[],
   traders: ReadonlySet<string> | null = null,
 ): FollowingActivity[] {
   const markets = new Map<string, MarketEvents>();
 
-  const record = (token: Pick<Token, "address" | "name" | "symbol" | "creator">, actor: FollowingActor, at: number) => {
+  const record = (
+    token: Pick<Token, "address" | "name" | "symbol" | "creator">,
+    actor: FollowingActor,
+    at: number,
+  ) => {
     const key = token.address.toLowerCase();
-    const market = markets.get(key) ?? { token: { address: token.address, name: token.name, symbol: token.symbol }, actors: new Map(), bought: 0n, sold: 0n, latest: 0 };
+    const market = markets.get(key) ?? {
+      token: { address: token.address, name: token.name, symbol: token.symbol },
+      actors: new Map(),
+      bought: 0n,
+      sold: 0n,
+      latest: 0,
+    };
     const actorKey = `${actor.address.toLowerCase()}:${actor.action}`;
     const previous = market.actors.get(actorKey);
     if (previous) {
-      previous.amountQuoteWei = (BigInt(previous.amountQuoteWei) + BigInt(actor.amountQuoteWei)).toString();
+      previous.amountQuoteWei = (
+        BigInt(previous.amountQuoteWei) + BigInt(actor.amountQuoteWei)
+      ).toString();
     } else {
       market.actors.set(actorKey, { ...actor });
     }
@@ -44,18 +59,32 @@ export function buildFollowingActivity(
   if (traders) {
     for (const token of tokens) {
       if (!traders.has(token.creator.toLowerCase())) continue;
-      record(token, { address: token.creator, action: "launch", amountQuoteWei: "0" }, Math.floor(Date.parse(token.createdAt) / 1000) || 0);
+      record(
+        token,
+        { address: token.creator, action: "launch", amountQuoteWei: "0" },
+        Math.floor(Date.parse(token.createdAt) / 1000) || 0,
+      );
     }
   }
 
-  const known = new Map(tokens.map((token) => [token.address.toLowerCase(), token]));
+  const known = new Map(
+    tokens.map((token) => [token.address.toLowerCase(), token]),
+  );
   for (const sample of samples) {
     if (!sample.trader || sample.quoteWei == null) continue;
     const isBuy = sample.isBuy === true;
     if (!traders ? !isBuy : !traders.has(sample.trader.toLowerCase())) continue;
     const token = known.get(sample.token.toLowerCase());
     if (!token) continue;
-    record(token, { address: sample.trader, action: isBuy ? "buy" : "sell", amountQuoteWei: sample.quoteWei.toString() }, sample.timestamp);
+    record(
+      token,
+      {
+        address: sample.trader,
+        action: isBuy ? "buy" : "sell",
+        amountQuoteWei: sample.quoteWei.toString(),
+      },
+      sample.timestamp,
+    );
   }
 
   return [...markets.values()]
@@ -63,10 +92,17 @@ export function buildFollowingActivity(
       const actors = [...market.actors.values()].sort((a, b) => {
         const left = BigInt(a.amountQuoteWei);
         const right = BigInt(b.amountQuoteWei);
-        if (left === right) return a.address.toLowerCase().localeCompare(b.address.toLowerCase());
+        if (left === right)
+          return a.address.toLowerCase().localeCompare(b.address.toLowerCase());
         return left > right ? -1 : 1;
       });
-      return { market, actors, bought: market.bought, sold: market.sold, latest: market.latest };
+      return {
+        market,
+        actors,
+        bought: market.bought,
+        sold: market.sold,
+        latest: market.latest,
+      };
     })
     .sort((a, b) => b.latest - a.latest || b.actors.length - a.actors.length)
     .slice(0, FOLLOWING_ACTIVITY_LIMIT)

@@ -9,11 +9,9 @@ import {
 } from "./marketChart";
 
 test("converts trade history into market-cap history using fixed supply", () => {
-  expect(toMarketCapPoints(
-    [{ timestamp: 60, price: 0.5, volume: 2 }],
-    1,
-    1_000,
-  )).toEqual([{ timestamp: 60, price: 500, volume: 2 }]);
+  expect(
+    toMarketCapPoints([{ timestamp: 60, price: 0.5, volume: 2 }], 1, 1_000),
+  ).toEqual([{ timestamp: 60, price: 500, volume: 2 }]);
 });
 
 describe("buildCandles", () => {
@@ -68,12 +66,35 @@ describe("buildBlockRanges", () => {
 
 describe("chart RPC helpers", () => {
   test("charts the curve-side volume of buys and sells at the post-trade price", () => {
-    const reserves = { virtualQuote: 4_000000000000000000n, virtualToken: 2_000000000000000000n };
+    const reserves = {
+      virtualQuote: 4_000000000000000000n,
+      virtualToken: 2_000000000000000000n,
+    };
     // A buy's payment includes fee and tax; a sell's proceeds exclude them. Both move 3 WETH through the curve.
-    const buy = { ...reserves, isBuy: true, quoteAmount: 3_100000000000000000n, fee: 75_000000000000000n, tax: 25_000000000000000n };
-    const sell = { ...reserves, isBuy: false, quoteAmount: 2_900000000000000000n, fee: 75_000000000000000n, tax: 25_000000000000000n };
-    expect(tradeLogToPoint(buy, 100)).toEqual({ timestamp: 100, price: 2, volume: 3 });
-    expect(tradeLogToPoint(sell, 100)).toEqual({ timestamp: 100, price: 2, volume: 3 });
+    const buy = {
+      ...reserves,
+      isBuy: true,
+      quoteAmount: 3_100000000000000000n,
+      fee: 75_000000000000000n,
+      tax: 25_000000000000000n,
+    };
+    const sell = {
+      ...reserves,
+      isBuy: false,
+      quoteAmount: 2_900000000000000000n,
+      fee: 75_000000000000000n,
+      tax: 25_000000000000000n,
+    };
+    expect(tradeLogToPoint(buy, 100)).toEqual({
+      timestamp: 100,
+      price: 2,
+      volume: 3,
+    });
+    expect(tradeLogToPoint(sell, 100)).toEqual({
+      timestamp: 100,
+      price: 2,
+      volume: 3,
+    });
     expect(tradeLogToPoint({ ...buy, fee: undefined }, 100)).toBeNull();
   });
 
@@ -81,17 +102,36 @@ describe("chart RPC helpers", () => {
     const trader = "0x0000000000000000000000000000000000000001";
     const transactionHash = `0x${"a".repeat(64)}` as `0x${string}`;
     const log = {
-      args: { trader, isBuy: false, tokenAmount: 2_000000000000000000n, quoteAmount: 2_700000000000000000n },
+      args: {
+        trader,
+        isBuy: false,
+        tokenAmount: 2_000000000000000000n,
+        quoteAmount: 2_700000000000000000n,
+        virtualQuote: 4_000000000000000000n,
+      },
       blockNumber: 42n,
       logIndex: 1,
       transactionHash,
     };
     expect(tradeLogToActivity(log, 100)).toEqual({
-      trader, participantRole: "trader", venue: "curve", isBuy: false, tokenAmount: 2_000000000000000000n,
-      quoteAmount: 2_700000000000000000n, timestamp: 100,
-      blockNumber: 42n, logIndex: 1, transactionHash,
+      trader,
+      participantRole: "trader",
+      venue: "curve",
+      isBuy: false,
+      tokenAmount: 2_000000000000000000n,
+      quoteAmount: 2_700000000000000000n,
+      virtualQuoteAfter: 4_000000000000000000n,
+      timestamp: 100,
+      blockNumber: 42n,
+      logIndex: 1,
+      transactionHash,
     });
-    expect(tradeLogToActivity({ ...log, args: { ...log.args, trader: undefined } }, 100)).toBeNull();
+    expect(
+      tradeLogToActivity(
+        { ...log, args: { ...log.args, trader: undefined } },
+        100,
+      ),
+    ).toBeNull();
   });
 
   test("keeps created blocks JSON-safe and parses them at the boundary", () => {

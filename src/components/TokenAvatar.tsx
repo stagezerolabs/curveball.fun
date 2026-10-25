@@ -23,7 +23,9 @@ export function TokenAvatar({
         if (active) setMetadataImage(url);
       });
     }
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [token.metadataUri]);
   const generatedAvatar = `https://api.dicebear.com/10.x/loops/svg?seed=${encodeURIComponent(token.address)}`;
   const sources = [token.imageUrl, metadataImage, generatedAvatar].filter(

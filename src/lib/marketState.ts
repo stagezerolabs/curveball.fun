@@ -21,26 +21,40 @@ function lifecycleOf(market: MarketSnapshot): MarketLifecycle {
 
 export function getMarketDisplayStatus(market: MarketSnapshot) {
   switch (lifecycleOf(market)) {
-    case "graduated": return { kind: "graduated", label: "Graduated" } as const;
-    case "ready": return { kind: "ready", label: "Bonding complete" } as const;
-    case "aborted": return { kind: "aborted", label: "Graduation aborted" } as const;
-    default: return { kind: "live", label: "Live" } as const;
+    case "graduated":
+      return { kind: "graduated", label: "Graduated" } as const;
+    case "ready":
+      return { kind: "ready", label: "Bonding complete" } as const;
+    case "aborted":
+      return { kind: "aborted", label: "Graduation aborted" } as const;
+    default:
+      return { kind: "live", label: "Live" } as const;
   }
 }
 
-export type TradeState = "trading" | "ready" | "overdue" | "aborted" | "graduated";
+export type TradeState =
+  "trading" | "ready" | "overdue" | "aborted" | "graduated";
 
 /**
  * What the curve accepts right now. Pause blocks only buys (and launches). A sold-out market
  * accepts nothing until it graduates; once it has waited past the timeout, a sell aborts the
  * graduation and goes through. An aborted market keeps selling, and buys until it sells out again.
  */
-export function selectTradeState(input: MarketSnapshot & { paused: boolean; nowSeconds: number }) {
+export function selectTradeState(
+  input: MarketSnapshot & { paused: boolean; nowSeconds: number },
+) {
   const lifecycle = lifecycleOf(input);
   const soldOut = (input.progress ?? 0) >= 100;
-  const overdue = lifecycle === "ready" && input.readyAt != null
-    && input.nowSeconds >= input.readyAt + GRADUATION_TIMEOUT_SECONDS;
-  const state: TradeState = lifecycle === "ready" && overdue ? "overdue" : lifecycle === "none" ? "trading" : lifecycle;
+  const overdue =
+    lifecycle === "ready" &&
+    input.readyAt != null &&
+    input.nowSeconds >= input.readyAt + GRADUATION_TIMEOUT_SECONDS;
+  const state: TradeState =
+    lifecycle === "ready" && overdue
+      ? "overdue"
+      : lifecycle === "none"
+        ? "trading"
+        : lifecycle;
   const open = state === "trading" || state === "aborted";
   return {
     state,
@@ -48,6 +62,9 @@ export function selectTradeState(input: MarketSnapshot & { paused: boolean; nowS
     canSell: open || state === "overdue",
     /** The next sell aborts the stuck graduation as part of the same transaction. */
     sellAborts: state === "overdue",
-    canGraduate: state === "ready" || state === "overdue" || (state === "aborted" && soldOut),
+    canGraduate:
+      state === "ready" ||
+      state === "overdue" ||
+      (state === "aborted" && soldOut),
   };
 }

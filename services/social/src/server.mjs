@@ -4,19 +4,32 @@ import { PrivyClient } from "@privy-io/node";
 import { getAddress, isAddress } from "viem";
 import { config } from "./config.mjs";
 import { pool, transaction } from "./db.mjs";
-import { ACTIVE_WALLET_HEADER, createPrivyAuthenticator } from "./privyAuth.mjs";
+import {
+  ACTIVE_WALLET_HEADER,
+  createPrivyAuthenticator,
+} from "./privyAuth.mjs";
 import { claimProfile } from "./profiles.mjs";
 import { shapePublicPulseMoments } from "./pulse.mjs";
 import { PERFORMANCE_METHODOLOGY } from "./performance.mjs";
-import { followingActivitySql, followingPulseSql, nowPulseSql, provisionalLeaderboardSql } from "./pulseSql.mjs";
+import {
+  followingActivitySql,
+  followingPulseSql,
+  nowPulseSql,
+  provisionalLeaderboardSql,
+} from "./pulseSql.mjs";
 import { captureBackendException } from "./instrument.mjs";
 import { createOutboxHub } from "./outboxHub.mjs";
 
 const JSON_LIMIT = 64 * 1024;
 const RNS_CHAIN_ID = 4153;
 const RNS_NAME = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?\.rise$/;
-const privyClient = new PrivyClient({ appId: config.privyAppId, appSecret: config.privyAppSecret });
-const authenticatePrivyRequest = createPrivyAuthenticator({ client: privyClient });
+const privyClient = new PrivyClient({
+  appId: config.privyAppId,
+  appSecret: config.privyAppSecret,
+});
+const authenticatePrivyRequest = createPrivyAuthenticator({
+  client: privyClient,
+});
 const requestAuthentication = new WeakMap();
 // Process-local abuse guard for authenticated social writes. Multi-instance
 // deployments also need a shared or edge rate limit to cover wallet/IP traffic.
@@ -33,13 +46,20 @@ function limitSocialWrite(request, address) {
   }
   // Socket IP may be the ingress proxy for every viewer, so this is only a
   // coarse process safety ceiling. Wallet limits do the ordinary throttling.
-  const limits = [[`wallet:${address}`, 30], [`ip:${request.socket.remoteAddress || "unknown"}`, 100_000]];
+  const limits = [
+    [`wallet:${address}`, 30],
+    [`ip:${request.socket.remoteAddress || "unknown"}`, 100_000],
+  ];
   for (const [key, maximum] of limits) {
     const bucket = socialWriteBuckets.get(key);
     if (bucket && bucket.count >= maximum) {
-      throw Object.assign(new Error("Too many social actions. Try again shortly."), {
-        status: 429, retryAfter: Math.max(1, Math.ceil((bucket.expires - now) / 1_000)),
-      });
+      throw Object.assign(
+        new Error("Too many social actions. Try again shortly."),
+        {
+          status: 429,
+          retryAfter: Math.max(1, Math.ceil((bucket.expires - now) / 1_000)),
+        },
+      );
     }
   }
   for (const [key] of limits) {
@@ -47,7 +67,8 @@ function limitSocialWrite(request, address) {
     if (bucket) bucket.count += 1;
     else socialWriteBuckets.set(key, { count: 1, expires: now + 60_000 });
   }
-  if (socialWriteBuckets.size > 10_000) socialWriteBuckets.delete(socialWriteBuckets.keys().next().value);
+  if (socialWriteBuckets.size > 10_000)
+    socialWriteBuckets.delete(socialWriteBuckets.keys().next().value);
 }
 
 // Process-local abuse guard for the unauthenticated RNS resolution path. It only counts lookups
@@ -69,17 +90,24 @@ function limitRnsLookup(remoteAddress) {
   const key = `ip:${remoteAddress || "unknown"}`;
   const bucket = rnsLookupBuckets.get(key);
   if (bucket && bucket.count >= RNS_LOOKUPS_PER_MINUTE) {
-    throw Object.assign(new Error("Too many name lookups. Try again shortly."), {
-      status: 429, retryAfter: Math.max(1, Math.ceil((bucket.expires - now) / 1_000)),
-    });
+    throw Object.assign(
+      new Error("Too many name lookups. Try again shortly."),
+      {
+        status: 429,
+        retryAfter: Math.max(1, Math.ceil((bucket.expires - now) / 1_000)),
+      },
+    );
   }
   if (bucket) bucket.count += 1;
   else rnsLookupBuckets.set(key, { count: 1, expires: now + 60_000 });
-  if (rnsLookupBuckets.size > 10_000) rnsLookupBuckets.delete(rnsLookupBuckets.keys().next().value);
+  if (rnsLookupBuckets.size > 10_000)
+    rnsLookupBuckets.delete(rnsLookupBuckets.keys().next().value);
 }
 
 function addressParam(value) {
-  return typeof value === "string" && isAddress(value) ? getAddress(value).toLowerCase() : null;
+  return typeof value === "string" && isAddress(value)
+    ? getAddress(value).toLowerCase()
+    : null;
 }
 
 function corsHeaders(request) {
@@ -93,7 +121,9 @@ function corsHeaders(request) {
 }
 
 function send(request, response, status, body, extraHeaders = {}) {
-  console.log(`${request.method} ${request.url} -> ${status} origin=${request.headers.origin || "-"}`);
+  console.log(
+    `${request.method} ${request.url} -> ${status} origin=${request.headers.origin || "-"}`,
+  );
   const payload = JSON.stringify(body);
   response.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
@@ -109,20 +139,27 @@ async function readJson(request) {
   const chunks = [];
   for await (const chunk of request) {
     size += chunk.length;
-    if (size > JSON_LIMIT) throw Object.assign(new Error("Request body is too large."), { status: 413 });
+    if (size > JSON_LIMIT)
+      throw Object.assign(new Error("Request body is too large."), {
+        status: 413,
+      });
     chunks.push(chunk);
   }
   try {
     return JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
   } catch {
-    throw Object.assign(new Error("Request body must be valid JSON."), { status: 400 });
+    throw Object.assign(new Error("Request body must be valid JSON."), {
+      status: 400,
+    });
   }
 }
 
 function requireOrigin(request) {
   const origin = request.headers.origin;
   if (!origin || !config.allowedOrigins.has(origin)) {
-    throw Object.assign(new Error("Request origin is not allowed."), { status: 403 });
+    throw Object.assign(new Error("Request origin is not allowed."), {
+      status: 403,
+    });
   }
 }
 
@@ -146,19 +183,27 @@ async function viewerFor(request) {
 async function requirePrivyWallet(request, checkOrigin = true) {
   if (checkOrigin) requireOrigin(request);
   const authentication = await authenticationFor(request);
-  if (!authentication) throw Object.assign(new Error("Sign in with Privy to continue."), { status: 401 });
+  if (!authentication)
+    throw Object.assign(new Error("Sign in with Privy to continue."), {
+      status: 401,
+    });
   return authentication.address;
 }
 
 async function requireModerator(request, checkOrigin = true) {
   const address = await requirePrivyWallet(request, checkOrigin);
-  if (address !== config.adminAddress) throw Object.assign(new Error("Moderator access is required."), { status: 403 });
+  if (address !== config.adminAddress)
+    throw Object.assign(new Error("Moderator access is required."), {
+      status: 403,
+    });
   return address;
 }
 
 function boundedLimit(url, fallback = 30, maximum = 100) {
   const value = Number(url.searchParams.get("limit") || fallback);
-  return Number.isInteger(value) ? Math.min(maximum, Math.max(1, value)) : fallback;
+  return Number.isInteger(value)
+    ? Math.min(maximum, Math.max(1, value))
+    : fallback;
 }
 
 function encodeCursor(value) {
@@ -168,10 +213,14 @@ function encodeCursor(value) {
 function decodeCursor(value) {
   if (!value) return null;
   try {
-    const decoded = JSON.parse(Buffer.from(value, "base64url").toString("utf8"));
+    const decoded = JSON.parse(
+      Buffer.from(value, "base64url").toString("utf8"),
+    );
     return decoded && typeof decoded === "object" ? decoded : null;
   } catch {
-    throw Object.assign(new Error("The pagination cursor is invalid."), { status: 400 });
+    throw Object.assign(new Error("The pagination cursor is invalid."), {
+      status: 400,
+    });
   }
 }
 
@@ -185,7 +234,11 @@ function openEventStream(request, response, hub) {
   });
   response.flushHeaders?.();
 
-  return hub.open(response, request.headers["last-event-id"], request.socket.remoteAddress);
+  return hub.open(
+    response,
+    request.headers["last-event-id"],
+    request.socket.remoteAddress,
+  );
 }
 
 function shapeRns(address, primaryName, expiresAt) {
@@ -199,30 +252,50 @@ function shapeRns(address, primaryName, expiresAt) {
 }
 
 async function resolveRns(address, remoteAddress) {
-  const cached = await pool.query(`SELECT primary_name,status,expires_at FROM rns_cache
-    WHERE chain_id=$1 AND address=$2 AND expires_at>now()`, [RNS_CHAIN_ID, address]);
-  if (cached.rows[0]) return shapeRns(address, cached.rows[0].status === "resolved" ? cached.rows[0].primary_name : null, cached.rows[0].expires_at);
+  const cached = await pool.query(
+    `SELECT primary_name,status,expires_at FROM rns_cache
+    WHERE chain_id=$1 AND address=$2 AND expires_at>now()`,
+    [RNS_CHAIN_ID, address],
+  );
+  if (cached.rows[0])
+    return shapeRns(
+      address,
+      cached.rows[0].status === "resolved" ? cached.rows[0].primary_name : null,
+      cached.rows[0].expires_at,
+    );
   limitRnsLookup(remoteAddress);
 
   let primaryName = null;
   let status = "not_found";
   let expiresAt = new Date(Date.now() + 10 * 60_000);
   try {
-    const response = await fetch(`${config.rnsApiUrl}${address}?chainId=${RNS_CHAIN_ID}`, {
-      headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(5_000),
-    });
+    const response = await fetch(
+      `${config.rnsApiUrl}${address}?chainId=${RNS_CHAIN_ID}`,
+      {
+        headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(5_000),
+      },
+    );
     if (response.ok) {
       const payload = await response.json();
-      const upstreamExpiry = typeof payload.expiry === "string" && /^\d+$/.test(payload.expiry) ? Number(payload.expiry) : 0;
-      const valid = payload.chainId === RNS_CHAIN_ID
-        && typeof payload.address === "string" && payload.address.toLowerCase() === address
-        && payload.isExpired === false && typeof payload.primaryName === "string"
-        && RNS_NAME.test(payload.primaryName) && upstreamExpiry * 1_000 > Date.now();
+      const upstreamExpiry =
+        typeof payload.expiry === "string" && /^\d+$/.test(payload.expiry)
+          ? Number(payload.expiry)
+          : 0;
+      const valid =
+        payload.chainId === RNS_CHAIN_ID &&
+        typeof payload.address === "string" &&
+        payload.address.toLowerCase() === address &&
+        payload.isExpired === false &&
+        typeof payload.primaryName === "string" &&
+        RNS_NAME.test(payload.primaryName) &&
+        upstreamExpiry * 1_000 > Date.now();
       if (valid) {
         primaryName = payload.primaryName;
         status = "resolved";
-        expiresAt = new Date(Math.min(upstreamExpiry * 1_000, Date.now() + 60 * 60_000));
+        expiresAt = new Date(
+          Math.min(upstreamExpiry * 1_000, Date.now() + 60 * 60_000),
+        );
       }
     } else if (response.status !== 404) {
       throw new Error(`RNS request failed (${response.status}).`);
@@ -231,10 +304,12 @@ async function resolveRns(address, remoteAddress) {
     status = "error";
     expiresAt = new Date(Date.now() + 2 * 60_000);
   }
-  await pool.query(`INSERT INTO rns_cache (chain_id,address,primary_name,status,resolved_at,expires_at)
+  await pool.query(
+    `INSERT INTO rns_cache (chain_id,address,primary_name,status,resolved_at,expires_at)
     VALUES ($1,$2,$3,$4,now(),$5) ON CONFLICT (chain_id,address) DO UPDATE SET
     primary_name=EXCLUDED.primary_name,status=EXCLUDED.status,resolved_at=now(),expires_at=EXCLUDED.expires_at,updated_at=now()`,
-  [RNS_CHAIN_ID, address, primaryName, status, expiresAt]);
+    [RNS_CHAIN_ID, address, primaryName, status, expiresAt],
+  );
   return shapeRns(address, primaryName, expiresAt);
 }
 
@@ -267,7 +342,18 @@ const statsSql = `
 `;
 
 function shapeStats(row) {
-  if (!row) return { tradeCount: 0, buyCount: 0, sellCount: 0, volumeWei: "0", realizedPnlWei: "0", realizedReturnPct: null, marketsTraded: 0, firstTrade: null, lastTrade: null };
+  if (!row)
+    return {
+      tradeCount: 0,
+      buyCount: 0,
+      sellCount: 0,
+      volumeWei: "0",
+      realizedPnlWei: "0",
+      realizedReturnPct: null,
+      marketsTraded: 0,
+      firstTrade: null,
+      lastTrade: null,
+    };
   const cost = Number(row.realized_cost_wei || 0);
   const pnl = Number(row.realized_pnl_wei || 0);
   return {
@@ -290,9 +376,22 @@ async function feed(url, viewer) {
   const beforeAt = typeof cursor?.at === "string" ? cursor.at : legacyBefore;
   const beforeId = typeof cursor?.id === "string" ? cursor.id : null;
   const scope = url.searchParams.get("scope") || "global";
-  const trader = url.searchParams.get("trader") ? addressParam(url.searchParams.get("trader")) : null;
-  if (scope === "following" && !viewer) throw Object.assign(new Error("Sign in to view followed traders."), { status: 401 });
-  const values = [config.chainId, limit, beforeAt || null, viewer || null, scope, trader, beforeId];
+  const trader = url.searchParams.get("trader")
+    ? addressParam(url.searchParams.get("trader"))
+    : null;
+  if (scope === "following" && !viewer)
+    throw Object.assign(new Error("Sign in to view followed traders."), {
+      status: 401,
+    });
+  const values = [
+    config.chainId,
+    limit,
+    beforeAt || null,
+    viewer || null,
+    scope,
+    trader,
+    beforeId,
+  ];
   const result = await pool.query(
     `SELECT t.logical_id AS id, t.trader_address, t.is_buy, t.net_trader_quote AS quote_amount_wei,
        t.token_amount AS token_amount_wei, t.virtual_quote_after, t.virtual_token_after,
@@ -325,54 +424,96 @@ async function feed(url, viewer) {
     values,
   );
   const last = result.rows.at(-1);
-  return { items: result.rows, nextCursor: last && result.rows.length === limit
-    ? encodeCursor({ at: last.block_timestamp, id: last.id }) : null };
+  return {
+    items: result.rows,
+    nextCursor:
+      last && result.rows.length === limit
+        ? encodeCursor({ at: last.block_timestamp, id: last.id })
+        : null,
+  };
 }
 
 const pulseTradeCache = new Map();
 const pulseGraphCache = new Map();
 const pulseBlockedCache = new Map();
 
-async function pulseTrades(period, followingViewer = null, blockedViewer = null, blockedAddresses = []) {
+async function pulseTrades(
+  period,
+  followingViewer = null,
+  blockedViewer = null,
+  blockedAddresses = [],
+) {
   const key = `${period}:${followingViewer || (blockedViewer ? `blocked:${blockedViewer}` : "public")}`;
   const current = pulseTradeCache.get(key);
   if (current && current.expires > Date.now()) return current.value;
   const interval = period === "1h" ? "1 hour" : "24 hours";
   const asOf = new Date();
   const bucketSeconds = period === "1h" ? 900 : 7200;
-  const value = (followingViewer
-    ? pool.query(followingPulseSql, [config.chainId, interval, followingViewer, bucketSeconds, asOf, blockedAddresses])
-    : pool.query(nowPulseSql, [config.chainId, interval, asOf, blockedAddresses])).then((result) => ({
+  const value = (
+    followingViewer
+      ? pool.query(followingPulseSql, [
+          config.chainId,
+          interval,
+          followingViewer,
+          bucketSeconds,
+          asOf,
+          blockedAddresses,
+        ])
+      : pool.query(nowPulseSql, [
+          config.chainId,
+          interval,
+          asOf,
+          blockedAddresses,
+        ])
+  ).then((result) => ({
     // SQL aggregates exact market totals and ranks candidates before transfer.
-    items: shapePublicPulseMoments(result.rows, { scope: followingViewer ? "following" : "now" }),
-    sampleTruncated: false, asOf: asOf.toISOString(),
-    coveredFrom: new Date(asOf.getTime() - (period === "1h" ? 60 * 60_000 : 24 * 60 * 60_000)).toISOString(),
+    items: shapePublicPulseMoments(result.rows, {
+      scope: followingViewer ? "following" : "now",
+    }),
+    sampleTruncated: false,
+    asOf: asOf.toISOString(),
+    coveredFrom: new Date(
+      asOf.getTime() - (period === "1h" ? 60 * 60_000 : 24 * 60 * 60_000),
+    ).toISOString(),
   }));
-  if (pulseTradeCache.size >= 500) pulseTradeCache.delete(pulseTradeCache.keys().next().value);
+  if (pulseTradeCache.size >= 500)
+    pulseTradeCache.delete(pulseTradeCache.keys().next().value);
   const entry = { expires: Infinity, value };
   pulseTradeCache.set(key, entry);
   try {
     const result = await value;
-    entry.expires = Date.now() + (followingViewer || blockedViewer ? 20_000 : 30_000);
+    entry.expires =
+      Date.now() + (followingViewer || blockedViewer ? 20_000 : 30_000);
     return result;
-  } catch (error) { pulseTradeCache.delete(key); throw error; }
+  } catch (error) {
+    pulseTradeCache.delete(key);
+    throw error;
+  }
 }
 
 async function pulseBlockedAddresses(viewer) {
   if (!viewer) return new Set();
   const cached = pulseBlockedCache.get(viewer);
   if (cached && cached.expires > Date.now()) return cached.value;
-  const value = pool.query(`SELECT CASE WHEN blocker_address=$2 THEN blocked_address ELSE blocker_address END AS address
+  const value = pool
+    .query(
+      `SELECT CASE WHEN blocker_address=$2 THEN blocked_address ELSE blocker_address END AS address
     FROM blocks WHERE chain_id=$1 AND (blocker_address=$2 OR blocked_address=$2)`,
-  [config.chainId, viewer]).then((result) => new Set(result.rows.map((row) => row.address)));
-  if (pulseBlockedCache.size >= 5_000) pulseBlockedCache.delete(pulseBlockedCache.keys().next().value);
+      [config.chainId, viewer],
+    )
+    .then((result) => new Set(result.rows.map((row) => row.address)));
+  if (pulseBlockedCache.size >= 5_000)
+    pulseBlockedCache.delete(pulseBlockedCache.keys().next().value);
   const entry = { expires: Infinity, value };
   pulseBlockedCache.set(viewer, entry);
   try {
     const result = await value;
     entry.expires = Date.now() + 60_000;
     return result;
-  } catch (error) { pulseBlockedCache.delete(viewer); throw error; }
+  } catch (error) {
+    pulseBlockedCache.delete(viewer);
+    throw error;
+  }
 }
 
 async function pulseGraph(viewer) {
@@ -380,47 +521,83 @@ async function pulseGraph(viewer) {
   const cached = pulseGraphCache.get(viewer);
   if (cached && cached.expires > Date.now()) return cached.value;
   const value = Promise.all([
-    pool.query("SELECT followed_address AS address FROM follows WHERE chain_id=$1 AND follower_address=$2", [config.chainId, viewer]),
-    pool.query(`SELECT CASE WHEN blocker_address=$2 THEN blocked_address ELSE blocker_address END AS address
-      FROM blocks WHERE chain_id=$1 AND (blocker_address=$2 OR blocked_address=$2)`, [config.chainId, viewer]),
+    pool.query(
+      "SELECT followed_address AS address FROM follows WHERE chain_id=$1 AND follower_address=$2",
+      [config.chainId, viewer],
+    ),
+    pool.query(
+      `SELECT CASE WHEN blocker_address=$2 THEN blocked_address ELSE blocker_address END AS address
+      FROM blocks WHERE chain_id=$1 AND (blocker_address=$2 OR blocked_address=$2)`,
+      [config.chainId, viewer],
+    ),
   ]).then(([follows, blocks]) => ({
     followed: new Set(follows.rows.map((row) => row.address)),
     blocked: new Set(blocks.rows.map((row) => row.address)),
   }));
-  if (pulseGraphCache.size >= 500) pulseGraphCache.delete(pulseGraphCache.keys().next().value);
+  if (pulseGraphCache.size >= 500)
+    pulseGraphCache.delete(pulseGraphCache.keys().next().value);
   pulseGraphCache.set(viewer, { expires: Date.now() + 10_000, value });
-  try { return await value; } catch (error) { pulseGraphCache.delete(viewer); throw error; }
+  try {
+    return await value;
+  } catch (error) {
+    pulseGraphCache.delete(viewer);
+    throw error;
+  }
 }
 
 async function pulse(url, viewer) {
   const scope = url.searchParams.get("scope") || "now";
   const period = url.searchParams.get("period") || "1h";
-  if (!["now", "following"].includes(scope) || !["1h", "24h"].includes(period)) {
-    throw Object.assign(new Error("Choose a supported Pulse scope and period."), { status: 400 });
+  if (
+    !["now", "following"].includes(scope) ||
+    !["1h", "24h"].includes(period)
+  ) {
+    throw Object.assign(
+      new Error("Choose a supported Pulse scope and period."),
+      { status: 400 },
+    );
   }
   if (scope === "following" && !viewer) {
-    throw Object.assign(new Error("Sign in to view followed traders."), { status: 401 });
+    throw Object.assign(new Error("Sign in to view followed traders."), {
+      status: 401,
+    });
   }
   const blocked = await pulseBlockedAddresses(viewer);
-  const trades = scope === "now"
-    ? await pulseTrades(period, null, blocked.size ? viewer : null, [...blocked])
-    : await pulseTrades(period, viewer, null, [...blocked]);
+  const trades =
+    scope === "now"
+      ? await pulseTrades(period, null, blocked.size ? viewer : null, [
+          ...blocked,
+        ])
+      : await pulseTrades(period, viewer, null, [...blocked]);
   return {
     items: trades.items,
-    asOf: trades.asOf, coveredFrom: trades.coveredFrom, sampleTruncated: trades.sampleTruncated,
+    asOf: trades.asOf,
+    coveredFrom: trades.coveredFrom,
+    sampleTruncated: trades.sampleTruncated,
   };
 }
 
 async function profile(address, viewer) {
-  const [profileResult, statsResult, countsResult, positionsResult] = await Promise.all([
-    pool.query("SELECT claimed_at, updated_at FROM profiles WHERE chain_id = $1 AND address = $2", [config.chainId, address]),
-    pool.query(`${statsSql} SELECT * FROM wallet WHERE trader_address = $2`, [config.chainId, address]),
-    pool.query(`SELECT
+  const [profileResult, statsResult, countsResult, positionsResult] =
+    await Promise.all([
+      pool.query(
+        "SELECT claimed_at, updated_at FROM profiles WHERE chain_id = $1 AND address = $2",
+        [config.chainId, address],
+      ),
+      pool.query(`${statsSql} SELECT * FROM wallet WHERE trader_address = $2`, [
+        config.chainId,
+        address,
+      ]),
+      pool.query(
+        `SELECT
       (SELECT COUNT(*) FROM follows WHERE chain_id = $1 AND followed_address = $2) AS followers,
       (SELECT COUNT(*) FROM follows WHERE chain_id = $1 AND follower_address = $2) AS following,
       EXISTS(SELECT 1 FROM follows WHERE chain_id = $1 AND follower_address = $3 AND followed_address = $2) AS is_followed,
-      EXISTS(SELECT 1 FROM blocks WHERE chain_id = $1 AND blocker_address = $3 AND blocked_address = $2) AS is_blocked`, [config.chainId, address, viewer || ""]),
-    pool.query(`WITH transfer_balances AS (
+      EXISTS(SELECT 1 FROM blocks WHERE chain_id = $1 AND blocker_address = $3 AND blocked_address = $2) AS is_blocked`,
+        [config.chainId, address, viewer || ""],
+      ),
+      pool.query(
+        `WITH transfer_balances AS (
         SELECT token_address,SUM(CASE WHEN to_address=$2 THEN amount ELSE 0 END)-SUM(CASE WHEN from_address=$2 THEN amount ELSE 0 END) AS balance
         FROM asset_transfers WHERE chain_id=$1 AND orphaned=false AND (to_address=$2 OR from_address=$2) GROUP BY token_address
       ), position_tokens AS (
@@ -437,8 +614,10 @@ async function profile(address, viewer) {
       LEFT JOIN curve_positions cp ON cp.chain_id=$1 AND cp.trader_address=$2 AND cp.token_address=pt.token_address
       JOIN market_stats ms ON ms.chain_id=$1 AND ms.token_address=pt.token_address
       WHERE COALESCE(tb.balance,cp.known_basis_token_balance,0)>0
-      ORDER BY COALESCE(cp.total_invested_quote,0) DESC LIMIT 20`, [config.chainId, address]),
-  ]);
+      ORDER BY COALESCE(cp.total_invested_quote,0) DESC LIMIT 20`,
+        [config.chainId, address],
+      ),
+    ]);
   const claimed = profileResult.rows[0] || null;
   return {
     address,
@@ -459,99 +638,174 @@ async function publishedBoard(category) {
   const cached = leaderboardPublicCache.get(category);
   if (cached && cached.expires > Date.now()) return cached.value;
   const value = (async () => {
-    const snapshotResult = await pool.query(`SELECT id,period,methodology_version,as_of_block,calculated_at,published_at
+    const snapshotResult = await pool.query(
+      `SELECT id,period,methodology_version,as_of_block,calculated_at,published_at
       FROM leaderboard_snapshots WHERE chain_id=$1 AND category=$2 AND published_at IS NOT NULL
-      ORDER BY as_of_block DESC,published_at DESC LIMIT 1`, [config.chainId, category]);
+      ORDER BY as_of_block DESC,published_at DESC LIMIT 1`,
+      [config.chainId, category],
+    );
     const snapshot = snapshotResult.rows[0];
     return { snapshot: snapshot || null };
   })();
   leaderboardPublicCache.set(category, { expires: Date.now() + 30_000, value });
-  try { return await value; } catch (error) { leaderboardPublicCache.delete(category); throw error; }
+  try {
+    return await value;
+  } catch (error) {
+    leaderboardPublicCache.delete(category);
+    throw error;
+  }
 }
 
 async function leaderboards(url, viewer) {
   const category = url.pathname.split("/").pop();
   const allowed = new Set(["trending", "consistent", "followers", "new"]);
-  if (!allowed.has(category)) throw Object.assign(new Error("Unknown leaderboard category."), { status: 404 });
-  const [board, graph] = await Promise.all([publishedBoard(category), pulseGraph(viewer)]);
+  if (!allowed.has(category))
+    throw Object.assign(new Error("Unknown leaderboard category."), {
+      status: 404,
+    });
+  const [board, graph] = await Promise.all([
+    publishedBoard(category),
+    pulseGraph(viewer),
+  ]);
   const { snapshot } = board;
-  if (!snapshot || snapshot.methodology_version !== PERFORMANCE_METHODOLOGY) return provisionalBoard(category, url, graph);
-  const result = await pool.query(`SELECT lr.address,lr.rank,lr.metrics AS published_metrics,
+  if (!snapshot || snapshot.methodology_version !== PERFORMANCE_METHODOLOGY)
+    return provisionalBoard(category, url, graph);
+  const result = await pool.query(
+    `SELECT lr.address,lr.rank,lr.metrics AS published_metrics,
   (SELECT COUNT(*) FROM follows f WHERE f.chain_id=$1 AND f.followed_address=lr.address) AS follower_count
   FROM leaderboard_rows lr
   WHERE lr.snapshot_id=$2 AND lr.eligible=true ORDER BY lr.rank LIMIT 100`,
-  [config.chainId, snapshot.id]);
-  const items = result.rows.filter((row) => !graph.blocked.has(row.address))
-    .slice(0, boundedLimit(url, 12, 50)).map((row) => {
+    [config.chainId, snapshot.id],
+  );
+  const items = result.rows
+    .filter((row) => !graph.blocked.has(row.address))
+    .slice(0, boundedLimit(url, 12, 50))
+    .map((row) => {
       const metrics = row.published_metrics || {};
       const cost = Number(metrics.realizedCostWei || 0);
       const pnl = Number(metrics.realizedPnlWei || 0);
       const tradeCount = Number(metrics.tradeCount || 0);
       return {
         address: row.address,
-        rank: Number(row.rank), asOfBlock: String(snapshot.as_of_block),
-        calculatedAt: snapshot.calculated_at, publishedAt: snapshot.published_at,
-        methodologyVersion: snapshot.methodology_version, period: snapshot.period,
+        rank: Number(row.rank),
+        asOfBlock: String(snapshot.as_of_block),
+        calculatedAt: snapshot.calculated_at,
+        publishedAt: snapshot.published_at,
+        methodologyVersion: snapshot.methodology_version,
+        period: snapshot.period,
         publishedMetrics: metrics,
         followers: Number(row.follower_count || 0),
         isFollowed: graph.followed.has(row.address),
         recentVolumeWei: String(metrics.recentVolumeWei || 0),
         stats: {
-          tradeCount, buyCount: Number(metrics.buyCount || 0), sellCount: Number(metrics.sellCount || 0),
-          volumeWei: String(metrics.volumeWei || 0), realizedPnlWei: String(metrics.realizedPnlWei || 0),
+          tradeCount,
+          buyCount: Number(metrics.buyCount || 0),
+          sellCount: Number(metrics.sellCount || 0),
+          volumeWei: String(metrics.volumeWei || 0),
+          realizedPnlWei: String(metrics.realizedPnlWei || 0),
           realizedCostWei: String(metrics.realizedCostWei || 0),
-          realizedReturnPct: cost > 0 ? pnl / cost * 100 : null,
+          realizedReturnPct: cost > 0 ? (pnl / cost) * 100 : null,
           marketsTraded: Number(metrics.marketCount || 0),
-          firstTrade: metrics.firstTradeAt || null, lastTrade: metrics.lastTradeAt || null,
+          firstTrade: metrics.firstTradeAt || null,
+          lastTrade: metrics.lastTradeAt || null,
         },
-        confidence: metrics.sampleLabel || (tradeCount >= 25 ? "established" : tradeCount >= 8 ? "developing" : "new"),
+        confidence:
+          metrics.sampleLabel ||
+          (tradeCount >= 25
+            ? "established"
+            : tradeCount >= 8
+              ? "developing"
+              : "new"),
       };
     });
   if (!items.length) return provisionalBoard(category, url, graph);
-  return { category, period: snapshot.period, asOfBlock: String(snapshot.as_of_block),
-    calculatedAt: snapshot.calculated_at, publishedAt: snapshot.published_at,
-    methodologyVersion: snapshot.methodology_version, items };
+  return {
+    category,
+    period: snapshot.period,
+    asOfBlock: String(snapshot.as_of_block),
+    calculatedAt: snapshot.calculated_at,
+    publishedAt: snapshot.published_at,
+    methodologyVersion: snapshot.methodology_version,
+    items,
+  };
 }
 
 // Until a current-method snapshot has qualified traders, rank every trader by their latest stored
 // performance. Marked provisional.
 async function provisionalBoard(category, url, graph) {
-  const result = await pool.query(provisionalLeaderboardSql, [config.chainId, 100]);
-  const items = result.rows.filter((row) => !graph.blocked.has(row.address))
-    .slice(0, boundedLimit(url, 12, 50)).map((row, index) => ({
-      address: row.address, rank: index + 1,
+  const result = await pool.query(provisionalLeaderboardSql, [
+    config.chainId,
+    100,
+  ]);
+  const items = result.rows
+    .filter((row) => !graph.blocked.has(row.address))
+    .slice(0, boundedLimit(url, 12, 50))
+    .map((row, index) => ({
+      address: row.address,
+      rank: index + 1,
       methodologyVersion: row.methodology_version,
       publishedMetrics: {
         returnBps: row.return_bps == null ? null : Number(row.return_bps),
         investedWei: String(row.invested_quote),
-        netPnlWei: (BigInt(row.realized_pnl_quote) + BigInt(row.unrealized_pnl_quote)).toString(),
-        tradeCount: Number(row.trade_count), marketCount: Number(row.market_count),
+        netPnlWei: (
+          BigInt(row.realized_pnl_quote) + BigInt(row.unrealized_pnl_quote)
+        ).toString(),
+        tradeCount: Number(row.trade_count),
+        marketCount: Number(row.market_count),
         sampleLabel: "provisional",
       },
-      followers: 0, isFollowed: graph.followed.has(row.address),
+      followers: 0,
+      isFollowed: graph.followed.has(row.address),
       stats: {
-        tradeCount: Number(row.trade_count), buyCount: 0, sellCount: 0, volumeWei: "0",
-        realizedPnlWei: String(row.realized_pnl_quote), realizedCostWei: "0", realizedReturnPct: null,
-        marketsTraded: Number(row.market_count), firstTrade: null, lastTrade: null,
+        tradeCount: Number(row.trade_count),
+        buyCount: 0,
+        sellCount: 0,
+        volumeWei: "0",
+        realizedPnlWei: String(row.realized_pnl_quote),
+        realizedCostWei: "0",
+        realizedReturnPct: null,
+        marketsTraded: Number(row.market_count),
+        firstTrade: null,
+        lastTrade: null,
       },
     }));
-  return { category, period: null, asOfBlock: null, calculatedAt: null, publishedAt: null,
-    methodologyVersion: null, provisional: true, items };
+  return {
+    category,
+    period: null,
+    asOfBlock: null,
+    calculatedAt: null,
+    publishedAt: null,
+    methodologyVersion: null,
+    provisional: true,
+    items,
+  };
 }
 
 async function followingActivity(viewer) {
-  if (!viewer) throw Object.assign(new Error("Sign in to see your follows."), { status: 401 });
+  if (!viewer)
+    throw Object.assign(new Error("Sign in to see your follows."), {
+      status: 401,
+    });
   const graph = await pulseGraph(viewer);
   const followed = [...graph.followed];
-  if (!followed.length) return { scope: "following", followedCount: 0, items: [] };
-  const result = await pool.query(followingActivitySql, [config.chainId, followed, [...graph.blocked]]);
+  if (!followed.length)
+    return { scope: "following", followedCount: 0, items: [] };
+  const result = await pool.query(followingActivitySql, [
+    config.chainId,
+    followed,
+    [...graph.blocked],
+  ]);
   return {
     scope: "following",
     followedCount: followed.length,
     items: result.rows.map((row) => ({
-      tokenAddress: row.token_address, tokenName: row.token_name, tokenSymbol: row.token_symbol,
-      boughtQuoteWei: row.bought_quote_wei, soldQuoteWei: row.sold_quote_wei,
-      latestAt: row.latest_at, actors: row.actors,
+      tokenAddress: row.token_address,
+      tokenName: row.token_name,
+      tokenSymbol: row.token_symbol,
+      boughtQuoteWei: row.bought_quote_wei,
+      soldQuoteWei: row.sold_quote_wei,
+      latestAt: row.latest_at,
+      actors: row.actors,
     })),
   };
 }
@@ -581,24 +835,38 @@ function shapeMarket(row) {
       initialVirtualQuote: row.initial_virtual_quote,
       graduationTargetQuote: row.graduation_target_quote,
       feeBps: row.fee_bps === null ? null : Number(row.fee_bps),
-      creatorFeeShareBps: row.creator_fee_share_bps === null ? null : Number(row.creator_fee_share_bps),
-      buybackFeeShareBps: row.buyback_fee_share_bps === null ? null : Number(row.buyback_fee_share_bps),
-      creatorTaxBps: row.creator_tax_bps === null ? null : Number(row.creator_tax_bps),
+      creatorFeeShareBps:
+        row.creator_fee_share_bps === null
+          ? null
+          : Number(row.creator_fee_share_bps),
+      buybackFeeShareBps:
+        row.buyback_fee_share_bps === null
+          ? null
+          : Number(row.buyback_fee_share_bps),
+      creatorTaxBps:
+        row.creator_tax_bps === null ? null : Number(row.creator_tax_bps),
     },
     metrics: {
       tradeCount: Number(row.trade_count || 0),
       uniqueTraderCount: Number(row.unique_trader_count || 0),
       grossQuoteVolume: String(row.gross_quote_volume || 0),
       walletCashTurnover: String(row.wallet_cash_turnover || 0),
-      virtualQuote: row.virtual_quote === null ? null : String(row.virtual_quote),
-      virtualToken: row.virtual_token === null ? null : String(row.virtual_token),
+      virtualQuote:
+        row.virtual_quote === null ? null : String(row.virtual_quote),
+      virtualToken:
+        row.virtual_token === null ? null : String(row.virtual_token),
       sold: row.sold === null ? "0" : String(row.sold),
-      currentPriceX18: row.current_price_x18 === null ? null : String(row.current_price_x18),
-      athPriceX18: row.ath_price_x18 === null ? null : String(row.ath_price_x18),
+      currentPriceX18:
+        row.current_price_x18 === null ? null : String(row.current_price_x18),
+      athPriceX18:
+        row.ath_price_x18 === null ? null : String(row.ath_price_x18),
       recentGrossQuoteVolume: String(row.recent_gross_quote_volume || 0),
-      change1hBps: row.change_1h_bps === null ? null : Number(row.change_1h_bps),
-      change6hBps: row.change_6h_bps === null ? null : Number(row.change_6h_bps),
-      change24hBps: row.change_24h_bps === null ? null : Number(row.change_24h_bps),
+      change1hBps:
+        row.change_1h_bps === null ? null : Number(row.change_1h_bps),
+      change6hBps:
+        row.change_6h_bps === null ? null : Number(row.change_6h_bps),
+      change24hBps:
+        row.change_24h_bps === null ? null : Number(row.change_24h_bps),
       latestTradeAt: row.latest_trade_at,
     },
   };
@@ -620,41 +888,65 @@ async function markets(url) {
   }
   const search = (url.searchParams.get("search") || "").trim().slice(0, 80);
   const cursor = decodeCursor(url.searchParams.get("cursor"));
-  if (cursor && cursor.tab !== tab) throw Object.assign(new Error("The market cursor belongs to another tab."), { status: 400 });
+  if (cursor && cursor.tab !== tab)
+    throw Object.assign(
+      new Error("The market cursor belongs to another tab."),
+      { status: 400 },
+    );
   const cursorValue = typeof cursor?.value === "string" ? cursor.value : null;
-  const cursorToken = typeof cursor?.token === "string" ? addressParam(cursor.token) : null;
-  const statusClause = tab === "graduated" ? "AND m.graduated=true" : tab === "all" ? "" : "AND m.graduated=false";
-  const orderExpression = tab === "trending" ? "recent_gross_quote_volume" : "m.launched_at";
-  const cursorClause = tab === "trending"
-    ? `AND ($4::numeric IS NULL OR (${recentVolumeExpression},m.token_address)<($4::numeric,$5::text))`
-    : "AND ($4::timestamptz IS NULL OR (m.launched_at,m.token_address)<($4::timestamptz,$5::text))";
-  const result = await pool.query(`${marketSelect}
+  const cursorToken =
+    typeof cursor?.token === "string" ? addressParam(cursor.token) : null;
+  const statusClause =
+    tab === "graduated"
+      ? "AND m.graduated=true"
+      : tab === "all"
+        ? ""
+        : "AND m.graduated=false";
+  const orderExpression =
+    tab === "trending" ? "recent_gross_quote_volume" : "m.launched_at";
+  const cursorClause =
+    tab === "trending"
+      ? `AND ($4::numeric IS NULL OR (${recentVolumeExpression},m.token_address)<($4::numeric,$5::text))`
+      : "AND ($4::timestamptz IS NULL OR (m.launched_at,m.token_address)<($4::timestamptz,$5::text))";
+  const result = await pool.query(
+    `${marketSelect}
     FROM markets m LEFT JOIN market_stats ms ON ms.chain_id=m.chain_id AND ms.token_address=m.token_address
     LEFT JOIN assets a ON a.chain_id=m.chain_id AND a.address=m.token_address
     WHERE m.chain_id=$1 AND m.orphaned=false ${statusClause}
       AND ($3::text='' OR m.name ILIKE '%'||$3||'%' OR m.symbol ILIKE '%'||$3||'%')
       ${cursorClause}
     ORDER BY ${orderExpression} DESC,m.token_address DESC LIMIT $2`,
-  [config.chainId, limit + 1, search, cursorValue, cursorToken]);
+    [config.chainId, limit + 1, search, cursorValue, cursorToken],
+  );
   const hasMore = result.rows.length > limit;
   const rows = hasMore ? result.rows.slice(0, limit) : result.rows;
   const last = rows.at(-1);
   return {
     items: rows.map(shapeMarket),
-    nextCursor: hasMore && last ? encodeCursor({
-      tab,
-      value: tab === "trending" ? String(last.recent_gross_quote_volume || 0) : new Date(last.launched_at).toISOString(),
-      token: last.token_address,
-    }) : null,
+    nextCursor:
+      hasMore && last
+        ? encodeCursor({
+            tab,
+            value:
+              tab === "trending"
+                ? String(last.recent_gross_quote_volume || 0)
+                : new Date(last.launched_at).toISOString(),
+            token: last.token_address,
+          })
+        : null,
   };
 }
 
 async function market(address) {
-  const result = await pool.query(`${marketSelect}
+  const result = await pool.query(
+    `${marketSelect}
     FROM markets m LEFT JOIN market_stats ms ON ms.chain_id=m.chain_id AND ms.token_address=m.token_address
     LEFT JOIN assets a ON a.chain_id=m.chain_id AND a.address=m.token_address
-    WHERE m.chain_id=$1 AND m.token_address=$2 AND m.orphaned=false`, [config.chainId, address]);
-  if (!result.rows[0]) throw Object.assign(new Error("Market not found."), { status: 404 });
+    WHERE m.chain_id=$1 AND m.token_address=$2 AND m.orphaned=false`,
+    [config.chainId, address],
+  );
+  if (!result.rows[0])
+    throw Object.assign(new Error("Market not found."), { status: 404 });
   return shapeMarket(result.rows[0]);
 }
 
@@ -667,7 +959,8 @@ async function marketTrades(url, tokenAddress, viewer) {
   const followed = [...graph.followed];
   const blocked = [...graph.blocked];
   const [result, followedHere] = await Promise.all([
-    pool.query(`WITH activity AS (
+    pool.query(
+      `WITH activity AS (
       SELECT logical_id,trader_address AS participant_address,'trader'::text AS participant_role,
         NULL::text AS execution_sender_address,'curve'::text AS venue_type,launchpad_address AS venue_address,
         is_buy,gross_curve_quote,net_trader_quote,fee_quote,creator_tax_quote,token_amount,
@@ -692,12 +985,25 @@ async function marketTrades(url, tokenAddress, viewer) {
         OR (block_timestamp=$4::timestamptz AND $5::text IS NOT NULL AND logical_id<$5))
       AND NOT (a.participant_address=ANY($8::text[]))
     ORDER BY block_timestamp DESC,logical_id DESC LIMIT $3`,
-    [config.chainId, tokenAddress, limit, beforeAt, beforeId, viewer || "", followed, blocked]),
+      [
+        config.chainId,
+        tokenAddress,
+        limit,
+        beforeAt,
+        beforeId,
+        viewer || "",
+        followed,
+        blocked,
+      ],
+    ),
     followed.length
-      ? pool.query(`SELECT COUNT(*) AS traders FROM (
+      ? pool.query(
+          `SELECT COUNT(*) AS traders FROM (
           SELECT trader_address AS participant FROM trades WHERE chain_id=$1 AND token_address=$2 AND orphaned=false
           UNION SELECT recipient_address FROM venue_swaps WHERE chain_id=$1 AND token_address=$2 AND orphaned=false
-        ) actors WHERE actors.participant=ANY($3::text[])`, [config.chainId, tokenAddress, followed])
+        ) actors WHERE actors.participant=ANY($3::text[])`,
+          [config.chainId, tokenAddress, followed],
+        )
       : Promise.resolve({ rows: [{ traders: 0 }] }),
   ]);
   const items = result.rows.map((row) => ({
@@ -713,8 +1019,10 @@ async function marketTrades(url, tokenAddress, viewer) {
     feeQuote: String(row.fee_quote),
     creatorTaxQuote: String(row.creator_tax_quote),
     tokenAmount: String(row.token_amount),
-    virtualQuoteAfter: row.virtual_quote_after === null ? null : String(row.virtual_quote_after),
-    virtualTokenAfter: row.virtual_token_after === null ? null : String(row.virtual_token_after),
+    virtualQuoteAfter:
+      row.virtual_quote_after === null ? null : String(row.virtual_quote_after),
+    virtualTokenAfter:
+      row.virtual_token_after === null ? null : String(row.virtual_token_after),
     soldAfter: row.sold_after === null ? null : String(row.sold_after),
     transactionHash: row.transaction_hash,
     blockNumber: String(row.block_number),
@@ -730,44 +1038,56 @@ async function marketTrades(url, tokenAddress, viewer) {
   return {
     followingTraderCount: Number(followedHere.rows[0]?.traders || 0),
     items,
-    nextCursor: last ? encodeCursor({ at: last.block_timestamp, id: last.logical_id }) : null,
+    nextCursor: last
+      ? encodeCursor({ at: last.block_timestamp, id: last.logical_id })
+      : null,
   };
 }
 
 async function marketCandles(url, tokenAddress) {
   const interval = Number(url.searchParams.get("interval") || 300);
   if (![60, 300, 900, 3_600, 14_400, 86_400].includes(interval)) {
-    throw Object.assign(new Error("Unsupported candle interval."), { status: 400 });
+    throw Object.assign(new Error("Unsupported candle interval."), {
+      status: 400,
+    });
   }
   const from = url.searchParams.get("from");
   const limit = boundedLimit(url, 500, 2_000);
-  const result = await pool.query(`SELECT bucket_start,open_price_x18,high_price_x18,low_price_x18,close_price_x18,
+  const result = await pool.query(
+    `SELECT bucket_start,open_price_x18,high_price_x18,low_price_x18,close_price_x18,
       gross_quote_volume,wallet_cash_turnover,token_volume,trade_count,buy_count,sell_count
     FROM market_candles WHERE chain_id=$1 AND token_address=$2 AND interval_seconds=$3
       AND ($4::timestamptz IS NULL OR bucket_start>=$4::timestamptz)
-    ORDER BY bucket_start DESC LIMIT $5`, [config.chainId, tokenAddress, interval, from, limit]);
-  return { intervalSeconds: interval, items: result.rows.reverse().map((row) => ({
-    bucketStart: row.bucket_start,
-    openPriceX18: String(row.open_price_x18),
-    highPriceX18: String(row.high_price_x18),
-    lowPriceX18: String(row.low_price_x18),
-    closePriceX18: String(row.close_price_x18),
-    grossQuoteVolume: String(row.gross_quote_volume),
-    walletCashTurnover: String(row.wallet_cash_turnover),
-    tokenVolume: String(row.token_volume),
-    tradeCount: Number(row.trade_count),
-    buyCount: Number(row.buy_count),
-    sellCount: Number(row.sell_count),
-  })) };
+    ORDER BY bucket_start DESC LIMIT $5`,
+    [config.chainId, tokenAddress, interval, from, limit],
+  );
+  return {
+    intervalSeconds: interval,
+    items: result.rows.reverse().map((row) => ({
+      bucketStart: row.bucket_start,
+      openPriceX18: String(row.open_price_x18),
+      highPriceX18: String(row.high_price_x18),
+      lowPriceX18: String(row.low_price_x18),
+      closePriceX18: String(row.close_price_x18),
+      grossQuoteVolume: String(row.gross_quote_volume),
+      walletCashTurnover: String(row.wallet_cash_turnover),
+      tokenVolume: String(row.token_volume),
+      tradeCount: Number(row.trade_count),
+      buyCount: Number(row.buy_count),
+      sellCount: Number(row.sell_count),
+    })),
+  };
 }
 
 async function marketHolders(url, tokenAddress, viewer) {
   const atBlockValue = url.searchParams.get("atBlock");
-  const atBlock = atBlockValue && /^\d+$/.test(atBlockValue) ? atBlockValue : null;
+  const atBlock =
+    atBlockValue && /^\d+$/.test(atBlockValue) ? atBlockValue : null;
   const limit = boundedLimit(url, 100, 500);
   const graph = await pulseGraph(viewer);
   const followed = [...graph.followed];
-  const result = await pool.query(`WITH balances AS (
+  const result = await pool.query(
+    `WITH balances AS (
       SELECT wallet,SUM(delta) AS balance FROM (
         SELECT to_address AS wallet,amount AS delta FROM asset_transfers
           WHERE chain_id=$1 AND token_address=$2 AND orphaned=false AND ($3::numeric IS NULL OR block_number<=$3)
@@ -783,17 +1103,23 @@ async function marketHolders(url, tokenAddress, viewer) {
       SUM(balance) OVER () AS eligible_supply,
       COUNT(*) FILTER (WHERE wallet=ANY($5::text[])) OVER () AS followed_count
     FROM eligible ORDER BY balance DESC,wallet ASC LIMIT $4`,
-  [config.chainId, tokenAddress, atBlock, limit, followed]);
+    [config.chainId, tokenAddress, atBlock, limit, followed],
+  );
   return {
     atBlock,
     eligibleSupply: String(result.rows[0]?.eligible_supply || 0),
     followedHolderCount: Number(result.rows[0]?.followed_count || 0),
-    items: result.rows.map((row) => ({ address: row.address, balance: String(row.balance), isFollowed: Boolean(row.is_followed) })),
+    items: result.rows.map((row) => ({
+      address: row.address,
+      balance: String(row.balance),
+      isFollowed: Boolean(row.is_followed),
+    })),
   };
 }
 
 async function protocolStats() {
-  const result = await pool.query(`SELECT
+  const result = await pool.query(
+    `SELECT
       COUNT(*) FILTER (WHERE orphaned=false) AS markets,
       COUNT(*) FILTER (WHERE orphaned=false AND graduated=true) AS graduated,
       COALESCE((SELECT SUM(gross_curve_quote) FROM trades WHERE chain_id=$1 AND orphaned=false),0) AS gross_quote_volume,
@@ -809,7 +1135,9 @@ async function protocolStats() {
       COALESCE((SELECT SUM(quote_spent) FROM buyback_executions WHERE chain_id=$1 AND orphaned=false),0) AS buyback_quote_spent,
       COALESCE((SELECT SUM(amount) FROM protocol_flows pf WHERE pf.chain_id=$1 AND pf.orphaned=false AND pf.category='pool_fee'
         AND pf.asset_address=(SELECT address FROM protocol_accounts WHERE chain_id=$1 AND role='quote' LIMIT 1)),0) AS pool_quote_fees
-    FROM markets WHERE chain_id=$1`, [config.chainId]);
+    FROM markets WHERE chain_id=$1`,
+    [config.chainId],
+  );
   const row = result.rows[0];
   return {
     markets: Number(row.markets || 0),
@@ -825,7 +1153,10 @@ async function protocolStats() {
 }
 
 export function createSocialServer({ subscribe } = {}) {
-  const eventHub = createOutboxHub({ query: (...args) => pool.query(...args), subscribe });
+  const eventHub = createOutboxHub({
+    query: (...args) => pool.query(...args),
+    subscribe,
+  });
   return createServer(async (request, response) => {
     const url = new URL(request.url || "/", config.publicOrigin);
     try {
@@ -838,8 +1169,15 @@ export function createSocialServer({ subscribe } = {}) {
         return response.end();
       }
       if (request.method === "GET" && url.pathname === "/health") {
-        const result = await pool.query("SELECT stream, next_block, updated_at FROM chain_cursors WHERE chain_id=$1", [config.chainId]);
-        return send(request, response, 200, { ok: true, chainId: config.chainId, cursors: result.rows });
+        const result = await pool.query(
+          "SELECT stream, next_block, updated_at FROM chain_cursors WHERE chain_id=$1",
+          [config.chainId],
+        );
+        return send(request, response, 200, {
+          ok: true,
+          chainId: config.chainId,
+          cursors: result.rows,
+        });
       }
       if (request.method === "GET" && url.pathname === "/v1/events") {
         await openEventStream(request, response, eventHub);
@@ -847,92 +1185,177 @@ export function createSocialServer({ subscribe } = {}) {
       }
 
       const viewer = await viewerFor(request);
-      const rnsMatch = url.pathname.match(/^\/v1\/rns\/primary\/(0x[a-fA-F0-9]{40})$/);
+      const rnsMatch = url.pathname.match(
+        /^\/v1\/rns\/primary\/(0x[a-fA-F0-9]{40})$/,
+      );
       if (request.method === "GET" && rnsMatch) {
         const address = addressParam(rnsMatch[1]);
-        return send(request, response, 200, await resolveRns(address, request.socket.remoteAddress));
+        return send(
+          request,
+          response,
+          200,
+          await resolveRns(address, request.socket.remoteAddress),
+        );
       }
-      if (request.method === "GET" && url.pathname === "/v1/me") return send(request, response, 200, { address: viewer });
+      if (request.method === "GET" && url.pathname === "/v1/me")
+        return send(request, response, 200, { address: viewer });
       if (request.method === "POST" && url.pathname === "/v1/me") {
         const address = await requirePrivyWallet(request);
         await claimProfile(pool, config.chainId, address);
         return send(request, response, 200, { address });
       }
-      if (request.method === "GET" && url.pathname === "/v1/feed") return send(request, response, 200, await feed(url, viewer));
-      if (request.method === "GET" && url.pathname === "/v1/pulse") return send(request, response, 200, await pulse(url, viewer));
-      if (request.method === "GET" && url.pathname === "/v1/following/activity") return send(request, response, 200, await followingActivity(viewer));
-      if (request.method === "GET" && url.pathname.startsWith("/v1/leaderboards/")) return send(request, response, 200, await leaderboards(url, viewer));
-      if (request.method === "GET" && url.pathname === "/v1/markets") return send(request, response, 200, await markets(url));
-      if (request.method === "GET" && url.pathname === "/v1/protocol/stats") return send(request, response, 200, await protocolStats());
+      if (request.method === "GET" && url.pathname === "/v1/feed")
+        return send(request, response, 200, await feed(url, viewer));
+      if (request.method === "GET" && url.pathname === "/v1/pulse")
+        return send(request, response, 200, await pulse(url, viewer));
+      if (request.method === "GET" && url.pathname === "/v1/following/activity")
+        return send(request, response, 200, await followingActivity(viewer));
+      if (
+        request.method === "GET" &&
+        url.pathname.startsWith("/v1/leaderboards/")
+      )
+        return send(request, response, 200, await leaderboards(url, viewer));
+      if (request.method === "GET" && url.pathname === "/v1/markets")
+        return send(request, response, 200, await markets(url));
+      if (request.method === "GET" && url.pathname === "/v1/protocol/stats")
+        return send(request, response, 200, await protocolStats());
 
-      const marketTradesMatch = url.pathname.match(/^\/v1\/markets\/(0x[a-fA-F0-9]{40})\/trades$/);
+      const marketTradesMatch = url.pathname.match(
+        /^\/v1\/markets\/(0x[a-fA-F0-9]{40})\/trades$/,
+      );
       if (request.method === "GET" && marketTradesMatch) {
-        return send(request, response, 200, await marketTrades(url, addressParam(marketTradesMatch[1]), viewer));
+        return send(
+          request,
+          response,
+          200,
+          await marketTrades(url, addressParam(marketTradesMatch[1]), viewer),
+        );
       }
-      const marketCandlesMatch = url.pathname.match(/^\/v1\/markets\/(0x[a-fA-F0-9]{40})\/candles$/);
+      const marketCandlesMatch = url.pathname.match(
+        /^\/v1\/markets\/(0x[a-fA-F0-9]{40})\/candles$/,
+      );
       if (request.method === "GET" && marketCandlesMatch) {
-        return send(request, response, 200, await marketCandles(url, addressParam(marketCandlesMatch[1])));
+        return send(
+          request,
+          response,
+          200,
+          await marketCandles(url, addressParam(marketCandlesMatch[1])),
+        );
       }
-      const marketHoldersMatch = url.pathname.match(/^\/v1\/markets\/(0x[a-fA-F0-9]{40})\/holders$/);
+      const marketHoldersMatch = url.pathname.match(
+        /^\/v1\/markets\/(0x[a-fA-F0-9]{40})\/holders$/,
+      );
       if (request.method === "GET" && marketHoldersMatch) {
-        return send(request, response, 200, await marketHolders(url, addressParam(marketHoldersMatch[1]), viewer));
+        return send(
+          request,
+          response,
+          200,
+          await marketHolders(url, addressParam(marketHoldersMatch[1]), viewer),
+        );
       }
-      const marketMatch = url.pathname.match(/^\/v1\/markets\/(0x[a-fA-F0-9]{40})$/);
+      const marketMatch = url.pathname.match(
+        /^\/v1\/markets\/(0x[a-fA-F0-9]{40})$/,
+      );
       if (request.method === "GET" && marketMatch) {
-        return send(request, response, 200, await market(addressParam(marketMatch[1])));
+        return send(
+          request,
+          response,
+          200,
+          await market(addressParam(marketMatch[1])),
+        );
       }
 
-      const profileMatch = url.pathname.match(/^\/v1\/profiles\/(0x[a-fA-F0-9]{40})$/);
+      const profileMatch = url.pathname.match(
+        /^\/v1\/profiles\/(0x[a-fA-F0-9]{40})$/,
+      );
       if (request.method === "GET" && profileMatch) {
         const address = addressParam(profileMatch[1]);
         return send(request, response, 200, await profile(address, viewer));
       }
 
-      const followMatch = url.pathname.match(/^\/v1\/follows\/(0x[a-fA-F0-9]{40})$/);
+      const followMatch = url.pathname.match(
+        /^\/v1\/follows\/(0x[a-fA-F0-9]{40})$/,
+      );
       if (followMatch && ["POST", "DELETE"].includes(request.method)) {
         const follower = await requirePrivyWallet(request);
         limitSocialWrite(request, follower);
         const followed = addressParam(followMatch[1]);
-        if (!followed || followed === follower) throw Object.assign(new Error("Choose another trader to follow."), { status: 400 });
+        if (!followed || followed === follower)
+          throw Object.assign(new Error("Choose another trader to follow."), {
+            status: 400,
+          });
         if (request.method === "POST") {
           await transaction(async (db) => {
-            const blocked = await db.query(`SELECT 1 FROM blocks WHERE chain_id=$1 AND (
+            const blocked = await db.query(
+              `SELECT 1 FROM blocks WHERE chain_id=$1 AND (
               (blocker_address=$2 AND blocked_address=$3) OR (blocker_address=$3 AND blocked_address=$2)
-            )`, [config.chainId, follower, followed]);
-            if (blocked.rowCount) throw Object.assign(new Error("This follow is unavailable because one wallet has blocked the other."), { status: 409 });
-            const inserted = await db.query("INSERT INTO follows (chain_id,follower_address,followed_address) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING RETURNING followed_address", [config.chainId, follower, followed]);
+            )`,
+              [config.chainId, follower, followed],
+            );
+            if (blocked.rowCount)
+              throw Object.assign(
+                new Error(
+                  "This follow is unavailable because one wallet has blocked the other.",
+                ),
+                { status: 409 },
+              );
+            const inserted = await db.query(
+              "INSERT INTO follows (chain_id,follower_address,followed_address) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING RETURNING followed_address",
+              [config.chainId, follower, followed],
+            );
             if (inserted.rowCount) {
-              await db.query(`INSERT INTO notifications (chain_id,recipient_address,kind,actor_address,logical_event_id,payload)
+              await db.query(
+                `INSERT INTO notifications (chain_id,recipient_address,kind,actor_address,logical_event_id,payload)
                 SELECT $1,$2,'new_follower',$3,$4,'{}'
                 WHERE COALESCE((SELECT in_app AND new_followers FROM notification_preferences WHERE chain_id=$1 AND address=$2),true)`,
-              [config.chainId, followed, follower, randomUUID()]);
+                [config.chainId, followed, follower, randomUUID()],
+              );
             }
           });
         } else {
-          await pool.query("DELETE FROM follows WHERE chain_id=$1 AND follower_address=$2 AND followed_address=$3", [config.chainId, follower, followed]);
+          await pool.query(
+            "DELETE FROM follows WHERE chain_id=$1 AND follower_address=$2 AND followed_address=$3",
+            [config.chainId, follower, followed],
+          );
         }
         pulseGraphCache.delete(follower);
         pulseTradeCache.delete(`1h:${follower}`);
         pulseTradeCache.delete(`24h:${follower}`);
         leaderboardPublicCache.clear();
-        return send(request, response, 200, { following: request.method === "POST" });
+        return send(request, response, 200, {
+          following: request.method === "POST",
+        });
       }
 
-      const blockMatch = url.pathname.match(/^\/v1\/blocks\/(0x[a-fA-F0-9]{40})$/);
+      const blockMatch = url.pathname.match(
+        /^\/v1\/blocks\/(0x[a-fA-F0-9]{40})$/,
+      );
       if (blockMatch && ["POST", "DELETE"].includes(request.method)) {
         const blocker = await requirePrivyWallet(request);
         limitSocialWrite(request, blocker);
         const blocked = addressParam(blockMatch[1]);
-        if (!blocked || blocked === blocker) throw Object.assign(new Error("Choose another trader to block."), { status: 400 });
+        if (!blocked || blocked === blocker)
+          throw Object.assign(new Error("Choose another trader to block."), {
+            status: 400,
+          });
         if (request.method === "POST") {
           await transaction(async (db) => {
-            await db.query("INSERT INTO blocks (chain_id,blocker_address,blocked_address) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING", [config.chainId, blocker, blocked]);
-            await db.query(`DELETE FROM follows WHERE chain_id=$1 AND (
+            await db.query(
+              "INSERT INTO blocks (chain_id,blocker_address,blocked_address) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING",
+              [config.chainId, blocker, blocked],
+            );
+            await db.query(
+              `DELETE FROM follows WHERE chain_id=$1 AND (
               (follower_address=$2 AND followed_address=$3) OR (follower_address=$3 AND followed_address=$2)
-            )`, [config.chainId, blocker, blocked]);
+            )`,
+              [config.chainId, blocker, blocked],
+            );
           });
         } else {
-          await pool.query("DELETE FROM blocks WHERE chain_id=$1 AND blocker_address=$2 AND blocked_address=$3", [config.chainId, blocker, blocked]);
+          await pool.query(
+            "DELETE FROM blocks WHERE chain_id=$1 AND blocker_address=$2 AND blocked_address=$3",
+            [config.chainId, blocker, blocked],
+          );
         }
         pulseGraphCache.delete(blocker);
         pulseGraphCache.delete(blocked);
@@ -944,7 +1367,9 @@ export function createSocialServer({ subscribe } = {}) {
           pulseTradeCache.delete(`1h:${address}`);
           pulseTradeCache.delete(`24h:${address}`);
         }
-        return send(request, response, 200, { blocked: request.method === "POST" });
+        return send(request, response, 200, {
+          blocked: request.method === "POST",
+        });
       }
 
       if (request.method === "POST" && url.pathname === "/v1/reports") {
@@ -952,11 +1377,28 @@ export function createSocialServer({ subscribe } = {}) {
         limitSocialWrite(request, reporter);
         const body = await readJson(request);
         const subject = addressParam(body.subjectAddress);
-        const allowed = new Set(["spam", "impersonation", "manipulation", "harmful_content", "other"]);
-        const tradeId = body.tradeId == null ? null
-          : typeof body.tradeId === "string" && body.tradeId.length <= 256 ? body.tradeId : "";
-        if (!subject || subject === reporter || !allowed.has(body.reason) || (body.tradeId != null && !tradeId)) {
-          throw Object.assign(new Error("Choose a valid report reason."), { status: 400 });
+        const allowed = new Set([
+          "spam",
+          "impersonation",
+          "manipulation",
+          "harmful_content",
+          "other",
+        ]);
+        const tradeId =
+          body.tradeId == null
+            ? null
+            : typeof body.tradeId === "string" && body.tradeId.length <= 256
+              ? body.tradeId
+              : "";
+        if (
+          !subject ||
+          subject === reporter ||
+          !allowed.has(body.reason) ||
+          (body.tradeId != null && !tradeId)
+        ) {
+          throw Object.assign(new Error("Choose a valid report reason."), {
+            status: 400,
+          });
         }
         if (tradeId) {
           const trade = await pool.query(
@@ -964,12 +1406,22 @@ export function createSocialServer({ subscribe } = {}) {
             [tradeId, config.chainId],
           );
           if (!trade.rows[0] || trade.rows[0].trader_address !== subject) {
-            throw Object.assign(new Error("The reported trade does not belong to that wallet."), { status: 400 });
+            throw Object.assign(
+              new Error("The reported trade does not belong to that wallet."),
+              { status: 400 },
+            );
           }
         }
         await pool.query(
           "INSERT INTO reports (chain_id,reporter_address,subject_address,subject_trade_id,reason,details) VALUES ($1,$2,$3,$4,$5,$6)",
-          [config.chainId, reporter, subject, tradeId, body.reason, typeof body.details === "string" ? body.details.slice(0, 1000) : ""],
+          [
+            config.chainId,
+            reporter,
+            subject,
+            tradeId,
+            body.reason,
+            typeof body.details === "string" ? body.details.slice(0, 1000) : "",
+          ],
         );
         return send(request, response, 201, { ok: true });
       }
@@ -979,14 +1431,30 @@ export function createSocialServer({ subscribe } = {}) {
         limitSocialWrite(request, author);
         const body = await readJson(request);
         const tradeId = typeof body.tradeId === "string" ? body.tradeId : "";
-        const note = typeof body.note === "string" ? body.note.trim().slice(0, 240) : "";
-        const trade = await pool.query("SELECT trader_address FROM trades WHERE logical_id=$1 AND chain_id=$2 AND orphaned=false", [tradeId, config.chainId]);
-        if (!trade.rows[0] || trade.rows[0].trader_address !== author) throw Object.assign(new Error("Only the wallet that made this trade can attach a note."), { status: 403 });
+        const note =
+          typeof body.note === "string" ? body.note.trim().slice(0, 240) : "";
+        const trade = await pool.query(
+          "SELECT trader_address FROM trades WHERE logical_id=$1 AND chain_id=$2 AND orphaned=false",
+          [tradeId, config.chainId],
+        );
+        if (!trade.rows[0] || trade.rows[0].trader_address !== author)
+          throw Object.assign(
+            new Error(
+              "Only the wallet that made this trade can attach a note.",
+            ),
+            { status: 403 },
+          );
         if (note) {
-          await pool.query(`INSERT INTO trade_notes (logical_trade_id,chain_id,author_address,note) VALUES ($1,$2,$3,$4)
-            ON CONFLICT (logical_trade_id) DO UPDATE SET note=EXCLUDED.note,updated_at=now()`, [tradeId, config.chainId, author, note]);
+          await pool.query(
+            `INSERT INTO trade_notes (logical_trade_id,chain_id,author_address,note) VALUES ($1,$2,$3,$4)
+            ON CONFLICT (logical_trade_id) DO UPDATE SET note=EXCLUDED.note,updated_at=now()`,
+            [tradeId, config.chainId, author, note],
+          );
         } else {
-          await pool.query("DELETE FROM trade_notes WHERE logical_trade_id=$1 AND author_address=$2", [tradeId, author]);
+          await pool.query(
+            "DELETE FROM trade_notes WHERE logical_trade_id=$1 AND author_address=$2",
+            [tradeId, author],
+          );
         }
         return send(request, response, 200, { note: note || null });
       }
@@ -996,59 +1464,105 @@ export function createSocialServer({ subscribe } = {}) {
         limitSocialWrite(request, reactor);
         const body = await readJson(request);
         const tradeId = typeof body.tradeId === "string" ? body.tradeId : "";
-        const trade = await pool.query("SELECT trader_address,token_address FROM trades WHERE logical_id=$1 AND chain_id=$2 AND orphaned=false", [tradeId, config.chainId]);
-        if (!trade.rows[0]) throw Object.assign(new Error("Trade not found."), { status: 404 });
-        if (body.active === false) await pool.query("DELETE FROM trade_reactions WHERE logical_trade_id=$1 AND reactor_address=$2", [tradeId, reactor]);
+        const trade = await pool.query(
+          "SELECT trader_address,token_address FROM trades WHERE logical_id=$1 AND chain_id=$2 AND orphaned=false",
+          [tradeId, config.chainId],
+        );
+        if (!trade.rows[0])
+          throw Object.assign(new Error("Trade not found."), { status: 404 });
+        if (body.active === false)
+          await pool.query(
+            "DELETE FROM trade_reactions WHERE logical_trade_id=$1 AND reactor_address=$2",
+            [tradeId, reactor],
+          );
         else {
-          await pool.query("INSERT INTO trade_reactions (logical_trade_id,chain_id,reactor_address) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING", [tradeId, config.chainId, reactor]);
+          await pool.query(
+            "INSERT INTO trade_reactions (logical_trade_id,chain_id,reactor_address) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING",
+            [tradeId, config.chainId, reactor],
+          );
           // Conviction is only worth telling someone about when another wallet gave it.
           if (trade.rows[0].trader_address !== reactor) {
-            await pool.query(`INSERT INTO notifications (chain_id,recipient_address,kind,actor_address,logical_event_id,payload)
+            await pool.query(
+              `INSERT INTO notifications (chain_id,recipient_address,kind,actor_address,logical_event_id,payload)
               SELECT $1,$2,'reaction',$3,$4,$5::jsonb
               WHERE COALESCE((SELECT in_app FROM notification_preferences WHERE chain_id=$1 AND address=$2),true)=true
               ON CONFLICT DO NOTHING`,
-            [config.chainId, trade.rows[0].trader_address, reactor, `${tradeId}:reaction:${reactor}`,
-              JSON.stringify({ tradeId, tokenAddress: trade.rows[0].token_address })]);
+              [
+                config.chainId,
+                trade.rows[0].trader_address,
+                reactor,
+                `${tradeId}:reaction:${reactor}`,
+                JSON.stringify({
+                  tradeId,
+                  tokenAddress: trade.rows[0].token_address,
+                }),
+              ],
+            );
           }
         }
-        const count = await pool.query("SELECT COUNT(*) AS count FROM trade_reactions WHERE logical_trade_id=$1", [tradeId]);
-        return send(request, response, 200, { active: body.active !== false, count: Number(count.rows[0].count) });
+        const count = await pool.query(
+          "SELECT COUNT(*) AS count FROM trade_reactions WHERE logical_trade_id=$1",
+          [tradeId],
+        );
+        return send(request, response, 200, {
+          active: body.active !== false,
+          count: Number(count.rows[0].count),
+        });
       }
 
       if (request.method === "GET" && url.pathname === "/v1/admin/reports") {
         await requireModerator(request, false);
         const status = url.searchParams.get("status") || "open";
-        if (!new Set(["open", "reviewing", "actioned", "dismissed", "all"]).has(status)) {
-          throw Object.assign(new Error("Unknown report status."), { status: 400 });
+        if (
+          !new Set(["open", "reviewing", "actioned", "dismissed", "all"]).has(
+            status,
+          )
+        ) {
+          throw Object.assign(new Error("Unknown report status."), {
+            status: 400,
+          });
         }
-        const result = await pool.query(`SELECT id,reporter_address,subject_address,subject_trade_id,reason,details,status,
+        const result = await pool.query(
+          `SELECT id,reporter_address,subject_address,subject_trade_id,reason,details,status,
             resolution_note,resolved_at,created_at FROM reports
           WHERE chain_id=$1 AND ($2='all' OR status=$2) ORDER BY created_at ASC LIMIT $3`,
-        [config.chainId, status, boundedLimit(url, 50, 100)]);
+          [config.chainId, status, boundedLimit(url, 50, 100)],
+        );
         return send(request, response, 200, { items: result.rows });
       }
 
-      const reportAdminMatch = url.pathname.match(/^\/v1\/admin\/reports\/(\d+)$/);
+      const reportAdminMatch = url.pathname.match(
+        /^\/v1\/admin\/reports\/(\d+)$/,
+      );
       if (request.method === "PATCH" && reportAdminMatch) {
         await requireModerator(request);
         const body = await readJson(request);
         const status = typeof body.status === "string" ? body.status : "";
-        const resolutionNote = typeof body.resolutionNote === "string" ? body.resolutionNote.trim().slice(0, 1_000) : "";
+        const resolutionNote =
+          typeof body.resolutionNote === "string"
+            ? body.resolutionNote.trim().slice(0, 1_000)
+            : "";
         if (!new Set(["reviewing", "actioned", "dismissed"]).has(status)) {
-          throw Object.assign(new Error("Choose a valid moderation status."), { status: 400 });
+          throw Object.assign(new Error("Choose a valid moderation status."), {
+            status: 400,
+          });
         }
-        const result = await pool.query(`UPDATE reports SET status=$1,resolution_note=$2,
+        const result = await pool.query(
+          `UPDATE reports SET status=$1,resolution_note=$2,
             resolved_at=CASE WHEN $1 IN ('actioned','dismissed') THEN now() ELSE NULL END
           WHERE id=$3 AND chain_id=$4 RETURNING id,status,resolution_note,resolved_at`,
-        [status, resolutionNote, reportAdminMatch[1], config.chainId]);
-        if (!result.rows[0]) throw Object.assign(new Error("Report not found."), { status: 404 });
+          [status, resolutionNote, reportAdminMatch[1], config.chainId],
+        );
+        if (!result.rows[0])
+          throw Object.assign(new Error("Report not found."), { status: 404 });
         return send(request, response, 200, result.rows[0]);
       }
 
       if (request.method === "GET" && url.pathname === "/v1/notifications") {
         const address = await requirePrivyWallet(request, false);
         const [result, unread] = await Promise.all([
-          pool.query(`SELECT n.id,n.kind,n.actor_address,
+          pool.query(
+            `SELECT n.id,n.kind,n.actor_address,
               n.payload || jsonb_strip_nulls(jsonb_build_object(
                 'tokenName',m.name,'tokenSymbol',m.symbol
               )) AS payload,n.read_at,n.created_at
@@ -1057,38 +1571,93 @@ export function createSocialServer({ subscribe } = {}) {
             WHERE n.chain_id=$1 AND n.recipient_address=$2
               AND ($3::text[] IS NULL OR n.kind=ANY($3::text[]))
             ORDER BY n.created_at DESC LIMIT $4`,
-          [config.chainId, address, url.searchParams.getAll("kind").length ? url.searchParams.getAll("kind") : null, boundedLimit(url, 30, 100)]),
-          pool.query("SELECT COUNT(*) AS unread FROM notifications WHERE chain_id=$1 AND recipient_address=$2 AND read_at IS NULL", [config.chainId, address]),
+            [
+              config.chainId,
+              address,
+              url.searchParams.getAll("kind").length
+                ? url.searchParams.getAll("kind")
+                : null,
+              boundedLimit(url, 30, 100),
+            ],
+          ),
+          pool.query(
+            "SELECT COUNT(*) AS unread FROM notifications WHERE chain_id=$1 AND recipient_address=$2 AND read_at IS NULL",
+            [config.chainId, address],
+          ),
         ]);
-        return send(request, response, 200, { items: result.rows, unreadCount: Number(unread.rows[0]?.unread || 0) });
-      }
-      if (request.method === "GET" && url.pathname === "/v1/notification-preferences") {
-        const address = await requirePrivyWallet(request, false);
-        const result = await pool.query("SELECT in_app,trade_buys,trade_sells,launches,graduations,new_followers FROM notification_preferences WHERE chain_id=$1 AND address=$2", [config.chainId, address]);
-        return send(request, response, 200, result.rows[0] || {
-          in_app: true, trade_buys: true, trade_sells: true, launches: true, graduations: true, new_followers: true,
+        return send(request, response, 200, {
+          items: result.rows,
+          unreadCount: Number(unread.rows[0]?.unread || 0),
         });
       }
-      if (request.method === "PATCH" && url.pathname === "/v1/notification-preferences") {
+      if (
+        request.method === "GET" &&
+        url.pathname === "/v1/notification-preferences"
+      ) {
+        const address = await requirePrivyWallet(request, false);
+        const result = await pool.query(
+          "SELECT in_app,trade_buys,trade_sells,launches,graduations,new_followers FROM notification_preferences WHERE chain_id=$1 AND address=$2",
+          [config.chainId, address],
+        );
+        return send(
+          request,
+          response,
+          200,
+          result.rows[0] || {
+            in_app: true,
+            trade_buys: true,
+            trade_sells: true,
+            launches: true,
+            graduations: true,
+            new_followers: true,
+          },
+        );
+      }
+      if (
+        request.method === "PATCH" &&
+        url.pathname === "/v1/notification-preferences"
+      ) {
         const address = await requirePrivyWallet(request);
         limitSocialWrite(request, address);
         const body = await readJson(request);
-        const values = ["inApp", "tradeBuys", "tradeSells", "launches", "graduations", "newFollowers"].map((key) => body[key] !== false);
-        const result = await pool.query(`INSERT INTO notification_preferences (chain_id,address,in_app,trade_buys,trade_sells,launches,graduations,new_followers)
+        const values = [
+          "inApp",
+          "tradeBuys",
+          "tradeSells",
+          "launches",
+          "graduations",
+          "newFollowers",
+        ].map((key) => body[key] !== false);
+        const result = await pool.query(
+          `INSERT INTO notification_preferences (chain_id,address,in_app,trade_buys,trade_sells,launches,graduations,new_followers)
           VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (chain_id,address) DO UPDATE SET
           in_app=EXCLUDED.in_app,trade_buys=EXCLUDED.trade_buys,trade_sells=EXCLUDED.trade_sells,
           launches=EXCLUDED.launches,graduations=EXCLUDED.graduations,new_followers=EXCLUDED.new_followers
-          RETURNING in_app,trade_buys,trade_sells,launches,graduations,new_followers`, [config.chainId, address, ...values]);
+          RETURNING in_app,trade_buys,trade_sells,launches,graduations,new_followers`,
+          [config.chainId, address, ...values],
+        );
         return send(request, response, 200, result.rows[0]);
       }
-      if (request.method === "PATCH" && url.pathname === "/v1/notifications/read") {
+      if (
+        request.method === "PATCH" &&
+        url.pathname === "/v1/notifications/read"
+      ) {
         const address = await requirePrivyWallet(request);
         limitSocialWrite(request, address);
         const body = await readJson(request);
         const ids = Array.isArray(body.ids)
-          ? body.ids.filter((id) => (Number.isInteger(id) && id >= 0) || (typeof id === "string" && /^\d+$/.test(id))).slice(0, 100)
+          ? body.ids
+              .filter(
+                (id) =>
+                  (Number.isInteger(id) && id >= 0) ||
+                  (typeof id === "string" && /^\d+$/.test(id)),
+              )
+              .slice(0, 100)
           : [];
-        await pool.query("UPDATE notifications SET read_at=now() WHERE chain_id=$1 AND recipient_address=$2 AND id=ANY($3::bigint[])", [config.chainId, address, ids]);
+        await pool.query(
+          "UPDATE notifications SET read_at=now() WHERE chain_id=$1 AND recipient_address=$2 AND id=ANY($3::bigint[])",
+          [config.chainId, address, ids],
+        );
         return send(request, response, 200, { ok: true });
       }
 
@@ -1100,8 +1669,18 @@ export function createSocialServer({ subscribe } = {}) {
         console.error(error);
       }
       if (response.headersSent) return response.end();
-      return send(request, response, status, { error: status >= 500 ? "The social service could not complete this request." : error.message },
-        error.retryAfter ? { "Retry-After": String(error.retryAfter) } : {});
+      return send(
+        request,
+        response,
+        status,
+        {
+          error:
+            status >= 500
+              ? "The social service could not complete this request."
+              : error.message,
+        },
+        error.retryAfter ? { "Retry-After": String(error.retryAfter) } : {},
+      );
     }
   });
 }

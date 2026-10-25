@@ -23,16 +23,28 @@ export function defineCurveballDeployment(input: {
   const slippageBps = input.slippageBps ?? 300;
   const deadlineSeconds = input.deadlineSeconds ?? 300;
 
-  if (![RISE_TESTNET_CHAIN_ID, RISE_MAINNET_CHAIN_ID, 31_337].includes(input.chainId)) {
+  if (
+    ![RISE_TESTNET_CHAIN_ID, RISE_MAINNET_CHAIN_ID, 31_337].includes(
+      input.chainId,
+    )
+  ) {
     throw new Error(
       "Curveball requires RISE Testnet, RISE mainnet, or a local Anvil chain.",
     );
   }
-  if (!Number.isInteger(slippageBps) || slippageBps < 0 || slippageBps >= 10_000) {
-    throw new Error("Curveball slippage must be an integer from 0 to 9,999 bps.");
+  if (
+    !Number.isInteger(slippageBps) ||
+    slippageBps < 0 ||
+    slippageBps >= 10_000
+  ) {
+    throw new Error(
+      "Curveball slippage must be an integer from 0 to 9,999 bps.",
+    );
   }
   if (!Number.isInteger(deadlineSeconds) || deadlineSeconds <= 0) {
-    throw new Error("Curveball transaction deadline must be a positive number of seconds.");
+    throw new Error(
+      "Curveball transaction deadline must be a positive number of seconds.",
+    );
   }
 
   return Object.freeze({
@@ -45,7 +57,11 @@ export function defineCurveballDeployment(input: {
 
 export function applySlippage(amount: bigint, slippageBps: number): bigint {
   if (amount < 0n) throw new Error("Amount cannot be negative.");
-  if (!Number.isInteger(slippageBps) || slippageBps < 0 || slippageBps >= 10_000) {
+  if (
+    !Number.isInteger(slippageBps) ||
+    slippageBps < 0 ||
+    slippageBps >= 10_000
+  ) {
     throw new Error("Invalid slippage.");
   }
   return (amount * BigInt(10_000 - slippageBps)) / 10_000n;
@@ -66,13 +82,19 @@ export function validateTokenInput(input: TokenInput): TokenInput {
     throw new Error("Token name must contain 1–64 UTF-8 bytes.");
   }
   if (!/^[A-Z0-9]{1,12}$/.test(symbol)) {
-    throw new Error("Token symbol must contain 1–12 uppercase letters or numbers.");
+    throw new Error(
+      "Token symbol must contain 1–12 uppercase letters or numbers.",
+    );
   }
   // The launchpad rejects an empty URI, so a launch always needs published metadata.
   if (!uri) throw new Error("Token metadata URI is required.");
-  if (new TextEncoder().encode(uri).length > 2_048) throw new Error("Token metadata URI is too long.");
+  if (new TextEncoder().encode(uri).length > 2_048)
+    throw new Error("Token metadata URI is too long.");
   const isHttps = /^https:\/\/[^\s]+$/i.test(uri);
-  const isIpfs = /^ipfs:\/\/(Qm[1-9A-HJ-NP-Za-km-z]{44}|baf[a-z2-7]{20,})(\/[^\s]*)?$/i.test(uri);
+  const isIpfs =
+    /^ipfs:\/\/(Qm[1-9A-HJ-NP-Za-km-z]{44}|baf[a-z2-7]{20,})(\/[^\s]*)?$/i.test(
+      uri,
+    );
   if (!isHttps && !isIpfs) {
     throw new Error("Token metadata URI must be a valid HTTPS or IPFS URI.");
   }
@@ -80,7 +102,8 @@ export function validateTokenInput(input: TokenInput): TokenInput {
 }
 
 export function createDeadline(nowMs: number, deadlineSeconds: number): bigint {
-  if (!Number.isFinite(nowMs) || nowMs < 0) throw new Error("Invalid current time.");
+  if (!Number.isFinite(nowMs) || nowMs < 0)
+    throw new Error("Invalid current time.");
   if (!Number.isInteger(deadlineSeconds) || deadlineSeconds <= 0) {
     throw new Error("Invalid transaction deadline.");
   }

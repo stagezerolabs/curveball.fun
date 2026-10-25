@@ -21,16 +21,25 @@ export function useMarketPreviewStats(
   // cached stats to undefined and flickering every card on the list. A slow
   // background interval keeps stats fresh without that churn.
   const tokenSignature = useMemo(
-    () => tokens.map((token) => `${token.address}:${token.factory ?? ""}`).join("|"),
+    () =>
+      tokens
+        .map((token) => `${token.address}:${token.factory ?? ""}`)
+        .join("|"),
     [tokens],
   );
 
   const backendEnabled = Boolean(socialApiBaseUrl);
   const query = useQuery({
-    queryKey: ["markets", "preview-stats", tokenSignature, backendEnabled ? "backend" : "rpc"],
-    queryFn: ({ signal }) => backendEnabled
-      ? fetchMarketPreviewStats(tokens, signal)
-      : loadMarketPreviewStats(client!, tokens, activeDeploymentBlock),
+    queryKey: [
+      "markets",
+      "preview-stats",
+      tokenSignature,
+      backendEnabled ? "backend" : "rpc",
+    ],
+    queryFn: ({ signal }) =>
+      backendEnabled
+        ? fetchMarketPreviewStats(tokens, signal)
+        : loadMarketPreviewStats(client!, tokens, activeDeploymentBlock),
     enabled: tokens.length > 0 && (backendEnabled || Boolean(client)),
     staleTime: 30_000,
     refetchInterval: 60_000,

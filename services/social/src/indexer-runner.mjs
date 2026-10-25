@@ -2,10 +2,12 @@ import { pool } from "./db.mjs";
 import { startIndexer } from "./indexer.mjs";
 import { captureBackendException, flushBackendEvents } from "./instrument.mjs";
 
-const stop = startIndexer({ onError: (error) => {
-  captureBackendException(error, "indexer");
-  console.error("Curveball indexer error", error);
-} });
+const stop = startIndexer({
+  onError: (error) => {
+    captureBackendException(error, "indexer");
+    console.error("Curveball indexer error", error);
+  },
+});
 
 async function shutdown(signal) {
   console.log(`Received ${signal}; stopping Curveball indexer.`);

@@ -1,0 +1,189 @@
+name: curveball-testnet
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+x-social: &social
+  build:
+    context: .
+    dockerfile: services/social/Dockerfile
+  image: curveball-social:${CURVEBALL_RELEASE:?set CURVEBALL_RELEASE}
+  env_file: deploy/social.env
+  environment:
+    SOCIAL_DATABASE_URL: postgresql://curveball:${CURVEBALL_DB_PASSWORD:?set CURVEBALL_DB_PASSWORD}@postgres:5432/curveball
+    SOCIAL_DIRECT_DATABASE_URL: postgresql://curveball:${CURVEBALL_DB_PASSWORD:?set CURVEBALL_DB_PASSWORD}@postgres:5432/curveball
+    SOCIAL_DATABASE_SSL: "false"
+    NODE_ENV: production
+  networks: [app]
+  logging: *default-logging
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: curveball
+      POSTGRES_USER: curveball
+      POSTGRES_PASSWORD: ${CURVEBALL_DB_PASSWORD:?set CURVEBALL_DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [app]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U curveball -d curveball"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    logging: *default-logging
+
+  backup:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      PGHOST: postgres
+      PGDATABASE: curveball
+      PGUSER: curveball
+      PGPASSWORD: ${CURVEBALL_DB_PASSWORD:?set CURVEBALL_DB_PASSWORD}
+    command:
+      - sh
+      - -ec
+      - |
+        while true; do
+          pg_dump --format=custom --file="/backups/curveball-$$(date -u +%Y%m%dT%H%M%SZ).dump"
+          find /backups -type f -name 'curveball-*.dump' -mtime +7 -delete
+          sleep 86400
+        done
+    volumes:
+      - postgres_backups:/backups
+    networks: [app]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging: *default-logging
+
+  migrate:
+    <<: *social
+    restart: "no"
+    command: ["bun", "services/social/src/migrate.mjs"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    <<: *social
+    container_name: curveball-testnet-api
+    restart: unless-stopped
+    command:
+      [
+        "bun",
+        "--preload",
+        "./services/social/src/instrument.mjs",
+        "services/social/src/api.mjs",
+      ]
+    networks: [app, proxy]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8787/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  indexer:
+    <<: *social
+    restart: unless-stopped
+    command:
+      [
+        "bun",
+        "--preload",
+        "./services/social/src/instrument.mjs",
+        "services/social/src/indexer-runner.mjs",
+      ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    <<: *social
+    restart: unless-stopped
+    command:
+      [
+        "bun",
+        "--preload",
+        "./services/social/src/instrument.mjs",
+        "services/social/src/worker.mjs",
+      ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  keeper:
+    build: keeper
+    image: curveball-keeper:${CURVEBALL_RELEASE:?set CURVEBALL_RELEASE}
+    restart: unless-stopped
+    env_file: deploy/keeper.env
+    environment:
+      NODE_ENV: production
+    networks: [app]
+    logging: *default-logging
+
+  web:
+    container_name: curveball-testnet-web
+    build:
+      context: .
+      dockerfile: frontend.production.Dockerfile
+      args:
+        VITE_CHAIN_ID: ${VITE_CHAIN_ID:?set VITE_CHAIN_ID}
+        VITE_RPC_URL: ${VITE_RPC_URL:?set VITE_RPC_URL}
+        VITE_LAUNCHPAD_ADDRESS: ${VITE_LAUNCHPAD_ADDRESS:?set VITE_LAUNCHPAD_ADDRESS}
+        VITE_DEPLOYMENT_BLOCK: ${VITE_DEPLOYMENT_BLOCK:?set VITE_DEPLOYMENT_BLOCK}
+        VITE_PRIVY_APP_ID: ${VITE_PRIVY_APP_ID:?set VITE_PRIVY_APP_ID}
+        VITE_PRIVY_CLIENT_ID: ${VITE_PRIVY_CLIENT_ID:-}
+        VITE_SOCIAL_API_URL: ${VITE_SOCIAL_API_URL:?set VITE_SOCIAL_API_URL}
+        VITE_ADMIN_ADDRESS: ${VITE_ADMIN_ADDRESS:?set VITE_ADMIN_ADDRESS}
+    image: curveball-web:${CURVEBALL_WEB_RELEASE:-${CURVEBALL_RELEASE:?set CURVEBALL_RELEASE}}
+    restart: unless-stopped
+    env_file: deploy/web.env
+    environment:
+      NODE_ENV: production
+    networks: [app, proxy]
+    depends_on:
+      api:
+        condition: service_healthy
+    logging: *default-logging
+
+  web-edge:
+    image: nginx:1.27-alpine
+    container_name: curveball-testnet-web-edge
+    restart: unless-stopped
+    volumes:
+      - ./deploy/nginx-web.conf:/etc/nginx/conf.d/default.conf:ro
+    networks: [proxy]
+    depends_on:
+      web:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8081/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    logging: *default-logging
+
+networks:
+  app:
+  proxy:
+    external: true
+    name: proxy
+
+volumes:
+  postgres_data:
+  postgres_backups:

@@ -129,7 +129,11 @@ export function LandingPage({ navigate }: { navigate: Navigate }) {
             <ActionLink route="markets" navigate={navigate}>
               Launch app
             </ActionLink>
-            <AppLink className="landing-secondary-button" route="launch" navigate={navigate}>
+            <AppLink
+              className="landing-secondary-button"
+              route="launch"
+              navigate={navigate}
+            >
               Create token
             </AppLink>
           </div>
@@ -261,7 +265,11 @@ export function LandingPage({ navigate }: { navigate: Navigate }) {
           <ActionLink route="markets" navigate={navigate}>
             Launch app
           </ActionLink>
-          <AppLink className="landing-secondary-button" route="launch" navigate={navigate}>
+          <AppLink
+            className="landing-secondary-button"
+            route="launch"
+            navigate={navigate}
+          >
             Create token
           </AppLink>
         </div>

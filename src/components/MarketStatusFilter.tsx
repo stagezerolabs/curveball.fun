@@ -1,4 +1,7 @@
-import { SegmentedControl, type SegmentedControlOption } from "./SegmentedControl";
+import {
+  SegmentedControl,
+  type SegmentedControlOption,
+} from "./SegmentedControl";
 
 export type MarketStatusFilterValue = "all" | "curve" | "graduated";
 
@@ -8,15 +11,20 @@ const filters: readonly SegmentedControlOption<MarketStatusFilterValue>[] = [
   { value: "graduated", label: "Graduated" },
 ];
 
-export function MarketStatusFilter({ value, onChange }: {
+export function MarketStatusFilter({
+  value,
+  onChange,
+}: {
   value: MarketStatusFilterValue;
   onChange: (value: MarketStatusFilterValue) => void;
 }) {
-  return <SegmentedControl
-    className="market-filter-group"
-    label="Market status"
-    value={value}
-    options={filters}
-    onChange={onChange}
-  />;
+  return (
+    <SegmentedControl
+      className="market-filter-group"
+      label="Market status"
+      value={value}
+      options={filters}
+      onChange={onChange}
+    />
+  );
 }

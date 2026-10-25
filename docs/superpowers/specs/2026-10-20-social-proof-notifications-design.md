@@ -29,7 +29,7 @@ Per [ADR 0004](../../adr/0004-rns-only-trader-identity.md):
 `followingActivitySql` replaces `followingBuysSql`, served by `GET /v1/following/activity`:
 
 - One row per market a followed wallet touched, with an `actors` array of `{address, action,
-  amountQuoteWei}` aggregated per wallet **and** action, `boughtQuoteWei`, `soldQuoteWei`, `latestAt`.
+amountQuoteWei}` aggregated per wallet **and** action, `boughtQuoteWei`, `soldQuoteWei`, `latestAt`.
   Ordered by most recent activity, then actor count, capped at 12.
 - Actions are `launch` (from `markets.creator_address`), `buy`, and `sell`. Protocol accounts and
   viewer-blocked wallets are excluded, as before.

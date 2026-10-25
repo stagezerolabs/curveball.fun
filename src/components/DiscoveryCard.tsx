@@ -14,7 +14,9 @@ export function DiscoveryCard({
   index: number;
   navigate: Navigate;
 }) {
-  const progress = token.graduated ? 100 : Math.min(100, Math.max(0, token.progress ?? 0));
+  const progress = token.graduated
+    ? 100
+    : Math.min(100, Math.max(0, token.progress ?? 0));
   const status = getMarketDisplayStatus(token);
 
   return (
@@ -37,10 +39,15 @@ export function DiscoveryCard({
           <code>{formatAddress(token.address)}</code>
           <span className="discovery-card-rule" />
           <span className="discovery-card-cap">
-            <strong><UsdAmount weth={token.marketCap} compact /></strong>
+            <strong>
+              <UsdAmount weth={token.marketCap} compact />
+            </strong>
             <small>market cap</small>
           </span>
-          <span className="discovery-card-progress" aria-label={`${formatPercent(progress)} of curve sold`}>
+          <span
+            className="discovery-card-progress"
+            aria-label={`${formatPercent(progress)} of curve sold`}
+          >
             <span style={{ width: `${progress}%` }} />
           </span>
           <span className="discovery-card-progress-label">

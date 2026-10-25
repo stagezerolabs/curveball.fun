@@ -26,16 +26,22 @@ test("optional buy must be a valid nonnegative WETH amount, with or without a fi
   expect(canSubmitLaunch({ ...ready, initialBuy: "0" })).toBe(true);
   expect(canSubmitLaunch({ ...ready, initialBuy: "0.01" })).toBe(true);
   expect(canSubmitLaunch({ ...ready, initialBuy: "-0.01" })).toBe(false);
-  expect(canSubmitLaunch({ ...ready, initialBuy: "0.0000000000000000001" })).toBe(false);
+  expect(
+    canSubmitLaunch({ ...ready, initialBuy: "0.0000000000000000001" }),
+  ).toBe(false);
 });
 
 test("a zero-fee launchpad does not ask for fee consent", () => {
-  expect(canSubmitLaunch({ ...ready, launchFee: 0n, feeAccepted: false })).toBe(true);
+  expect(canSubmitLaunch({ ...ready, launchFee: 0n, feeAccepted: false })).toBe(
+    true,
+  );
 });
 
 test("every launch needs published metadata, because the launchpad rejects an empty URI", () => {
   expect(canSubmitLaunch({ ...ready, artworkUri: "" })).toBe(false);
-  expect(canSubmitLaunch({ ...ready, artworkUri: "https://example.com/meta.json" })).toBe(false);
+  expect(
+    canSubmitLaunch({ ...ready, artworkUri: "https://example.com/meta.json" }),
+  ).toBe(false);
 });
 
 test("the reserve is capped at the launchpad's MAX_RESERVE_BPS", () => {

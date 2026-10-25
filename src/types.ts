@@ -26,6 +26,8 @@ export type Token = {
   price?: number | null;
   targetPrice?: number | null;
   graduationTargetWeth?: string | null;
+  /** Virtual quote seeded into the curve before the first deposit. */
+  initialVirtualQuote?: string | null;
   marketCap?: number | null;
   progress?: number | null;
   supply?: string | null;

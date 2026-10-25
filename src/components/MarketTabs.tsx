@@ -12,11 +12,62 @@ export function MarketTabs({ token }: { token: Token }) {
       </div>
       <div className="tab-panel about-panel">
         <dl className="about-facts">
-          <div><dt>Token</dt><dd><a href={`${EXPLORER_ADDRESS}${token.address}`} target="_blank" rel="noreferrer">{formatAddress(token.address)}</a></dd></div>
-          {token.factory && <div><dt>Launchpad</dt><dd><a href={`${EXPLORER_ADDRESS}${token.factory}`} target="_blank" rel="noreferrer">{formatAddress(token.factory)}</a></dd></div>}
-          <div><dt>Creator</dt><dd><a href={`${EXPLORER_ADDRESS}${token.creator}`} target="_blank" rel="noreferrer">{formatAddress(token.creator)}</a></dd></div>
-          {token.pool && <div><dt>Pool</dt><dd><a href={`${EXPLORER_ADDRESS}${token.pool}`} target="_blank" rel="noreferrer">{formatAddress(token.pool)}</a></dd></div>}
-          <div><dt>Launched</dt><dd>{formatRelativeTime(token.createdAt)}</dd></div>
+          <div>
+            <dt>Token</dt>
+            <dd>
+              <a
+                href={`${EXPLORER_ADDRESS}${token.address}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {formatAddress(token.address)}
+              </a>
+            </dd>
+          </div>
+          {token.factory && (
+            <div>
+              <dt>Launchpad</dt>
+              <dd>
+                <a
+                  href={`${EXPLORER_ADDRESS}${token.factory}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {formatAddress(token.factory)}
+                </a>
+              </dd>
+            </div>
+          )}
+          <div>
+            <dt>Creator</dt>
+            <dd>
+              <a
+                href={`${EXPLORER_ADDRESS}${token.creator}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {formatAddress(token.creator)}
+              </a>
+            </dd>
+          </div>
+          {token.pool && (
+            <div>
+              <dt>Pool</dt>
+              <dd>
+                <a
+                  href={`${EXPLORER_ADDRESS}${token.pool}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {formatAddress(token.pool)}
+                </a>
+              </dd>
+            </div>
+          )}
+          <div>
+            <dt>Launched</dt>
+            <dd>{formatRelativeTime(token.createdAt)}</dd>
+          </div>
         </dl>
       </div>
     </section>

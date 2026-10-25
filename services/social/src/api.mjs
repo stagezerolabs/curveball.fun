@@ -4,7 +4,9 @@ import { createSocialServer } from "./server.mjs";
 import { flushBackendEvents } from "./instrument.mjs";
 
 const server = createSocialServer();
-server.listen(config.port, () => console.log(`Curveball API listening on :${config.port}`));
+server.listen(config.port, () =>
+  console.log(`Curveball API listening on :${config.port}`),
+);
 
 async function shutdown(signal) {
   console.log(`Received ${signal}; stopping Curveball API.`);

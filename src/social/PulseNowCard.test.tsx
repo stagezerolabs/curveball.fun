@@ -16,21 +16,48 @@ const token: Token = {
 };
 const now = 1_000_000;
 const sample = (isBuy: boolean, quoteWei: bigint) => ({
-  token: token.address, trader: token.creator, transactionHash: `0x${"a".repeat(64)}` as const,
-  eventId: String(quoteWei), timestamp: now - 60, price: 1, volume: 1, isBuy, quoteWei,
+  token: token.address,
+  trader: token.creator,
+  transactionHash: `0x${"a".repeat(64)}` as const,
+  eventId: String(quoteWei),
+  timestamp: now - 60,
+  price: 1,
+  volume: 1,
+  isBuy,
+  quoteWei,
 });
-const [moment] = buildNowMoments([sample(true, 3n * 10n ** 18n), sample(false, 10n ** 18n)], [token], "1h", now);
+const [moment] = buildNowMoments(
+  [sample(true, 3n * 10n ** 18n), sample(false, 10n ** 18n)],
+  [token],
+  "1h",
+  now,
+);
 
 test("Now cards show the market, the buy/sell split and net inflow only", () => {
-  const html = renderToStaticMarkup(<PulseNowCard moment={moment} token={token} navigate={() => undefined} />);
+  const html = renderToStaticMarkup(
+    <PulseNowCard moment={moment} token={token} navigate={() => undefined} />,
+  );
   expect(html).toContain("View Glass Orbit market");
   expect(html).toContain("68% to graduation");
   expect(html).toContain("75% of value bought, 25% sold");
   expect(html).toContain("net inflow");
-  for (const removed of ["Trades", "Wallets", "Sample transaction", "Active", "Net buying"]) expect(html).not.toContain(removed);
+  for (const removed of [
+    "Trades",
+    "Wallets",
+    "Sample transaction",
+    "Active",
+    "Net buying",
+  ])
+    expect(html).not.toContain(removed);
 });
 
 test("graduated markets hide the curve progress", () => {
-  const html = renderToStaticMarkup(<PulseNowCard moment={moment} token={{ ...token, graduated: true }} navigate={() => undefined} />);
+  const html = renderToStaticMarkup(
+    <PulseNowCard
+      moment={moment}
+      token={{ ...token, graduated: true }}
+      navigate={() => undefined}
+    />,
+  );
   expect(html).not.toContain("to graduation");
 });

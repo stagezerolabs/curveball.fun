@@ -26,13 +26,23 @@ export function useNotificationPreferences(enabled = true) {
   });
 }
 
-export async function saveNotificationPreferences(queryClient: ReturnType<typeof useQueryClient>, preferences: NotificationPreferences) {
+export async function saveNotificationPreferences(
+  queryClient: ReturnType<typeof useQueryClient>,
+  preferences: NotificationPreferences,
+) {
   const saved = await socialApi.updateNotificationPreferences(preferences);
   queryClient.setQueryData(["social", "notification-preferences"], saved);
   return saved;
 }
 
-const STREAM_EVENTS = ["ready", "launch", "trade", "graduation", "market_update", "social_update"];
+const STREAM_EVENTS = [
+  "ready",
+  "launch",
+  "trade",
+  "graduation",
+  "market_update",
+  "social_update",
+];
 const FEED_REFRESH_MS = 10_000;
 const INBOX_REFRESH_MS = 30_000;
 
@@ -43,7 +53,8 @@ const INBOX_REFRESH_MS = 30_000;
 export function useSocialStream(enabled = true) {
   const queryClient = useQueryClient();
   useEffect(() => {
-    if (!enabled || !socialApiConfigured || typeof EventSource === "undefined") return undefined;
+    if (!enabled || !socialApiConfigured || typeof EventSource === "undefined")
+      return undefined;
     const source = new EventSource(`${socialApiBaseUrl}/v1/events`);
     let lastFeeds = 0;
     let lastInbox = 0;
@@ -56,14 +67,17 @@ export function useSocialStream(enabled = true) {
       }
       if (now - lastInbox >= INBOX_REFRESH_MS) {
         lastInbox = now;
-        void queryClient.invalidateQueries({ queryKey: ["social", "notifications"] });
+        void queryClient.invalidateQueries({
+          queryKey: ["social", "notifications"],
+        });
       }
     };
     for (const name of STREAM_EVENTS) source.addEventListener(name, onEvent);
     // A dropped stream reconnects on its own; per-query intervals keep data moving meanwhile.
     source.onerror = () => undefined;
     return () => {
-      for (const name of STREAM_EVENTS) source.removeEventListener(name, onEvent);
+      for (const name of STREAM_EVENTS)
+        source.removeEventListener(name, onEvent);
       source.close();
     };
   }, [enabled, queryClient]);

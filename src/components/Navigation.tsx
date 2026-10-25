@@ -1,4 +1,10 @@
-import { forwardRef, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { useConnectWallet, usePrivy } from "@privy-io/react-auth";
 import { useAccount, useSwitchChain } from "wagmi";
 import type { AnchorHTMLAttributes, MouseEvent, ReactNode } from "react";
@@ -23,36 +29,32 @@ type AppLinkProps = AnchorHTMLAttributes<HTMLAnchorElement> & {
   children: ReactNode;
 };
 
-export const AppLink = forwardRef<HTMLAnchorElement, AppLinkProps>(function AppLink({
-  route,
-  params,
-  navigate,
-  children,
-  ...props
-}, ref) {
-  const href = routeHref(route, params);
-  return (
-    <a
-      ref={ref}
-      href={href}
-      onClick={(event: MouseEvent<HTMLAnchorElement>) => {
-        if (
-          event.button ||
-          event.metaKey ||
-          event.ctrlKey ||
-          event.shiftKey ||
-          event.altKey
-        )
-          return;
-        event.preventDefault();
-        navigate(route, params);
-      }}
-      {...props}
-    >
-      {children}
-    </a>
-  );
-});
+export const AppLink = forwardRef<HTMLAnchorElement, AppLinkProps>(
+  function AppLink({ route, params, navigate, children, ...props }, ref) {
+    const href = routeHref(route, params);
+    return (
+      <a
+        ref={ref}
+        href={href}
+        onClick={(event: MouseEvent<HTMLAnchorElement>) => {
+          if (
+            event.button ||
+            event.metaKey ||
+            event.ctrlKey ||
+            event.shiftKey ||
+            event.altKey
+          )
+            return;
+          event.preventDefault();
+          navigate(route, params);
+        }}
+        {...props}
+      >
+        {children}
+      </a>
+    );
+  },
+);
 
 export function Brand({ navigate }: { navigate: Navigate }) {
   return (
@@ -109,61 +111,142 @@ export function RiseLogo() {
   );
 }
 
-function WalletNavButton({ address, navigate, profileActive = false }: { address?: Address; navigate: Navigate; profileActive?: boolean }) {
+function WalletNavButton({
+  address,
+  navigate,
+  profileActive = false,
+}: {
+  address?: Address;
+  navigate: Navigate;
+  profileActive?: boolean;
+}) {
   const { ready, authenticated, login } = usePrivy();
   const { connectWallet } = useConnectWallet();
   const { chainId } = useAccount();
   const { switchChain } = useSwitchChain();
   const { label: traderLabel } = useTraderName(address);
 
-  const wrongNetwork = authenticated && Boolean(address && chainId && chainId !== activeChainId);
+  const wrongNetwork =
+    authenticated && Boolean(address && chainId && chainId !== activeChainId);
   // The Privy session can outlive the injected wallet connection (e.g. the site was
   // disconnected inside the wallet). In that state login() would relog an already
   // authenticated user, so offer connectWallet() instead of hiding the pill entirely.
-  const walletLabel = address ? traderLabel : authenticated ? "Connect wallet" : "Sign in";
-  const label = <span className="privy-pill-label">
-    <svg className="wallet-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-      <path d="M3 5.5A2.5 2.5 0 0 1 5.5 3H15v3H5.5A2.5 2.5 0 0 0 3 8.5v6A2.5 2.5 0 0 0 5.5 17H17V7H5.5" />
-      <path d="M17 10h-4a2 2 0 0 0 0 4h4" />
-    </svg>
-    <span className="wallet-label">{walletLabel}</span>
-  </span>;
-
-  if (!authenticated) {
-    return <button className="wallet-button" type="button" disabled={!ready} onClick={login} aria-label="Sign in to Curveball">
-      {label}
-    </button>;
-  }
-
-  if (wrongNetwork) {
-    return <button className="wallet-button" type="button" onClick={() => switchChain({ chainId: activeChainId })} aria-label="Switch wallet to the Curveball network">
-      <svg className="wallet-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+  const walletLabel = address
+    ? traderLabel
+    : authenticated
+      ? "Connect wallet"
+      : "Sign in";
+  const label = (
+    <span className="privy-pill-label">
+      <svg
+        className="wallet-icon"
+        viewBox="0 0 20 20"
+        fill="none"
+        aria-hidden="true"
+      >
         <path d="M3 5.5A2.5 2.5 0 0 1 5.5 3H15v3H5.5A2.5 2.5 0 0 0 3 8.5v6A2.5 2.5 0 0 0 5.5 17H17V7H5.5" />
         <path d="M17 10h-4a2 2 0 0 0 0 4h4" />
       </svg>
-      <span className="wallet-label">Switch network</span>
-    </button>;
+      <span className="wallet-label">{walletLabel}</span>
+    </span>
+  );
+
+  if (!authenticated) {
+    return (
+      <button
+        className="wallet-button"
+        type="button"
+        disabled={!ready}
+        onClick={login}
+        aria-label="Sign in to Curveball"
+      >
+        {label}
+      </button>
+    );
+  }
+
+  if (wrongNetwork) {
+    return (
+      <button
+        className="wallet-button"
+        type="button"
+        onClick={() => switchChain({ chainId: activeChainId })}
+        aria-label="Switch wallet to the Curveball network"
+      >
+        <svg
+          className="wallet-icon"
+          viewBox="0 0 20 20"
+          fill="none"
+          aria-hidden="true"
+        >
+          <path d="M3 5.5A2.5 2.5 0 0 1 5.5 3H15v3H5.5A2.5 2.5 0 0 0 3 8.5v6A2.5 2.5 0 0 0 5.5 17H17V7H5.5" />
+          <path d="M17 10h-4a2 2 0 0 0 0 4h4" />
+        </svg>
+        <span className="wallet-label">Switch network</span>
+      </button>
+    );
   }
 
   if (!address) {
-    return <button className="wallet-button" type="button" disabled={!ready} onClick={connectWallet} aria-label="Connect a wallet to Curveball">
-      {label}
-    </button>;
+    return (
+      <button
+        className="wallet-button"
+        type="button"
+        disabled={!ready}
+        onClick={connectWallet}
+        aria-label="Connect a wallet to Curveball"
+      >
+        {label}
+      </button>
+    );
   }
-  return <AccountPopover address={address} label={walletLabel} navigate={navigate} profileActive={profileActive} />;
+  return (
+    <AccountPopover
+      address={address}
+      label={walletLabel}
+      navigate={navigate}
+      profileActive={profileActive}
+    />
+  );
 }
 
-function NotificationBell({ address, navigate }: { address?: Address; navigate: Navigate }) {
+function NotificationBell({
+  address,
+  navigate,
+}: {
+  address?: Address;
+  navigate: Navigate;
+}) {
   const inbox = useNotifications(address, socialApiConfigured);
   if (!socialApiConfigured || !address) return null;
   const unread = inbox.data?.unreadCount ?? 0;
-  return <AppLink className="nav-bell" route="notifications" navigate={navigate} aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"} title="Notifications">
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M6 8.5a4 4 0 1 1 8 0c0 3 1.2 4.3 1.2 4.3H4.8S6 11.5 6 8.5Z" />
-      <path d="M8.4 15.2a1.7 1.7 0 0 0 3.2 0" />
-    </svg>
-    {unread ? <span className="nav-bell-count" aria-hidden="true">{unread > 9 ? "9+" : unread}</span> : null}
-  </AppLink>;
+  return (
+    <AppLink
+      className="nav-bell"
+      route="notifications"
+      navigate={navigate}
+      aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"}
+      title="Notifications"
+    >
+      <svg
+        viewBox="0 0 20 20"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M6 8.5a4 4 0 1 1 8 0c0 3 1.2 4.3 1.2 4.3H4.8S6 11.5 6 8.5Z" />
+        <path d="M8.4 15.2a1.7 1.7 0 0 0 3.2 0" />
+      </svg>
+      {unread ? (
+        <span className="nav-bell-count" aria-hidden="true">
+          {unread > 9 ? "9+" : unread}
+        </span>
+      ) : null}
+    </AppLink>
+  );
 }
 
 export function Header({
@@ -184,7 +267,9 @@ export function Header({
   const [menuOpen, setMenuOpen] = useState(false);
   const [announcementVisible, setAnnouncementVisible] = useState(() => {
     try {
-      return window.sessionStorage.getItem(RISK_NOTICE_DISMISSED_KEY) !== "true";
+      return (
+        window.sessionStorage.getItem(RISK_NOTICE_DISMISSED_KEY) !== "true"
+      );
     } catch {
       return true;
     }
@@ -216,7 +301,10 @@ export function Header({
       pill.style.removeProperty("transition");
       pillReadyRef.current = true;
     });
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(positionPill);
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(positionPill);
     observer?.observe(nav);
     window.addEventListener("resize", positionPill);
     return () => {
@@ -243,7 +331,9 @@ export function Header({
     setAnnouncementVisible(false);
     try {
       window.sessionStorage.setItem(RISK_NOTICE_DISMISSED_KEY, "true");
-    } catch { /* The notice stays hidden until this page is reloaded. */ }
+    } catch {
+      /* The notice stays hidden until this page is reloaded. */
+    }
   };
   const marketsClass = ["markets", "market"].includes(routeId) ? "active" : "";
   const socialClass = ["social", "trader"].includes(routeId) ? "active" : "";
@@ -276,32 +366,117 @@ export function Header({
       >
         Profile
       </AppLink>
-      {isAdmin && <AppLink className={`nav-link ${adminClass}`} route="admin" navigate={go} aria-current={adminClass ? "page" : undefined}>Admin</AppLink>}
+      {isAdmin && (
+        <AppLink
+          className={`nav-link ${adminClass}`}
+          route="admin"
+          navigate={go}
+          aria-current={adminClass ? "page" : undefined}
+        >
+          Admin
+        </AppLink>
+      )}
     </>
   );
 
   return (
     <>
-      {announcementVisible && <aside className="announcement-bar" aria-label="Trading risk notice">
-        <div className="announcement-inner">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" strokeLinecap="round" aria-hidden="true"><path d="M12 3 22 20H2L12 3Z" /><path d="M12 9v5" /><circle cx="12" cy="17" r=".8" fill="currentColor" stroke="none" /></svg>
-          <p><span className="announcement-desktop-copy">Token market caps can move fast. Trade carefully.</span><span className="announcement-mobile-copy">Market caps move fast. Trade carefully.</span></p>
-          <button className="announcement-close" type="button" aria-label="Dismiss announcement" onClick={dismissAnnouncement}>×</button>
-        </div>
-      </aside>}
+      {announcementVisible && (
+        <aside className="announcement-bar" aria-label="Trading risk notice">
+          <div className="announcement-inner">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <path d="M12 3 22 20H2L12 3Z" />
+              <path d="M12 9v5" />
+              <circle
+                cx="12"
+                cy="17"
+                r=".8"
+                fill="currentColor"
+                stroke="none"
+              />
+            </svg>
+            <p>
+              <span className="announcement-desktop-copy">
+                Token market caps can move fast. Trade carefully.
+              </span>
+              <span className="announcement-mobile-copy">
+                Market caps move fast. Trade carefully.
+              </span>
+            </p>
+            <button
+              className="announcement-close"
+              type="button"
+              aria-label="Dismiss announcement"
+              onClick={dismissAnnouncement}
+            >
+              ×
+            </button>
+          </div>
+        </aside>
+      )}
       <header className="nav wrap">
         <Brand navigate={go} />
-        <nav ref={primaryNavRef} className="nav-primary" aria-label="Main navigation">
-          <span ref={activePillRef} className="nav-active-pill" aria-hidden="true" />
-          <AppLink className={`nav-link ${marketsClass}`} route="markets" navigate={go} aria-current={marketsClass ? "page" : undefined}>Explore</AppLink>
-          <AppLink className={`nav-link ${socialClass}`} route="social" navigate={go} aria-current={socialClass ? "page" : undefined}>Pulse</AppLink>
-          {isAdmin && <AppLink className={`nav-link ${adminClass}`} route="admin" navigate={go} aria-current={adminClass ? "page" : undefined}>Admin</AppLink>}
+        <nav
+          ref={primaryNavRef}
+          className="nav-primary"
+          aria-label="Main navigation"
+        >
+          <span
+            ref={activePillRef}
+            className="nav-active-pill"
+            aria-hidden="true"
+          />
+          <AppLink
+            className={`nav-link ${marketsClass}`}
+            route="markets"
+            navigate={go}
+            aria-current={marketsClass ? "page" : undefined}
+          >
+            Explore
+          </AppLink>
+          <AppLink
+            className={`nav-link ${socialClass}`}
+            route="social"
+            navigate={go}
+            aria-current={socialClass ? "page" : undefined}
+          >
+            Pulse
+          </AppLink>
+          {isAdmin && (
+            <AppLink
+              className={`nav-link ${adminClass}`}
+              route="admin"
+              navigate={go}
+              aria-current={adminClass ? "page" : undefined}
+            >
+              Admin
+            </AppLink>
+          )}
         </nav>
         <div className="nav-actions">
           <ThemeToggle theme={theme} onToggle={onThemeToggle} />
-          <AppLink className="nav-create" route="launch" navigate={go} aria-current={routeId === "launch" ? "page" : undefined}><span aria-hidden="true">＋</span> Create</AppLink>
+          <AppLink
+            className="nav-create"
+            route="launch"
+            navigate={go}
+            aria-current={routeId === "launch" ? "page" : undefined}
+          >
+            <span aria-hidden="true">＋</span> Create
+          </AppLink>
           <NotificationBell address={address} navigate={go} />
-          <WalletNavButton address={address} navigate={go} profileActive={Boolean(profileClass)} />
+          <WalletNavButton
+            address={address}
+            navigate={go}
+            profileActive={Boolean(profileClass)}
+          />
         </div>
         <button
           className="nav-menu"
@@ -321,22 +496,47 @@ export function Header({
         </button>
       </header>
       {menuOpen && (
-        <nav id="nav-sheet" className="nav-sheet wrap" aria-label="Main navigation">
+        <nav
+          id="nav-sheet"
+          className="nav-sheet wrap"
+          aria-label="Main navigation"
+        >
           {primaryLinks}
-          <AppLink className="nav-create" route="launch" navigate={go}>Create token</AppLink>
-          <div className="nav-sheet-theme"><span>Appearance</span><ThemeToggle theme={theme} onToggle={onThemeToggle} /></div>
+          <AppLink className="nav-create" route="launch" navigate={go}>
+            Create token
+          </AppLink>
+          <div className="nav-sheet-theme">
+            <span>Appearance</span>
+            <ThemeToggle theme={theme} onToggle={onThemeToggle} />
+          </div>
         </nav>
       )}
     </>
   );
 }
 
-export function LandingHeader({ address, isAdmin, navigate, theme, onThemeToggle }: { address?: Address; isAdmin: boolean; navigate: Navigate; theme: Theme; onThemeToggle: () => void }) {
+export function LandingHeader({
+  address,
+  isAdmin,
+  navigate,
+  theme,
+  onThemeToggle,
+}: {
+  address?: Address;
+  isAdmin: boolean;
+  navigate: Navigate;
+  theme: Theme;
+  onThemeToggle: () => void;
+}) {
   return (
     <header className="landing-nav wrap">
       <Brand navigate={navigate} />
       <div className="landing-nav-actions">
-        {isAdmin && <AppLink className="nav-link" route="admin" navigate={navigate}>Admin</AppLink>}
+        {isAdmin && (
+          <AppLink className="nav-link" route="admin" navigate={navigate}>
+            Admin
+          </AppLink>
+        )}
         <ThemeToggle theme={theme} onToggle={onThemeToggle} />
         <NotificationBell address={address} navigate={navigate} />
         <WalletNavButton address={address} navigate={navigate} />
@@ -356,9 +556,15 @@ export function LandingFooter({ navigate }: { navigate: Navigate }) {
 
         <nav className="landing-footer-column" aria-label="Product">
           <h2>Product</h2>
-          <AppLink route="markets" navigate={navigate}>Markets</AppLink>
-          <AppLink route="stats" navigate={navigate}>Stats</AppLink>
-          <AppLink route="launch" navigate={navigate}>Launch</AppLink>
+          <AppLink route="markets" navigate={navigate}>
+            Markets
+          </AppLink>
+          <AppLink route="stats" navigate={navigate}>
+            Stats
+          </AppLink>
+          <AppLink route="launch" navigate={navigate}>
+            Launch
+          </AppLink>
           <a href="#landing-faq-title">Docs</a>
         </nav>
 
@@ -380,9 +586,21 @@ export function LandingFooter({ navigate }: { navigate: Navigate }) {
             rel="noreferrer"
           >
             <span>Launchpad</span>
-            <svg className="landing-contract-check" viewBox="0 0 20 20" role="img" aria-label="Official Curveball contract">
+            <svg
+              className="landing-contract-check"
+              viewBox="0 0 20 20"
+              role="img"
+              aria-label="Official Curveball contract"
+            >
               <circle cx="10" cy="10" r="9" fill="currentColor" />
-              <path d="m6 10 2.5 2.5L14 7" fill="none" stroke="var(--on-solid)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path
+                d="m6 10 2.5 2.5L14 7"
+                fill="none"
+                stroke="var(--on-solid)"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </svg>
             <code>{formatAddress(launchpadAddress)}</code>
           </a>

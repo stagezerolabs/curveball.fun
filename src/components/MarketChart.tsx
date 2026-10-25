@@ -2,16 +2,19 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import * as echarts from "echarts/core";
 import { BarChart, CandlestickChart } from "echarts/charts";
-import { DataZoomComponent, GridComponent, MarkLineComponent, TooltipComponent } from "echarts/components";
+import {
+  DataZoomComponent,
+  GridComponent,
+  MarkLineComponent,
+  TooltipComponent,
+} from "echarts/components";
 import { CanvasRenderer } from "echarts/renderers";
 import { usePublicClient } from "wagmi";
 import { MarketActivity } from "./MarketActivity";
+import { MarketDepositsChart } from "./MarketDepositsChart";
 import { UsdAmount, useEthUsdRate } from "./UsdAmount";
 import { curveLaunchpadAbi } from "../sdk/contracts";
-import {
-  activeChainId,
-  activeDeploymentBlock,
-} from "../lib/web3";
+import { activeChainId, activeDeploymentBlock } from "../lib/web3";
 import {
   buildBlockRanges,
   buildCandles,
@@ -27,20 +30,35 @@ import {
   type TradeLogValues,
 } from "../lib/marketChart";
 import { buildMarketChartOptions } from "../lib/marketChartOptions";
-import { candlePriceChange, fetchMarketCandles, fetchMarketTrades } from "../markets/api";
+import {
+  candlePriceChange,
+  fetchMarketCandles,
+  fetchMarketTrades,
+} from "../markets/api";
 import { socialApiBaseUrl } from "../social/api";
-import type { Token } from "../types";
+import type { Navigate, Token } from "../types";
 
-echarts.use([BarChart, CandlestickChart, DataZoomComponent, GridComponent, MarkLineComponent, TooltipComponent, CanvasRenderer]);
+echarts.use([
+  BarChart,
+  CandlestickChart,
+  DataZoomComponent,
+  GridComponent,
+  MarkLineComponent,
+  TooltipComponent,
+  CanvasRenderer,
+]);
 
 const MAX_EVENT_QUERY_BLOCKS = 5_000n;
 const EVENT_QUERY_CONCURRENCY = 6;
 
-const tradePointCache = new Map<string, {
-  lastBlock: bigint;
-  points: TradePoint[];
-  trades: TradeActivity[];
-}>();
+const tradePointCache = new Map<
+  string,
+  {
+    lastBlock: bigint;
+    points: TradePoint[];
+    trades: TradeActivity[];
+  }
+>();
 
 const INTERVALS = [
   { label: "1m", seconds: 60 },
@@ -75,11 +93,19 @@ async function queryTradeLogs(client: ChartClient, token: Token) {
   const cacheKey = `${activeChainId}:${token.address.toLowerCase()}`;
   const cached = tradePointCache.get(cacheKey);
   const latestBlock = await client.getBlockNumber();
-  const createdBlock = parseCreatedBlock(token.createdBlock, activeDeploymentBlock);
-  const fromBlock = cached && cached.lastBlock >= createdBlock
-    ? cached.lastBlock + 1n
-    : createdBlock;
-  const ranges = buildBlockRanges(fromBlock, latestBlock, MAX_EVENT_QUERY_BLOCKS);
+  const createdBlock = parseCreatedBlock(
+    token.createdBlock,
+    activeDeploymentBlock,
+  );
+  const fromBlock =
+    cached && cached.lastBlock >= createdBlock
+      ? cached.lastBlock + 1n
+      : createdBlock;
+  const ranges = buildBlockRanges(
+    fromBlock,
+    latestBlock,
+    MAX_EVENT_QUERY_BLOCKS,
+  );
 
   const eventQuery = {
     address,
@@ -96,7 +122,9 @@ async function queryTradeLogs(client: ChartClient, token: Token) {
       async () => {
         while (nextRange < ranges.length) {
           const range = ranges[nextRange++];
-          logs.push(...await client.getContractEvents({ ...eventQuery, ...range }));
+          logs.push(
+            ...(await client.getContractEvents({ ...eventQuery, ...range })),
+          );
         }
       },
     ),
@@ -119,7 +147,9 @@ async function loadTradePoints(client: ChartClient, token: Token) {
     ...new Set(
       logs
         .map((log) => log.blockNumber)
-        .filter((block): block is bigint => block !== null && block !== undefined),
+        .filter(
+          (block): block is bigint => block !== null && block !== undefined,
+        ),
     ),
   ];
   const timestamps = new Map<bigint, number>();
@@ -145,11 +175,18 @@ async function loadTradePoints(client: ChartClient, token: Token) {
   });
   const points = cached ? [...cached.points, ...newPoints] : newPoints;
   const newTrades = logs.flatMap((log): TradeActivity[] => {
-    const activity = tradeLogToActivity(log, log.blockNumber == null ? undefined : timestamps.get(log.blockNumber));
+    const activity = tradeLogToActivity(
+      log,
+      log.blockNumber == null ? undefined : timestamps.get(log.blockNumber),
+    );
     return activity ? [activity] : [];
   });
   const trades = [...(cached?.trades ?? []), ...newTrades].sort((a, b) =>
-    a.blockNumber === b.blockNumber ? b.logIndex - a.logIndex : a.blockNumber > b.blockNumber ? -1 : 1,
+    a.blockNumber === b.blockNumber
+      ? b.logIndex - a.logIndex
+      : a.blockNumber > b.blockNumber
+        ? -1
+        : 1,
   );
   tradePointCache.set(cacheKey, { lastBlock: latestBlock, points, trades });
   return { points, trades };
@@ -157,10 +194,12 @@ async function loadTradePoints(client: ChartClient, token: Token) {
 
 export function MarketChart({
   token,
+  navigate,
   refreshKey,
   onMarketCapChange,
 }: {
   token: Token;
+  navigate: Navigate;
   refreshKey?: number;
   onMarketCapChange?: (change: MarketPriceChange | null) => void;
 }) {
@@ -196,15 +235,27 @@ export function MarketChart({
     () => toMarketCapPoints(points, token.price, token.marketCap),
     [points, token.marketCap, token.price],
   );
-  const rpcCandles = useMemo(() => buildCandles(marketCapPoints, interval), [marketCapPoints, interval]);
+  const rpcCandles = useMemo(
+    () => buildCandles(marketCapPoints, interval),
+    [marketCapPoints, interval],
+  );
   const candles = backendEnabled ? (backendCandles.data ?? []) : rpcCandles;
   const trades = backendEnabled ? (backendTrades.data?.items ?? []) : rpcTrades;
-  const loading = backendEnabled ? backendCandles.isPending || backendTrades.isPending : rpcLoading;
-  const error = backendEnabled ? backendCandles.error || backendTrades.error : rpcError;
+  const loading = backendEnabled
+    ? backendCandles.isPending || backendTrades.isPending
+    : rpcLoading;
+  const error = backendEnabled
+    ? backendCandles.error || backendTrades.error
+    : rpcError;
 
   useEffect(() => {
-    const observer = new MutationObserver(() => setThemeVersion((value) => value + 1));
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    const observer = new MutationObserver(() =>
+      setThemeVersion((value) => value + 1),
+    );
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
     return () => observer.disconnect();
   }, []);
 
@@ -237,7 +288,15 @@ export function MarketChart({
     return () => {
       cancelled = true;
     };
-  }, [backendEnabled, publicClient, refreshKey, token.address, token.factory, token.price, onMarketCapChange]);
+  }, [
+    backendEnabled,
+    publicClient,
+    refreshKey,
+    token.address,
+    token.factory,
+    token.price,
+    onMarketCapChange,
+  ]);
 
   useEffect(() => {
     if (!backendEnabled) return;
@@ -247,7 +306,9 @@ export function MarketChart({
   const chartInstanceRef = useRef<ReturnType<typeof echarts.init> | null>(null);
   const latestCandlesRef = useRef<MarketCandle[]>([]);
   const hoveringRef = useRef(false);
-  useEffect(() => { latestCandlesRef.current = candles; }, [candles]);
+  useEffect(() => {
+    latestCandlesRef.current = candles;
+  }, [candles]);
 
   // Initialize the chart once; the update effect below pushes new data in
   // place via setOption. Re-initializing on every candles/interval/theme change
@@ -285,12 +346,19 @@ export function MarketChart({
     const chart = chartInstanceRef.current;
     if (!chart || !candles.length) return undefined;
     const styles = getComputedStyle(document.documentElement);
-    chart.setOption(buildMarketChartOptions(candles, {
-      text: styles.getPropertyValue("--muted").trim(),
-      grid: styles.getPropertyValue("--chart-grid").trim(),
-      lime: styles.getPropertyValue("--lime").trim(),
-      orange: styles.getPropertyValue("--orange").trim(),
-    }, interval, usdPerEth));
+    chart.setOption(
+      buildMarketChartOptions(
+        candles,
+        {
+          text: styles.getPropertyValue("--muted").trim(),
+          grid: styles.getPropertyValue("--chart-grid").trim(),
+          lime: styles.getPropertyValue("--lime").trim(),
+          orange: styles.getPropertyValue("--orange").trim(),
+        },
+        interval,
+        usdPerEth,
+      ),
+    );
     // Don't yank the OHLC readout back to the latest candle while the user is
     // examining an earlier bar; a fresh poll shouldn't disturb an active hover.
     // Switching interval rebuilds the view, so reset then.
@@ -303,46 +371,97 @@ export function MarketChart({
 
   return (
     <div className="market-main">
-    <section className="market-chart-panel" aria-label={`${token.symbol} market cap chart`}>
-      <header className="market-chart-head">
-        <dl className="market-chart-ohlc" aria-label="Candle market cap and volume">
-          <div><dt>O</dt><dd><UsdAmount weth={hover?.open} compact /></dd></div>
-          <div><dt>H</dt><dd><UsdAmount weth={hover?.high} compact /></dd></div>
-          <div><dt>L</dt><dd><UsdAmount weth={hover?.low} compact /></dd></div>
-          <div><dt>C</dt><dd><UsdAmount weth={hover?.close} compact /></dd></div>
-          <div><dt>Vol</dt><dd><UsdAmount weth={hover?.volume} compact /></dd></div>
-        </dl>
-        <div className="chart-intervals" role="group" aria-label="Chart interval">
-          {INTERVALS.map((item) => (
-            <button
-              key={item.label}
-              type="button"
-              className={interval === item.seconds ? "active" : ""}
-              aria-pressed={interval === item.seconds}
-              onClick={() => setInterval(item.seconds)}
-            >
-              {item.label}
-            </button>
-          ))}
+      <section
+        className="market-chart-panel"
+        aria-label={`${token.symbol} market cap chart`}
+      >
+        <header className="market-chart-head">
+          <dl
+            className="market-chart-ohlc"
+            aria-label="Candle market cap and volume"
+          >
+            <div>
+              <dt>O</dt>
+              <dd>
+                <UsdAmount weth={hover?.open} compact />
+              </dd>
+            </div>
+            <div>
+              <dt>H</dt>
+              <dd>
+                <UsdAmount weth={hover?.high} compact />
+              </dd>
+            </div>
+            <div>
+              <dt>L</dt>
+              <dd>
+                <UsdAmount weth={hover?.low} compact />
+              </dd>
+            </div>
+            <div>
+              <dt>C</dt>
+              <dd>
+                <UsdAmount weth={hover?.close} compact />
+              </dd>
+            </div>
+            <div>
+              <dt>Vol</dt>
+              <dd>
+                <UsdAmount weth={hover?.volume} compact />
+              </dd>
+            </div>
+          </dl>
+          <div
+            className="chart-intervals"
+            role="group"
+            aria-label="Chart interval"
+          >
+            {INTERVALS.map((item) => (
+              <button
+                key={item.label}
+                type="button"
+                className={interval === item.seconds ? "active" : ""}
+                aria-pressed={interval === item.seconds}
+                onClick={() => setInterval(item.seconds)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </header>
+        <div className="market-chart-stage">
+          {loading && (
+            <div
+              className="market-chart-message skeleton"
+              aria-label="Loading chart"
+            />
+          )}
+          {!loading && error && (
+            <p className="market-chart-message">Chart unavailable</p>
+          )}
+          {!loading && !error && !candles.length && (
+            <p className="market-chart-message">No trades yet</p>
+          )}
+          <div ref={chartRef} className="market-chart-canvas" />
         </div>
-      </header>
-      <div className="market-chart-stage">
-        {loading && <div className="market-chart-message skeleton" aria-label="Loading chart" />}
-        {!loading && error && <p className="market-chart-message">Chart unavailable</p>}
-        {!loading && !error && !candles.length && (
-          <p className="market-chart-message">No trades yet</p>
-        )}
-        <div ref={chartRef} className="market-chart-canvas" />
-      </div>
-    </section>
-    <MarketActivity
-      key={token.address}
-      token={token}
-      trades={trades}
-      loading={loading}
-      error={Boolean(error)}
-      followingTraderCount={backendEnabled ? backendTrades.data?.followingTraderCount ?? 0 : 0}
-    />
+      </section>
+      <MarketDepositsChart
+        token={token}
+        trades={trades}
+        loading={loading}
+        error={Boolean(error)}
+      />
+      <MarketActivity
+        key={token.address}
+        token={token}
+        trades={trades}
+        loading={loading}
+        error={Boolean(error)}
+        navigate={navigate}
+        followingTraderCount={
+          backendEnabled ? (backendTrades.data?.followingTraderCount ?? 0) : 0
+        }
+      />
     </div>
   );
 }

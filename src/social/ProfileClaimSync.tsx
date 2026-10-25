@@ -15,13 +15,20 @@ export function ProfileClaimSync() {
   useEffect(() => {
     if (!authenticated) claimedAddress.current = null;
     if (!socialApiConfigured || !address) return;
-    if (selectSocialAuthAction({ ready, authenticated, hasAddress: true }) !== "confirm") return;
+    if (
+      selectSocialAuthAction({ ready, authenticated, hasAddress: true }) !==
+      "confirm"
+    )
+      return;
     const key = address.toLowerCase();
     if (claimedAddress.current === key) return;
     claimedAddress.current = key;
-    socialApi.me()
+    socialApi
+      .me()
       .then(() => queryClient.invalidateQueries({ queryKey: ["social"] }))
-      .catch(() => { claimedAddress.current = null; });
+      .catch(() => {
+        claimedAddress.current = null;
+      });
   }, [address, authenticated, queryClient, ready]);
 
   return null;

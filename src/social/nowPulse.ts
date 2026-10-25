@@ -31,19 +31,36 @@ export function buildNowMoments(
   period: PulsePeriod,
   now = Date.now() / 1_000,
 ): PulseMoment[] {
-  const known = new Map(tokens.map((token) => [token.address.toLowerCase(), token]));
+  const known = new Map(
+    tokens.map((token) => [token.address.toLowerCase(), token]),
+  );
   const cutoff = now - pulsePeriodSeconds(period);
   const tallies = new Map<string, MarketTally>();
 
   for (const sample of samples) {
     if (sample.timestamp < cutoff || sample.timestamp > now) continue;
-    if (typeof sample.isBuy !== "boolean" || sample.quoteWei == null || !sample.trader) continue;
+    if (
+      typeof sample.isBuy !== "boolean" ||
+      sample.quoteWei == null ||
+      !sample.trader
+    )
+      continue;
     const key = sample.token.toLowerCase();
     const token = known.get(key);
     if (!token) continue;
     let tally = tallies.get(key);
     if (!tally) {
-      tally = { token, first: sample.timestamp, latest: sample.timestamp, buyCount: 0, sellCount: 0, buyWei: 0n, sellWei: 0n, wallets: new Set(), latestBuy: null };
+      tally = {
+        token,
+        first: sample.timestamp,
+        latest: sample.timestamp,
+        buyCount: 0,
+        sellCount: 0,
+        buyWei: 0n,
+        sellWei: 0n,
+        wallets: new Set(),
+        latestBuy: null,
+      };
       tallies.set(key, tally);
     }
     tally.first = Math.min(tally.first, sample.timestamp);
@@ -52,8 +69,14 @@ export function buildNowMoments(
     if (sample.isBuy) {
       tally.buyCount += 1;
       tally.buyWei += sample.quoteWei;
-      if (sample.transactionHash && (!tally.latestBuy || sample.timestamp >= tally.latestBuy.timestamp)) {
-        tally.latestBuy = { timestamp: sample.timestamp, hash: sample.transactionHash };
+      if (
+        sample.transactionHash &&
+        (!tally.latestBuy || sample.timestamp >= tally.latestBuy.timestamp)
+      ) {
+        tally.latestBuy = {
+          timestamp: sample.timestamp,
+          hash: sample.transactionHash,
+        };
       }
     } else {
       tally.sellCount += 1;

@@ -49,7 +49,11 @@ export function createSocialAuthRequestGate<T>() {
       try {
         start?.();
       } catch (cause) {
-        pending.reject(cause instanceof Error ? cause : new Error("Sign in could not be started."));
+        pending.reject(
+          cause instanceof Error
+            ? cause
+            : new Error("Sign in could not be started."),
+        );
       }
       return promise;
     },

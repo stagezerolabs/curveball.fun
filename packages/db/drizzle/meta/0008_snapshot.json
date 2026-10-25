@@ -419,10 +419,7 @@
       "compositePrimaryKeys": {
         "assets_chain_id_address_pk": {
           "name": "assets_chain_id_address_pk",
-          "columns": [
-            "chain_id",
-            "address"
-          ]
+          "columns": ["chain_id", "address"]
         }
       },
       "uniqueConstraints": {},
@@ -492,11 +489,7 @@
       "compositePrimaryKeys": {
         "blocks_chain_id_blocker_address_blocked_address_pk": {
           "name": "blocks_chain_id_blocker_address_blocked_address_pk",
-          "columns": [
-            "chain_id",
-            "blocker_address",
-            "blocked_address"
-          ]
+          "columns": ["chain_id", "blocker_address", "blocked_address"]
         }
       },
       "uniqueConstraints": {},
@@ -716,10 +709,7 @@
       "compositePrimaryKeys": {
         "chain_blocks_chain_id_block_hash_pk": {
           "name": "chain_blocks_chain_id_block_hash_pk",
-          "columns": [
-            "chain_id",
-            "block_hash"
-          ]
+          "columns": ["chain_id", "block_hash"]
         }
       },
       "uniqueConstraints": {},
@@ -762,10 +752,7 @@
       "compositePrimaryKeys": {
         "chain_cursors_chain_id_stream_pk": {
           "name": "chain_cursors_chain_id_stream_pk",
-          "columns": [
-            "chain_id",
-            "stream"
-          ]
+          "columns": ["chain_id", "stream"]
         }
       },
       "uniqueConstraints": {},
@@ -909,11 +896,7 @@
       "compositePrimaryKeys": {
         "chain_logs_chain_id_block_hash_log_index_pk": {
           "name": "chain_logs_chain_id_block_hash_log_index_pk",
-          "columns": [
-            "chain_id",
-            "block_hash",
-            "log_index"
-          ]
+          "columns": ["chain_id", "block_hash", "log_index"]
         }
       },
       "uniqueConstraints": {},
@@ -1070,11 +1053,7 @@
       "compositePrimaryKeys": {
         "contract_deployments_chain_id_role_address_pk": {
           "name": "contract_deployments_chain_id_role_address_pk",
-          "columns": [
-            "chain_id",
-            "role",
-            "address"
-          ]
+          "columns": ["chain_id", "role", "address"]
         }
       },
       "uniqueConstraints": {},
@@ -1201,12 +1180,8 @@
           "tableFrom": "copy_executions",
           "tableTo": "copy_intents",
           "schemaTo": "curveball",
-          "columnsFrom": [
-            "intent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["intent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1215,12 +1190,8 @@
           "tableFrom": "copy_executions",
           "tableTo": "trades",
           "schemaTo": "curveball",
-          "columnsFrom": [
-            "confirmed_trade_id"
-          ],
-          "columnsTo": [
-            "logical_id"
-          ],
+          "columnsFrom": ["confirmed_trade_id"],
+          "columnsTo": ["logical_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1309,12 +1280,8 @@
           "tableFrom": "copy_intent_events",
           "tableTo": "copy_intents",
           "schemaTo": "curveball",
-          "columnsFrom": [
-            "intent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["intent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1512,12 +1479,8 @@
           "tableFrom": "copy_intents",
           "tableTo": "trades",
           "schemaTo": "curveball",
-          "columnsFrom": [
-            "source_trade_id"
-          ],
-          "columnsTo": [
-            "logical_id"
-          ],
+          "columnsFrom": ["source_trade_id"],
+          "columnsTo": ["logical_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1608,10 +1571,7 @@
       "compositePrimaryKeys": {
         "copy_preferences_chain_id_address_pk": {
           "name": "copy_preferences_chain_id_address_pk",
-          "columns": [
-            "chain_id",
-            "address"
-          ]
+          "columns": ["chain_id", "address"]
         }
       },
       "uniqueConstraints": {},
@@ -1784,11 +1744,7 @@
       "compositePrimaryKeys": {
         "curve_positions_chain_id_trader_address_token_address_pk": {
           "name": "curve_positions_chain_id_trader_address_token_address_pk",
-          "columns": [
-            "chain_id",
-            "trader_address",
-            "token_address"
-          ]
+          "columns": ["chain_id", "trader_address", "token_address"]
         }
       },
       "uniqueConstraints": {},
@@ -1859,11 +1815,7 @@
       "compositePrimaryKeys": {
         "follows_chain_id_follower_address_followed_address_pk": {
           "name": "follows_chain_id_follower_address_followed_address_pk",
-          "columns": [
-            "chain_id",
-            "follower_address",
-            "followed_address"
-          ]
+          "columns": ["chain_id", "follower_address", "followed_address"]
         }
       },
       "uniqueConstraints": {},
@@ -1954,12 +1906,8 @@
           "tableFrom": "leaderboard_rows",
           "tableTo": "leaderboard_snapshots",
           "schemaTo": "curveball",
-          "columnsFrom": [
-            "snapshot_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["snapshot_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1967,10 +1915,7 @@
       "compositePrimaryKeys": {
         "leaderboard_rows_snapshot_id_address_pk": {
           "name": "leaderboard_rows_snapshot_id_address_pk",
-          "columns": [
-            "snapshot_id",
-            "address"
-          ]
+          "columns": ["snapshot_id", "address"]
         }
       },
       "uniqueConstraints": {},
@@ -2403,10 +2348,7 @@
       "compositePrimaryKeys": {
         "market_stats_chain_id_token_address_pk": {
           "name": "market_stats_chain_id_token_address_pk",
-          "columns": [
-            "chain_id",
-            "token_address"
-          ]
+          "columns": ["chain_id", "token_address"]
         }
       },
       "uniqueConstraints": {},
@@ -2672,10 +2614,7 @@
       "compositePrimaryKeys": {
         "markets_chain_id_token_address_pk": {
           "name": "markets_chain_id_token_address_pk",
-          "columns": [
-            "chain_id",
-            "token_address"
-          ]
+          "columns": ["chain_id", "token_address"]
         }
       },
       "uniqueConstraints": {},
@@ -2867,10 +2806,7 @@
       "compositePrimaryKeys": {
         "notification_preferences_chain_id_address_pk": {
           "name": "notification_preferences_chain_id_address_pk",
-          "columns": [
-            "chain_id",
-            "address"
-          ]
+          "columns": ["chain_id", "address"]
         }
       },
       "uniqueConstraints": {},
@@ -3050,10 +2986,7 @@
       "compositePrimaryKeys": {
         "profiles_chain_id_address_pk": {
           "name": "profiles_chain_id_address_pk",
-          "columns": [
-            "chain_id",
-            "address"
-          ]
+          "columns": ["chain_id", "address"]
         }
       },
       "uniqueConstraints": {},
@@ -3131,11 +3064,7 @@
       "compositePrimaryKeys": {
         "protocol_accounts_chain_id_address_role_pk": {
           "name": "protocol_accounts_chain_id_address_role_pk",
-          "columns": [
-            "chain_id",
-            "address",
-            "role"
-          ]
+          "columns": ["chain_id", "address", "role"]
         }
       },
       "uniqueConstraints": {},
@@ -3650,11 +3579,7 @@
       "compositePrimaryKeys": {
         "reserve_rounds_chain_id_token_address_round_id_pk": {
           "name": "reserve_rounds_chain_id_token_address_round_id_pk",
-          "columns": [
-            "chain_id",
-            "token_address",
-            "round_id"
-          ]
+          "columns": ["chain_id", "token_address", "round_id"]
         }
       },
       "uniqueConstraints": {},
@@ -3732,10 +3657,7 @@
       "compositePrimaryKeys": {
         "rns_cache_chain_id_address_pk": {
           "name": "rns_cache_chain_id_address_pk",
-          "columns": [
-            "chain_id",
-            "address"
-          ]
+          "columns": ["chain_id", "address"]
         }
       },
       "uniqueConstraints": {},
@@ -3791,12 +3713,8 @@
           "tableFrom": "trade_notes",
           "tableTo": "trades",
           "schemaTo": "curveball",
-          "columnsFrom": [
-            "logical_trade_id"
-          ],
-          "columnsTo": [
-            "logical_id"
-          ],
+          "columnsFrom": ["logical_trade_id"],
+          "columnsTo": ["logical_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3877,12 +3795,8 @@
           "tableFrom": "trade_reactions",
           "tableTo": "trades",
           "schemaTo": "curveball",
-          "columnsFrom": [
-            "logical_trade_id"
-          ],
-          "columnsTo": [
-            "logical_id"
-          ],
+          "columnsFrom": ["logical_trade_id"],
+          "columnsTo": ["logical_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3890,10 +3804,7 @@
       "compositePrimaryKeys": {
         "trade_reactions_logical_trade_id_reactor_address_pk": {
           "name": "trade_reactions_logical_trade_id_reactor_address_pk",
-          "columns": [
-            "logical_trade_id",
-            "reactor_address"
-          ]
+          "columns": ["logical_trade_id", "reactor_address"]
         }
       },
       "uniqueConstraints": {},

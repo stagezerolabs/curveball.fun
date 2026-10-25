@@ -181,7 +181,8 @@ export type ModerationReport = {
   id: string;
   reporter_address: Address;
   subject_address: Address;
-  reason: "spam" | "impersonation" | "manipulation" | "harmful_content" | "other";
+  reason:
+    "spam" | "impersonation" | "manipulation" | "harmful_content" | "other";
   details: string;
   status: "open" | "reviewing" | "actioned" | "dismissed";
   resolution_note: string | null;

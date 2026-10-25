@@ -25,7 +25,10 @@ function Socials({ token }: { token: Token }) {
   if (!links.length) return null;
 
   return (
-    <nav className="market-socials market-header-details" aria-label="Token links">
+    <nav
+      className="market-socials market-header-details"
+      aria-label="Token links"
+    >
       {links.map((link) => (
         <a
           key={link.label}
@@ -42,7 +45,9 @@ function Socials({ token }: { token: Token }) {
               </>
             )}
             {link.icon === "x" && <path d="M4 4l12 12M16 4L4 16" />}
-            {link.icon === "telegram" && <path d="M17 4 3 9.6l4 1.4 1.4 4.5L11 12l4 4 2-12Z" />}
+            {link.icon === "telegram" && (
+              <path d="M17 4 3 9.6l4 1.4 1.4 4.5L11 12l4 4 2-12Z" />
+            )}
           </svg>
           {link.label}
         </a>
@@ -51,15 +56,36 @@ function Socials({ token }: { token: Token }) {
   );
 }
 
-export function MarketHeader({ token, marketCapChange, activityStats }: { token: Token; marketCapChange?: MarketPriceChange | null; activityStats?: MarketPreviewStats }) {
+export function MarketHeader({
+  token,
+  marketCapChange,
+  activityStats,
+}: {
+  token: Token;
+  marketCapChange?: MarketPriceChange | null;
+  activityStats?: MarketPreviewStats;
+}) {
   const quoteSymbol = token.quoteSymbol ?? "WETH";
-  const soldPercent = token.graduated ? 100 : Math.min(100, Math.max(0, token.progress ?? 0));
+  const soldPercent = token.graduated
+    ? 100
+    : Math.min(100, Math.max(0, token.progress ?? 0));
   const status = getMarketDisplayStatus(token);
-  const direction = marketCapChange?.percent == null ? "unavailable" : marketCapChange.percent > 0 ? "up" : marketCapChange.percent < 0 ? "down" : "flat";
+  const direction =
+    marketCapChange?.percent == null
+      ? "unavailable"
+      : marketCapChange.percent > 0
+        ? "up"
+        : marketCapChange.percent < 0
+          ? "down"
+          : "flat";
   const magnitude = Math.abs(marketCapChange?.percent ?? 0);
-  const formattedChange = magnitude > 0 && magnitude < 0.01
-    ? "<0.01"
-    : magnitude.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const formattedChange =
+    magnitude > 0 && magnitude < 0.01
+      ? "<0.01"
+      : magnitude.toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
   return (
     <header className="market-header">
       <div className="market-header-left">
@@ -75,12 +101,19 @@ export function MarketHeader({ token, marketCapChange, activityStats }: { token:
                 </span>
               </div>
               <div className="market-identity-row">
-                <span className="market-pair">{token.symbol} / {quoteSymbol}</span>
+                <span className="market-pair">
+                  {token.symbol} / {quoteSymbol}
+                </span>
                 {token.feeBps != null && (
-                  <span className="market-data-chip">Fee <strong>{(token.feeBps / 100).toFixed(2)}%</strong></span>
+                  <span className="market-data-chip">
+                    Fee <strong>{(token.feeBps / 100).toFixed(2)}%</strong>
+                  </span>
                 )}
                 {token.creatorTaxBps != null && token.creatorTaxBps > 0 && (
-                  <span className="market-data-chip">Creator tax <strong>{(token.creatorTaxBps / 100).toFixed(2)}%</strong></span>
+                  <span className="market-data-chip">
+                    Creator tax{" "}
+                    <strong>{(token.creatorTaxBps / 100).toFixed(2)}%</strong>
+                  </span>
                 )}
               </div>
             </div>
@@ -93,32 +126,89 @@ export function MarketHeader({ token, marketCapChange, activityStats }: { token:
         <dl className="market-stat-summary">
           <div className="market-stat-cap">
             <dt>Market cap</dt>
-            <dd><UsdAmount weth={token.marketCap} compact /></dd>
+            <dd>
+              <UsdAmount weth={token.marketCap} compact />
+            </dd>
             <dd
               className={`market-cap-change ${direction}`}
-              aria-label={marketCapChange ? `Market cap ${direction} ${formattedChange} percent ${marketCapChange.period === "24h" ? "in the last 24 hours" : "since the first trade"}` : "Market cap change unavailable until trade history loads"}
+              aria-label={
+                marketCapChange
+                  ? `Market cap ${direction} ${formattedChange} percent ${marketCapChange.period === "24h" ? "in the last 24 hours" : "since the first trade"}`
+                  : "Market cap change unavailable until trade history loads"
+              }
             >
-              <strong aria-hidden="true">{direction === "up" ? "↗ " : direction === "down" ? "↘ " : direction === "flat" ? "→ " : ""}{marketCapChange ? `${formattedChange}%` : "—"}</strong>
-              <span>{marketCapChange?.period === "since first trade" ? "since launch" : "24H"}</span>
+              <strong aria-hidden="true">
+                {direction === "up"
+                  ? "↗ "
+                  : direction === "down"
+                    ? "↘ "
+                    : direction === "flat"
+                      ? "→ "
+                      : ""}
+                {marketCapChange ? `${formattedChange}%` : "—"}
+              </strong>
+              <span>
+                {marketCapChange?.period === "since first trade"
+                  ? "since launch"
+                  : "24H"}
+              </span>
             </dd>
           </div>
           <div className="market-stat-progress">
             <dt>Bonding status</dt>
             <dd>{token.graduated ? "100%" : formatPercent(token.progress)}</dd>
-            <dd className="market-stat-progress-track"><progress aria-label="Curve sold" value={soldPercent} max={100} /></dd>
-            <dd className="market-stat-note">{status.kind === "live" ? "To graduation" : status.label}</dd>
+            <dd className="market-stat-progress-track">
+              <progress aria-label="Curve sold" value={soldPercent} max={100} />
+            </dd>
+            <dd className="market-stat-note">
+              {status.kind === "live" ? "To graduation" : status.label}
+            </dd>
           </div>
         </dl>
       </div>
       <dl className="market-detail-activity" aria-label="Market activity">
-        <div><dt>1H</dt><dd className={changeClass(activityStats?.change1h)}>{formatChange(activityStats?.change1h)}</dd></div>
-        <div><dt>6H</dt><dd className={changeClass(activityStats?.change6h)}>{formatChange(activityStats?.change6h)}</dd></div>
-        <div><dt>24H</dt><dd className={changeClass(activityStats?.change24h)}>{formatChange(activityStats?.change24h)}</dd></div>
-        <div><dt>ATH</dt><dd><UsdAmount weth={activityStats?.athMarketCap} compact /></dd></div>
-        <div><dt>24HR VOL</dt><dd><UsdAmount weth={activityStats?.volume24h} compact /></dd></div>
-        <div><dt>AGE</dt><dd>{formatMarketAge(token.createdAt)}</dd></div>
-        <div><dt>TXNS</dt><dd>{formatMarketCount(activityStats?.transactions)}</dd></div>
-        <div><dt>TRADERS</dt><dd>{formatMarketCount(activityStats?.traders)}</dd></div>
+        <div>
+          <dt>1H</dt>
+          <dd className={changeClass(activityStats?.change1h)}>
+            {formatChange(activityStats?.change1h)}
+          </dd>
+        </div>
+        <div>
+          <dt>6H</dt>
+          <dd className={changeClass(activityStats?.change6h)}>
+            {formatChange(activityStats?.change6h)}
+          </dd>
+        </div>
+        <div>
+          <dt>24H</dt>
+          <dd className={changeClass(activityStats?.change24h)}>
+            {formatChange(activityStats?.change24h)}
+          </dd>
+        </div>
+        <div>
+          <dt>ATH</dt>
+          <dd>
+            <UsdAmount weth={activityStats?.athMarketCap} compact />
+          </dd>
+        </div>
+        <div>
+          <dt>24HR VOL</dt>
+          <dd>
+            <UsdAmount weth={activityStats?.volume24h} compact />
+          </dd>
+        </div>
+        <div>
+          <dt>AGE</dt>
+          <dd>{formatMarketAge(token.createdAt)}</dd>
+        </div>
+        <div>
+          <dt>TXNS</dt>
+          <dd>{formatMarketCount(activityStats?.transactions)}</dd>
+        </div>
+        <div>
+          <dt>TRADERS</dt>
+          <dd>{formatMarketCount(activityStats?.traders)}</dd>
+        </div>
       </dl>
     </header>
   );
@@ -129,5 +219,9 @@ function formatChange(value: number | null | undefined) {
 }
 
 function changeClass(value: number | null | undefined) {
-  return value == null || value === 0 ? "" : value > 0 ? "positive" : "negative";
+  return value == null || value === 0
+    ? ""
+    : value > 0
+      ? "positive"
+      : "negative";
 }

@@ -3,16 +3,20 @@ import { createDatabase, migrateDatabase } from "@curveball/db";
 import { databaseSsl } from "./databaseSsl.mjs";
 
 const connectionString = (
-  process.env.SOCIAL_DIRECT_DATABASE_URL
-  || process.env.SOCIAL_DATABASE_URL
-  || ""
+  process.env.SOCIAL_DIRECT_DATABASE_URL ||
+  process.env.SOCIAL_DATABASE_URL ||
+  ""
 ).trim();
 
 if (!connectionString) {
-  throw new Error("SOCIAL_DIRECT_DATABASE_URL or SOCIAL_DATABASE_URL is required.");
+  throw new Error(
+    "SOCIAL_DIRECT_DATABASE_URL or SOCIAL_DATABASE_URL is required.",
+  );
 }
 
-const migrationsFolder = fileURLToPath(new URL("../../../packages/db/drizzle", import.meta.url));
+const migrationsFolder = fileURLToPath(
+  new URL("../../../packages/db/drizzle", import.meta.url),
+);
 const database = createDatabase({
   connectionString,
   max: 1,

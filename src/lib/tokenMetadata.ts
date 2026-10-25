@@ -1,9 +1,16 @@
 const CID = /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|baf[a-z2-7]{20,})(\/[^\s?#]*)?$/i;
 const MAX_METADATA_BYTES = 32_000;
-const cache = new Map<string, Promise<{ image: string | null; description: string | null } | null>>();
+const cache = new Map<
+  string,
+  Promise<{ image: string | null; description: string | null } | null>
+>();
 
 async function readMetadata(response: Response): Promise<unknown> {
-  if (!response.body || Number(response.headers.get("content-length")) > MAX_METADATA_BYTES) return null;
+  if (
+    !response.body ||
+    Number(response.headers.get("content-length")) > MAX_METADATA_BYTES
+  )
+    return null;
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
   let size = 0;
@@ -17,7 +24,10 @@ async function readMetadata(response: Response): Promise<unknown> {
     }
     const bytes = new Uint8Array(size);
     let offset = 0;
-    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
     return JSON.parse(new TextDecoder().decode(bytes));
   } finally {
     void reader.cancel().catch(() => undefined);
@@ -44,22 +54,30 @@ async function tokenMetadata(uri: string) {
   if (!metadataUrl) return Promise.resolve(null);
   const request = (async () => {
     try {
-      const response = await fetch(metadataUrl, { signal: AbortSignal.timeout(8_000) });
+      const response = await fetch(metadataUrl, {
+        signal: AbortSignal.timeout(8_000),
+      });
       if (!response.ok) return null;
       const metadata = await readMetadata(response);
       if (!metadata || typeof metadata !== "object") return null;
       const image = "image" in metadata ? metadata.image : null;
-      const description = "description" in metadata ? metadata.description : null;
+      const description =
+        "description" in metadata ? metadata.description : null;
       return {
         image: typeof image === "string" ? publicContentUrl(image) : null,
-        description: typeof description === "string" ? description.trim().slice(0, 2_000) || null : null,
+        description:
+          typeof description === "string"
+            ? description.trim().slice(0, 2_000) || null
+            : null,
       };
     } catch {
       return null;
     }
   })();
   cache.set(uri, request);
-  void request.then((value) => { if (!value) cache.delete(uri); });
+  void request.then((value) => {
+    if (!value) cache.delete(uri);
+  });
   return request;
 }
 

@@ -31,15 +31,20 @@ test("a confirmed trade updates every cached copy of the market immediately", ()
     pending: false,
   };
 
-  const state = confirmedTradeStateUpdate({
-    amount: "1",
-    tokens: [token],
-    marketsFetchedAt: 123,
-    tokenCache: { [key]: token },
-    tokenFetchedAt: { [key]: 123 },
-    creatorTokens: { [creatorKey]: [token] },
-    creatorFetchedAt: { [creatorKey]: 123 },
-  }, "buy", token, confirmedTrade);
+  const state = confirmedTradeStateUpdate(
+    {
+      amount: "1",
+      tokens: [token],
+      marketsFetchedAt: 123,
+      tokenCache: { [key]: token },
+      tokenFetchedAt: { [key]: 123 },
+      creatorTokens: { [creatorKey]: [token] },
+      creatorFetchedAt: { [creatorKey]: 123 },
+    },
+    "buy",
+    token,
+    confirmedTrade,
+  );
   for (const cached of [
     state.tokenCache[key],
     state.tokens[0],

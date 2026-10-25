@@ -22,13 +22,16 @@ type CreatedLog = {
 export type CreatorTokenClient = {
   getBlockNumber?(): Promise<bigint>;
   getContractEvents(parameters: object): Promise<readonly CreatedLog[]>;
-  readContract(parameters: { functionName: string; [key: string]: unknown }): Promise<unknown>;
+  readContract(parameters: {
+    functionName: string;
+    [key: string]: unknown;
+  }): Promise<unknown>;
   getBlock(parameters: { blockNumber: bigint }): Promise<{ timestamp: bigint }>;
 };
 
 export async function discoverCreatorTokens(
   client: CreatorTokenClient,
-  creator: Address
+  creator: Address,
 ): Promise<Token[]> {
   return discoverTokens(client, { creator });
 }
@@ -42,7 +45,7 @@ export async function discoverAllTokens(
 
 export async function discoverToken(
   client: CreatorTokenClient,
-  token: Address
+  token: Address,
 ): Promise<Token | null> {
   const tokens = await discoverTokens(client, { token });
   return tokens[0] ?? null;
@@ -54,9 +57,16 @@ async function discoverTokens(
   onFactoryTokens?: (tokens: Token[]) => void,
 ): Promise<Token[]> {
   if (!launchpadAddress) return [];
-  const tokens = await discoverTokensForFactory(client, launchpadAddress, activeDeploymentBlock, args);
+  const tokens = await discoverTokensForFactory(
+    client,
+    launchpadAddress,
+    activeDeploymentBlock,
+    args,
+  );
   onFactoryTokens?.(tokens);
-  return tokens.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  return tokens.sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
 }
 
 /** The launchpad's market struct, as `market(token)` returns it. */
@@ -82,8 +92,14 @@ export function marketFields(market: LaunchpadMarket) {
   const sold = TOKEN_SUPPLY - market.virtualToken;
   const terminalVirtualToken = TOKEN_SUPPLY - CURVE_SUPPLY;
   // The curve ends where virtualToken reaches S − C; k = S · initialVirtualQuote is fixed until graduation.
-  const terminalVirtualQuote = (TOKEN_SUPPLY * market.initialVirtualQuote + terminalVirtualToken - 1n) / terminalVirtualToken;
-  const price = market.virtualToken === 0n ? null : Number(formatEther(market.virtualQuote)) / Number(formatEther(market.virtualToken));
+  const terminalVirtualQuote =
+    (TOKEN_SUPPLY * market.initialVirtualQuote + terminalVirtualToken - 1n) /
+    terminalVirtualToken;
+  const price =
+    market.virtualToken === 0n
+      ? null
+      : Number(formatEther(market.virtualQuote)) /
+        Number(formatEther(market.virtualToken));
   return {
     lifecycle,
     graduated: lifecycle === "graduated",
@@ -98,15 +114,30 @@ export function marketFields(market: LaunchpadMarket) {
     supply: TOKEN_SUPPLY.toString(),
     curveSupply: CURVE_SUPPLY.toString(),
     price,
-    targetPrice: Number(formatEther(terminalVirtualQuote)) / Number(formatEther(terminalVirtualToken)),
-    marketCap: price === null ? null : price * Number(formatEther(TOKEN_SUPPLY)),
-    graduationTargetWeth: formatEther(terminalVirtualQuote - market.initialVirtualQuote),
+    targetPrice:
+      Number(formatEther(terminalVirtualQuote)) /
+      Number(formatEther(terminalVirtualToken)),
+    marketCap:
+      price === null ? null : price * Number(formatEther(TOKEN_SUPPLY)),
+    graduationTargetWeth: formatEther(
+      terminalVirtualQuote - market.initialVirtualQuote,
+    ),
+    initialVirtualQuote: market.initialVirtualQuote.toString(),
     pool: market.pool === zeroAddress ? null : getAddress(market.pool),
   } satisfies Partial<Token>;
 }
 
-export function readMarket(client: Pick<CreatorTokenClient, "readContract">, launchpad: Address, token: Address) {
-  return client.readContract({ address: launchpad, abi: curveLaunchpadAbi, functionName: "market", args: [token] }) as Promise<LaunchpadMarket>;
+export function readMarket(
+  client: Pick<CreatorTokenClient, "readContract">,
+  launchpad: Address,
+  token: Address,
+) {
+  return client.readContract({
+    address: launchpad,
+    abi: curveLaunchpadAbi,
+    functionName: "market",
+    args: [token],
+  }) as Promise<LaunchpadMarket>;
 }
 
 async function discoverTokensForFactory(
@@ -123,35 +154,63 @@ async function discoverTokensForFactory(
     strict: true,
   };
   if (!client.getBlockNumber) {
-    throw new Error("RPC client cannot report the latest block for bounded event queries.");
+    throw new Error(
+      "RPC client cannot report the latest block for bounded event queries.",
+    );
   }
   const latestBlock = await client.getBlockNumber();
-  const ranges = buildBlockRanges(deploymentBlock, latestBlock, MAX_EVENT_QUERY_BLOCKS);
+  const ranges = buildBlockRanges(
+    deploymentBlock,
+    latestBlock,
+    MAX_EVENT_QUERY_BLOCKS,
+  );
   const logs: CreatedLog[] = [];
   let nextRange = 0;
-  await Promise.all(Array.from({ length: Math.min(EVENT_QUERY_CONCURRENCY, ranges.length) }, async () => {
-    while (nextRange < ranges.length) {
-      const range = ranges[nextRange++];
-      logs.push(...await client.getContractEvents({ ...eventQuery, ...range }));
-    }
-  }));
+  await Promise.all(
+    Array.from(
+      { length: Math.min(EVENT_QUERY_CONCURRENCY, ranges.length) },
+      async () => {
+        while (nextRange < ranges.length) {
+          const range = ranges[nextRange++];
+          logs.push(
+            ...(await client.getContractEvents({ ...eventQuery, ...range })),
+          );
+        }
+      },
+    ),
+  );
   if (!logs.length) return [];
 
   return Promise.all(
     logs.map(async (log) => {
-      const { token, creator: eventCreator, name, symbol, uri } = log.args ?? {};
+      const {
+        token,
+        creator: eventCreator,
+        name,
+        symbol,
+        uri,
+      } = log.args ?? {};
       if (!token || !eventCreator || !name || !symbol || !log.blockNumber) {
-        throw new Error("The launchpad returned an incomplete LaunchCreated log.");
+        throw new Error(
+          "The launchpad returned an incomplete LaunchCreated log.",
+        );
       }
       const [market, block] = await Promise.all([
         readMarket(client, launchpad, token),
         client.getBlock({ blockNumber: log.blockNumber }),
       ]);
-      if (market.creator === zeroAddress || getAddress(market.creator) !== getAddress(eventCreator)) {
+      if (
+        market.creator === zeroAddress ||
+        getAddress(market.creator) !== getAddress(eventCreator)
+      ) {
         throw new Error("Launch event does not match the launchpad's market.");
       }
       return {
-        address: getAddress(token), factory: launchpad, creator: getAddress(eventCreator), name, symbol,
+        address: getAddress(token),
+        factory: launchpad,
+        creator: getAddress(eventCreator),
+        name,
+        symbol,
         metadataUri: uri ?? null,
         createdAt: new Date(Number(block.timestamp) * 1_000).toISOString(),
         createdBlock: log.blockNumber.toString(),

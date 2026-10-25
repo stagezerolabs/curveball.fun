@@ -21,7 +21,8 @@ export function getBuyFundingState(
   }
   const shortfall = required > wethBalance ? required - wethBalance : 0n;
   return Object.freeze({
-    canFund: shortfall === 0n || nativeBalance >= shortfall + NATIVE_GAS_RESERVE,
+    canFund:
+      shortfall === 0n || nativeBalance >= shortfall + NATIVE_GAS_RESERVE,
     needsWrap: shortfall > 0n,
     shortfall,
   });

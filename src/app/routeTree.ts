@@ -5,15 +5,27 @@ type Route = {
 };
 
 const routes: Route[] = [
-  { id: "landing", path: "/", title: "Curveball — Fair token launches" },
+  {
+    id: "landing",
+    path: "/",
+    title: "Curveball | Token Launchpad on RISE Chain",
+  },
   { id: "markets", path: "/markets", title: "Markets — Curveball" },
   { id: "social", path: "/social", title: "Pulse — Curveball" },
-  { id: "notifications", path: "/notifications", title: "Notifications — Curveball" },
+  {
+    id: "notifications",
+    path: "/notifications",
+    title: "Notifications — Curveball",
+  },
   { id: "stats", path: "/stats", title: "Protocol stats — Curveball" },
   { id: "market", path: "/markets/:address", title: "Market — Curveball" },
   { id: "launch", path: "/launch", title: "Launch — Curveball" },
   { id: "profile", path: "/profile", title: "Profile — Curveball" },
-  { id: "trader", path: "/profile/:address", title: "Trader profile — Curveball" },
+  {
+    id: "trader",
+    path: "/profile/:address",
+    title: "Trader profile — Curveball",
+  },
   { id: "admin", path: "/admin", title: "Admin — Curveball" },
   { id: "notFound", path: "*", title: "Page not found — Curveball" },
 ];

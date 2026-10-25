@@ -36,20 +36,22 @@ export function TokenCard({
           {token.quoteSymbol && (
             <span className="tcard-paired">{token.quoteSymbol}</span>
           )}
-          <span className={`tcard-status ${status.kind}`}>
-            {status.label}
-          </span>
+          <span className={`tcard-status ${status.kind}`}>{status.label}</span>
         </span>
 
         <span className="tcard-body">
           <span className="tcard-figures">
             <span>
               <small>Market cap</small>
-              <strong><UsdAmount weth={token.marketCap} /></strong>
+              <strong>
+                <UsdAmount weth={token.marketCap} />
+              </strong>
             </span>
             <span className="tcard-figure-end">
               <small>{token.graduated ? "Status" : "Graduation"}</small>
-              <strong>{token.graduated ? "Complete" : formatPercent(token.progress)}</strong>
+              <strong>
+                {token.graduated ? "Complete" : formatPercent(token.progress)}
+              </strong>
             </span>
           </span>
 

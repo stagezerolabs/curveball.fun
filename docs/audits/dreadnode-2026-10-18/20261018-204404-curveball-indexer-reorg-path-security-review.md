@@ -17,17 +17,17 @@ Harness: `.review-baseline/indexer/reorg-harness.mjs` (schema-accurate reorg rep
 `.review-baseline/indexer/reorg-window.mjs` (window arithmetic)
 `.review-baseline/indexer/anvil-reorg.mjs` (real fork)**
 
-| # | Sev | Finding |
-|---|---|---|
-| I1 | Med | Deep reorg (>16 blocks) unrecoverable; rows marked `finalized` at 2 confirmations |
-| I2 | Med | `chain_logs` un-orphans independently of derived rows; no continuity check |
-| I3 | Low–Med | `assets` has no `orphaned` column; reverted launch metadata is permanent |
-| I4 | Low | `notification_outbox` never retracted; outbox grows unbounded |
-| I5 | Low | `reserve_rounds` has an `orphaned` column, is in neither list, unused |
-| I6 | Info | Snapshot tables accumulate indefinitely (4 rows per scan tick) |
-| I7 | Med | Reorged-away market still contributes to wallet stats and leaderboards |
-| I8 | Low | Ledger stream rebuilds no derived state; stale balances served silently |
-| I9 | Low | Log-index shift raises `23505` and aborts the whole range transaction |
+| #   | Sev     | Finding                                                                           |
+| --- | ------- | --------------------------------------------------------------------------------- |
+| I1  | Med     | Deep reorg (>16 blocks) unrecoverable; rows marked `finalized` at 2 confirmations |
+| I2  | Med     | `chain_logs` un-orphans independently of derived rows; no continuity check        |
+| I3  | Low–Med | `assets` has no `orphaned` column; reverted launch metadata is permanent          |
+| I4  | Low     | `notification_outbox` never retracted; outbox grows unbounded                     |
+| I5  | Low     | `reserve_rounds` has an `orphaned` column, is in neither list, unused             |
+| I6  | Info    | Snapshot tables accumulate indefinitely (4 rows per scan tick)                    |
+| I7  | Med     | Reorged-away market still contributes to wallet stats and leaderboards            |
+| I8  | Low     | Ledger stream rebuilds no derived state; stale balances served silently           |
+| I9  | Low     | Log-index shift raises `23505` and aborts the whole range transaction             |
 
 ---
 
@@ -35,12 +35,12 @@ Harness: `.review-baseline/indexer/reorg-harness.mjs` (schema-accurate reorg rep
 
 Four independent streams, each with its own cursor in `chain_cursors`, each in one transaction:
 
-| stream | scans | owns topics | orphans |
-|---|---|---|---|
-| `factory` | launchpad | launch, ready, abort, graduated | `chain_logs`, `markets` |
-| `trades` | launchpad | Trade | `chain_logs`, `trades` |
-| `ledger` | launchpad + token contracts | Transfer, Fee\*, Buyback, LpFees, Reserve\* | `chain_logs`, `asset_transfers`, `protocol_flows`, `buyback_executions`, `reserve_claims` |
-| `venue` | graduated pools | Swap | `chain_logs`, `venue_swaps` |
+| stream    | scans                       | owns topics                                 | orphans                                                                                   |
+| --------- | --------------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `factory` | launchpad                   | launch, ready, abort, graduated             | `chain_logs`, `markets`                                                                   |
+| `trades`  | launchpad                   | Trade                                       | `chain_logs`, `trades`                                                                    |
+| `ledger`  | launchpad + token contracts | Transfer, Fee\*, Buyback, LpFees, Reserve\* | `chain_logs`, `asset_transfers`, `protocol_flows`, `buyback_executions`, `reserve_claims` |
+| `venue`   | graduated pools             | Swap                                        | `chain_logs`, `venue_swaps`                                                               |
 
 Each stream orphans only its own topics from `chain_logs` (`lifecycleTopics` vs `tradeTopic` at
 `indexer.mjs:40-44`). That separation is correct and deliberate — the comment at `:39` says so, and it holds.
@@ -149,14 +149,14 @@ logs at that block: 0
 emitting tx gone? : true
 ```
 
-So the scanner *can* see the divergence — the same height now has a different hash — but it never asks the
+So the scanner _can_ see the divergence — the same height now has a different hash — but it never asks the
 question. `chain_blocks` is written and never read back during scanning; `parent_hash` (`:85`) and `canonical`
 (`:78`) have no reader at all. The indexer therefore handles reorgs by "orphan this range, then re-insert
-whatever the RPC returns", which converges *per stream, per topic* — not because a fork was detected.
+whatever the RPC returns", which converges _per stream, per topic_ — not because a fork was detected.
 
 **Reachability, stated honestly.** In the normal case the RPC returns the canonical branch, new hashes are seen,
 new rows are inserted, and the old rows stay orphaned — correct. The un-orphan path needs the scan to re-read a
-*superseded* branch. That happens when the RPC answers inconsistently across calls — a load-balanced or
+_superseded_ branch. That happens when the RPC answers inconsistently across calls — a load-balanced or
 read-replica endpoint (common with hosted providers) serving a stale view for part of the rewind range, or a
 request retried against a lagging backend. `indexer.mjs:47` builds the client with
 `http(config.rpcUrl, { retryCount: 5, retryDelay: 500 })`, so retries against a multi-backend endpoint are
@@ -210,7 +210,7 @@ Fix: add `orphaned` to `assets`, include it in the factory orphan pass, and filt
 `indexer.mjs:416`, `:447`, `:574`, `:869` — all `ON CONFLICT (event_key) DO NOTHING`; no `DELETE` or `UPDATE`
 anywhere. Verified: `grep` for any deletion of `notification_outbox` across `services/social/src/` returns nothing.
 
-The trade range *does* clean up the adjacent table — `DELETE FROM notifications WHERE logical_event_id=ANY(...)`
+The trade range _does_ clean up the adjacent table — `DELETE FROM notifications WHERE logical_event_id=ANY(...)`
 (`:492-495`) — but `notification_outbox` is the SSE feed's source, and it is untouched. Reproduced
 (`outbox-check.mjs`): after a trade is orphaned, the outbox row remains and the SSE pump's own query
 (`server.mjs:137`, `WHERE id>$1 AND available_at<=now()`) still returns it.
@@ -229,8 +229,8 @@ Fix: delete or tombstone the outbox rows in the same orphan pass that removes th
 `packages/db/src/schema.ts:291`, migrated table `curveball.reserve_rounds`
 
 It has `orphaned`, but `grep -rn "reserve_rounds" services/social/src/ packages/db/src/` returns only the schema
-definition — the table is never written and never read. The comment at `:753` explains why: *"The lean reserve has
-no rounds: each curve buyer claims once, so round_id is always 0."* It is a V1 leftover.
+definition — the table is never written and never read. The comment at `:753` explains why: _"The lean reserve has
+no rounds: each curve buyer claims once, so round_id is always 0."_ It is a V1 leftover.
 
 Not a vulnerability. Worth deleting, because a table with an orphan flag that nobody maintains reads like an
 orphan path that exists.
@@ -345,14 +345,12 @@ Worth recording, because they are the kind of thing an auditor should show their
 - **`logicalId` collisions are NOT reachable through the obvious path.** I initially suspected that
   two branches of a reorg could collapse onto one `logical_id` and silently merge distinct events.
   Tested (`logicalid-check.mjs`): they cannot. `transactions` groups by hash, so two events from the
-  same transaction can never share a `logIndex`; and a real collision needs the *same* `(tx,
-  logIndex)` to be a *different* event, which is I9 above — a stuck stream, not a merged row.
+  same transaction can never share a `logIndex`; and a real collision needs the _same_ `(tx,
+logIndex)` to be a _different_ event, which is I9 above — a stuck stream, not a merged row.
 - **The derived tables genuinely do self-heal on the trade and venue paths.** I expected to find
   stale aggregates surviving a reorg. I could not construct one: every orphan pass that touches
   `trades` or `venue_swaps` is followed, inside the same transaction, by a rebuild of the affected
   positions, stats and candles. I8 is the exception — the ledger path — not the rule.
-
-
 
 - **No divergence in `market_stats` / `market_candles` / `curve_positions`.** Every path that orphans trades or
   swaps rebuilds the affected token's stats and candles inside the same transaction (`:590-593`, `:875-878`), and

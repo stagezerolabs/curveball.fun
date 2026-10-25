@@ -15,15 +15,15 @@ The HTTP interface is the external seam. Drizzle and raw query details remain in
 
 ## Authoritative data
 
-| Concern | Authority | Stored projection |
-|---|---|---|
-| Launches, curve trades, graduation | Canonical contract events | Markets, trades, lifecycle state |
-| Curve and graduated-pool price/volume | Canonical Curve `Trade` and verified Icarus `Swap` events | Market stats and interval candles |
-| Exact token holdings | ERC-20 transfers, once indexed | Wallet holdings |
-| Known-basis performance | Event-ordered Curve Trades | Curve positions and performance snapshots |
-| Post-graduation market activity | Verified venue swaps and ERC-20 transfers | Venue executions, exact balances, and market candles |
-| Profile and social graph | Authenticated wallet writes | Profiles, follows, blocks, notes, reactions |
-| Copy outcome | Indexed follower transaction | Copy execution and status history |
+| Concern                               | Authority                                                 | Stored projection                                    |
+| ------------------------------------- | --------------------------------------------------------- | ---------------------------------------------------- |
+| Launches, curve trades, graduation    | Canonical contract events                                 | Markets, trades, lifecycle state                     |
+| Curve and graduated-pool price/volume | Canonical Curve `Trade` and verified Icarus `Swap` events | Market stats and interval candles                    |
+| Exact token holdings                  | ERC-20 transfers, once indexed                            | Wallet holdings                                      |
+| Known-basis performance               | Event-ordered Curve Trades                                | Curve positions and performance snapshots            |
+| Post-graduation market activity       | Verified venue swaps and ERC-20 transfers                 | Venue executions, exact balances, and market candles |
+| Profile and social graph              | Authenticated wallet writes                               | Profiles, follows, blocks, notes, reactions          |
+| Copy outcome                          | Indexed follower transaction                              | Copy execution and status history                    |
 
 “Curve position” and “known-basis PnL” remain explicit even with transfer and venue indexing. An Icarus `Swap` identifies the calling contract and output recipient, not necessarily the economic owner, so transfer-in, airdropped, and pool-acquired tokens do not receive invented wallet cost basis.
 

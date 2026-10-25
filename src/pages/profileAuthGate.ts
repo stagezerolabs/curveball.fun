@@ -6,7 +6,11 @@
 // an already-authenticated account (the "already logged in" wallet warning).
 export type ProfileAuthView = "loading" | "restoring" | "login" | "ready";
 
-export function selectProfileAuthView({ ready, authenticated, hasAddress }: {
+export function selectProfileAuthView({
+  ready,
+  authenticated,
+  hasAddress,
+}: {
   ready: boolean;
   authenticated: boolean;
   hasAddress: boolean;

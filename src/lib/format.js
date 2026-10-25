@@ -2,7 +2,8 @@ export function formatEthAmount(value) {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
   if (value === 0) return "0";
   const absolute = Math.abs(value);
-  const maximumFractionDigits = absolute < 0.00000001 ? 12 : absolute < 0.0001 ? 8 : 4;
+  const maximumFractionDigits =
+    absolute < 0.00000001 ? 12 : absolute < 0.0001 ? 8 : 4;
   const formatted = value.toLocaleString(undefined, { maximumFractionDigits });
   if (formatted !== "0") return formatted;
   return maximumFractionDigits === 12 ? "<0.000000000001" : "<0.00000001";

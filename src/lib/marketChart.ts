@@ -9,6 +9,8 @@ export type TradeActivity = {
   isBuy: boolean;
   tokenAmount: bigint;
   quoteAmount: bigint;
+  /** Curve-only post-trade balance; absent for graduated-pool swaps. */
+  virtualQuoteAfter?: bigint;
   timestamp: number;
   blockNumber: bigint;
   logIndex: number;
@@ -25,17 +27,33 @@ export type TradeActivity = {
 /** A Trade's quoteAmount is what the trader paid on a buy (fee and tax included) or received on a sell. */
 export function tradeLogToActivity(
   log: {
-    args?: { trader?: string; isBuy?: boolean; tokenAmount?: bigint; quoteAmount?: bigint };
+    args?: {
+      trader?: string;
+      isBuy?: boolean;
+      tokenAmount?: bigint;
+      quoteAmount?: bigint;
+      virtualQuote?: bigint;
+    };
     blockNumber?: bigint | null;
     logIndex?: number;
     transactionHash?: string;
   },
   timestamp: number | undefined,
 ): TradeActivity | null {
-  const { trader, isBuy, tokenAmount, quoteAmount } = log.args ?? {};
-  if (!trader || !isAddress(trader) || typeof isBuy !== "boolean" || tokenAmount === undefined ||
-      quoteAmount === undefined || timestamp === undefined ||
-      log.blockNumber == null || log.logIndex === undefined || !log.transactionHash) return null;
+  const { trader, isBuy, tokenAmount, quoteAmount, virtualQuote } =
+    log.args ?? {};
+  if (
+    !trader ||
+    !isAddress(trader) ||
+    typeof isBuy !== "boolean" ||
+    tokenAmount === undefined ||
+    quoteAmount === undefined ||
+    timestamp === undefined ||
+    log.blockNumber == null ||
+    log.logIndex === undefined ||
+    !log.transactionHash
+  )
+    return null;
   return {
     trader,
     participantRole: "trader",
@@ -43,6 +61,9 @@ export function tradeLogToActivity(
     isBuy,
     tokenAmount,
     quoteAmount,
+    ...(virtualQuote === undefined
+      ? {}
+      : { virtualQuoteAfter: virtualQuote }),
     timestamp,
     blockNumber: log.blockNumber,
     logIndex: log.logIndex,
@@ -61,7 +82,14 @@ export function toMarketCapPoints(
   currentRate: number | null | undefined,
   currentMarketCap: number | null | undefined,
 ) {
-  if (currentRate == null || currentMarketCap == null || currentRate <= 0 || !Number.isFinite(currentRate) || !Number.isFinite(currentMarketCap)) return [];
+  if (
+    currentRate == null ||
+    currentMarketCap == null ||
+    currentRate <= 0 ||
+    !Number.isFinite(currentRate) ||
+    !Number.isFinite(currentMarketCap)
+  )
+    return [];
   const supply = currentMarketCap / currentRate;
   return points.map((point) => ({ ...point, price: point.price * supply }));
 }
@@ -76,9 +104,19 @@ export function calculatePriceChange(
   currentPrice: number | null | undefined,
   now = Date.now() / 1000,
 ): MarketPriceChange | null {
-  if (currentPrice == null || !Number.isFinite(currentPrice) || currentPrice <= 0) return null;
+  if (
+    currentPrice == null ||
+    !Number.isFinite(currentPrice) ||
+    currentPrice <= 0
+  )
+    return null;
   const ordered = points
-    .filter((point) => Number.isFinite(point.timestamp) && Number.isFinite(point.price) && point.price > 0)
+    .filter(
+      (point) =>
+        Number.isFinite(point.timestamp) &&
+        Number.isFinite(point.price) &&
+        point.price > 0,
+    )
     .sort((a, b) => a.timestamp - b.timestamp);
   if (!ordered.length) return null;
 
@@ -101,9 +139,17 @@ export type TradeLogValues = {
 };
 
 /** Quote that moved through the curve: a buy's payment less fee and tax, a sell's proceeds plus them. */
-export function curveQuoteOf(values: TradeLogValues | undefined): bigint | null {
+export function curveQuoteOf(
+  values: TradeLogValues | undefined,
+): bigint | null {
   const { isBuy, quoteAmount, fee, tax } = values ?? {};
-  if (typeof isBuy !== "boolean" || quoteAmount == null || fee == null || tax == null) return null;
+  if (
+    typeof isBuy !== "boolean" ||
+    quoteAmount == null ||
+    fee == null ||
+    tax == null
+  )
+    return null;
   return isBuy ? quoteAmount - fee - tax : quoteAmount + fee + tax;
 }
 
@@ -121,7 +167,13 @@ export function tradeLogToPoint(
   timestamp: number | undefined,
 ): TradePoint | null {
   const quoteVolume = curveQuoteOf(values);
-  if (!timestamp || !values?.virtualQuote || !values.virtualToken || !quoteVolume) return null;
+  if (
+    !timestamp ||
+    !values?.virtualQuote ||
+    !values.virtualToken ||
+    !quoteVolume
+  )
+    return null;
   const virtualQuote = Number(formatEther(values.virtualQuote));
   const virtualToken = Number(formatEther(values.virtualToken));
   if (virtualToken <= 0) return null;
@@ -151,9 +203,8 @@ export function buildBlockRanges(
   for (let start = fromBlock; start <= toBlock; start += rangeSize) {
     ranges.push({
       fromBlock: start,
-      toBlock: start + rangeSize - 1n < toBlock
-        ? start + rangeSize - 1n
-        : toBlock,
+      toBlock:
+        start + rangeSize - 1n < toBlock ? start + rangeSize - 1n : toBlock,
     });
   }
   return ranges;
@@ -178,7 +229,8 @@ export function buildCandles(
     .sort((a, b) => a.timestamp - b.timestamp);
 
   for (const trade of validTrades) {
-    const time = Math.floor(trade.timestamp / intervalSeconds) * intervalSeconds;
+    const time =
+      Math.floor(trade.timestamp / intervalSeconds) * intervalSeconds;
     const current = candles.get(time);
     if (!current) {
       candles.set(time, {

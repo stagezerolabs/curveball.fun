@@ -7,7 +7,10 @@ import type { Navigate, Token } from "../types";
 import { TraderIdentity } from "./TraderIdentity";
 import type { SocialTrade } from "./types";
 
-export function SocialTradeCard({ trade, navigate }: {
+export function SocialTradeCard({
+  trade,
+  navigate,
+}: {
   trade: SocialTrade;
   navigate: Navigate;
 }) {
@@ -25,24 +28,58 @@ export function SocialTradeCard({ trade, navigate }: {
   return (
     <article className="social-trade-card">
       <header>
-        <TraderIdentity address={trade.traderAddress} navigate={navigate} showAddress={false} />
-        <time dateTime={trade.blockTimestamp} title={new Date(trade.blockTimestamp).toLocaleString()}>{formatRelativeTime(trade.blockTimestamp)}</time>
+        <TraderIdentity
+          address={trade.traderAddress}
+          navigate={navigate}
+          showAddress={false}
+        />
+        <time
+          dateTime={trade.blockTimestamp}
+          title={new Date(trade.blockTimestamp).toLocaleString()}
+        >
+          {formatRelativeTime(trade.blockTimestamp)}
+        </time>
       </header>
       <div className="social-trade-body">
-        <AppLink className="social-token-link" route="market" params={{ address: trade.tokenAddress }} navigate={navigate}>
+        <AppLink
+          className="social-token-link"
+          route="market"
+          params={{ address: trade.tokenAddress }}
+          navigate={navigate}
+        >
           <TokenAvatar token={activityToken} className="social-token-avatar" />
-          <span><strong>{trade.tokenName}</strong><small>${trade.tokenSymbol}</small></span>
+          <span>
+            <strong>{trade.tokenName}</strong>
+            <small>${trade.tokenSymbol}</small>
+          </span>
         </AppLink>
         <div className="social-trade-statement">
-          <span className={`social-side ${trade.isBuy ? "buy" : "sell"}`}>{trade.isBuy ? "Bought" : "Sold"}</span>
-          <strong>{formatEthAmount(tokenAmount)} {trade.tokenSymbol}</strong>
+          <span className={`social-side ${trade.isBuy ? "buy" : "sell"}`}>
+            {trade.isBuy ? "Bought" : "Sold"}
+          </span>
+          <strong>
+            {formatEthAmount(tokenAmount)} {trade.tokenSymbol}
+          </strong>
           <span>for {formatEthAmount(quote)} WETH</span>
         </div>
       </div>
       <footer>
         <div className="social-trade-actions">
-          <a href={`${activeExplorerUrl}/tx/${trade.transactionHash}`} target="_blank" rel="noreferrer">View transaction <span aria-hidden="true">↗</span></a>
-          <AppLink route="market" params={{ address: trade.tokenAddress }} navigate={navigate} aria-label={`View ${trade.tokenName} market`}>View market</AppLink>
+          <a
+            href={`${activeExplorerUrl}/tx/${trade.transactionHash}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            View transaction <span aria-hidden="true">↗</span>
+          </a>
+          <AppLink
+            route="market"
+            params={{ address: trade.tokenAddress }}
+            navigate={navigate}
+            aria-label={`View ${trade.tokenName} market`}
+          >
+            View market
+          </AppLink>
         </div>
       </footer>
     </article>

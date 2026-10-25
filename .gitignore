@@ -23,6 +23,7 @@ contracts/crytic-export/
 deployments.local-backup/
 .env*
 !keeper/.env.example
+deploy/*.env
 
 # Playwright output
 test-results/

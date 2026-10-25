@@ -1,6 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { encodeAbiParameters, encodeEventTopics, parseAbi, zeroAddress } from "viem";
+import {
+  encodeAbiParameters,
+  encodeEventTopics,
+  parseAbi,
+  zeroAddress,
+} from "viem";
 import { createGraduationKeeper, decide } from "./graduation-keeper.mjs";
 
 const token = "0x0000000000000000000000000000000000000001";
@@ -16,57 +21,148 @@ const idleBuyback = { balance: 0n, last: 0n, interval: 3_600n };
 test("decision table", () => {
   const cases = [
     ["trading", { state: "trading", soldOut: false }, "wait"],
-    ["ready", { state: "ready", soldOut: true, readyAt: NOW - 60n }, "graduate"],
-    ["ready while Icarus is paused (graduation still simulates)", { state: "ready", soldOut: true, readyAt: NOW - 60n }, "graduate"],
-    ["ready, graduation reverts, before the timeout", { state: "ready", soldOut: true, readyAt: NOW - TIMEOUT + 1n, graduationReverts: true }, "wait"],
-    ["ready, graduation reverts, past the timeout", { state: "ready", soldOut: true, readyAt: NOW - TIMEOUT, graduationReverts: true }, "abort"],
+    [
+      "ready",
+      { state: "ready", soldOut: true, readyAt: NOW - 60n },
+      "graduate",
+    ],
+    [
+      "ready while Icarus is paused (graduation still simulates)",
+      { state: "ready", soldOut: true, readyAt: NOW - 60n },
+      "graduate",
+    ],
+    [
+      "ready, graduation reverts, before the timeout",
+      {
+        state: "ready",
+        soldOut: true,
+        readyAt: NOW - TIMEOUT + 1n,
+        graduationReverts: true,
+      },
+      "wait",
+    ],
+    [
+      "ready, graduation reverts, past the timeout",
+      {
+        state: "ready",
+        soldOut: true,
+        readyAt: NOW - TIMEOUT,
+        graduationReverts: true,
+      },
+      "abort",
+    ],
     ["aborted below sellout", { state: "aborted", soldOut: false }, "wait"],
-    ["aborted and sold out again", { state: "aborted", soldOut: true }, "graduate"],
-    ["graduated with nothing to buy", { state: "graduated", buyback: idleBuyback }, "wait"],
-    ["graduated, first buyback", { state: "graduated", buyback: { ...idleBuyback, balance: 5n } }, "buyback"],
-    ["graduated, inside the interval", { state: "graduated", buyback: { ...idleBuyback, balance: 5n, last: NOW - 3_599n } }, "wait"],
-    ["graduated, interval elapsed", { state: "graduated", buyback: { ...idleBuyback, balance: 5n, last: NOW - 3_600n } }, "buyback"],
+    [
+      "aborted and sold out again",
+      { state: "aborted", soldOut: true },
+      "graduate",
+    ],
+    [
+      "graduated with nothing to buy",
+      { state: "graduated", buyback: idleBuyback },
+      "wait",
+    ],
+    [
+      "graduated, first buyback",
+      { state: "graduated", buyback: { ...idleBuyback, balance: 5n } },
+      "buyback",
+    ],
+    [
+      "graduated, inside the interval",
+      {
+        state: "graduated",
+        buyback: { ...idleBuyback, balance: 5n, last: NOW - 3_599n },
+      },
+      "wait",
+    ],
+    [
+      "graduated, interval elapsed",
+      {
+        state: "graduated",
+        buyback: { ...idleBuyback, balance: 5n, last: NOW - 3_600n },
+      },
+      "buyback",
+    ],
   ];
   for (const [name, input, expected] of cases) {
-    assert.equal(decide({ readyAt: 0n, nowSeconds: NOW, timeout: TIMEOUT, ...input }), expected, name);
+    assert.equal(
+      decide({ readyAt: 0n, nowSeconds: NOW, timeout: TIMEOUT, ...input }),
+      expected,
+      name,
+    );
   }
 });
 
-const escrowEvents = parseAbi(["event BuybackSkipped(address indexed token,uint8 reason)"]);
+const escrowEvents = parseAbi([
+  "event BuybackSkipped(address indexed token,uint8 reason)",
+]);
 
 /** A launchpad and escrow on one market; `market` and `buyback` are mutable so writes can change them. */
-function harness({ market, buyback = idleBuyback, graduationReverts = false, buybackSkips = false }) {
+function harness({
+  market,
+  buyback = idleBuyback,
+  graduationReverts = false,
+  buybackSkips = false,
+}) {
   const writes = [];
   const marketStruct = () => ({
-    creator: token, feeBps: 75, creatorShareBps: 5_000, buybackShareBps: 2_500, taxBps: 0,
-    state: ["none", "trading", "ready", "graduated", "aborted"].indexOf(market.state),
-    virtualToken: market.soldOut ? SUPPLY - CURVE_SUPPLY : SUPPLY, virtualQuote: 1n, initialVirtualQuote: 1n,
-    realQuote: 0n, reserveTokens: 0n, readyAt: Number(market.readyAt ?? 0n), pool: zeroAddress,
+    creator: token,
+    feeBps: 75,
+    creatorShareBps: 5_000,
+    buybackShareBps: 2_500,
+    taxBps: 0,
+    state: ["none", "trading", "ready", "graduated", "aborted"].indexOf(
+      market.state,
+    ),
+    virtualToken: market.soldOut ? SUPPLY - CURVE_SUPPLY : SUPPLY,
+    virtualQuote: 1n,
+    initialVirtualQuote: 1n,
+    realQuote: 0n,
+    reserveTokens: 0n,
+    readyAt: Number(market.readyAt ?? 0n),
+    pool: zeroAddress,
   });
   const reads = {
-    escrow, GRADUATION_TIMEOUT: TIMEOUT, SUPPLY, CURVE_SUPPLY, BUYBACK_INTERVAL: 3_600n,
-    market: marketStruct, buybackBalance: () => buyback.balance, lastBuyback: () => buyback.last,
+    escrow,
+    GRADUATION_TIMEOUT: TIMEOUT,
+    SUPPLY,
+    CURVE_SUPPLY,
+    BUYBACK_INTERVAL: 3_600n,
+    market: marketStruct,
+    buybackBalance: () => buyback.balance,
+    lastBuyback: () => buyback.last,
   };
   const publicClient = {
     getBlockNumber: async () => 12n,
     getContractEvents: async () => [{ args: { token } }],
     readContract: async ({ functionName }) => {
       const value = reads[functionName];
-      if (value === undefined) throw new Error(`Unexpected read ${functionName}`);
+      if (value === undefined)
+        throw new Error(`Unexpected read ${functionName}`);
       return typeof value === "function" ? value() : value;
     },
     getTransactionCount: async () => 0,
     simulateContract: async ({ functionName }) => {
-      if (functionName === "graduate" && graduationReverts) throw new Error("graduate reverts");
+      if (functionName === "graduate" && graduationReverts)
+        throw new Error("graduate reverts");
       return { request: { functionName } };
     },
     waitForTransactionReceipt: async () => ({
       status: "success",
-      logs: writes.at(-1) === "buyback" && buybackSkips ? [{
-        address: escrow,
-        topics: encodeEventTopics({ abi: escrowEvents, eventName: "BuybackSkipped", args: { token } }),
-        data: encodeAbiParameters([{ type: "uint8" }], [3]),
-      }] : [],
+      logs:
+        writes.at(-1) === "buyback" && buybackSkips
+          ? [
+              {
+                address: escrow,
+                topics: encodeEventTopics({
+                  abi: escrowEvents,
+                  eventName: "BuybackSkipped",
+                  args: { token },
+                }),
+                data: encodeAbiParameters([{ type: "uint8" }], [3]),
+              },
+            ]
+          : [],
     }),
   };
   const walletClient = {
@@ -82,28 +178,50 @@ function harness({ market, buyback = idleBuyback, graduationReverts = false, buy
   const logs = [];
   let clock = Number(NOW) * 1_000;
   const keeper = createGraduationKeeper({
-    publicClient, walletClient, launchpad, deploymentBlock: 10n, now: () => clock,
-    logger: { info() {}, warn: (message) => logs.push(message), error: (message) => logs.push(message) },
+    publicClient,
+    walletClient,
+    launchpad,
+    deploymentBlock: 10n,
+    now: () => clock,
+    logger: {
+      info() {},
+      warn: (message) => logs.push(message),
+      error: (message) => logs.push(message),
+    },
   });
-  return { keeper, writes, logs, advance: (ms) => { clock += ms; } };
+  return {
+    keeper,
+    writes,
+    logs,
+    advance: (ms) => {
+      clock += ms;
+    },
+  };
 }
 
 test("a sweep graduates a sold-out market once and then watches it for buybacks", async () => {
-  const { keeper, writes } = harness({ market: { state: "ready", soldOut: true, readyAt: NOW - 60n } });
+  const { keeper, writes } = harness({
+    market: { state: "ready", soldOut: true, readyAt: NOW - 60n },
+  });
   await keeper.tick();
   await keeper.tick();
   assert.deepEqual(writes, ["graduate"]);
 });
 
 test("a stuck graduation past the timeout is aborted instead", async () => {
-  const { keeper, writes } = harness({ market: { state: "ready", soldOut: true, readyAt: NOW - TIMEOUT }, graduationReverts: true });
+  const { keeper, writes } = harness({
+    market: { state: "ready", soldOut: true, readyAt: NOW - TIMEOUT },
+    graduationReverts: true,
+  });
   await keeper.tick();
   assert.deepEqual(writes, ["abortGraduation"]);
 });
 
 test("a skipped buyback backs off instead of retrying every sweep", async () => {
   const { keeper, writes, logs, advance } = harness({
-    market: { state: "graduated", soldOut: true }, buyback: { ...idleBuyback, balance: 5n }, buybackSkips: true,
+    market: { state: "graduated", soldOut: true },
+    buyback: { ...idleBuyback, balance: 5n },
+    buybackSkips: true,
   });
   await keeper.tick();
   await keeper.tick();
@@ -115,7 +233,10 @@ test("a skipped buyback backs off instead of retrying every sweep", async () => 
 });
 
 test("a completed buyback waits out the interval", async () => {
-  const { keeper, writes } = harness({ market: { state: "graduated", soldOut: true }, buyback: { ...idleBuyback, balance: 5n } });
+  const { keeper, writes } = harness({
+    market: { state: "graduated", soldOut: true },
+    buyback: { ...idleBuyback, balance: 5n },
+  });
   await keeper.tick();
   await keeper.tick();
   assert.deepEqual(writes, ["buyback"]);

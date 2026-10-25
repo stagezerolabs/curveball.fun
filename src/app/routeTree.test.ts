@@ -19,5 +19,7 @@ test("protocol stats has a direct route", () => {
 });
 
 test("trader profile route resolves a wallet address", () => {
-  expect(resolveRoute("/profile/0x5cc42e772f67089b4670eec4dcd904be2f2d511c").id).toBe("trader");
+  expect(
+    resolveRoute("/profile/0x5cc42e772f67089b4670eec4dcd904be2f2d511c").id,
+  ).toBe("trader");
 });

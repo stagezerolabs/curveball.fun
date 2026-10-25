@@ -13,10 +13,15 @@ async function refreshEthUsdPrice() {
   if (activeRequest) return activeRequest;
   activeRequest = fetch(COINGECKO_ETH_USD_URL)
     .then(async (response) => {
-      if (!response.ok) throw new Error(`CoinGecko returned ${response.status}.`);
+      if (!response.ok)
+        throw new Error(`CoinGecko returned ${response.status}.`);
       const data = (await response.json()) as { ethereum?: { usd?: number } };
       const nextRate = data.ethereum?.usd;
-      if (typeof nextRate !== "number" || !Number.isFinite(nextRate) || nextRate <= 0) {
+      if (
+        typeof nextRate !== "number" ||
+        !Number.isFinite(nextRate) ||
+        nextRate <= 0
+      ) {
         throw new Error("CoinGecko returned an invalid ETH/USD exchange rate.");
       }
       ethUsdRate = nextRate;
@@ -35,7 +40,10 @@ function subscribe(listener: () => void) {
   listeners.add(listener);
   if (listeners.size === 1) {
     void refreshEthUsdPrice();
-    refreshTimer = setInterval(() => void refreshEthUsdPrice(), REFRESH_INTERVAL_MS);
+    refreshTimer = setInterval(
+      () => void refreshEthUsdPrice(),
+      REFRESH_INTERVAL_MS,
+    );
   }
   return () => {
     listeners.delete(listener);
@@ -58,7 +66,8 @@ export function formatUsd(value: number) {
   if (!Number.isFinite(value)) return "—";
   const absolute = Math.abs(value);
   if (absolute > 0 && absolute < 0.00000001) return "<$0.00000001";
-  const maximumFractionDigits = absolute >= 1 ? 2 : absolute >= 0.01 ? 4 : absolute >= 0.0001 ? 6 : 8;
+  const maximumFractionDigits =
+    absolute >= 1 ? 2 : absolute >= 0.01 ? 4 : absolute >= 0.0001 ? 6 : 8;
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
@@ -77,11 +86,36 @@ function formatCompactUsd(value: number) {
   }).format(value);
 }
 
-export function UsdAmount({ weth, suffix = "", compact = false }: { weth?: number | null; suffix?: string; compact?: boolean }) {
+export function UsdAmount({
+  weth,
+  suffix = "",
+  compact = false,
+}: {
+  weth?: number | null;
+  suffix?: string;
+  compact?: boolean;
+}) {
   const usdPerEth = useEthUsdRate();
-  if (weth === 0) return <>{formatUsd(0)}{suffix}</>;
+  if (weth === 0)
+    return (
+      <>
+        {formatUsd(0)}
+        {suffix}
+      </>
+    );
   if (weth == null || usdPerEth == null) return <>—</>;
   const full = formatUsd(weth * usdPerEth);
-  if (compact) return <span title={`${full}${suffix}`} aria-label={`${full}${suffix}`}>{formatCompactUsd(weth * usdPerEth)}{suffix}</span>;
-  return <>{full}{suffix}</>;
+  if (compact)
+    return (
+      <span title={`${full}${suffix}`} aria-label={`${full}${suffix}`}>
+        {formatCompactUsd(weth * usdPerEth)}
+        {suffix}
+      </span>
+    );
+  return (
+    <>
+      {full}
+      {suffix}
+    </>
+  );
 }

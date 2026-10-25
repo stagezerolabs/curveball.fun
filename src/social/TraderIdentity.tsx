@@ -6,10 +6,22 @@ import { TraderAvatar } from "./TraderAvatar";
 import { useTraderName } from "./useTraderName";
 
 /** Inline trader name that links to the profile, for places where a full identity row does not fit. */
-export function TraderName({ address, navigate }: { address: Address; navigate: Navigate }) {
+export function TraderName({
+  address,
+  navigate,
+}: {
+  address: Address;
+  navigate: Navigate;
+}) {
   const { label } = useTraderName(address);
   return (
-    <AppLink className="trader-name" route="trader" params={{ address }} navigate={navigate} title={address}>
+    <AppLink
+      className="trader-name"
+      route="trader"
+      params={{ address }}
+      navigate={navigate}
+      title={address}
+    >
       {label}
     </AppLink>
   );
@@ -39,7 +51,9 @@ export function TraderIdentity({
       <TraderAvatar address={address} name={name ?? address} />
       <span>
         <strong>{label}</strong>
-        {name && !compact && showAddress ? <small>{formatAddress(address)}</small> : null}
+        {name && !compact && showAddress ? (
+          <small>{formatAddress(address)}</small>
+        ) : null}
       </span>
     </AppLink>
   );

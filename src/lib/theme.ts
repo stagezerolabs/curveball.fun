@@ -10,9 +10,7 @@ export function getInitialTheme(value: unknown): Theme {
   return isTheme(value) ? value : "light";
 }
 
-export function readStoredTheme(
-  storage?: Pick<Storage, "getItem">,
-): Theme {
+export function readStoredTheme(storage?: Pick<Storage, "getItem">): Theme {
   try {
     const target = storage ?? window.localStorage;
     return getInitialTheme(target.getItem(THEME_STORAGE_KEY));
@@ -21,10 +19,7 @@ export function readStoredTheme(
   }
 }
 
-export function persistTheme(
-  theme: Theme,
-  storage?: Pick<Storage, "setItem">,
-) {
+export function persistTheme(theme: Theme, storage?: Pick<Storage, "setItem">) {
   try {
     const target = storage ?? window.localStorage;
     target.setItem(THEME_STORAGE_KEY, theme);

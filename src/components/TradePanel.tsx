@@ -10,10 +10,7 @@ import { factoryForToken } from "../lib/marketFactories";
 import { selectTradeState } from "../lib/marketState";
 import { useStore } from "../app/useStore.js";
 import { formatEthAmount, formatPercent } from "../lib/format.js";
-import {
-  getBuyFundingState,
-  TradeFundingStatus,
-} from "./TradeFundingStatus";
+import { getBuyFundingState, TradeFundingStatus } from "./TradeFundingStatus";
 import { NATIVE_GAS_RESERVE } from "../sdk/sdk";
 import type { Address } from "viem";
 import type { Token } from "../types";
@@ -61,10 +58,14 @@ export function TradePanel({
   } = useStore();
   const [explain, setExplain] = useState(false);
   const { ready: privyReady, authenticated, login } = usePrivy();
-  const marketFactory = launchpadAddress ? factoryForToken(token.factory) : undefined;
+  const marketFactory = launchpadAddress
+    ? factoryForToken(token.factory)
+    : undefined;
   const { data: paused } = useReadContract({
-    address: marketFactory, abi: curveLaunchpadAbi,
-    functionName: "paused", chainId: activeChainId,
+    address: marketFactory,
+    abi: curveLaunchpadAbi,
+    functionName: "paused",
+    chainId: activeChainId,
     query: { enabled: Boolean(marketFactory), refetchInterval: 30_000 },
   });
   const { data: quoteToken } = useReadContract({
@@ -81,7 +82,12 @@ export function TradePanel({
   });
 
   const quoteSymbol = token.quoteSymbol ?? "WETH";
-  const payingWith = side === "buy" ? (quoteSymbol === "WETH" ? "ETH" : quoteSymbol) : token.symbol;
+  const payingWith =
+    side === "buy"
+      ? quoteSymbol === "WETH"
+        ? "ETH"
+        : quoteSymbol
+      : token.symbol;
   const receiving = side === "buy" ? token.symbol : quoteSymbol;
 
   // Buying spends the quote token, selling spends the token itself.
@@ -102,13 +108,19 @@ export function TradePanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [amount, side, token.address, token.graduated]);
 
-  const received = quotePreview !== null ? Number(formatEther(quotePreview)) : null;
-  const atLeast = received === null ? null : received * (1 - SLIPPAGE_BPS / 10_000);
+  const received =
+    quotePreview !== null ? Number(formatEther(quotePreview)) : null;
+  const atLeast =
+    received === null ? null : received * (1 - SLIPPAGE_BPS / 10_000);
 
   // Compare the execution rate with the current curve rate to show order impact.
   const input = Number(amount);
   let inputWei = 0n;
-  try { inputWei = parseEther(amount || "0"); } catch { /* Invalid input remains disabled. */ }
+  try {
+    inputWei = parseEther(amount || "0");
+  } catch {
+    /* Invalid input remains disabled. */
+  }
   const buyFunding =
     side === "buy"
       ? getBuyFundingState(amount, assetBalance, nativeBalance?.value)
@@ -133,7 +145,7 @@ export function TradePanel({
 
   function applyPreset(percent: number) {
     if (presetBalance === undefined) return;
-    const portion = presetBalance * BigInt(percent) / 100n;
+    const portion = (presetBalance * BigInt(percent)) / 100n;
     setAmount(formatEther(portion));
   }
 
@@ -162,10 +174,29 @@ export function TradePanel({
         </button>
       </div>
 
-      {state === "ready" && <p className="notice" role="status">Bonding is complete. Trading pauses while the pool is seeded; this market moves to its pool once graduation is confirmed.</p>}
-      {sellAborts && <p className="notice" role="status">Graduation is overdue. Selling is open again: your sale also aborts the stuck graduation, and the market graduates on its next sellout.</p>}
-      {state === "aborted" && <p className="notice" role="status">Graduation was aborted after its timeout. Trading continues, and the market graduates on its next sellout.</p>}
-      {paused === true && side === "buy" && state !== "ready" && <p className="notice" role="status">Buying is paused by the guardian. Selling stays open.</p>}
+      {state === "ready" && (
+        <p className="notice" role="status">
+          Bonding is complete. Trading pauses while the pool is seeded; this
+          market moves to its pool once graduation is confirmed.
+        </p>
+      )}
+      {sellAborts && (
+        <p className="notice" role="status">
+          Graduation is overdue. Selling is open again: your sale also aborts
+          the stuck graduation, and the market graduates on its next sellout.
+        </p>
+      )}
+      {state === "aborted" && (
+        <p className="notice" role="status">
+          Graduation was aborted after its timeout. Trading continues, and the
+          market graduates on its next sellout.
+        </p>
+      )}
+      {paused === true && side === "buy" && state !== "ready" && (
+        <p className="notice" role="status">
+          Buying is paused by the guardian. Selling stays open.
+        </p>
+      )}
 
       <div className="amount-head">
         <label htmlFor="trade-amount">Amount</label>
@@ -215,9 +246,21 @@ export function TradePanel({
                 : `${formatEthAmount(received)} ${receiving}`
           }
         />
-        <Row label="At least" value={atLeast === null ? "—" : `${formatEthAmount(atLeast)} ${receiving}`} />
+        <Row
+          label="At least"
+          value={
+            atLeast === null ? "—" : `${formatEthAmount(atLeast)} ${receiving}`
+          }
+        />
         <Row label="Slippage limit" value={`${SLIPPAGE_BPS / 100}%`} />
-        <Row label="Curve fee + creator tax" value={token.feeBps == null ? "—" : `${((token.feeBps + (token.creatorTaxBps ?? 0)) / 100).toFixed(2)}%`} />
+        <Row
+          label="Curve fee + creator tax"
+          value={
+            token.feeBps == null
+              ? "—"
+              : `${((token.feeBps + (token.creatorTaxBps ?? 0)) / 100).toFixed(2)}%`
+          }
+        />
         <Row
           label="Trade impact"
           value={tradeImpact === null ? "—" : formatPercent(tradeImpact)}
@@ -230,20 +273,39 @@ export function TradePanel({
           type="button"
           className={`trade-submit ${tradeProgress?.side ?? side}${tradeProgress ? " processing" : ""}`}
           aria-busy={Boolean(tradeProgress)}
-          disabled={isPending || inputWei <= 0n || buyFunding?.canFund === false || (side === "buy" ? !canBuy : !canSell)}
+          disabled={
+            isPending ||
+            inputWei <= 0n ||
+            buyFunding?.canFund === false ||
+            (side === "buy" ? !canBuy : !canSell)
+          }
           onClick={() => trade(side, token)}
         >
-          <span aria-live="polite" aria-atomic="true">{tradeProgress ? tradeButtonLabel(tradeProgress.side, tradeProgress.phase) : tradeButtonLabel(side, null)}</span>
+          <span aria-live="polite" aria-atomic="true">
+            {tradeProgress
+              ? tradeButtonLabel(tradeProgress.side, tradeProgress.phase)
+              : tradeButtonLabel(side, null)}
+          </span>
         </button>
       ) : authenticated ? (
         // Session restored but wagmi is still syncing the wallet: a working
         // "Sign in" button here would call login() on an active session and
         // surface the wallet's "already logged in" warning.
-        <button className={`trade-submit ${side}`} type="button" disabled aria-busy="true">
+        <button
+          className={`trade-submit ${side}`}
+          type="button"
+          disabled
+          aria-busy="true"
+        >
           Connecting session…
         </button>
       ) : (
-        <button className={`trade-submit ${side}`} type="button" disabled={!privyReady} onClick={login}>
+        <button
+          className={`trade-submit ${side}`}
+          type="button"
+          disabled={!privyReady}
+          onClick={login}
+        >
           Sign in to trade
         </button>
       )}
@@ -253,7 +315,11 @@ export function TradePanel({
         </p>
       )}
 
-      <Collapsible.Root open={explain} onOpenChange={setExplain} className="trade-explain">
+      <Collapsible.Root
+        open={explain}
+        onOpenChange={setExplain}
+        className="trade-explain"
+      >
         <Collapsible.Trigger type="button">
           How curve trades work
           <svg viewBox="0 0 20 20" aria-hidden="true">
@@ -263,11 +329,11 @@ export function TradePanel({
         </Collapsible.Trigger>
         <Collapsible.Panel>
           <p>
-            Every trade runs against a constant-product bonding curve held by the
-            launchpad — no order book and no counterparty. The exchange rate
+            Every trade runs against a constant-product bonding curve held by
+            the launchpad — no order book and no counterparty. The exchange rate
             changes with each buy and sell, so larger orders move the curve
-            further. Your transaction
-            reverts if the result lands below the slippage limit.
+            further. Your transaction reverts if the result lands below the
+            slippage limit.
           </p>
         </Collapsible.Panel>
       </Collapsible.Root>

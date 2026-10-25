@@ -1,0 +1,37 @@
+{
+	admin off
+}
+
+(security_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+	}
+}
+
+{$CURVEBALL_WEB_DOMAIN} {
+	import security_headers
+	encode zstd gzip
+
+	@artwork path /api/artwork
+	request_body @artwork {
+		max_size 2200000
+	}
+
+	reverse_proxy curveball-testnet-web-edge:8081
+}
+
+{$CURVEBALL_API_DOMAIN} {
+	import security_headers
+	encode zstd gzip
+
+	@events path /v1/events*
+	reverse_proxy @events curveball-testnet-api:8787 {
+		flush_interval -1
+	}
+
+	reverse_proxy curveball-testnet-api:8787
+}

@@ -14,7 +14,8 @@ function publicUrl(uri, enforceHost = false) {
   try {
     const parsed = new URL(uri);
     if (parsed.protocol !== "https:") return null;
-    if (enforceHost && !config.metadataHosts.has(parsed.hostname.toLowerCase())) return null;
+    if (enforceHost && !config.metadataHosts.has(parsed.hostname.toLowerCase()))
+      return null;
     return parsed.toString();
   } catch {
     return null;
@@ -32,13 +33,17 @@ async function fetchMetadata(uri) {
     headers: { Accept: "application/json" },
     signal: AbortSignal.timeout(8_000),
   });
-  if (!response.ok) throw new Error(`Metadata request failed (${response.status}).`);
+  if (!response.ok)
+    throw new Error(`Metadata request failed (${response.status}).`);
   const declaredSize = Number(response.headers.get("content-length") || 0);
-  if (declaredSize > MAX_METADATA_BYTES) throw new Error("Metadata document is too large.");
+  if (declaredSize > MAX_METADATA_BYTES)
+    throw new Error("Metadata document is too large.");
   const bytes = new Uint8Array(await response.arrayBuffer());
-  if (bytes.byteLength > MAX_METADATA_BYTES) throw new Error("Metadata document is too large.");
+  if (bytes.byteLength > MAX_METADATA_BYTES)
+    throw new Error("Metadata document is too large.");
   const value = JSON.parse(new TextDecoder().decode(bytes));
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Metadata must be a JSON object.");
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error("Metadata must be a JSON object.");
   return {
     name: shortString(value.name, 120),
     description: shortString(value.description, 1_000),
@@ -48,19 +53,29 @@ async function fetchMetadata(uri) {
 }
 
 export async function refreshMetadataBatch() {
-  const candidates = await pool.query(`SELECT chain_id,address,metadata_uri FROM assets
+  const candidates =
+    await pool.query(`SELECT chain_id,address,metadata_uri FROM assets
     WHERE metadata_uri IS NOT NULL AND metadata_uri<>''
       AND (metadata_fetched_at IS NULL OR metadata_fetched_at<now()-interval '24 hours')
     ORDER BY metadata_fetched_at ASC NULLS FIRST LIMIT 20`);
   for (const asset of candidates.rows) {
     try {
       const metadata = await fetchMetadata(asset.metadata_uri);
-      await pool.query(`UPDATE assets SET metadata=$1::jsonb,metadata_fetched_at=now(),updated_at=now()
-        WHERE chain_id=$2 AND address=$3`, [JSON.stringify(metadata), asset.chain_id, asset.address]);
+      await pool.query(
+        `UPDATE assets SET metadata=$1::jsonb,metadata_fetched_at=now(),updated_at=now()
+        WHERE chain_id=$2 AND address=$3`,
+        [JSON.stringify(metadata), asset.chain_id, asset.address],
+      );
     } catch (error) {
-      await pool.query(`UPDATE assets SET metadata_fetched_at=now(),updated_at=now()
-        WHERE chain_id=$1 AND address=$2`, [asset.chain_id, asset.address]);
-      console.warn(`Metadata refresh failed for ${asset.address}:`, error instanceof Error ? error.message : error);
+      await pool.query(
+        `UPDATE assets SET metadata_fetched_at=now(),updated_at=now()
+        WHERE chain_id=$1 AND address=$2`,
+        [asset.chain_id, asset.address],
+      );
+      console.warn(
+        `Metadata refresh failed for ${asset.address}:`,
+        error instanceof Error ? error.message : error,
+      );
     }
   }
   return candidates.rowCount;
@@ -69,18 +84,19 @@ export async function refreshMetadataBatch() {
 export function startMetadataWorker({ onError } = {}) {
   let stopped = false;
   let timer;
-  const tick = async () => traceBackendTask("social.metadata.tick", async () => {
-    try {
-      let refreshed;
-      do {
-        refreshed = stopped ? 0 : await refreshMetadataBatch();
-      } while (refreshed === 20 && !stopped);
-    } catch (error) {
-      onError?.(error);
-    } finally {
-      if (!stopped) timer = setTimeout(tick, config.metadataRefreshMs);
-    }
-  });
+  const tick = async () =>
+    traceBackendTask("social.metadata.tick", async () => {
+      try {
+        let refreshed;
+        do {
+          refreshed = stopped ? 0 : await refreshMetadataBatch();
+        } while (refreshed === 20 && !stopped);
+      } catch (error) {
+        onError?.(error);
+      } finally {
+        if (!stopped) timer = setTimeout(tick, config.metadataRefreshMs);
+      }
+    });
   void tick();
   return () => {
     stopped = true;

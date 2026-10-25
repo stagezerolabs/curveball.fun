@@ -2,12 +2,12 @@
 
 A standalone Node.js worker for the active Curveball launchpad. It discovers launches and, for each market, takes the one permissionless action it needs. It needs no HTTP server.
 
-| Market | Action |
-|---|---|
-| Ready (sold out) | `graduate`. Icarus's pause doesn't matter: graduation never checks it. |
-| Ready past `GRADUATION_TIMEOUT`, and `graduate` would revert | `abortGraduation`, which reopens sells |
-| Aborted and sold out again | `graduate` |
-| Graduated, with a buyback balance and `BUYBACK_INTERVAL` elapsed | `escrow.buyback` |
+| Market                                                           | Action                                                                 |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Ready (sold out)                                                 | `graduate`. Icarus's pause doesn't matter: graduation never checks it. |
+| Ready past `GRADUATION_TIMEOUT`, and `graduate` would revert     | `abortGraduation`, which reopens sells                                 |
+| Aborted and sold out again                                       | `graduate`                                                             |
+| Graduated, with a buyback balance and `BUYBACK_INTERVAL` elapsed | `escrow.buyback`                                                       |
 
 A buyback that emits `BuybackSkipped` (too few TWAP observations, Icarus paused, or the price outside the band) spends nothing and doesn't start the interval, so the keeper backs off: one interval, then doubling up to six hours. Failed actions retry after a minute, doubling to the same cap.
 

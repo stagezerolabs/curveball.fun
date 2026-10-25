@@ -9,11 +9,15 @@ export type CurveballDatabase = ReturnType<typeof createDatabase>;
 export function createDatabase(config: PoolConfig) {
   const pool = new Pool({
     ...config,
-    options: [config.options, "-c search_path=curveball,public"].filter(Boolean).join(" "),
+    options: [config.options, "-c search_path=curveball,public"]
+      .filter(Boolean)
+      .join(" "),
   });
   const db = drizzle(pool, { schema });
 
-  async function transaction<T>(run: (client: PoolClient) => Promise<T>): Promise<T> {
+  async function transaction<T>(
+    run: (client: PoolClient) => Promise<T>,
+  ): Promise<T> {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");

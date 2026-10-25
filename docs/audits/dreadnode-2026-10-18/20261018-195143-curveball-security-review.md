@@ -9,7 +9,7 @@
 ## How this review was run
 
 A project-local capability, `curveball-security`, was authored and installed on the runtime. It
-ships three skills that encode the *trust model* rather than generic advice:
+ships three skills that encode the _trust model_ rather than generic advice:
 
 - `curveball-threat-model` — asset inventory, the ten invariants the Foundry suite already pins,
   and an explicit list of ADR-0003 tradeoffs that must **not** be reported as bugs.
@@ -34,7 +34,9 @@ traced by hand and the mechanism is unambiguous, but no test was written.
 `services/social/src/config.mjs:45`
 
 ```js
-const admin = process.env.SOCIAL_ADMIN_ADDRESS?.trim() || "0x5cc42e772f67089b4670eec4dcd904be2f2d511c";
+const admin =
+  process.env.SOCIAL_ADMIN_ADDRESS?.trim() ||
+  "0x5cc42e772f67089b4670eec4dcd904be2f2d511c";
 ```
 
 Every other privileged input is either `required()` (throws if unset — see `databaseUrl` at
@@ -43,7 +45,7 @@ deployment that forgets `SOCIAL_ADMIN_ADDRESS` — or misspells it — grants re
 moderation (`GET/PATCH /v1/admin/reports`) to an address the operator never chose.
 
 The misconfiguration is invisible in development because `services/social/.env.example:9` ships
-the *same address*, so a local run looks correct.
+the _same address_, so a local run looks correct.
 
 Verified: the literal appears in both `config.mjs` (1 occurrence) and `.env.example` (1 occurrence).
 Fix: `required("SOCIAL_ADMIN_ADDRESS")`.
@@ -52,11 +54,13 @@ Fix: `required("SOCIAL_ADMIN_ADDRESS")`.
 
 `keeper/graduation-keeper.mjs:107-114` and `:144-166`
 
-`simulates()` wraps `simulateContract` in a bare `try/catch` and returns `false` for *any* throw.
+`simulates()` wraps `simulateContract` in a bare `try/catch` and returns `false` for _any_ throw.
 The caller treats `false` as "graduation reverts":
 
 ```js
-const graduationReverts = needsGraduation && !await simulates("graduate", launchpad, launchpadAbi, token);
+const graduationReverts =
+  needsGraduation &&
+  !(await simulates("graduate", launchpad, launchpadAbi, token));
 ```
 
 A dropped connection, an HTTP 429 from the RPC provider, or a malformed response is therefore
@@ -86,8 +90,8 @@ backs off and retries, and only treat a decoded revert as `graduationReverts`.
 
 `services/social/src/metadata.mjs:44` + `src/components/TokenAvatar.tsx:38`
 
-The server-side metadata fetch enforces a host allow-list on the *document* URL
-(`publicUrl(uri, true)` at `:28`) but drops the flag on the two URLs taken *from* that document:
+The server-side metadata fetch enforces a host allow-list on the _document_ URL
+(`publicUrl(uri, true)` at `:28`) but drops the flag on the two URLs taken _from_ that document:
 
 ```js
 imageUrl: publicUrl(value.image),          // enforceHost defaults to false
@@ -127,13 +131,13 @@ the pool opens slightly higher at the donor's expense**."
 The token side of `tokensToPool` is capped by the buffer, but `quoteInPool = realQuote + quoteReserve`
 is not capped at all. Measured (`DonationBound.t.sol`, passing):
 
-| donation | pool opening spot (x18) | vs. curve-end spot |
-|---|---|---|
-| 0 | 25,000,000,000,000 | 1.00× |
-| 1 ether | 25,000,000,000,000 | 1.00× (within buffer, as documented) |
-| 2 ether | 30,000,000,000,000 | 1.20× |
-| 5 ether | 45,000,000,000,000 | 1.80× |
-| 50 ether | 270,000,000,000,000 | **10.80×** |
+| donation | pool opening spot (x18) | vs. curve-end spot                   |
+| -------- | ----------------------- | ------------------------------------ |
+| 0        | 25,000,000,000,000      | 1.00×                                |
+| 1 ether  | 25,000,000,000,000      | 1.00× (within buffer, as documented) |
+| 2 ether  | 30,000,000,000,000      | 1.20×                                |
+| 5 ether  | 45,000,000,000,000      | 1.80×                                |
+| 50 ether | 270,000,000,000,000     | **10.80×**                           |
 
 So "slightly higher" scales linearly with the donation, without bound. The donor certainly pays
 (all donated WETH is in the pool), so this is not free manipulation of others' funds — but the
@@ -144,7 +148,7 @@ Two probes passed confirming the ADR's other claims: a donated WETH balance does
 graduation, and the pre-graduation transfer lock (`CurveToken._beforeTokenTransfer`) does prevent
 any third party from seeding the pool's token side (`DonorPoisoning.t.sol`, 3 tests passing).
 
-Report it as an intent gap — the code is internally consistent, the *documented* characterization
+Report it as an intent gap — the code is internally consistent, the _documented_ characterization
 is what is wrong. Worth a comment fix at minimum, and a decision on whether the opening price
 should be bounded.
 
@@ -194,10 +198,10 @@ finding.
 
 `markets()` concatenates `${statusClause}`, `${orderExpression}`, and `${cursorClause}` into the
 query string. This is **not injectable today** — I traced the guard order: `tab` is allow-listed at
-`:438` *before* any fragment derives from it at `:446-450`, and `cursor.tab` is compared against
+`:438` _before_ any fragment derives from it at `:446-450`, and `cursor.tab` is compared against
 `tab` at `:443` so the two cannot diverge.
 
-The hazard is that the safety lives in statement *ordering* rather than in the type of the
+The hazard is that the safety lives in statement _ordering_ rather than in the type of the
 interpolated value. Converting to a static fragment map keyed by the already-validated `tab` makes
 the property local. `indexer.mjs:282,285` interpolates `${table}` but only from module-level `const`
 arrays (`:272-273`) — safe, and I checked; it does not need changing.
@@ -240,16 +244,16 @@ These are environment/repo issues that block any reviewer, not Curveball vulnera
 
 ## What the baseline tools missed
 
-| Finding | Slither | Forge tests | Agent+capability |
-|---|---|---|---|
-| 1. Admin fails open | — | — | ✓ |
-| 2. Keeper aborts on RPC error | — | — | ✓ |
-| 3. IPFS → `<img src>` | — | — | ✓ |
-| 4. Unbounded donation premium | — | — | ✓ |
-| 5. Cursor/id 500s | — | — | ✓ |
-| 6. `discoverable` gap | — | — | ✓ |
-| 7. SQL interpolation (safe) | — | — | ✓ (cleared) |
-| 8. RNS amplification | — | — | ✓ |
+| Finding                       | Slither | Forge tests | Agent+capability |
+| ----------------------------- | ------- | ----------- | ---------------- |
+| 1. Admin fails open           | —       | —           | ✓                |
+| 2. Keeper aborts on RPC error | —       | —           | ✓                |
+| 3. IPFS → `<img src>`         | —       | —           | ✓                |
+| 4. Unbounded donation premium | —       | —           | ✓                |
+| 5. Cursor/id 500s             | —       | —           | ✓                |
+| 6. `discoverable` gap         | —       | —           | ✓                |
+| 7. SQL interpolation (safe)   | —       | —           | ✓ (cleared)      |
+| 8. RNS amplification          | —       | —           | ✓                |
 
 Slither's 20 findings were all in the Solidity layer and all triaged as already-known or
 non-actionable — the invariant suite covers them. It reported `reentrancy-no-eth`,
@@ -292,7 +296,7 @@ Artifacts live in `.review-baseline/` (gitignored-adjacent; not committed).
   dynamic run. The indexer's reorg path (`indexer.mjs`, 953 LOC) deserves a dedicated pass with a
   live database — statically I did not find a divergence, but absence of evidence here is weak.
 - No live-deployment testing was performed. `cast` was not pointed at the RISE testnet deployment.
-- The keeper finding is proven against the module's *decision* path with a mocked client. It does
+- The keeper finding is proven against the module's _decision_ path with a mocked client. It does
   not demonstrate a real RPC failing during a real window — that requires a live keeper and an
   induced provider fault.
 - `forge test` and `slither` were run on my checkout, which needed `bun install` first. The 138/138

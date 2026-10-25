@@ -11,7 +11,12 @@ describe("creator earnings", () => {
     const queries: object[] = [];
     const client = {
       getBlockNumber: async () => 11n,
-      readContract: async ({ functionName }: { functionName: string }) => functionName === "escrow" ? escrow : functionName === "quoteToken" ? quote : 6,
+      readContract: async ({ functionName }: { functionName: string }) =>
+        functionName === "escrow"
+          ? escrow
+          : functionName === "quoteToken"
+            ? quote
+            : 6,
       getContractEvents: async (query: object) => {
         queries.push(query);
         return [
@@ -22,7 +27,12 @@ describe("creator earnings", () => {
         ];
       },
     };
-    const result = await getCreatorEarnings(client, escrow, [{ address: token }], 10n);
+    const result = await getCreatorEarnings(
+      client,
+      escrow,
+      [{ address: token }],
+      10n,
+    );
     expect(result).toEqual({ amount: 2_000_000n, decimals: 6 });
     expect(queries).toHaveLength(1);
   });
@@ -31,13 +41,21 @@ describe("creator earnings", () => {
     const queries: { fromBlock: bigint; toBlock: bigint }[] = [];
     const client = {
       getBlockNumber: async () => 5_010n,
-      readContract: async ({ functionName }: { functionName: string }) => functionName === "escrow" ? escrow : functionName === "quoteToken" ? quote : 18,
+      readContract: async ({ functionName }: { functionName: string }) =>
+        functionName === "escrow"
+          ? escrow
+          : functionName === "quoteToken"
+            ? quote
+            : 18,
       getContractEvents: async (query: object) => {
         queries.push(query as { fromBlock: bigint; toBlock: bigint });
         return [];
       },
     };
-    expect(await getCreatorEarnings(client, escrow, [], 10n)).toEqual({ amount: 0n, decimals: 18 });
+    expect(await getCreatorEarnings(client, escrow, [], 10n)).toEqual({
+      amount: 0n,
+      decimals: 18,
+    });
     expect(queries).toEqual([]);
   });
 
@@ -45,13 +63,23 @@ describe("creator earnings", () => {
     const queries: { fromBlock: bigint; toBlock: bigint }[] = [];
     const client = {
       getBlockNumber: async () => 10_000n,
-      readContract: async ({ functionName }: { functionName: string }) => functionName === "escrow" ? escrow : functionName === "quoteToken" ? quote : 18,
+      readContract: async ({ functionName }: { functionName: string }) =>
+        functionName === "escrow"
+          ? escrow
+          : functionName === "quoteToken"
+            ? quote
+            : 18,
       getContractEvents: async (query: object) => {
         queries.push(query as { fromBlock: bigint; toBlock: bigint });
         return [];
       },
     };
-    await getCreatorEarnings(client, escrow, [{ address: token, createdBlock: "8000" }], 10n);
+    await getCreatorEarnings(
+      client,
+      escrow,
+      [{ address: token, createdBlock: "8000" }],
+      10n,
+    );
     expect(queries.map(({ fromBlock }) => fromBlock)).toEqual([8_000n]);
   });
 });

@@ -16,7 +16,11 @@ test("a fresh trade starts at zero without an insufficient-funds warning", () =>
 
 test("buy funding stays behind the scenes unless the wallet cannot cover the trade", () => {
   const funded = renderToStaticMarkup(
-    <TradeFundingStatus amount="0.1" wethBalance={0n} nativeBalance={1_000_000_000_000_000_000n} />,
+    <TradeFundingStatus
+      amount="0.1"
+      wethBalance={0n}
+      nativeBalance={1_000_000_000_000_000_000n}
+    />,
   );
   const insufficient = renderToStaticMarkup(
     <TradeFundingStatus amount="0.1" wethBalance={0n} nativeBalance={0n} />,
