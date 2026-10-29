@@ -208,7 +208,7 @@ export function App() {
         />
       )}
       {page}
-      {isLanding && <LandingFooter navigate={navigate} />}
+      {isLanding && <LandingFooter navigate={navigate} theme={theme} />}
     </div>
   );
 }

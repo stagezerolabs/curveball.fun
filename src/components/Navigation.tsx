@@ -545,7 +545,13 @@ export function LandingHeader({
   );
 }
 
-export function LandingFooter({ navigate }: { navigate: Navigate }) {
+export function LandingFooter({
+  navigate,
+  theme,
+}: {
+  navigate: Navigate;
+  theme: Theme;
+}) {
   return (
     <footer className="landing-footer wrap">
       <div className="landing-footer-grid">
@@ -577,35 +583,52 @@ export function LandingFooter({ navigate }: { navigate: Navigate }) {
         </nav>
       </div>
 
-      {launchpadAddress && (
-        <div className="landing-footer-contracts">
-          <h2>Contract</h2>
-          <a
-            href={`${activeExplorerUrl}/address/${launchpadAddress}`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            <span>Launchpad</span>
-            <svg
-              className="landing-contract-check"
-              viewBox="0 0 20 20"
-              role="img"
-              aria-label="Official Curveball contract"
+      <div className="landing-footer-details">
+        {launchpadAddress && (
+          <div className="landing-footer-contracts">
+            <h2>Contract</h2>
+            <a
+              href={`${activeExplorerUrl}/address/${launchpadAddress}`}
+              target="_blank"
+              rel="noreferrer"
             >
-              <circle cx="10" cy="10" r="9" fill="currentColor" />
-              <path
-                d="m6 10 2.5 2.5L14 7"
-                fill="none"
-                stroke="var(--on-solid)"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            <code>{formatAddress(launchpadAddress)}</code>
-          </a>
-        </div>
-      )}
+              <span>Launchpad</span>
+              <svg
+                className="landing-contract-check"
+                viewBox="0 0 20 20"
+                role="img"
+                aria-label="Official Curveball contract"
+              >
+                <circle cx="10" cy="10" r="9" fill="currentColor" />
+                <path
+                  d="m6 10 2.5 2.5L14 7"
+                  fill="none"
+                  stroke="var(--on-solid)"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <code>{formatAddress(launchpadAddress)}</code>
+            </a>
+          </div>
+        )}
+        <a
+          className="landing-footer-audit"
+          href="https://portfolio.0xguard.com/784"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Read Curveball's 0xGuard audit"
+        >
+          <img
+            src={`/audit/0xguard-${theme}.png`}
+            alt="Audited by 0xGuard"
+            width="200"
+            height="70"
+            decoding="async"
+          />
+        </a>
+      </div>
 
       <div className="landing-footer-bottom">
         <span className="landing-footer-credit">
