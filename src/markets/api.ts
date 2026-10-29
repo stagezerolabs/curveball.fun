@@ -146,6 +146,20 @@ async function marketRowToToken(row: MarketRow): Promise<Token> {
     initialVirtualQuote: row.policy.initialVirtualQuote,
     marketCap:
       price === null || supplyAmount === null ? null : price * supplyAmount,
+    curveLiquidityWeth:
+      row.isGraduated ||
+      row.metrics.virtualQuote == null ||
+      row.policy.initialVirtualQuote == null
+        ? null
+        : Number(
+            formatEther(
+              BigInt(row.metrics.virtualQuote) >
+                BigInt(row.policy.initialVirtualQuote)
+                ? BigInt(row.metrics.virtualQuote) -
+                    BigInt(row.policy.initialVirtualQuote)
+                : 0n,
+            ),
+          ),
     progress:
       curveSupply && curveSupply > 0n
         ? Number((sold * 10_000n) / curveSupply) / 100
@@ -322,7 +336,7 @@ export async function fetchMarketPreviewStats(
   tokens: readonly Token[],
   signal?: AbortSignal,
 ): Promise<MarketPreviewStatsByToken> {
-  const result = await request<{
+  type PreviewPage = {
     items: Array<{
       tokenAddress: Address;
       policy: { totalSupply: string | null };
@@ -336,9 +350,19 @@ export async function fetchMarketPreviewStats(
         change24hBps: number | null;
       };
     }>;
-  }>("/v1/markets?tab=all&limit=50", signal);
+    nextCursor: string | null;
+  };
+  const items: PreviewPage["items"] = [];
+  let cursor: string | null = null;
+  do {
+    const query = new URLSearchParams({ tab: "all", limit: "50" });
+    if (cursor) query.set("cursor", cursor);
+    const page: PreviewPage = await request(`/v1/markets?${query}`, signal);
+    items.push(...page.items);
+    cursor = page.nextCursor;
+  } while (cursor);
   const byAddress = new Map(
-    result.items.map((item) => [item.tokenAddress.toLowerCase(), item]),
+    items.map((item) => [item.tokenAddress.toLowerCase(), item]),
   );
   return Object.fromEntries(
     tokens.map((token) => {

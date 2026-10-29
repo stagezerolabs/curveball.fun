@@ -14,6 +14,7 @@ const tokens: Token[] = [1, 2, 3, 4].map((number) => ({
   progress: number * 10,
   price: 0.01,
   marketCap: 1000,
+  curveLiquidityWeth: 2,
 }));
 
 test("graduation feature shows only the top three live coins", () => {
@@ -27,7 +28,7 @@ test("graduation feature shows only the top three live coins", () => {
   expect(html).toContain("MCAP");
 });
 
-test("market cards show a compact overview and keep detailed activity off the directory", () => {
+test("market cards show creator, launch date, changes, volume, liquidity and cap", () => {
   const html = renderToStaticMarkup(
     <MarketList
       tokens={[tokens[0]]}
@@ -50,10 +51,17 @@ test("market cards show a compact overview and keep detailed activity off the di
   expect(html).toContain('class="market-card-top"');
   expect(html).not.toContain('class="market-card-social-preview"');
   expect(html).toContain("Coin 1");
+  expect(html).toContain("Creator");
+  expect(html).toContain("Created");
+  expect(html).toContain("Jan 1, 2026");
+  expect(html).toContain("1H");
+  expect(html).toContain("6H");
+  expect(html).toContain("24H");
   expect(html).toContain("Market cap");
   expect(html).toContain("Volume 24h");
-  expect(html).toContain("Traders");
-  expect(html).toContain("42");
+  expect(html).toContain("Liquidity");
+  expect(html).toContain("+10.0%");
+  expect(html).toContain("-3.2%");
   expect(html).toContain("On the curve");
   expect(html).toContain("10.0% sold");
   expect(html).toContain(
@@ -62,7 +70,6 @@ test("market cards show a compact overview and keep detailed activity off the di
   expect(html).not.toContain("PRICE");
   expect(html).not.toContain("ATH");
   expect(html).not.toContain("TXNS");
-  expect(html).not.toContain("+10.0%");
   expect(html).toContain("/markets/");
   expect(html).not.toContain("V1");
   expect(html).not.toContain('class="market-card-address"');

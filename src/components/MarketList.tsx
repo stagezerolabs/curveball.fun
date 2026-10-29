@@ -1,10 +1,23 @@
 import { AppLink } from "./Navigation";
 import { TokenAvatar } from "./TokenAvatar";
 import { UsdAmount } from "./UsdAmount";
-import { formatMarketAge, formatMarketCount } from "../lib/marketDisplay";
+import { formatAddress } from "../lib/format.js";
+import { formatMarketDate } from "../lib/marketDisplay";
 import { getMarketDisplayStatus } from "../lib/marketState";
 import type { MarketPreviewStatsByToken } from "../lib/marketPreviewStats";
 import type { Navigate, Token } from "../types";
+
+function formatChange(value: number | null | undefined) {
+  return value == null ? "—" : `${value > 0 ? "+" : ""}${value.toFixed(1)}%`;
+}
+
+function changeClass(value: number | null | undefined) {
+  return value == null || value === 0
+    ? ""
+    : value > 0
+      ? "positive"
+      : "negative";
+}
 
 export function MarketList({
   tokens,
@@ -92,8 +105,11 @@ export function MarketList({
                             ? "On the curve"
                             : status.label}
                         </span>
-                        <span className="market-card-age">
-                          {formatMarketAge(token.createdAt)}
+                        <span className="market-card-creator" title={token.creator}>
+                          Creator <strong>{formatAddress(token.creator)}</strong>
+                        </span>
+                        <span className="market-card-created-date">
+                          Created <time dateTime={token.createdAt}>{formatMarketDate(token.createdAt)}</time>
                         </span>
                       </div>
                     </div>
@@ -104,20 +120,28 @@ export function MarketList({
                   )}
                   <dl className="market-card-metrics">
                     <div>
-                      <dt>Market cap</dt>
-                      <dd>
-                        <UsdAmount weth={token.marketCap} compact />
-                      </dd>
+                      <dt>1H</dt>
+                      <dd className={changeClass(stats?.change1h)}>{formatChange(stats?.change1h)}</dd>
+                    </div>
+                    <div>
+                      <dt>6H</dt>
+                      <dd className={changeClass(stats?.change6h)}>{formatChange(stats?.change6h)}</dd>
+                    </div>
+                    <div>
+                      <dt>24H</dt>
+                      <dd className={changeClass(stats?.change24h)}>{formatChange(stats?.change24h)}</dd>
                     </div>
                     <div>
                       <dt>Volume 24h</dt>
-                      <dd>
-                        <UsdAmount weth={stats?.volume24h} compact />
-                      </dd>
+                      <dd><UsdAmount weth={stats?.volume24h} compact /></dd>
                     </div>
                     <div>
-                      <dt>Traders</dt>
-                      <dd>{formatMarketCount(stats?.traders)}</dd>
+                      <dt title="WETH deposited on the bonding curve; pool liquidity is unavailable">Liquidity</dt>
+                      <dd><UsdAmount weth={token.curveLiquidityWeth} compact /></dd>
+                    </div>
+                    <div>
+                      <dt>Market cap</dt>
+                      <dd><UsdAmount weth={token.marketCap} compact /></dd>
                     </div>
                   </dl>
                   {followSignal[token.address.toLowerCase()] ? (

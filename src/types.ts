@@ -29,6 +29,8 @@ export type Token = {
   /** Virtual quote seeded into the curve before the first deposit. */
   initialVirtualQuote?: string | null;
   marketCap?: number | null;
+  /** Real WETH held on the bonding curve. Pool liquidity is not included. */
+  curveLiquidityWeth?: number | null;
   progress?: number | null;
   supply?: string | null;
   curveSupply?: string | null;

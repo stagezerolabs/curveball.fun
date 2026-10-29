@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useAccount } from "wagmi";
 import { Header, LandingFooter, LandingHeader } from "../components/Navigation";
+import { MarketTape } from "../components/MarketTape";
 import { LandingPage } from "../pages/LandingPage";
 import { useRouter } from "./useRouter.js";
 import { useSocialStream } from "../social/useNotifications";
@@ -207,6 +208,7 @@ export function App() {
           onThemeToggle={toggleTheme}
         />
       )}
+      <MarketTape />
       {page}
       {isLanding && <LandingFooter navigate={navigate} theme={theme} />}
     </div>

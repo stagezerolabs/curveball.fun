@@ -9,6 +9,17 @@ export function formatMarketAge(createdAt: string) {
   return "now";
 }
 
+export function formatMarketDate(createdAt: string) {
+  const timestamp = Date.parse(createdAt);
+  if (!Number.isFinite(timestamp)) return "—";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(timestamp);
+}
+
 export function formatMarketCount(value: number | undefined) {
   if (value === undefined) return "—";
   return new Intl.NumberFormat("en-US", {

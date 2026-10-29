@@ -119,6 +119,8 @@ export function marketFields(market: LaunchpadMarket) {
       Number(formatEther(terminalVirtualToken)),
     marketCap:
       price === null ? null : price * Number(formatEther(TOKEN_SUPPLY)),
+    curveLiquidityWeth:
+      lifecycle === "graduated" ? null : Number(formatEther(market.realQuote)),
     graduationTargetWeth: formatEther(
       terminalVirtualQuote - market.initialVirtualQuote,
     ),
