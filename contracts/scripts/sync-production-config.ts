@@ -23,11 +23,35 @@ if (
   throw new Error(`Invalid RISE ${requestedNetwork} deployment record.`);
 }
 
+const swapRecordPath = `deployments/${chainId}/icarus-swap-adapter.json`;
+let swapAdapter = "";
+let swapAdapterCodeHash = "";
+if (await Bun.file(swapRecordPath).exists()) {
+  const swapRecord = (await Bun.file(swapRecordPath).json()) as {
+    chainId: number;
+    launchpad: string;
+    adapter: string;
+    codeHash: string;
+  };
+  if (
+    swapRecord.chainId !== chainId ||
+    swapRecord.launchpad.toLowerCase() !== record.launchpad.toLowerCase() ||
+    !/^0x[0-9a-fA-F]{40}$/.test(swapRecord.adapter) ||
+    !/^0x[0-9a-fA-F]{64}$/.test(swapRecord.codeHash)
+  ) {
+    throw new Error(`Invalid RISE ${requestedNetwork} swap adapter record.`);
+  }
+  swapAdapter = swapRecord.adapter;
+  swapAdapterCodeHash = swapRecord.codeHash;
+}
+
 const values = {
   VITE_CHAIN_ID: String(record.chainId),
   ...(isTestnet ? { VITE_RPC_URL: "https://testnet.riselabs.xyz" } : {}),
   VITE_LAUNCHPAD_ADDRESS: record.launchpad,
   VITE_DEPLOYMENT_BLOCK: record.deploymentBlock,
+  VITE_ICARUS_SWAP_ADAPTER: swapAdapter,
+  VITE_ICARUS_SWAP_ADAPTER_CODE_HASH: swapAdapterCodeHash,
 };
 async function updateEnv(path: string, entries: Record<string, string>) {
   let source = (await Bun.file(path).exists()) ? await Bun.file(path).text() : "";
@@ -66,6 +90,8 @@ if (isTestnet) {
       VITE_CHAIN_ID: String(chainId),
       VITE_LAUNCHPAD_ADDRESS: record.launchpad,
       VITE_DEPLOYMENT_BLOCK: record.deploymentBlock,
+      VITE_ICARUS_SWAP_ADAPTER: swapAdapter,
+      VITE_ICARUS_SWAP_ADAPTER_CODE_HASH: swapAdapterCodeHash,
     });
   }
   if (await Bun.file("deploy/social.env").exists()) {

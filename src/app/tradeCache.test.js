@@ -55,3 +55,43 @@ test("a confirmed trade updates every cached copy of the market immediately", ()
     expect(cached.marketCap).toBe(500);
   }
 });
+
+test("a confirmed Icarus pool trade invalidates indexed prices without applying curve reserves", () => {
+  const address = "0x6D4f1d95c636F44CDeA5D15bf88CbAe5c60BD2A2";
+  const creator = "0x5CC42e772F67089b4670eec4dcD904be2F2D511c";
+  const key = address.toLowerCase();
+  const creatorKey = creator.toLowerCase();
+  const token = {
+    address,
+    creator,
+    symbol: "CASH",
+    graduated: true,
+    pool: "0x2222222222222222222222222222222222222222",
+    price: 0.5,
+    marketCap: 500,
+    progress: 100,
+  };
+  const before = {
+    tokens: [token],
+    marketsFetchedAt: 123,
+    tokenCache: { [key]: token },
+    tokenFetchedAt: { [key]: 123 },
+    creatorTokens: { [creatorKey]: [token] },
+    creatorFetchedAt: { [creatorKey]: 123 },
+  };
+  const state = {
+    ...before,
+    ...confirmedTradeStateUpdate(
+      before,
+      "sell",
+      token,
+      { quotedOutput: 500_000_000_000_000_000n, marketState: null },
+    ),
+  };
+  expect(state.tokenCache[key].price).toBe(0.5);
+  expect(state.tokenCache[key].marketCap).toBe(500);
+  expect(state.marketsFetchedAt).toBe(0);
+  expect(state.tokenFetchedAt[key]).toBe(0);
+  expect(state.creatorFetchedAt[creatorKey]).toBe(0);
+  expect(state.quotePreview).toBeNull();
+});

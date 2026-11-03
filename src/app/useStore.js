@@ -14,6 +14,7 @@ import {
 import { readableError } from "../lib/errors";
 import { PendingTransactionError } from "../sdk/sdk";
 import { hasPublishedArtwork } from "../lib/launchForm";
+import { tradeQuoteKey, tradeVenueForMarket } from "../lib/marketState";
 import { sdkForMarket } from "../lib/marketFactories";
 import {
   fetchCreatorMarkets,
@@ -26,6 +27,7 @@ const MARKET_CACHE_TTL_MS = 30_000;
 let marketsRequest = null;
 const tokenRequests = new Map();
 const creatorRequests = new Map();
+let quoteRequestId = 0;
 
 // The market cache can hold hundreds of tokens; zustand serializes and writes it
 // synchronously on every set(), and polling updates tokenLoading/tokenFetchedAt
@@ -277,6 +279,7 @@ export function confirmedTradeStateUpdate(state, side, token, result) {
     ...confirmedTradeCacheUpdate(state, token, result.marketState),
     tradeMessage: `${side === "buy" ? "Bought" : "Sold"} ~${received}.`,
     quotePreview: null,
+    quoteContext: null,
   };
 }
 
@@ -302,12 +305,19 @@ export const useStore = create(
       side: "buy",
       isPending: false,
       quotePreview: null,
+      quoteContext: null,
       quoting: false,
       lastCreatedToken: null,
       launchProgress: null,
 
-      setAmount: (amount) => set({ amount, quotePreview: null }),
-      setSide: (side) => set({ side, quotePreview: null }),
+      setAmount: (amount) => {
+        quoteRequestId += 1;
+        set({ amount, quotePreview: null, quoteContext: null, quoting: false });
+      },
+      setSide: (side) => {
+        quoteRequestId += 1;
+        set({ side, quotePreview: null, quoteContext: null, quoting: false });
+      },
       setActionError: (actionError) => set({ actionError }),
       clearLaunchProgress: () => set({ launchProgress: null }),
       mergeTokens: (discovered) =>
@@ -483,22 +493,25 @@ export const useStore = create(
 
       fetchQuote: async (token) => {
         const { amount, side } = get();
+        const requestId = ++quoteRequestId;
         const value = Number(amount);
-        if (!token || !amount || !Number.isFinite(value) || value <= 0) {
-          set({ quotePreview: null, quoting: false });
+        const venue = token ? tradeVenueForMarket(token) : null;
+        if (!token || !amount || !Number.isFinite(value) || value <= 0 || venue === "pool-pending") {
+          set({ quotePreview: null, quoteContext: null, quoting: false });
           return;
         }
-        set({ quoting: true });
+        set({ quotePreview: null, quoteContext: null, quoting: true });
         try {
           const input = parseEther(amount);
-          const out = await sdkForMarket(token.factory).quoteTrade(
-            side,
-            token.address,
-            input,
-          );
-          set({ quotePreview: out, quoting: false });
+          const sdk = sdkForMarket(token.factory);
+          const out = venue === "pool"
+            ? await sdk.quotePoolTrade(side, token.address, token.pool, input)
+            : await sdk.quoteTrade(side, token.address, input);
+          if (requestId !== quoteRequestId) return;
+          set({ quotePreview: out, quoteContext: tradeQuoteKey(token, side, amount), quoting: false });
         } catch {
-          set({ quotePreview: null, quoting: false });
+          if (requestId === quoteRequestId)
+            set({ quotePreview: null, quoteContext: null, quoting: false });
         }
       },
 
@@ -589,7 +602,7 @@ export const useStore = create(
       },
 
       trade: async (side, token) => {
-        const { amount, startAction, endAction, handleActionError } = get();
+        const { amount, quotePreview, quoteContext, startAction, endAction, handleActionError } = get();
         startAction();
         set({ tradeProgress: { side, phase: "preparing" } });
 
@@ -601,16 +614,27 @@ export const useStore = create(
             throw Error("Enter an amount greater than zero.");
 
           const input = parseEther(amount);
-          const result = await sdkForMarket(token.factory).trade(
-            side,
-            token.address,
-            input,
-            (phase) => {
-              set({ tradeProgress: { side, phase } });
-            },
-          );
+          const venue = tradeVenueForMarket(token);
+          if (venue === "pool-pending")
+            throw Error("This market's Icarus pool is not available yet.");
+          const onProgress = (phase) => set({ tradeProgress: { side, phase } });
+          const sdk = sdkForMarket(token.factory);
+          let result;
+          if (venue === "pool") {
+            if (quotePreview === null || quoteContext !== tradeQuoteKey(token, side, amount))
+              throw Error("Wait for a current Icarus pool quote before trading.");
+            result = await sdk.tradePool(
+              side, token.address, token.pool, input, onProgress, quotePreview,
+            );
+          } else {
+            result = await sdk.trade(side, token.address, input, onProgress);
+          }
 
-          set((state) => confirmedTradeStateUpdate(state, side, token, result));
+          quoteRequestId += 1;
+          set((state) => confirmedTradeStateUpdate(
+            state, side, token, venue === "pool" ? { ...result, marketState: null } : result,
+          ));
+          if (venue === "pool") void get().fetchQuote(token);
         } catch (error) {
           handleActionError(error);
         } finally {

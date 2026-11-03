@@ -2,12 +2,12 @@ import { useEffect, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { Collapsible } from "@base-ui/react/collapsible";
 import type { ReactNode } from "react";
-import { formatEther, parseEther } from "viem";
+import { formatEther, parseAbi, parseEther } from "viem";
 import { useBalance, useReadContract } from "wagmi";
 import { curveLaunchpadAbi, erc20Abi } from "../sdk/contracts";
-import { activeChainId, launchpadAddress } from "../lib/web3";
+import { activeChainId, activeSwapAdapterAddress, launchpadAddress } from "../lib/web3";
 import { factoryForToken } from "../lib/marketFactories";
-import { selectTradeState } from "../lib/marketState";
+import { poolTradeAvailability, selectTradeState, tradeQuoteKey, tradeVenueForMarket } from "../lib/marketState";
 import { useStore } from "../app/useStore.js";
 import { formatEthAmount, formatPercent } from "../lib/format.js";
 import { getBuyFundingState, TradeFundingStatus } from "./TradeFundingStatus";
@@ -18,6 +18,10 @@ import { tradeButtonLabel } from "../lib/tradeProgress";
 
 const SLIPPAGE_BPS = 300; // useStore sends minOut at 97% of the quote.
 const PRESETS = [25, 50, 100];
+const icarusFactoryAbi = parseAbi([
+  "function isPaused() view returns (bool)",
+  "function getFee(address pool, bool stable) view returns (uint256)",
+]);
 
 function Row({
   label,
@@ -53,6 +57,7 @@ export function TradePanel({
     tradeMessage,
     tradeProgress,
     quotePreview,
+    quoteContext,
     quoting,
     fetchQuote,
   } = useStore();
@@ -61,6 +66,9 @@ export function TradePanel({
   const marketFactory = launchpadAddress
     ? factoryForToken(token.factory)
     : undefined;
+  const venue = tradeVenueForMarket(token);
+  const poolMode = venue === "pool";
+  const graduatedVenue = venue !== "curve";
   const { data: paused } = useReadContract({
     address: marketFactory,
     abi: curveLaunchpadAbi,
@@ -75,11 +83,45 @@ export function TradePanel({
     chainId: activeChainId,
     query: { enabled: Boolean(marketFactory) },
   });
+  const { data: icarusFactory } = useReadContract({
+    address: marketFactory,
+    abi: curveLaunchpadAbi,
+    functionName: "icarusFactory",
+    chainId: activeChainId,
+    query: { enabled: venue !== "curve" && Boolean(marketFactory) },
+  });
+  const { data: poolPaused, isError: poolPauseError } = useReadContract({
+    address: icarusFactory,
+    abi: icarusFactoryAbi,
+    functionName: "isPaused",
+    chainId: activeChainId,
+    query: { enabled: poolMode && Boolean(icarusFactory), refetchInterval: 15_000 },
+  });
+  const { data: poolFeeBps } = useReadContract({
+    address: icarusFactory,
+    abi: icarusFactoryAbi,
+    functionName: "getFee",
+    args: token.pool ? [token.pool, false] : undefined,
+    chainId: activeChainId,
+    query: { enabled: poolMode && Boolean(icarusFactory && token.pool), refetchInterval: 30_000 },
+  });
   const { state, canBuy, canSell, sellAborts } = selectTradeState({
     ...token,
     paused: paused === true,
     nowSeconds: Math.floor(Date.now() / 1_000),
   });
+  const poolAvailability = poolTradeAvailability({
+    venue,
+    paused: poolPauseError ? undefined : poolPaused,
+    adapter: activeSwapAdapterAddress,
+  });
+  const poolQuoteReady =
+    poolMode &&
+    quotePreview !== null &&
+    !quoting &&
+    quoteContext === tradeQuoteKey(token, side, amount);
+  const canBuyNow = graduatedVenue ? poolAvailability === "open" && poolQuoteReady : canBuy;
+  const canSellNow = graduatedVenue ? poolAvailability === "open" && poolQuoteReady : canSell;
 
   const quoteSymbol = token.quoteSymbol ?? "WETH";
   const payingWith =
@@ -102,14 +144,20 @@ export function TradePanel({
   const { data: nativeBalance } = useBalance({ address });
 
   useEffect(() => {
-    if (token.graduated) return undefined;
     const timeout = setTimeout(() => fetchQuote(token), 300);
-    return () => clearTimeout(timeout);
+    const refresh = poolMode
+      ? setInterval(() => fetchQuote(token), 15_000)
+      : undefined;
+    return () => {
+      clearTimeout(timeout);
+      if (refresh !== undefined) clearInterval(refresh);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [amount, side, token.address, token.graduated]);
+  }, [amount, side, token.address, token.pool, venue]);
 
+  const visibleQuote = graduatedVenue && !poolQuoteReady ? null : quotePreview;
   const received =
-    quotePreview !== null ? Number(formatEther(quotePreview)) : null;
+    visibleQuote !== null ? Number(formatEther(visibleQuote)) : null;
   const atLeast =
     received === null ? null : received * (1 - SLIPPAGE_BPS / 10_000);
 
@@ -139,7 +187,7 @@ export function TradePanel({
         : received / input
       : null;
   const tradeImpact =
-    executionRate && token.price
+    !graduatedVenue && executionRate && token.price
       ? Math.abs(executionRate / token.price - 1) * 100
       : null;
 
@@ -147,10 +195,6 @@ export function TradePanel({
     if (presetBalance === undefined) return;
     const portion = (presetBalance * BigInt(percent)) / 100n;
     setAmount(formatEther(portion));
-  }
-
-  if (state === "graduated") {
-    return null;
   }
 
   return (
@@ -174,6 +218,31 @@ export function TradePanel({
         </button>
       </div>
 
+      {venue === "pool" && (
+        <p className="notice" role="status">
+          This market trades in its Icarus basic pool. Quotes include the current pool fee.
+        </p>
+      )}
+      {poolAvailability === "pool-pending" && (
+        <p className="notice" role="status">
+          Graduation is complete. Waiting for the Icarus pool address before trading opens.
+        </p>
+      )}
+      {poolAvailability === "adapter-unavailable" && (
+        <p className="notice" role="status">
+          Icarus trading is not configured here yet. The pool can be viewed in Icarus.
+        </p>
+      )}
+      {poolAvailability === "paused" && (
+        <p className="notice" role="status">
+          Icarus has paused basic-pool swaps. Trading will resume when the pool is unpaused.
+        </p>
+      )}
+      {poolAvailability === "checking" && (
+        <p className="notice" role="status">
+          {poolPauseError ? "Could not verify Icarus swap availability." : "Checking Icarus swap availability…"}
+        </p>
+      )}
       {state === "ready" && (
         <p className="notice" role="status">
           Bonding is complete. Trading pauses while the pool is seeded; this
@@ -192,7 +261,7 @@ export function TradePanel({
           market graduates on its next sellout.
         </p>
       )}
-      {paused === true && side === "buy" && state !== "ready" && (
+      {venue === "curve" && paused === true && side === "buy" && state !== "ready" && (
         <p className="notice" role="status">
           Buying is paused by the guardian. Selling stays open.
         </p>
@@ -254,18 +323,24 @@ export function TradePanel({
         />
         <Row label="Slippage limit" value={`${SLIPPAGE_BPS / 100}%`} />
         <Row
-          label="Curve fee + creator tax"
+          label={graduatedVenue ? "Icarus pool fee" : "Curve fee + creator tax"}
           value={
-            token.feeBps == null
-              ? "—"
-              : `${((token.feeBps + (token.creatorTaxBps ?? 0)) / 100).toFixed(2)}%`
+            graduatedVenue
+              ? poolFeeBps === undefined
+                ? "—"
+                : `${(Number(poolFeeBps) / 100).toFixed(2)}%`
+              : token.feeBps == null
+                ? "—"
+                : `${((token.feeBps + (token.creatorTaxBps ?? 0)) / 100).toFixed(2)}%`
           }
         />
-        <Row
-          label="Trade impact"
-          value={tradeImpact === null ? "—" : formatPercent(tradeImpact)}
-          tone={tradeImpact !== null && tradeImpact > 5 ? "warn" : undefined}
-        />
+        {!graduatedVenue && (
+          <Row
+            label="Trade impact"
+            value={tradeImpact === null ? "—" : formatPercent(tradeImpact)}
+            tone={tradeImpact !== null && tradeImpact > 5 ? "warn" : undefined}
+          />
+        )}
       </div>
 
       {address ? (
@@ -277,7 +352,7 @@ export function TradePanel({
             isPending ||
             inputWei <= 0n ||
             buyFunding?.canFund === false ||
-            (side === "buy" ? !canBuy : !canSell)
+            (side === "buy" ? !canBuyNow : !canSellNow)
           }
           onClick={() => trade(side, token)}
         >
@@ -321,20 +396,29 @@ export function TradePanel({
         className="trade-explain"
       >
         <Collapsible.Trigger type="button">
-          How curve trades work
+          {graduatedVenue ? "How Icarus pool trades work" : "How curve trades work"}
           <svg viewBox="0 0 20 20" aria-hidden="true">
             <circle cx="10" cy="10" r="7" />
             <path d="M10 9v5M10 6.5v.01" />
           </svg>
         </Collapsible.Trigger>
         <Collapsible.Panel>
-          <p>
-            Every trade runs against a constant-product bonding curve held by
-            the launchpad — no order book and no counterparty. The exchange rate
-            changes with each buy and sell, so larger orders move the curve
-            further. Your transaction reverts if the result lands below the
-            slippage limit.
-          </p>
+          {graduatedVenue ? (
+            <p>
+              Your trade swaps WETH and this token in the Icarus basic pool.
+              The pool fee and available liquidity determine the quote. The
+              swap runs atomically and reverts if output falls below the
+              displayed slippage limit.
+            </p>
+          ) : (
+            <p>
+              Every trade runs against a constant-product bonding curve held by
+              the launchpad — no order book and no counterparty. The exchange rate
+              changes with each buy and sell, so larger orders move the curve
+              further. Your transaction reverts if the result lands below the
+              slippage limit.
+            </p>
+          )}
         </Collapsible.Panel>
       </Collapsible.Root>
     </section>

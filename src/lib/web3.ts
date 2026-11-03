@@ -1,5 +1,5 @@
 import { createConfig, http } from "wagmi";
-import { defineChain, getAddress, isAddress, type Address } from "viem";
+import { defineChain, getAddress, isAddress, type Address, type Hex } from "viem";
 import {
   RISE_MAINNET_CHAIN_ID,
   RISE_MAINNET_EXPLORER_URL,
@@ -76,12 +76,35 @@ const configuredLaunchpad = env.VITE_LAUNCHPAD_ADDRESS.trim();
 export const launchpadAddress: Address | null = isAddress(configuredLaunchpad)
   ? getAddress(configuredLaunchpad)
   : null;
+const configuredSwapAdapter =
+  typeof env.VITE_ICARUS_SWAP_ADAPTER === "string"
+    ? env.VITE_ICARUS_SWAP_ADAPTER.trim()
+    : "";
+const configuredSwapAdapterCodeHash =
+  typeof env.VITE_ICARUS_SWAP_ADAPTER_CODE_HASH === "string"
+    ? env.VITE_ICARUS_SWAP_ADAPTER_CODE_HASH.trim()
+    : "";
+const validSwapAdapterConfig =
+  isAddress(configuredSwapAdapter) &&
+  /^0x[0-9a-fA-F]{64}$/.test(configuredSwapAdapterCodeHash);
+export const activeSwapAdapterAddress: Address | null = validSwapAdapterConfig
+  ? getAddress(configuredSwapAdapter)
+  : null;
+export const activeSwapAdapterCodeHash: Hex | null = validSwapAdapterConfig
+  ? (configuredSwapAdapterCodeHash.toLowerCase() as Hex)
+  : null;
 export const curveballSdk = launchpadAddress
   ? createCurveballSdk(
       wagmiConfig,
       defineCurveballDeployment({
         chainId: activeChainId,
         launchpad: launchpadAddress,
+        ...(activeSwapAdapterAddress
+          ? {
+              swapAdapter: activeSwapAdapterAddress,
+              swapAdapterCodeHash: activeSwapAdapterCodeHash!,
+            }
+          : {}),
         slippageBps: 300,
         deadlineSeconds: 300,
       }),

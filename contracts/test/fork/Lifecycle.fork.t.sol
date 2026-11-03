@@ -4,6 +4,7 @@ pragma solidity 0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {CurveDeploy} from "../../scripts/CurveDeploy.sol";
+import {CurveIcarusSwapAdapter} from "../../contracts/CurveIcarusSwapAdapter.sol";
 import {CurveLaunchpad} from "../../contracts/CurveLaunchpad.sol";
 import {IIcarusFactory, IIcarusPool} from "../../contracts/interfaces/IIcarus.sol";
 
@@ -203,6 +204,33 @@ contract LifecycleMainnetForkTest is LifecycleFork {
 }
 
 contract LifecycleTestnetForkTest is LifecycleFork {
+    function test_fork_adapterTradesBothDirectionsOnTheRealIcarusPool() public {
+        address token = _launchAndSellOut(0);
+        address pool = d.launchpad.graduate(token);
+        CurveIcarusSwapAdapter adapter = new CurveIcarusSwapAdapter(address(d.launchpad), WETH, address(icarus));
+        _wrap(trader, 0.01 ether);
+
+        vm.startPrank(trader);
+        IERC20(WETH).approve(address(adapter), type(uint256).max);
+        uint256 buyIn = 0.001 ether;
+        uint256 buyOut = adapter.quoteExactIn(token, true, buyIn);
+        uint256 tokensBefore = IERC20(token).balanceOf(trader);
+        assertEq(adapter.swapExactIn(token, true, buyIn, buyOut, block.timestamp), buyOut);
+        assertEq(IERC20(token).balanceOf(trader) - tokensBefore, buyOut);
+
+        IERC20(token).approve(address(adapter), type(uint256).max);
+        uint256 sellIn = buyOut / 2;
+        uint256 sellOut = adapter.quoteExactIn(token, false, sellIn);
+        uint256 wethBefore = IERC20(WETH).balanceOf(trader);
+        assertEq(adapter.swapExactIn(token, false, sellIn, sellOut, block.timestamp), sellOut);
+        assertEq(IERC20(WETH).balanceOf(trader) - wethBefore, sellOut);
+        vm.stopPrank();
+
+        assertEq(icarus.getPool(token, WETH, false), pool);
+        assertEq(IERC20(token).balanceOf(address(adapter)), 0);
+        assertEq(IERC20(WETH).balanceOf(address(adapter)), 0);
+    }
+
     function test_fork_testnetFeesAreConfigurableAndGaugeShareAccumulates() public {
         address token = _launchAndSellOut(0);
         IIcarusPool pool = IIcarusPool(d.launchpad.graduate(token));

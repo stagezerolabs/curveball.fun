@@ -45,6 +45,22 @@ const keeper = parseEnv(resolve(root, keeperSource));
 const deployment = JSON.parse(
   readFileSync(resolve(root, "deployments/11155931/curveball.json"), "utf8"),
 );
+const swapRecordPath = resolve(root, "deployments/11155931/icarus-swap-adapter.json");
+const swapRecord = existsSync(swapRecordPath)
+  ? JSON.parse(readFileSync(swapRecordPath, "utf8"))
+  : null;
+if (swapRecord && (
+  swapRecord.chainId !== deployment.chainId ||
+  swapRecord.launchpad?.toLowerCase() !== deployment.launchpad?.toLowerCase() ||
+  !/^0x[0-9a-fA-F]{40}$/.test(swapRecord.adapter) ||
+  !/^0x[0-9a-fA-F]{64}$/.test(swapRecord.codeHash)
+)) throw new Error("Swap adapter record does not match the testnet launchpad.");
+if (
+  (frontend.VITE_ICARUS_SWAP_ADAPTER || "").toLowerCase() !==
+    (swapRecord?.adapter || "").toLowerCase() ||
+  (frontend.VITE_ICARUS_SWAP_ADAPTER_CODE_HASH || "").toLowerCase() !==
+    (swapRecord?.codeHash || "").toLowerCase()
+) throw new Error("Frontend swap adapter configuration does not match its deployment record.");
 
 const chainId = String(deployment.chainId);
 const launchpad = String(deployment.launchpad);
@@ -83,6 +99,8 @@ writeEnv(resolve(root, "deploy/production.env"), [
   ["VITE_RPC_URL", requireValue(frontend, "VITE_RPC_URL", frontendSource)],
   ["VITE_LAUNCHPAD_ADDRESS", launchpad],
   ["VITE_DEPLOYMENT_BLOCK", deploymentBlock],
+  ["VITE_ICARUS_SWAP_ADAPTER", swapRecord?.adapter],
+  ["VITE_ICARUS_SWAP_ADAPTER_CODE_HASH", swapRecord?.codeHash],
   ["VITE_PRIVY_APP_ID", requireValue(frontend, "VITE_PRIVY_APP_ID", frontendSource)],
   ["VITE_PRIVY_CLIENT_ID", frontend.VITE_PRIVY_CLIENT_ID],
   ["VITE_SOCIAL_API_URL", "https://social-api.curveball.fun"],

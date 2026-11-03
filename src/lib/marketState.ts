@@ -6,10 +6,47 @@ export const GRADUATION_TIMEOUT_SECONDS = 7 * 24 * 60 * 60;
 type MarketSnapshot = {
   graduated: boolean;
   lifecycle?: MarketLifecycle;
+  pool?: string | null;
   pending?: boolean;
   progress?: number | null;
   readyAt?: number | null;
 };
+
+/** Graduated markets trade through their Icarus pool once it has been indexed. */
+export function tradeVenueForMarket(market: MarketSnapshot) {
+  if (!market.graduated && market.lifecycle !== "graduated") return "curve";
+  if (!market.pool || /^0x0{40}$/i.test(market.pool)) return "pool-pending";
+  return "pool";
+}
+
+/** Identifies the exact market, venue, side, and amount a displayed quote belongs to. */
+export function tradeQuoteKey(
+  market: MarketSnapshot & { address: string },
+  side: "buy" | "sell",
+  amount: string,
+) {
+  return [
+    market.address.toLowerCase(),
+    tradeVenueForMarket(market),
+    market.pool?.toLowerCase() ?? "",
+    side,
+    amount,
+  ].join(":");
+}
+
+/** Pool swaps require a verified pause read and a deployed atomic swap adapter. */
+export function poolTradeAvailability(input: {
+  venue: ReturnType<typeof tradeVenueForMarket>;
+  paused?: boolean;
+  adapter?: string | null;
+}) {
+  if (input.venue === "pool-pending") return "pool-pending";
+  if (input.venue !== "pool") return "curve";
+  if (!input.adapter) return "adapter-unavailable";
+  if (input.paused === true) return "paused";
+  if (input.paused !== false) return "checking";
+  return "open";
+}
 
 /** The lifecycle, falling back to the older cached fields for tokens discovered before it existed. */
 function lifecycleOf(market: MarketSnapshot): MarketLifecycle {

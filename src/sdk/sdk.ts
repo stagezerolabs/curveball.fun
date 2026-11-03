@@ -13,6 +13,7 @@ import type { Config, Connector } from "wagmi";
 import {
   decodeEventLog,
   getAddress,
+  keccak256,
   zeroAddress,
   type Address,
   type Hash,
@@ -31,6 +32,9 @@ import {
   curveLaunchpadAbi,
   curveLpLockerAbi,
   erc20Abi,
+  icarusFactoryAbi,
+  icarusPoolAbi,
+  icarusSwapAdapterAbi,
 } from "./contracts";
 import { validateLaunchpad } from "../deployment";
 
@@ -286,6 +290,7 @@ export function createCurveballSdk(
     asset: Address,
     owner: Address,
     minimum: bigint,
+    spender: Address,
   ) {
     let lastReadError: unknown;
     for (let attempt = 0; attempt < 6; attempt++) {
@@ -294,7 +299,7 @@ export function createCurveballSdk(
           address: asset,
           abi: erc20Abi,
           functionName: "allowance",
-          args: [owner, launchpad],
+          args: [owner, spender],
           chainId,
         });
         if (allowance >= minimum) return;
@@ -334,6 +339,90 @@ export function createCurveballSdk(
     return { ...market, lifecycle: MARKET_STATES[market.state] ?? "none" };
   }
 
+  async function readPoolRoute(token: Address, pool: Address) {
+    const tokenAddress = getAddress(token);
+    const poolAddress = getAddress(pool);
+    const market = await readMarket(tokenAddress);
+    if (market.lifecycle !== "graduated" || getAddress(market.pool) !== poolAddress)
+      throw new CurveballSdkError("This market is not trading on the selected Icarus pool.");
+    const [quoteToken, factory] = await Promise.all([
+      readQuoteToken(),
+      actions.readContract(config, {
+        address: launchpad,
+        abi: curveLaunchpadAbi,
+        functionName: "icarusFactory",
+        chainId,
+      }),
+    ]);
+    const [canonicalPool, paused, token0, token1] = await Promise.all([
+      actions.readContract(config, {
+        address: factory,
+        abi: icarusFactoryAbi,
+        functionName: "getPool",
+        args: [tokenAddress, quoteToken, false],
+        chainId,
+      }),
+      actions.readContract(config, {
+        address: factory,
+        abi: icarusFactoryAbi,
+        functionName: "isPaused",
+        chainId,
+      }),
+      actions.readContract(config, {
+        address: poolAddress,
+        abi: icarusPoolAbi,
+        functionName: "token0",
+        chainId,
+      }),
+      actions.readContract(config, {
+        address: poolAddress,
+        abi: icarusPoolAbi,
+        functionName: "token1",
+        chainId,
+      }),
+    ]);
+    if (
+      canonicalPool === zeroAddress ||
+      getAddress(canonicalPool) !== poolAddress ||
+      ![getAddress(token0), getAddress(token1)].includes(tokenAddress) ||
+      ![getAddress(token0), getAddress(token1)].includes(getAddress(quoteToken))
+    ) {
+      throw new CurveballSdkError("This Icarus pool does not match the graduated market.");
+    }
+    if (paused)
+      throw new CurveballSdkError("Icarus pool swaps are currently paused.");
+    return { tokenAddress, poolAddress, quoteToken: getAddress(quoteToken), factory: getAddress(factory) };
+  }
+
+  async function poolAmountOut(
+    side: TradeSide,
+    route: Awaited<ReturnType<typeof readPoolRoute>>,
+    input: bigint,
+  ) {
+    const output = await actions.readContract(config, {
+      address: route.poolAddress,
+      abi: icarusPoolAbi,
+      functionName: "getAmountOut",
+      args: [input, side === "buy" ? route.quoteToken : route.tokenAddress],
+      chainId,
+    });
+    if (output <= 0n)
+      throw new CurveballSdkError("This trade is too small for the Icarus pool.");
+    return output;
+  }
+
+  /** Fee-inclusive output at the current basic-pool reserves. */
+  async function quotePoolTrade(
+    side: TradeSide,
+    token: Address,
+    pool: Address,
+    input: bigint,
+  ): Promise<bigint> {
+    if (input <= 0n)
+      throw new CurveballSdkError("Trade amount must be greater than zero.");
+    return poolAmountOut(side, await readPoolRoute(token, pool), input);
+  }
+
   /** Wraps any missing ETH into the quote token and approves the launchpad for `amount` of `asset`. */
   async function ensureApproval(
     wallet: WalletSession,
@@ -341,6 +430,7 @@ export function createCurveballSdk(
     amount: bigint,
     options: {
       wrap: boolean;
+      spender?: Address;
       onPhase?: (
         phase:
           | "wrapWallet"
@@ -352,6 +442,7 @@ export function createCurveballSdk(
     },
   ): Promise<{ approved: boolean; wrapped: bigint }> {
     const account = wallet.address;
+    const spender = options.spender ?? launchpad;
     if (amount === 0n) return { approved: false, wrapped: 0n };
     const balance = await actions.readContract(config, {
       address: asset,
@@ -392,7 +483,7 @@ export function createCurveballSdk(
       address: asset,
       abi: erc20Abi,
       functionName: "allowance",
-      args: [account, launchpad],
+      args: [account, spender],
       chainId,
     });
     if (allowance >= amount) return { approved: false, wrapped };
@@ -401,14 +492,14 @@ export function createCurveballSdk(
       address: asset,
       abi: erc20Abi,
       functionName: "approve",
-      args: [launchpad, amount],
+      args: [spender, amount],
       chainId,
     });
     options.onPhase?.("approveWallet");
     const approvalHash = await writeWithWallet(wallet, approval.request);
     options.onPhase?.("approveConfirming", approvalHash);
     await confirm(approvalHash);
-    await waitForAllowance(asset, account, amount);
+    await waitForAllowance(asset, account, amount, spender);
     return { approved: true, wrapped };
   }
 
@@ -651,6 +742,95 @@ export function createCurveballSdk(
     };
   }
 
+  /** Atomic exact-input swap through the graduated market's Icarus basic pool. */
+  async function tradePool(
+    side: TradeSide,
+    token: Address,
+    pool: Address,
+    input: bigint,
+    onProgress: TradeProgress | undefined,
+    displayedQuote: bigint,
+  ): Promise<ConfirmedTrade> {
+    onProgress?.("preparing");
+    const adapter = deployment.swapAdapter;
+    const expectedAdapterCodeHash = deployment.swapAdapterCodeHash;
+    if (!adapter || !expectedAdapterCodeHash)
+      throw new CurveballSdkError("Icarus trading is not configured for this market yet.");
+    if (input <= 0n || displayedQuote <= 0n)
+      throw new CurveballSdkError("Refresh the Icarus trade quote before continuing.");
+    const adapterCode = await actions.getBytecode(config, { address: adapter, chainId });
+    if (!adapterCode || keccak256(adapterCode).toLowerCase() !== expectedAdapterCodeHash)
+      throw new CurveballSdkError("The configured Icarus swap adapter failed bytecode verification.");
+    const route = await readPoolRoute(token, pool);
+    const [adapterLaunchpad, adapterQuote, adapterFactory] = await Promise.all([
+      actions.readContract(config, {
+        address: adapter,
+        abi: icarusSwapAdapterAbi,
+        functionName: "launchpad",
+        chainId,
+      }),
+      actions.readContract(config, {
+        address: adapter,
+        abi: icarusSwapAdapterAbi,
+        functionName: "quoteToken",
+        chainId,
+      }),
+      actions.readContract(config, {
+        address: adapter,
+        abi: icarusSwapAdapterAbi,
+        functionName: "icarusFactory",
+        chainId,
+      }),
+    ]);
+    if (
+      getAddress(adapterLaunchpad) !== launchpad ||
+      getAddress(adapterQuote) !== route.quoteToken ||
+      getAddress(adapterFactory) !== route.factory
+    ) {
+      throw new CurveballSdkError("The configured Icarus swap adapter does not match this market.");
+    }
+    const minimumOutput = applySlippage(displayedQuote, deployment.slippageBps);
+    if (minimumOutput <= 0n)
+      throw new CurveballSdkError("Trade output is too small.");
+    if ((await poolAmountOut(side, route, input)) < minimumOutput)
+      throw new CurveballSdkError("The Icarus price moved beyond your slippage limit. Refresh the quote.");
+    const wallet = await ensureWallet();
+    const asset = side === "buy" ? route.quoteToken : route.tokenAddress;
+    const { approved, wrapped } = await ensureApproval(wallet, asset, input, {
+      spender: adapter,
+      wrap: side === "buy",
+      onPhase: (phase) => onProgress?.(phase),
+    });
+    if ((await poolAmountOut(side, route, input)) < minimumOutput)
+      throw new CurveballSdkError("The Icarus price moved beyond your slippage limit. Refresh the quote.");
+    const deadline = createDeadline(Date.now(), deployment.deadlineSeconds);
+    const simulation = await simulateAfterApproval(
+      () =>
+        actions.simulateContract(config, {
+          account: wallet.address,
+          address: adapter,
+          abi: icarusSwapAdapterAbi,
+          functionName: "swapExactIn",
+          args: [route.tokenAddress, side === "buy", input, minimumOutput, deadline],
+          chainId,
+        }),
+      approved,
+    );
+    onProgress?.("tradeWallet");
+    const hash = await writeWithWallet(wallet, simulation.request);
+    onProgress?.("tradeConfirming");
+    const confirmed = await confirm(hash);
+    return {
+      ...confirmed,
+      side,
+      input,
+      quotedOutput: displayedQuote,
+      minimumOutput,
+      wrappedAmount: wrapped,
+      marketState: null,
+    };
+  }
+
   async function unwrapWeth(
     amount: bigint,
     expectedWeth: Address,
@@ -832,9 +1012,11 @@ export function createCurveballSdk(
     validateDeployment,
     readMarket,
     quoteTrade,
+    quotePoolTrade,
     createToken,
     launchAndBuy,
     trade,
+    tradePool,
     sellAllForEth,
     unwrapWeth,
     claimPoolFees,

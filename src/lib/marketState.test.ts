@@ -2,11 +2,38 @@ import { describe, expect, test } from "bun:test";
 import {
   GRADUATION_TIMEOUT_SECONDS,
   getMarketDisplayStatus,
+  poolTradeAvailability,
   selectTradeState,
+  tradeQuoteKey,
+  tradeVenueForMarket,
 } from "./marketState";
 
 const now = 2_000_000_000;
 const base = { graduated: false, paused: false, nowSeconds: now };
+
+test("graduated markets only open pool trading with a pool, adapter, and unpaused factory", () => {
+  const token = { graduated: true, lifecycle: "graduated" as const };
+  expect(tradeVenueForMarket(token)).toBe("pool-pending");
+  const venue = tradeVenueForMarket({ ...token, pool: "0x1111111111111111111111111111111111111111" });
+  expect(venue).toBe("pool");
+  expect(poolTradeAvailability({ venue, paused: false })).toBe("adapter-unavailable");
+  expect(poolTradeAvailability({ venue, adapter: "0x2222222222222222222222222222222222222222" })).toBe("checking");
+  expect(poolTradeAvailability({ venue, paused: true, adapter: "0x2222222222222222222222222222222222222222" })).toBe("paused");
+  expect(poolTradeAvailability({ venue, paused: false, adapter: "0x2222222222222222222222222222222222222222" })).toBe("open");
+  expect(tradeVenueForMarket({ graduated: false, lifecycle: "trading" })).toBe("curve");
+});
+
+test("a pool quote is bound to its input, side, and pool", () => {
+  const token = {
+    address: "0x1111111111111111111111111111111111111111",
+    graduated: true,
+    pool: "0x2222222222222222222222222222222222222222",
+  };
+  const quoteKey = tradeQuoteKey(token, "buy", "0.1");
+  expect(tradeQuoteKey(token, "sell", "0.1")).not.toBe(quoteKey);
+  expect(tradeQuoteKey(token, "buy", "0.2")).not.toBe(quoteKey);
+  expect(tradeQuoteKey({ ...token, pool: "0x3333333333333333333333333333333333333333" }, "buy", "0.1")).not.toBe(quoteKey);
+});
 
 describe("trade state table", () => {
   test.each([

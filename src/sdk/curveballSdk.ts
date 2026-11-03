@@ -1,4 +1,4 @@
-import { getAddress, type Address } from "viem";
+import { getAddress, type Address, type Hex } from "viem";
 
 export const RISE_TESTNET_CHAIN_ID = 11_155_931 as const;
 export const RISE_TESTNET_RPC_URL = "https://testnet.riselabs.xyz";
@@ -10,6 +10,8 @@ export const RISE_TESTNET_EXPLORER_URL =
 export type CurveballDeployment = Readonly<{
   chainId: number;
   launchpad: Address;
+  swapAdapter?: Address;
+  swapAdapterCodeHash?: Hex;
   slippageBps: number;
   deadlineSeconds: number;
 }>;
@@ -17,6 +19,8 @@ export type CurveballDeployment = Readonly<{
 export function defineCurveballDeployment(input: {
   chainId: number;
   launchpad: string;
+  swapAdapter?: string;
+  swapAdapterCodeHash?: string;
   slippageBps?: number;
   deadlineSeconds?: number;
 }): CurveballDeployment {
@@ -46,10 +50,18 @@ export function defineCurveballDeployment(input: {
       "Curveball transaction deadline must be a positive number of seconds.",
     );
   }
+  if (Boolean(input.swapAdapter) !== Boolean(input.swapAdapterCodeHash))
+    throw new Error("Swap adapter address and bytecode hash must be configured together.");
+  if (input.swapAdapterCodeHash && !/^0x[0-9a-fA-F]{64}$/.test(input.swapAdapterCodeHash))
+    throw new Error("Invalid swap adapter bytecode hash.");
 
   return Object.freeze({
     chainId: input.chainId,
     launchpad: getAddress(input.launchpad),
+    ...(input.swapAdapter ? { swapAdapter: getAddress(input.swapAdapter) } : {}),
+    ...(input.swapAdapterCodeHash
+      ? { swapAdapterCodeHash: input.swapAdapterCodeHash.toLowerCase() as Hex }
+      : {}),
     slippageBps,
     deadlineSeconds,
   });

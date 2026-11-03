@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import {
   encodeAbiParameters,
   encodeEventTopics,
+  keccak256,
   parseEther,
   WaitForTransactionReceiptTimeoutError,
   type Address,
@@ -21,6 +22,10 @@ import { curveLaunchpadAbi } from "./contracts";
 const wallet = "0x0000000000000000000000000000000000000001" as Address;
 const token = "0x0000000000000000000000000000000000000003" as Address;
 const quote = "0x0000000000000000000000000000000000000005" as Address;
+const pool = "0x0000000000000000000000000000000000000004" as Address;
+const factory = "0x0000000000000000000000000000000000000006" as Address;
+const adapter = "0x0000000000000000000000000000000000000007" as Address;
+const adapterBytecode = "0x60016000" as const;
 const hash = `0x${"ab".repeat(32)}` as Hash;
 const uri =
   "ipfs://bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy";
@@ -126,6 +131,112 @@ test("a first buy is quoted exactly as the launchpad filled it on testnet", () =
   expect(quoteFirstBuy(parseEther("100"), parseEther("0.01"), 75, 0)).toBe(
     800_000n * 10n ** 18n,
   );
+});
+
+test("a graduated market quotes the canonical Icarus pool and rejects a paused factory", async () => {
+  let paused = false;
+  const actions = {
+    readContract: reads({
+      market: { ...market, state: 3, pool },
+      icarusFactory: factory,
+      getPool: pool,
+      isPaused: () => paused,
+      token0: quote,
+      token1: token,
+      getAmountOut: 1_000n,
+    }),
+  } as unknown as WagmiActions;
+  const sdk = createCurveballSdk({} as Config, deployment, actions);
+  expect(await sdk.quotePoolTrade("buy", token, pool, 100n)).toBe(1_000n);
+  paused = true;
+  await expect(sdk.quotePoolTrade("buy", token, pool, 100n)).rejects.toThrow(
+    "Icarus pool swaps are currently paused",
+  );
+});
+
+test("pool buy approves only the bytecode-pinned adapter and uses the displayed quote as minOut", async () => {
+  const poolDeployment = defineCurveballDeployment({
+    chainId: RISE_TESTNET_CHAIN_ID,
+    launchpad: deployment.launchpad,
+    swapAdapter: adapter,
+    swapAdapterCodeHash: keccak256(adapterBytecode),
+    slippageBps: 300,
+  });
+  const simulations: Array<{
+    address?: Address;
+    functionName: string;
+    args?: readonly unknown[];
+  }> = [];
+  let approved = false;
+  const actions = {
+    getAccount: () => ({ address: wallet, chainId: RISE_TESTNET_CHAIN_ID }),
+    getBytecode: async () => adapterBytecode,
+    getBalance: async () => ({ value: 10n ** 18n }),
+    readContract: reads({
+      market: { ...market, state: 3, pool },
+      icarusFactory: factory,
+      getPool: pool,
+      isPaused: false,
+      token0: quote,
+      token1: token,
+      getAmountOut: 1_000n,
+      launchpad: deployment.launchpad,
+      balanceOf: 0n,
+      allowance: () => (approved ? 100n : 0n),
+    }),
+    simulateContract: async (_config: unknown, request: { functionName: string }) => {
+      simulations.push(request);
+      return { request };
+    },
+    writeContract: async (_config: unknown, request: { functionName: string }) => {
+      if (request.functionName === "approve") approved = true;
+      return hash;
+    },
+    waitForTransactionReceipt: async () => ({ status: "success", logs: [] }),
+  } as unknown as WagmiActions;
+  const result = await createCurveballSdk(
+    {} as Config,
+    poolDeployment,
+    actions,
+  ).tradePool("buy", token, pool, 100n, undefined, 1_000n);
+  expect(simulations.map((request) => request.functionName)).toEqual([
+    "deposit",
+    "approve",
+    "swapExactIn",
+  ]);
+  expect(simulations[1].args).toEqual([adapter, 100n]);
+  expect(simulations[2].address).toBe(adapter);
+  expect(simulations[2].args?.slice(0, 4)).toEqual([token, true, 100n, 970n]);
+  expect(result.minimumOutput).toBe(970n);
+  expect(result.marketState).toBeNull();
+});
+
+test("a spoofed adapter bytecode cannot receive a pool-trade approval", async () => {
+  const poolDeployment = defineCurveballDeployment({
+    chainId: RISE_TESTNET_CHAIN_ID,
+    launchpad: deployment.launchpad,
+    swapAdapter: adapter,
+    swapAdapterCodeHash: keccak256(adapterBytecode),
+  });
+  let walletSpendingStarted = false;
+  const actions = {
+    getBytecode: async () => "0x6002",
+    getAccount: () => {
+      walletSpendingStarted = true;
+      throw new Error("Wallet should not be opened");
+    },
+  } as unknown as WagmiActions;
+  await expect(
+    createCurveballSdk({} as Config, poolDeployment, actions).tradePool(
+      "buy",
+      token,
+      pool,
+      100n,
+      undefined,
+      1_000n,
+    ),
+  ).rejects.toThrow("failed bytecode verification");
+  expect(walletSpendingStarted).toBe(false);
 });
 
 test("buy progress follows each wallet prompt and its network confirmation, approving the launchpad", async () => {

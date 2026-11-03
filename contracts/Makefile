@@ -10,7 +10,7 @@ DOT_ADDRESS := 0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3
 
 export QUOTE_TOKEN ICARUS_FACTORY BLOCKSCOUT_API RISE_MAINNET_RPC_URL RISE_RPC_URL
 
-.PHONY: test abis smoke-testnet set-testnet-graduation-target require-fork-tests test-fork-strict test-fork-testnet verify-icarus require-production-config production-preflight deploy-production require-testnet-config testnet-preflight deploy-testnet
+.PHONY: test abis smoke-testnet set-testnet-graduation-target deploy-icarus-swap-testnet build-icarus-swap-adapter require-fork-tests test-fork-strict test-fork-testnet verify-icarus require-production-config production-preflight deploy-production require-testnet-config testnet-preflight deploy-testnet
 
 # Fork suites need network access; they run only through the targets below.
 test:
@@ -72,6 +72,23 @@ deploy-testnet: testnet-preflight
 	forge script scripts/Deploy.s.sol:Deploy \
 		--rpc-url "$(TESTNET_RPC_URL)" --broadcast --slow \
 		--account "$(TESTNET_ACCOUNT)" \
+		--verify --verifier blockscout --verifier-url "$(TESTNET_BLOCKSCOUT_VERIFIER_URL)" \
+		--retries 10 --delay 10
+
+# Deploys the permissionless atomic swap adapter for the recorded testnet launchpad.
+# Uses the operator's Foundry keystore and prompts for its password; no key enters the repo.
+build-icarus-swap-adapter:
+	forge build --contracts contracts/CurveIcarusSwapAdapter.sol
+
+deploy-icarus-swap-testnet: require-testnet-config
+	@test ! -f ../deployments/11155931/icarus-swap-adapter.json || { echo "Swap adapter is already recorded."; exit 2; }
+	forge test --match-contract IcarusSwapAdapterTest
+	CI_FORK=1 RISE_TESTNET_RPC_URL="$(TESTNET_RPC_URL)" forge test \
+		--match-path 'test/fork/Lifecycle.fork.t.sol' \
+		--match-test test_fork_adapterTradesBothDirectionsOnTheRealIcarusPool
+	forge script scripts/DeployIcarusSwap.s.sol:DeployIcarusSwap --rpc-url "$(TESTNET_RPC_URL)"
+	forge script scripts/DeployIcarusSwap.s.sol:DeployIcarusSwap \
+		--rpc-url "$(TESTNET_RPC_URL)" --broadcast --slow --account "$(TESTNET_ACCOUNT)" \
 		--verify --verifier blockscout --verifier-url "$(TESTNET_BLOCKSCOUT_VERIFIER_URL)" \
 		--retries 10 --delay 10
 
