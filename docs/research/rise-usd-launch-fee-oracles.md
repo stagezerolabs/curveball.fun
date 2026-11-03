@@ -7,9 +7,10 @@ not change that fee.
 | Provider | Testnet | Mainnet | Finding |
 | --- | --- | --- | --- |
 | Stork | Contract and ETH/USD feed exist | Same | The freshness-checked getter reverts `StaleValue` on both chains. The last ETH/USD updates were 2026-08-14. |
+| RedStone Pull | Chain-agnostic Solidity consumer | Same | No RISE feed contract is needed, but live signed payloads require authenticated gateway access and a private proxy. Access and live delivery on RISE remain untested. |
 | Supra Pull | Contract exists; ETH/USD pair ID 19 | No RISE deployment listed or code at the testnet address | Useful for a testnet prototype, but requires a signed proof in each launch transaction. |
 | Pyth, Chainlink | No official RISE feed listing found | No official RISE feed listing found | No verified turnkey ETH/USD feed on both chains. |
-| RedStone, DIA, Chronicle, API3 | No verified RISE feed found | No verified RISE feed found | Provider engagement or custom integration would be needed. |
+| DIA, Chronicle, API3 | No verified RISE feed found | No verified RISE feed found | Provider engagement or custom integration would be needed. |
 
 Stork's [RISE contract directory](https://docs.stork.network/resources/contract-addresses/evm)
 lists `0xacC0a0cF13571d30B4b8637996F5D6D774d4fd62` on both networks.
@@ -34,23 +35,35 @@ and [Chainlink](https://docs.chain.link/data-feeds/price-feeds/addresses)
 directories likewise have no verified RISE ETH/USD deployment. These are
 directory findings, not claims that the providers cannot support RISE.
 
-## Proposed implementation once a live feed is secured
+RedStone's [Pull guide](https://docs.redstone.finance/docs/stage1-market-data/price-feeds/pull-model/)
+describes signed price data appended to transaction calldata and requires
+authenticated gateway keys for live payloads. Browser users would need a
+secret-holding proxy. Its [production consumer](https://github.com/redstone-finance/redstone-oracles-monorepo/blob/main/packages/evm-connector/contracts/data-services/PrimaryProdDataServiceConsumerBase.sol)
+verifies 3 of 5 authorized signers, and the [default verifier window](https://github.com/redstone-finance/redstone-oracles-monorepo/blob/main/packages/evm-connector/contracts/core/RedstoneDefaultsLib.sol)
+allows prices up to three minutes old. This path can verify inside a custom
+launchpad on either RISE chain without a predeployed oracle. We have not
+tested live ETH/USD payload access; the [official EVM examples](https://github.com/redstone-finance/redstone-evm-examples)
+require API keys outside mock tests. Provider terms and availability must be
+confirmed.
 
-1. Confirm Stork subscription, signed-update access, and a working ETH/USD
-   update on **both** RISE networks. Decide whether a funded pusher or a signed
-   update included in each launch transaction will keep the feed live. Confirm
-   the ongoing cost and operational owner before committing to the provider.
+## Proposed implementation once live data access is secured
+
+1. Prove a fresh signed ETH/USD update on **both** RISE networks. For Stork,
+   confirm subscriber access and either a funded pusher or per-interaction
+   updates. For RedStone, confirm gateway access and signed payload delivery
+   through a private proxy. Confirm the ongoing cost and operational owner.
 2. Replace the immutable WETH launch fee with an oracle-derived quote. With an
    18-decimal positive ETH/USD price `P`, a $1 fee is `ceil(10^36 / P)` WETH wei.
-   Check feed ID, timestamp, freshness (a stricter application limit than the
-   provider's one-hour window), positive value, and arithmetic bounds. Revert
-   when price data is invalid or stale.
+   Check feed ID, timestamp, freshness, positive value, signer validity where
+   applicable, and arithmetic bounds. Revert when price data is invalid or
+   stale.
 3. Read the fee and charge it atomically in `launch`. Expose the current quote
    and an expected-maximum-fee argument so a wallet can set a slippage bound.
    Update the SDK, launch UI, deployment configuration, and fee tests. Since
    the current fee is immutable, this requires a new launchpad deployment and
    rewiring its dependent contracts; it cannot be activated by an owner call.
 
-The $1 fee should not be switched on while both Stork feeds remain stale. A
-testnet-only Supra prototype is possible but would not establish a mainnet
-oracle path.
+The $1 fee should not be switched on using the stale Stork reads. RedStone
+Pull may avoid a continuously funded onchain pusher, but its authenticated
+gateway and proxy must work before deployment. A testnet-only Supra prototype
+would not establish a mainnet oracle path.
