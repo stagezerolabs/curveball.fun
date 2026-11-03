@@ -2,9 +2,11 @@
   "version": "lean-v2",
   "release": "testnet",
   "chainId": 11155931,
-  "sourceCommit": "ee1d9bdc669a0d0c9e8e27070fa2579343b9c901",
-  "launchpad": "0xB749aC30346fa7Eb30651091993Fb5dF243259d2",
-  "deploymentBlock": "57244687",
+  "sourceCommit": "bb0d8b0d07352b667c296a412005e838434a4d37",
+  "sourceTreeSha256": "0x3101fa569e8ab97eda912595ce055d2ebbc7709a49e8313e03a4661cbc3b8870",
+  "sourceWorkingTreeDirty": true,
+  "launchpad": "0xb919a4e77bF084e6b5bAF358Ed485F19451c9582",
+  "deploymentBlock": "58012881",
   "quote": "0x4200000000000000000000000000000000000006",
   "icarusFactory": "0x8221dfB70c9A2dE60253dcfC58231FD529bbF4F9",
   "owner": "0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3",
@@ -22,64 +24,64 @@
   "curveSupply": "800000000000000000000000",
   "maxReserveBps": "400",
   "singletons": {
-    "escrow": "0xEF11C1EaEC045732c971b4CBA1F0Ad26C2796b3E",
-    "locker": "0x939c510F55999e0dB2b5154352840c2F87648542",
-    "reserve": "0x78CcA33fbc8C24338E95A6C0B3811E544d2207E2",
-    "tokenImplementation": "0x86c1d9E2407Cf13c3954Faa4aDB0E0F103cAf296"
+    "escrow": "0x5D86a629681344902b8E32554C8a78b88B62e3e8",
+    "locker": "0xA2D87f7E9E604C946e5c4b1690159089c4447aec",
+    "reserve": "0x49d2873d24CD7f7f6CDEf44FC6912Cdd1D112c58",
+    "tokenImplementation": "0x62427155AC3762C5900799a7dc25dC0BA5369730"
   },
   "codeHashes": {
-    "CurveFeeEscrow": "0xc2e5b2e577da6fb8a683614ac004a9e336d553026768f7a3a8084830b6f964b7",
-    "CurveLpLocker": "0xd2e747714fbd570e23946881bce38ba05b9a2169362cbe67cf5c245dd2e6c368",
-    "CurveHolderReserve": "0x1efb55a2119ab9d3c80546f407f025faf2f179c3266a0c76aa45faf90d6e7235",
-    "CurveLaunchpad": "0x13c87717257a7a4a30e81b0beda6dfbfc218697e4cc963b91678ec5299ab9179",
-    "CurveToken": "0x0249b5c4dff6e274ab4b72b23010958496283613aa09f1b4de8017e3545700b6"
+    "CurveFeeEscrow": "0x26c16984ff3363893e8d72c473ba4d7f0263022e846b3587d7911dd36e689765",
+    "CurveLpLocker": "0xd736cf49c9f2003f6fb8a7ad48a07c8d125c187d3bf4f19fc8e1dc3e6b0fab8d",
+    "CurveHolderReserve": "0xf2d152eceb11bb76a4c360433fa8efe3b95525512fb0e211005fec5f9575f448",
+    "CurveLaunchpad": "0x117c7b06e75b2270d5419967317683ba8d51e5d18c82d2e2b768aa7a808be646",
+    "CurveToken": "0xb1f3026969dfa42dce7e7d102a3c19f34e700e1ceb8340a8d3c59351b6f0e422"
   },
   "sourceVerification": {
     "CurveFeeEscrow": {
       "name": "CurveFeeEscrow",
-      "url": "https://explorer.testnet.riselabs.xyz/address/0xEF11C1EaEC045732c971b4CBA1F0Ad26C2796b3E?tab=contract"
+      "url": "https://explorer.testnet.riselabs.xyz/address/0x5D86a629681344902b8E32554C8a78b88B62e3e8?tab=contract"
     },
     "CurveLpLocker": {
       "name": "CurveLpLocker",
-      "url": "https://explorer.testnet.riselabs.xyz/address/0x939c510F55999e0dB2b5154352840c2F87648542?tab=contract"
+      "url": "https://explorer.testnet.riselabs.xyz/address/0xA2D87f7E9E604C946e5c4b1690159089c4447aec?tab=contract"
     },
     "CurveHolderReserve": {
       "name": "CurveHolderReserve",
-      "url": "https://explorer.testnet.riselabs.xyz/address/0x78CcA33fbc8C24338E95A6C0B3811E544d2207E2?tab=contract"
+      "url": "https://explorer.testnet.riselabs.xyz/address/0x49d2873d24CD7f7f6CDEf44FC6912Cdd1D112c58?tab=contract"
     },
     "CurveLaunchpad": {
       "name": "CurveLaunchpad",
-      "url": "https://explorer.testnet.riselabs.xyz/address/0xB749aC30346fa7Eb30651091993Fb5dF243259d2?tab=contract"
+      "url": "https://explorer.testnet.riselabs.xyz/address/0xb919a4e77bF084e6b5bAF358Ed485F19451c9582?tab=contract"
     },
     "CurveToken": {
       "name": "CurveToken",
-      "url": "https://explorer.testnet.riselabs.xyz/address/0x86c1d9E2407Cf13c3954Faa4aDB0E0F103cAf296?tab=contract"
+      "url": "https://explorer.testnet.riselabs.xyz/address/0x62427155AC3762C5900799a7dc25dC0BA5369730?tab=contract"
     }
   },
   "transactions": [
     {
       "name": "CurveFeeEscrow",
-      "address": "0xEF11C1EaEC045732c971b4CBA1F0Ad26C2796b3E",
-      "hash": "0xf37829034f14ab02289ebe6597dc152bf30043ac845afea084d86c41f34178db",
-      "blockNumber": "57244681"
+      "address": "0x5D86a629681344902b8E32554C8a78b88B62e3e8",
+      "hash": "0xaeba2b458ffb2740a8ed741d4d074dea6a651bd5eda7028b538146820762242e",
+      "blockNumber": "58012874"
     },
     {
       "name": "CurveLpLocker",
-      "address": "0x939c510F55999e0dB2b5154352840c2F87648542",
-      "hash": "0x240bd407e4071587b4e97c560e19fda3def814bb7caafb8e6914e7ed58616799",
-      "blockNumber": "57244683"
+      "address": "0xA2D87f7E9E604C946e5c4b1690159089c4447aec",
+      "hash": "0x460cda14f8649b49b2d9f7da94e01546ff0a6db74325ad36b000f55240d0d72e",
+      "blockNumber": "58012877"
     },
     {
       "name": "CurveHolderReserve",
-      "address": "0x78CcA33fbc8C24338E95A6C0B3811E544d2207E2",
-      "hash": "0xa11058e8376e60f7d7e1701a9fd9d00b520f946c7ff15622b377001173a409d2",
-      "blockNumber": "57244684"
+      "address": "0x49d2873d24CD7f7f6CDEf44FC6912Cdd1D112c58",
+      "hash": "0x6c7b3ff3cc84592a1fe8e4a11218a4f2892cb94cd0d0efbba3e65a9d4bda3c28",
+      "blockNumber": "58012879"
     },
     {
       "name": "CurveLaunchpad",
-      "address": "0xB749aC30346fa7Eb30651091993Fb5dF243259d2",
-      "hash": "0x852bc137d28076e05af80b7a30fb7a8e063b1ec78df6fa1d7cb00d0dcc6d1085",
-      "blockNumber": "57244687"
+      "address": "0xb919a4e77bF084e6b5bAF358Ed485F19451c9582",
+      "hash": "0x4092a7c15bc5a6773efd3b0f58eb270e8e8559ab9520512c6ecc6b8a8f408753",
+      "blockNumber": "58012881"
     }
   ]
 }

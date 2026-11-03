@@ -6,8 +6,34 @@ import { ErrorBoundary } from "./app/ErrorBoundary";
 import { privyConfig } from "./lib/privyConfig";
 import { PrivyWagmiProvider } from "./lib/PrivyWagmiProvider";
 import { ProfileClaimSync } from "./social/ProfileClaimSync";
-import { wagmiConfig } from "./lib/web3";
+import {
+  activeChainId,
+  activeDeploymentBlock,
+  launchpadAddress,
+  wagmiConfig,
+} from "./lib/web3";
 import "./style.css";
+
+// A redeployment gives every market a new address. Remove saved data from other
+// launchpads on this chain while retaining the current deployment's cache.
+try {
+  const chainCachePrefix = `curveball-chain-cache:${activeChainId}:`;
+  const currentChainCache = `${chainCachePrefix}${launchpadAddress ?? "unconfigured"}:current`;
+  const statsPrefix = `curveball:landing-stats:current:${activeChainId}:`;
+  const currentStatsPrefix = `${statsPrefix}${launchpadAddress?.toLowerCase() ?? ""}:${activeDeploymentBlock}:`;
+  for (let i = window.localStorage.length - 1; i >= 0; i -= 1) {
+    const key = window.localStorage.key(i);
+    if (
+      key &&
+      ((key.startsWith(chainCachePrefix) && key !== currentChainCache) ||
+        (key.startsWith(statsPrefix) && !key.startsWith(currentStatsPrefix)))
+    ) {
+      window.localStorage.removeItem(key);
+    }
+  }
+} catch {
+  // Browser storage may be disabled; the live app does not require it.
+}
 
 // Defaults kill the window-focus refetch storm: without them react-query refetches
 // every active query (Pulse feed, balances, RNS, charts) on every tab focus.

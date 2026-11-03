@@ -15,16 +15,17 @@ The 0.001 WETH launch fee goes straight to the immutable treasury. The productio
 
 ### Testnet rehearsal
 
-The testnet path deploys the same contracts against canonical RISE Testnet WETH and the live Icarus testnet factory, with the `dot` operator as owner, guardian and treasury. It broadcasts from the dedicated `curveball-testnet-deployer` Foundry keystore (password file beside it in `~/.foundry`), never from `dot`. It does not read or modify production configuration.
+The testnet path deploys the audited contracts against canonical RISE Testnet WETH and the live Icarus testnet factory. The `dot` Foundry keystore broadcasts the deployment and is the owner, guardian and treasury. Foundry prompts for the keystore password. It does not modify production configuration.
 
 ```bash
-make deploy-testnet      # runs the offline suite, the testnet forks and the preflight first
-make record-testnet
-make configure-testnet
+make deploy-testnet      # runs the contract suite, testnet forks, preflight, then broadcasts
+make activate-testnet    # records, configures all local services, and recreates the stack
 make -C contracts smoke-testnet   # optional: one market from launch to graduation (~0.021 ETH)
 ```
 
-The broadcast verifies all five contracts (the four singletons and the token implementation) on the RISE Testnet Blockscout. Recording validates every receipt, the singletons' wiring, policy values, bytecode hashes and verified sources before writing `deployments/11155931/curveball.json`. Configuration then writes this checkout's `.env.local` and `.env.testnet.local` only, never the main checkout's shared `.env`.
+The broadcast verifies all five contracts (the four singletons and the token implementation) on the RISE Testnet Blockscout. Recording validates every receipt, the singletons' wiring, policy values, bytecode hashes and verified sources before writing `deployments/11155931/curveball.json`. Activation updates the frontend, social service, keeper, and prepared VPS deployment env files, clears previous local chain projections and indexer cursors while keeping wallet profiles and follows, then rebuilds and recreates the complete local stack.
+
+The recorded release uses Icarus's basic (V2) pool factory at `0x8221dfB70c9A2dE60253dcfC58231FD529bbF4F9`; [the Icarus testnet app](https://testnet.icarus.finance) can be used to inspect swaps and liquidity. Factory pause blocks basic-pool swaps only, so graduation and fee claims remain available. On testnet the current volatile swap fee is 30 bps and 10% of that fee is directed to gauge rewards; both rates can change, including per pool. Curveball's locked LP collects its unstaked LP share. Buyback calls `sync()` before sampling two price intervals. Each observation requires more than 1,800 seconds since the previous one, so a quiet pool can have a longer lookback; schedule `sync()` about every 30 minutes only if a bounded lookback is needed.
 
 ### Mainnet deployment
 
@@ -63,6 +64,9 @@ Open `http://127.0.0.1:5173` for the frontend and `http://127.0.0.1:8787/health`
 the `preview_postgres` Docker volume. Secrets are injected from the ignored env files at runtime and
 never baked into the images. Rebuild the frontend after source changes with
 `docker compose up -d --build frontend`.
+
+For a completely fresh local testnet state, run `make docker-fresh-testnet`. It removes the local
+Postgres volume, including profiles, follows, and notifications, then rebuilds the stack.
 
 ## Run locally
 

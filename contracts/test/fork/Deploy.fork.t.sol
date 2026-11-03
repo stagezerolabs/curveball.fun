@@ -5,6 +5,11 @@ import {Test} from "forge-std/Test.sol";
 import {CurveDeploy} from "../../scripts/CurveDeploy.sol";
 import {Deploy} from "../../scripts/Deploy.s.sol";
 
+interface ITestnetFactoryPause {
+    function pauser() external view returns (address);
+    function setPauseState(bool paused) external;
+}
+
 /// @dev `Deploy.s.sol` against live RISE state: the testnet run end to end, and the mainnet preflight
 ///      rejecting an owner that isn't a timelock. Same skip and CI_FORK=1 rules as the lifecycle forks.
 abstract contract DeployFork is Test {
@@ -23,7 +28,8 @@ abstract contract DeployFork is Test {
 }
 
 contract DeployTestnetForkTest is DeployFork {
-    address constant DOT = 0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3;
+    address constant TESTNET_OPERATOR = 0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3;
+    address constant TESTNET_ICARUS = 0x8221dfB70c9A2dE60253dcfC58231FD529bbF4F9;
 
     function setUp() public {
         _fork("RISE_TESTNET_RPC_URL", 11_155_931);
@@ -33,15 +39,22 @@ contract DeployTestnetForkTest is DeployFork {
         // Broadcasts from forge's default sender, so the nonce prediction runs against a live account.
         CurveDeploy.Deployment memory d = script.run();
 
-        assertEq(d.launchpad.owner(), DOT);
-        assertEq(d.launchpad.guardian(), DOT);
-        assertEq(d.launchpad.treasury(), DOT);
-        assertEq(d.escrow.owner(), DOT);
+        assertEq(d.launchpad.owner(), TESTNET_OPERATOR);
+        assertEq(d.launchpad.guardian(), TESTNET_OPERATOR);
+        assertEq(d.launchpad.treasury(), TESTNET_OPERATOR);
+        assertEq(d.escrow.owner(), TESTNET_OPERATOR);
         assertEq(d.launchpad.graduationTarget(), 0.01 ether);
         assertEq(d.launchpad.launchFee(), 0.001 ether);
         assertEq(d.escrow.launchpad(), address(d.launchpad));
         assertEq(d.locker.launchpad(), address(d.launchpad));
         assertEq(address(d.reserve.launchpad()), address(d.launchpad));
+    }
+
+    function test_preflight_allowsPausedFactoryBecauseOnlySwapsAreBlocked() public {
+        ITestnetFactoryPause factory = ITestnetFactoryPause(TESTNET_ICARUS);
+        vm.prank(factory.pauser());
+        factory.setPauseState(true);
+        script.preflight(script.params());
     }
 }
 

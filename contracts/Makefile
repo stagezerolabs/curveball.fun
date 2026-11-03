@@ -56,9 +56,8 @@ deploy-production: production-preflight
 		--verify --verifier blockscout --verifier-url "$(BLOCKSCOUT_VERIFIER_URL)" \
 		--retries 10 --delay 10
 
-# Testnet deploys from a dedicated hot keystore; owner, guardian and treasury stay the dot operator.
-TESTNET_ACCOUNT ?= curveball-testnet-deployer
-TESTNET_PASSWORD_FILE ?= $(HOME)/.foundry/$(TESTNET_ACCOUNT).password
+# Testnet broadcasts from the operator's Foundry keystore. Foundry prompts for its password.
+TESTNET_ACCOUNT ?= dot
 
 require-testnet-config:
 	@test -n "$(TESTNET_RPC_URL)" || { echo "RISE_TESTNET_RPC_URL or VITE_RPC_URL is required."; exit 2; }
@@ -67,16 +66,16 @@ require-testnet-config:
 testnet-preflight: require-testnet-config test test-fork-testnet
 	forge clean
 	forge script scripts/Deploy.s.sol:Deploy --rpc-url "$(TESTNET_RPC_URL)" \
-		--account "$(TESTNET_ACCOUNT)" --password-file "$(TESTNET_PASSWORD_FILE)"
+		--account "$(TESTNET_ACCOUNT)"
 
 deploy-testnet: testnet-preflight
 	forge script scripts/Deploy.s.sol:Deploy \
 		--rpc-url "$(TESTNET_RPC_URL)" --broadcast --slow \
-		--account "$(TESTNET_ACCOUNT)" --password-file "$(TESTNET_PASSWORD_FILE)" \
+		--account "$(TESTNET_ACCOUNT)" \
 		--verify --verifier blockscout --verifier-url "$(TESTNET_BLOCKSCOUT_VERIFIER_URL)" \
 		--retries 10 --delay 10
 
 # Runs one market through the recorded testnet deployment end to end (needs about 0.021 ETH).
 smoke-testnet: require-testnet-config
 	forge script scripts/Smoke.s.sol:Smoke --rpc-url "$(TESTNET_RPC_URL)" --broadcast --slow \
-		--account "$(TESTNET_ACCOUNT)" --password-file "$(TESTNET_PASSWORD_FILE)"
+		--account "$(TESTNET_ACCOUNT)"

@@ -307,6 +307,15 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
   const phase = launchProgress?.phase;
   const draftTaxBps = percentToBps(draftTaxPercent || "0") ?? 0;
   const draftReserveBps = percentToBps(draftReservePercent) ?? 0;
+  const taxCap = creatorTaxCapBps;
+  const taxInvalid =
+    draftTaxPercent.trim() !== "" &&
+    (percentToBps(draftTaxPercent) === null ||
+      (taxCap !== undefined && draftTaxBps > taxCap));
+  const reserveInvalid =
+    draftReservePercent.trim() !== "" &&
+    (percentToBps(draftReservePercent) === null ||
+      (maxReserveBps !== undefined && draftReserveBps > Number(maxReserveBps)));
   const formReady =
     !imageError &&
     canSubmitLaunch({
@@ -556,12 +565,19 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                       step="0.01"
                       inputMode="decimal"
                       value={draftTaxPercent}
+                      aria-invalid={taxInvalid}
                       onChange={(event) =>
                         setDraftTaxPercent(event.target.value)
                       }
                     />
                     <i>%</i>
                   </span>
+                  {taxInvalid && (
+                    <small className="launch-field-error" role="alert">
+                      Creator tax must be 0–
+                      {Number(creatorTaxCapBps ?? 50) / 100}%.
+                    </small>
+                  )}
                 </label>
                 <label className="launch-field-wide">
                   <span>
@@ -577,12 +593,18 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                       inputMode="decimal"
                       required
                       value={draftReservePercent}
+                      aria-invalid={reserveInvalid}
                       onChange={(event) =>
                         setDraftReservePercent(event.target.value)
                       }
                     />
                     <i>%</i>
                   </span>
+                  {reserveInvalid && (
+                    <small className="launch-field-error" role="alert">
+                      Holder reserve must be 0–{maxReservePercent ?? "…"}%.
+                    </small>
+                  )}
                   <small>
                     After graduation, every curve buyer can claim a share in
                     proportion to the tokens they bought on the curve. This

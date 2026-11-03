@@ -51,10 +51,7 @@ function metadataConfiguration() {
   return { gateway: gateway.endsWith("/") ? gateway : `${gateway}/`, hosts };
 }
 
-// SOCIAL_FACTORY_ADDRESS is the pre-launchpad name, still accepted so existing env files keep working.
-const launchpad =
-  process.env.SOCIAL_LAUNCHPAD_ADDRESS?.trim() ||
-  process.env.SOCIAL_FACTORY_ADDRESS?.trim();
+const launchpad = process.env.SOCIAL_LAUNCHPAD_ADDRESS?.trim();
 if (!launchpad) throw new Error("SOCIAL_LAUNCHPAD_ADDRESS is required.");
 if (!isAddress(launchpad))
   throw new Error("SOCIAL_LAUNCHPAD_ADDRESS is invalid.");

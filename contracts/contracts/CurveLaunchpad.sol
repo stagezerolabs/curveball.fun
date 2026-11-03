@@ -4,6 +4,7 @@ pragma solidity 0.8.24;
 import {Ownable, Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -173,6 +174,10 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
                 || config.escrow == address(0) || config.locker == address(0) || config.reserve == address(0)
                 || config.launchFee > MAX_LAUNCH_FEE
         ) revert InvalidConfig();
+        // Curve trading math is scale-invariant, but the quote-denominated constants and defaults
+        // (MIN_TARGET, MAX_LAUNCH_FEE, graduation target, launch fee) are tuned for 18 decimals.
+        // Fail fast rather than deploy a curve whose fixed quote bounds are off by orders of magnitude.
+        if (IERC20Metadata(config.quoteToken).decimals() != 18) revert InvalidConfig();
         treasury = config.treasury;
         quoteToken = config.quoteToken;
         icarusFactory = config.icarusFactory;
@@ -283,7 +288,8 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
     /// @dev Permissionless once sold out. Never checks Icarus's pause (only `swap` does), so its pauser
     ///      can't force an abort. A WETH donation synced into a pre-created pool is matched with tokens
     ///      from the burn buffer, so the opening price equals the curve-end spot; beyond the buffer the
-    ///      pool opens slightly higher at the donor's expense. Nothing a donor does can make this revert.
+    ///      pool opens slightly higher. Quote-side donation size cannot wedge graduation; an initialized
+    ///      pool or synced token reserve is rejected.
     function graduate(address token) external nonReentrant returns (address pool) {
         Market storage m = markets[token];
         State state = m.state;
@@ -312,6 +318,9 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
         IIcarusPool(pool).mint(locker);
         (tokenReserve, quoteReserve) = _reserves(pool, token);
         if (tokenReserve != tokensToPool || quoteReserve != quoteInPool) revert MintMismatch();
+        // The escrow's buyback TWAP must never sample the empty observations that can accumulate in
+        // a pre-created pool before seeding; mark this pool's observation count as the zero point.
+        ICurveFeeEscrow(escrow).markGraduated(token, pool);
 
         uint256 burned = IERC20(token).balanceOf(address(this));
         CurveToken(token).burn(burned);

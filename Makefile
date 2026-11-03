@@ -9,10 +9,10 @@ SERVICE ?=
 
 .DEFAULT_GOAL := help
 
-.PHONY: help dev build build-testnet test typecheck contracts-test testnet-preflight deploy-testnet record-testnet configure-testnet production-preflight deploy-production record-production configure-production \
+.PHONY: help dev build build-testnet test typecheck contracts-test testnet-preflight deploy-testnet record-testnet configure-testnet reset-testnet-projections activate-testnet production-preflight deploy-production record-production configure-production \
 	docker-up docker-up-build docker-build docker-build-no-cache docker-down docker-stop docker-start docker-restart docker-recreate docker-rebuild \
 	docker-frontend docker-social docker-keeper docker-migrate docker-status docker-images docker-top docker-config docker-logs docker-logs-api docker-logs-frontend docker-logs-social docker-logs-keeper \
-	docker-shell-api docker-shell-frontend docker-db-shell docker-build-service docker-recreate-service docker-logs-service docker-clean
+	docker-shell-api docker-shell-frontend docker-db-shell docker-build-service docker-recreate-service docker-logs-service docker-clean docker-fresh-testnet
 
 help:
 	@echo "make dev                 Run the static frontend"
@@ -24,6 +24,8 @@ help:
 	@echo "make deploy-testnet           Broadcast and source-verify the current testnet deployment"
 	@echo "make record-testnet           Validate and record the confirmed testnet deployment"
 	@echo "make configure-testnet        Point the local UI at the recorded testnet deployment"
+	@echo "make reset-testnet-projections  Clear old local testnet markets and indexer cursors"
+	@echo "make activate-testnet         Record, configure, and rebuild the full local stack"
 	@echo "make production-preflight     Run contract, fork, dependency, and deployment simulation gates"
 	@echo "make deploy-production        Broadcast and source-verify the reviewed RISE mainnet deployment"
 	@echo "make record-production        Validate wiring/sources and record the confirmed deployment"
@@ -60,6 +62,7 @@ help:
 	@echo "make docker-recreate-service SERVICE=api"
 	@echo "make docker-logs-service SERVICE=api"
 	@echo "make docker-clean              Remove stopped stack resources and orphans"
+	@echo "make docker-fresh-testnet      Delete the local database volume and rebuild the full stack"
 
 dev:
 	bun run dev
@@ -85,10 +88,23 @@ deploy-testnet:
 	$(MAKE) -C contracts deploy-testnet
 
 record-testnet:
-	DEPLOYMENT_NETWORK=testnet bun contracts/scripts/record-production.ts
+	DEPLOYMENT_NETWORK=testnet REPLACE_TESTNET_DEPLOYMENT=1 bun contracts/scripts/record-production.ts
 
 configure-testnet:
 	DEPLOYMENT_NETWORK=testnet bun contracts/scripts/sync-production-config.ts
+
+reset-testnet-projections:
+	$(COMPOSE) stop api indexer worker keeper frontend
+	$(COMPOSE) up -d postgres
+	@new_launchpad="$$(jq -r .launchpad deployments/11155931/curveball.json)"; \
+		test "$$new_launchpad" != "null" || exit 2; \
+		$(COMPOSE) exec -T postgres psql -U curveball -d curveball -v ON_ERROR_STOP=1 -v new_launchpad="$$new_launchpad" -f /dev/stdin < deploy/reset-local-testnet-projections.sql
+
+activate-testnet:
+	$(MAKE) record-testnet
+	$(MAKE) configure-testnet
+	$(MAKE) reset-testnet-projections
+	$(MAKE) docker-rebuild
 
 production-preflight:
 	$(MAKE) -C contracts production-preflight
@@ -224,3 +240,9 @@ docker-logs-service:
 # Stop the stack and remove its containers, networks, and orphaned services; preserve volumes.
 docker-clean:
 	$(COMPOSE) down --remove-orphans
+
+# Start a new local testnet release with no prior market or social data.
+# This affects only compose.yaml's preview_postgres volume, not the VPS stack.
+docker-fresh-testnet:
+	$(COMPOSE) down --volumes --remove-orphans
+	$(COMPOSE) up -d --build

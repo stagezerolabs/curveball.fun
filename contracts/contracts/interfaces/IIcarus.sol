@@ -2,7 +2,7 @@
 pragma solidity 0.8.24;
 
 /// @notice The Icarus (Aerodrome-style) pool factory surface Curveball uses on RISE.
-/// @dev Verified source: deployments/4153/icarus-PoolFactory.sol.
+/// @dev Integration compatibility is exercised by the pinned-block fork tests.
 interface IIcarusFactory {
     function isPaused() external view returns (bool);
     function getPool(address tokenA, address tokenB, bool stable) external view returns (address);
@@ -12,7 +12,7 @@ interface IIcarusFactory {
 }
 
 /// @notice The Icarus pool surface Curveball uses on RISE.
-/// @dev Verified source: deployments/4153/icarus-Pool.sol. Only `swap` checks the factory pause.
+/// @dev Only `swap` is expected to check the factory pause; fork tests exercise that assumption.
 interface IIcarusPool {
     function token0() external view returns (address);
     function token1() external view returns (address);
@@ -26,7 +26,9 @@ interface IIcarusPool {
     function claimFees() external returns (uint256 claimed0, uint256 claimed1);
     /// @notice Output after the pool fee at current reserves.
     function getAmountOut(uint256 amountIn, address tokenIn) external view returns (uint256);
-    /// @notice Fee-free output averaged over the last `granularity` 30-minute observation windows.
+    /// @notice Fee-free output averaged over the last `granularity` observation intervals.
+    /// @dev Observations require at least 1800 seconds between them; quiet pools can have much
+    ///      longer intervals. Call `sync()` periodically if a bounded lookback is required.
     /// @dev Panics (underflow) unless `observationLength() > granularity`.
     function quote(address tokenIn, uint256 amountIn, uint256 granularity) external view returns (uint256);
     function observationLength() external view returns (uint256);

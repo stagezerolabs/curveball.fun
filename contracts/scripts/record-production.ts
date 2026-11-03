@@ -6,6 +6,7 @@ import {
   type Address,
   type Hex,
 } from "viem";
+import { createHash } from "node:crypto";
 import { validateLaunchpad } from "../../src/deployment";
 import { curveFeeEscrowAbi, curveLaunchpadAbi } from "../../src/sdk/contracts";
 
@@ -69,7 +70,10 @@ if (
 ) {
   throw new Error("Production record confirmation missing.");
 }
-if (await Bun.file(outputPath).exists())
+if (
+  (await Bun.file(outputPath).exists()) &&
+  (network.name !== "testnet" || Bun.env.REPLACE_TESTNET_DEPLOYMENT !== "1")
+)
   throw new Error(`Refusing to overwrite ${outputPath}.`);
 
 const broadcast = (await Bun.file(broadcastPath).json()) as {
@@ -249,11 +253,34 @@ for (const deployment of verified) {
 const gitCommit = Bun.spawnSync(["git", "rev-parse", "HEAD"])
   .stdout.toString()
   .trim();
+const sourceFiles = [
+  ...Array.from(new Bun.Glob("contracts/**/*.sol").scanSync({ cwd: "contracts" })).map(
+    (file) => `contracts/${file}`,
+  ),
+  "contracts/scripts/CurveDeploy.sol",
+  "contracts/scripts/Deploy.s.sol",
+  "contracts/foundry.toml",
+].sort();
+const sourceHash = createHash("sha256");
+for (const file of sourceFiles) {
+  sourceHash.update(file);
+  sourceHash.update("\0");
+  sourceHash.update(Buffer.from(await Bun.file(file).arrayBuffer()));
+  sourceHash.update("\0");
+}
+const sourceTreeSha256 = `0x${sourceHash.digest("hex")}`;
+const sourceWorkingTreeDirty = Boolean(
+  Bun.spawnSync(["git", "status", "--porcelain", "--", "contracts"])
+    .stdout.toString()
+    .trim(),
+);
 const record = {
   version: "lean-v2",
   release: network.name,
   chainId,
   sourceCommit: gitCommit,
+  sourceTreeSha256,
+  sourceWorkingTreeDirty,
   launchpad,
   deploymentBlock: created[3].blockNumber.toString(),
   quote: singletons.quoteToken,

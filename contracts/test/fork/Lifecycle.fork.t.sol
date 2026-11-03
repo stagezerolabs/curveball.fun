@@ -16,6 +16,16 @@ interface IIcarusPausable {
     function setPauseState(bool state) external;
 }
 
+interface IIcarusFeeManager {
+    function feeManager() external view returns (address);
+    function setCustomFee(address pool, uint256 fee) external;
+    function setCustomUnstakedFee(address pool, uint256 fee) external;
+}
+
+interface IIcarusGaugeFees {
+    function gaugeFees() external view returns (address);
+}
+
 /// @dev The lifecycle against the real Icarus and WETH on a RISE fork. Skips without an RPC unless
 ///      CI_FORK=1, where a missing RPC or the wrong chain fails instead. Forks a pinned block for
 ///      reproducible runs; FORK_BLOCK overrides it if the RPC no longer serves that state.
@@ -88,6 +98,9 @@ abstract contract LifecycleFork is Test, CurveDeploy {
 
         // claimFees pays the LP share only; the real unstaked fee goes to the gauge side.
         uint256 owedBefore = d.escrow.totalOwed(WETH);
+        // Factory pause affects swaps, not LP fee claims or observation updates.
+        _setIcarusPaused(true);
+        pool.sync();
         (uint256 tokenFees, uint256 quoteFees) = d.locker.claim(address(pool));
         assertGt(tokenFees, 0);
         assertGt(quoteFees, 0);
@@ -95,7 +108,6 @@ abstract contract LifecycleFork is Test, CurveDeploy {
         assertGe(IERC20(WETH).balanceOf(address(d.escrow)), d.escrow.totalOwed(WETH));
 
         // The real factory's pause stops swaps only: the buyback skips without starting its interval.
-        _setIcarusPaused(true);
         assertEq(d.escrow.buyback(token), 0);
         assertEq(d.escrow.lastBuyback(token), 0);
         _setIcarusPaused(false);
@@ -190,6 +202,29 @@ contract LifecycleMainnetForkTest is LifecycleFork {
 }
 
 contract LifecycleTestnetForkTest is LifecycleFork {
+    function test_fork_testnetFeesAreConfigurableAndGaugeShareAccumulates() public {
+        address token = _launchAndSellOut(0);
+        IIcarusPool pool = IIcarusPool(d.launchpad.graduate(token));
+        assertEq(icarus.getFee(address(pool), false), 30);
+        assertEq(icarus.getUnstakedFee(address(pool)), 1000);
+
+        _wrap(trader, 0.01 ether);
+        vm.warp(block.timestamp + 1801);
+        _swap(pool, WETH, 0.001 ether);
+        uint256 gaugeQuote = IERC20(WETH).balanceOf(IIcarusGaugeFees(address(pool)).gaugeFees());
+        assertGt(gaugeQuote, 0, "the 10% gauge allocation accumulates without emissions");
+        (, uint256 lpQuote) = d.locker.claim(address(pool));
+        assertApproxEqRel(lpQuote, gaugeQuote * 9, 0.01e18, "unstaked LP receives about 90% of fees");
+
+        IIcarusFeeManager manager = IIcarusFeeManager(address(icarus));
+        vm.startPrank(manager.feeManager());
+        manager.setCustomFee(address(pool), 75);
+        manager.setCustomUnstakedFee(address(pool), 2000);
+        vm.stopPrank();
+        assertEq(icarus.getFee(address(pool), false), 75);
+        assertEq(icarus.getUnstakedFee(address(pool)), 2000);
+    }
+
     function _rpcVar() internal pure override returns (string memory) {
         return "RISE_TESTNET_RPC_URL";
     }

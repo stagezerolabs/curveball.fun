@@ -6,8 +6,8 @@ import {IERC20, IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extens
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-/// @dev Volatile-pool port of deployments/4153/icarus-PoolFactory.sol. Pools are CREATE2-deployed
-///      with the same (token0, token1, stable) salt as the real clones, so their addresses are predictable.
+/// @dev Test double for the volatile-pool factory behavior Curveball relies on. Pools are CREATE2-deployed
+///      with the same (token0, token1, stable) salt as the live integration, so their addresses are predictable.
 contract MockIcarusFactory {
     uint256 public constant MAX_FEE = 300;
     uint256 public constant MAX_UNSTAKED_FEE = 5000;
@@ -81,7 +81,7 @@ contract MockPoolFees {
     }
 }
 
-/// @dev Volatile-pool port of deployments/4153/icarus-Pool.sol: reserves, 30-minute observations,
+/// @dev Test double for the volatile-pool behavior Curveball relies on: reserves, 30-minute observations,
 ///      first-mint MINIMUM_LIQUIDITY, skim/sync, fee-on-input swaps with an unstaked (gauge) share,
 ///      LP fee indexes and claimFees. Stable math, burn and flash hooks are omitted.
 contract MockIcarusPool is ERC20 {

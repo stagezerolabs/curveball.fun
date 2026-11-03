@@ -7,8 +7,8 @@ import {CurveLaunchpad} from "../../contracts/CurveLaunchpad.sol";
 import {MockIcarusPool} from "../mocks/MockIcarus.sol";
 import {Handler} from "./Handler.sol";
 
-/// @dev The plan's §5 invariants over every market the handler launched. Invariants 7–9 are checked
-///      by the handler on each call and surface here as its violation count.
+/// @dev System-wide accounting and lifecycle invariants over every market launched by the handler.
+///      Call-level safety properties are checked by the handler and surface here as its violation count.
 contract InvariantsTest is Fixture {
     uint256 constant S = 1_000_000 ether;
     uint256 constant C = 800_000 ether;
