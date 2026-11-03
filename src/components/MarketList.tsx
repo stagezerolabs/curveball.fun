@@ -25,6 +25,7 @@ export function MarketList({
   navigate,
   highlightedToken,
   previewStats = {},
+  poolLiquidityWeth = {},
   followSignal = {},
   view = "cards",
 }: {
@@ -33,6 +34,8 @@ export function MarketList({
   navigate: Navigate;
   highlightedToken?: string | null;
   previewStats?: MarketPreviewStatsByToken;
+  /** Live total basic-pool value in WETH, keyed by lowercase market token address. */
+  poolLiquidityWeth?: Record<string, number>;
   /** Wallets the viewer last acted on each market, keyed by lowercase token address. */
   followSignal?: Record<string, number>;
   view?: "cards" | "rows";
@@ -136,8 +139,8 @@ export function MarketList({
                       <dd><UsdAmount weth={stats?.volume24h} compact /></dd>
                     </div>
                     <div>
-                      <dt title="WETH deposited on the bonding curve; pool liquidity is unavailable">Liquidity</dt>
-                      <dd><UsdAmount weth={token.curveLiquidityWeth} compact /></dd>
+                      <dt title={token.graduated ? "Both sides of the Icarus pool at its current reserve price" : "WETH deposited on the bonding curve"}>Liquidity</dt>
+                      <dd><UsdAmount weth={token.graduated ? poolLiquidityWeth[token.address.toLowerCase()] : token.curveLiquidityWeth} compact /></dd>
                     </div>
                     <div>
                       <dt>Market cap</dt>

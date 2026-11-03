@@ -16,6 +16,7 @@ export const erc20Abi = parseAbi([
 export const icarusPoolAbi = parseAbi([
   "function token0() view returns (address)",
   "function token1() view returns (address)",
+  "function getReserves() view returns (uint256 reserve0, uint256 reserve1, uint256 blockTimestampLast)",
   "function getAmountOut(uint256 amountIn, address tokenIn) view returns (uint256)",
 ]);
 

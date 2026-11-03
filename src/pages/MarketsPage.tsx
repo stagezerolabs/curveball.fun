@@ -14,6 +14,7 @@ import { useStore } from "../app/useStore.js";
 import type { CreatorTokenClient } from "../creatorTokens";
 import { activeChainId } from "../lib/web3";
 import { useMarketPreviewStats } from "../lib/useMarketPreviewStats";
+import { useGraduatedPoolLiquidity } from "../lib/useGraduatedPoolLiquidity";
 import type {
   MarketPreviewStatsByToken,
   MarketPreviewStatsClient,
@@ -116,6 +117,7 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
     });
     return sortMarkets(filtered, sort, previewStats);
   }, [tokens, filter, search, sort, previewStats]);
+  const poolLiquidityWeth = useGraduatedPoolLiquidity(visible);
   const initialLoading = !marketsFetchedAt && !tokens.length && !error;
   const awaitingPool = tokens.some(
     (token) =>
@@ -241,6 +243,7 @@ export function MarketsPage({ navigate }: { navigate: Navigate }) {
         </div>
         <MarketList
           tokens={visible}
+          poolLiquidityWeth={poolLiquidityWeth}
           loading={initialLoading}
           navigate={navigate}
           highlightedToken={lastCreatedToken}
