@@ -1,0 +1,11 @@
+{
+  "version": "icarus-swap-v1",
+  "chainId": 11155931,
+  "launchpad": "0xb919a4e77bF084e6b5bAF358Ed485F19451c9582",
+  "adapter": "0xC843853eeDE0BD9E083b10C324b56ca3BE9BCAC2",
+  "quoteToken": "0x4200000000000000000000000000000000000006",
+  "icarusFactory": "0x8221dfB70c9A2dE60253dcfC58231FD529bbF4F9",
+  "codeHash": "0x4d04ebb439befc1dde4f511ef9c701448a7b8b80c8f32d32ade9756f902e7506",
+  "deploymentBlock": "58634763",
+  "transactionHash": "0x3be508017386985bed4ac3767a68a43959ad38e82d9efc77865813ca61e72a48"
+}
