@@ -83,11 +83,13 @@ set-testnet-graduation-target: require-testnet-config
 		owner="$$(cast call "$$launchpad" 'owner()(address)' --rpc-url "$(TESTNET_RPC_URL)")"; \
 		test "$$(printf '%s' "$$owner" | tr '[:upper:]' '[:lower:]')" = "$$(printf '%s' "$(DOT_ADDRESS)" | tr '[:upper:]' '[:lower:]')" || { echo "Recorded launchpad is not owned by dot."; exit 2; }; \
 		target=4000000000000000000; \
-		current="$$(cast call "$$launchpad" 'graduationTarget()(uint256)' --rpc-url "$(TESTNET_RPC_URL)")"; \
+		current_hex="$$(cast call "$$launchpad" 'graduationTarget()' --rpc-url "$(TESTNET_RPC_URL)")"; \
+		current="$$(cast to-dec "$$current_hex")"; \
 		if test "$$current" != "$$target"; then \
 			cast send "$$launchpad" 'setGraduationTarget(uint256)' "$$target" --rpc-url "$(TESTNET_RPC_URL)" --account dot --confirmations 1; \
 		fi; \
-		actual="$$(cast call "$$launchpad" 'graduationTarget()(uint256)' --rpc-url "$(TESTNET_RPC_URL)")"; \
+		actual_hex="$$(cast call "$$launchpad" 'graduationTarget()' --rpc-url "$(TESTNET_RPC_URL)")"; \
+		actual="$$(cast to-dec "$$actual_hex")"; \
 		test "$$actual" = "$$target" || { echo "Testnet graduation target verification failed: $$actual"; exit 2; }; \
 		echo "Verified testnet graduation target: 4 WETH ($$actual wei)."
 
