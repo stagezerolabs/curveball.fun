@@ -194,7 +194,7 @@ if (
   paused ||
   escrowOwner !== owner ||
   launchFee !== 1_000_000_000_000_000n ||
-  graduationTarget < 10_000_000_000_000_000n ||
+  graduationTarget < 4n * 10n ** 18n ||
   feeBps !== 75 ||
   creatorShareBps !== 5_000 ||
   buybackShareBps !== 2_500 ||

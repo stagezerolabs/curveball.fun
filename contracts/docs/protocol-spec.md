@@ -23,7 +23,7 @@ This document specifies the observable behavior of the current contracts. “Mus
 | `MAX_FEE_BPS` | 200 bps | Maximum curve trading fee |
 | `MAX_TAX_BPS` | 50 bps | Maximum creator tax cap |
 | `MAX_LAUNCH_FEE` | 0.01 quote token | Constructor bound; deployed value is immutable |
-| `MIN_TARGET` | 0.01 quote token | Minimum configurable graduation target |
+| `MIN_TARGET` | 4 quote tokens | Minimum configurable graduation target |
 | `GRADUATION_TIMEOUT` | 7 days | Delay before a `Ready` market can abort |
 | Name length | 1–64 bytes | Enforced by token initialization |
 | Symbol length | 1–12 bytes | Enforced by token initialization |
@@ -43,7 +43,7 @@ Deployment defaults are separate from hard bounds:
 | Creator share of curve fee | 5,000 bps (50%) |
 | Buyback share of curve fee | 2,500 bps (25%) |
 | Creator-tax cap | 50 bps |
-| Testnet graduation target | 0.01 WETH |
+| Testnet graduation target for new deployments | 4 WETH |
 | Mainnet graduation target | Supplied through `CURVE_GRADUATION_TARGET`; not present in this snapshot |
 
 ## Market data model
@@ -282,7 +282,7 @@ Permissionless and nonreentrant. Requires `Ready` and `block.timestamp >= readyA
 ### Administrative calls
 
 - `setFeeDefaults`: owner-only. Requires `feeBps <= 200`, `taxCapBps <= 50`, and `creatorShareBps + buybackShareBps <= 10,000`. Affects future markets only.
-- `setGraduationTarget`: owner-only. Requires at least 0.01 quote token and valid exact initial-reserve arithmetic. Affects future markets only.
+- `setGraduationTarget`: owner-only. Requires at least 4 quote tokens and valid exact initial-reserve arithmetic. Affects future markets only.
 - `setGuardian`: owner-only and nonzero.
 - `pause`: guardian-only. Sets `paused = true`; it does not stop exit/liveness paths.
 - `unpause`: owner-only. Sets `paused = false`.

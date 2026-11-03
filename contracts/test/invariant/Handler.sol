@@ -459,7 +459,7 @@ contract Handler is Test {
             }
         } else {
             // The starting virtual quote must divide exactly: target * (S - C) / C needs a multiple of 4.
-            uint256 target = bound(value, 0.01 ether, 10 ether) / 4 * 4;
+            uint256 target = bound(value, 4 ether, 10 ether) / 4 * 4;
             try launchpad.setGraduationTarget(target) {}
             catch {
                 _violate("valid graduation target rejected");

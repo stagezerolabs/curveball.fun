@@ -189,8 +189,10 @@ Shared parameters encoded by `Deploy`:
 
 Testnet additionally fixes:
 
-- graduation target: 0.01 WETH;
+- graduation target for new deployments: 4 WETH;
 - owner, guardian, and treasury: `0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3`.
+
+The recorded testnet deployment predates this floor and currently has a 0.01 WETH target. Its owner can call `setGraduationTarget(4 ether)` using `make set-testnet-graduation-target` from the repository root; this changes only new markets. The deployed bytecode retains its earlier 0.01 WETH minimum until a new release replaces it.
 
 Mainnet reads:
 
@@ -226,7 +228,7 @@ All supported networks require:
 
 - WETH has code;
 - Icarus factory has code;
-- graduation target is at least 0.01 WETH.
+- graduation target is at least 4 WETH.
 
 Mainnet additionally requires:
 

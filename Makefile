@@ -9,7 +9,7 @@ SERVICE ?=
 
 .DEFAULT_GOAL := help
 
-.PHONY: help dev build build-testnet test typecheck contracts-test testnet-preflight deploy-testnet record-testnet configure-testnet reset-testnet-projections activate-testnet production-preflight deploy-production record-production configure-production \
+.PHONY: help dev build build-testnet test typecheck contracts-test testnet-preflight deploy-testnet set-testnet-graduation-target record-testnet configure-testnet reset-testnet-projections activate-testnet production-preflight deploy-production record-production configure-production \
 	docker-up docker-up-build docker-build docker-build-no-cache docker-down docker-stop docker-start docker-restart docker-recreate docker-rebuild \
 	docker-frontend docker-social docker-keeper docker-migrate docker-status docker-images docker-top docker-config docker-logs docker-logs-api docker-logs-frontend docker-logs-social docker-logs-keeper \
 	docker-shell-api docker-shell-frontend docker-db-shell docker-build-service docker-recreate-service docker-logs-service docker-clean docker-fresh-testnet
@@ -22,6 +22,7 @@ help:
 	@echo "make contracts-test      Run Foundry contract tests"
 	@echo "make testnet-preflight        Run the real RISE Testnet lifecycle and deployment simulation"
 	@echo "make deploy-testnet           Broadcast and source-verify the current testnet deployment"
+	@echo "make set-testnet-graduation-target  Set the recorded live testnet launchpad target to 4 WETH"
 	@echo "make record-testnet           Validate and record the confirmed testnet deployment"
 	@echo "make configure-testnet        Point the local UI at the recorded testnet deployment"
 	@echo "make reset-testnet-projections  Clear old local testnet markets and indexer cursors"
@@ -86,6 +87,9 @@ testnet-preflight:
 
 deploy-testnet:
 	$(MAKE) -C contracts deploy-testnet
+
+set-testnet-graduation-target:
+	$(MAKE) -C contracts set-testnet-graduation-target
 
 record-testnet:
 	DEPLOYMENT_NETWORK=testnet REPLACE_TESTNET_DEPLOYMENT=1 bun contracts/scripts/record-production.ts

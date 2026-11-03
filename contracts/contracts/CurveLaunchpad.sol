@@ -34,7 +34,7 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
     uint256 public constant MAX_TAX_BPS = 50;
     uint256 public constant MAX_LAUNCH_FEE = 0.01 ether;
     /// @dev Far above the pool's MINIMUM_LIQUIDITY at any seed the curve can produce.
-    uint256 public constant MIN_TARGET = 0.01 ether;
+    uint256 public constant MIN_TARGET = 4 ether;
     uint256 public constant GRADUATION_TIMEOUT = 7 days;
     uint256 internal constant MAX_URI_LENGTH = 2048;
 

@@ -20,12 +20,15 @@ The testnet path deploys the audited contracts against canonical RISE Testnet WE
 ```bash
 make deploy-testnet      # runs the contract suite, testnet forks, preflight, then broadcasts
 make activate-testnet    # records, configures all local services, and recreates the stack
-make -C contracts smoke-testnet   # optional: one market from launch to graduation (~0.021 ETH)
+make -C contracts smoke-testnet   # optional: one market from launch to graduation; fund for the configured target
+make set-testnet-graduation-target # owner update on the recorded live launchpad; prompts for dot password
 ```
 
 The broadcast verifies all five contracts (the four singletons and the token implementation) on the RISE Testnet Blockscout. Recording validates every receipt, the singletons' wiring, policy values, bytecode hashes and verified sources before writing `deployments/11155931/curveball.json`. Activation updates the frontend, social service, keeper, and prepared VPS deployment env files, clears previous local chain projections and indexer cursors while keeping wallet profiles and follows, then rebuilds and recreates the complete local stack.
 
 The recorded release uses Icarus's basic (V2) pool factory at `0x8221dfB70c9A2dE60253dcfC58231FD529bbF4F9`; [the Icarus testnet app](https://testnet.icarus.finance) can be used to inspect swaps and liquidity. Factory pause blocks basic-pool swaps only, so graduation and fee claims remain available. On testnet the current volatile swap fee is 30 bps and 10% of that fee is directed to gauge rewards; both rates can change, including per pool. Curveball's locked LP collects its unstaked LP share. Buyback calls `sync()` before sampling two price intervals. Each observation requires more than 1,800 seconds since the previous one, so a quiet pool can have a longer lookback; schedule `sync()` about every 30 minutes only if a bounded lookback is needed.
+
+New deployments enforce a 4 WETH minimum graduation target, and the testnet deploy script uses 4 WETH. The existing recorded testnet release still uses its original 0.01 WETH target until the owner runs `make set-testnet-graduation-target` or it is replaced by a deployment of the updated contracts. The owner command changes the target for new markets; existing markets retain their launch-time curve parameters. The live contract's older bytecode still permits its owner to lower the target later; only the new release enforces the 4 WETH floor. A smoke test against a 4 WETH release needs roughly 4.1 ETH in the broadcasting wallet.
 
 ### Mainnet deployment
 

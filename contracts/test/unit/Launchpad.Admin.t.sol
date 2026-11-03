@@ -66,6 +66,11 @@ contract LaunchpadAdminTest is Test {
         new CurveLaunchpad(c);
 
         c = _config();
+        c.graduationTarget = 4 ether - 4;
+        vm.expectRevert(CurveLaunchpad.InvalidConfig.selector);
+        new CurveLaunchpad(c);
+
+        c = _config();
         c.fees.feeBps = 201;
         vm.expectRevert(CurveLaunchpad.InvalidConfig.selector);
         new CurveLaunchpad(c);
@@ -89,11 +94,13 @@ contract LaunchpadAdminTest is Test {
 
     function test_setGraduationTarget_bounds() public {
         vm.startPrank(owner);
-        launchpad.setGraduationTarget(0.01 ether);
-        assertEq(launchpad.graduationTarget(), 0.01 ether);
+        launchpad.setGraduationTarget(8 ether);
+        assertEq(launchpad.graduationTarget(), 8 ether);
+        launchpad.setGraduationTarget(4 ether);
+        assertEq(launchpad.graduationTarget(), 4 ether);
 
         vm.expectRevert(CurveLaunchpad.InvalidConfig.selector);
-        launchpad.setGraduationTarget(0.01 ether - 4);
+        launchpad.setGraduationTarget(4 ether - 4);
         vm.expectRevert(CurveMath.InvalidTarget.selector);
         launchpad.setGraduationTarget(4 ether + 1);
         vm.expectRevert(CurveMath.InvalidTarget.selector);

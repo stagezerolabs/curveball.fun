@@ -26,7 +26,7 @@ contract Deploy is Script, CurveDeploy {
     bytes32 internal constant PROPOSER_ROLE = keccak256("PROPOSER_ROLE");
 
     uint256 internal constant LAUNCH_FEE = 0.001 ether;
-    uint256 internal constant TESTNET_TARGET = 0.01 ether;
+    uint256 internal constant TESTNET_TARGET = 4 ether;
 
     error UnsupportedChain(uint256 chainId);
     error Preflight(string check);
@@ -64,7 +64,7 @@ contract Deploy is Script, CurveDeploy {
         _require(WETH.code.length != 0, "WETH has no code");
         _require(p.icarusFactory.code.length != 0, "Icarus factory has no code");
         // Icarus pause blocks swaps only. Launches, pool creation and liquidity seeding remain usable.
-        _require(p.graduationTarget >= 0.01 ether, "graduation target below MIN_TARGET");
+        _require(p.graduationTarget >= 4 ether, "graduation target below MIN_TARGET");
         if (block.chainid != MAINNET) return;
 
         _require(p.owner.code.length != 0, "owner is not a contract");

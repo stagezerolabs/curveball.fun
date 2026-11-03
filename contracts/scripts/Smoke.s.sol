@@ -20,7 +20,6 @@ interface IWETH {
 ///      before anything is broadcast. The broadcasting account is the creator and only trader.
 contract Smoke is Script {
     address internal constant WETH = 0x4200000000000000000000000000000000000006;
-    uint256 internal constant WRAP = 0.02 ether;
     uint256 internal constant FIRST_BUY = 0.003 ether;
     uint256 internal constant POOL_SWAP = 0.001 ether;
 
@@ -37,9 +36,12 @@ contract Smoke is Script {
         locker = CurveLpLocker(vm.parseJsonAddress(record, ".singletons.locker"));
         reserve = CurveHolderReserve(vm.parseJsonAddress(record, ".singletons.reserve"));
 
+        // Cover the full curve quote, its trading fee, the launch fee, and the pool swap.
+        uint256 wrap = launchpad.graduationTarget() * 102 / 100 + launchpad.launchFee() + POOL_SWAP + 0.01 ether;
+
         vm.startBroadcast();
         (, address me,) = vm.readCallers();
-        IWETH(WETH).deposit{value: WRAP}();
+        IWETH(WETH).deposit{value: wrap}();
         IERC20(WETH).approve(address(launchpad), type(uint256).max);
 
         (address token, uint256 firstTokens) = launchpad.launch(

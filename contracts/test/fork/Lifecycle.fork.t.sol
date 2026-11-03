@@ -33,7 +33,7 @@ abstract contract LifecycleFork is Test, CurveDeploy {
     address constant WETH = 0x4200000000000000000000000000000000000006;
     uint256 constant S = 1_000_000 ether;
     uint256 constant C = 800_000 ether;
-    uint256 constant TARGET = 0.01 ether;
+    uint256 constant TARGET = 4 ether;
 
     address owner = makeAddr("owner");
     address guardian = makeAddr("guardian");
@@ -153,12 +153,13 @@ abstract contract LifecycleFork is Test, CurveDeploy {
     }
 
     function _launchAndSellOut(uint16 reserveBps) internal returns (address token) {
-        _wrap(creator, 1 ether);
+        uint256 maxSpend = TARGET * 102 / 100;
+        _wrap(creator, maxSpend);
         vm.startPrank(creator);
         IERC20(WETH).approve(address(d.launchpad), type(uint256).max);
         (token,) =
             d.launchpad.launch(CurveLaunchpad.Metadata("Fork launch", "FORK", "ipfs://fork"), 0, reserveBps, 0, 0);
-        d.launchpad.buy(token, 1 ether, C, block.timestamp);
+        d.launchpad.buy(token, maxSpend, C, block.timestamp);
         vm.stopPrank();
         assertEq(uint8(d.launchpad.market(token).state), uint8(CurveLaunchpad.State.Ready));
     }

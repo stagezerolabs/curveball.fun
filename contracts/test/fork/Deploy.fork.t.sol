@@ -43,7 +43,7 @@ contract DeployTestnetForkTest is DeployFork {
         assertEq(d.launchpad.guardian(), TESTNET_OPERATOR);
         assertEq(d.launchpad.treasury(), TESTNET_OPERATOR);
         assertEq(d.escrow.owner(), TESTNET_OPERATOR);
-        assertEq(d.launchpad.graduationTarget(), 0.01 ether);
+        assertEq(d.launchpad.graduationTarget(), 4 ether);
         assertEq(d.launchpad.launchFee(), 0.001 ether);
         assertEq(d.escrow.launchpad(), address(d.launchpad));
         assertEq(d.locker.launchpad(), address(d.launchpad));
@@ -67,7 +67,7 @@ contract DeployMainnetForkTest is DeployFork {
         vm.setEnv("CURVE_OWNER", vm.toString(makeAddr("eoa owner")));
         vm.setEnv("CURVE_GUARDIAN", vm.toString(makeAddr("guardian")));
         vm.setEnv("CURVE_TREASURY", vm.toString(makeAddr("treasury")));
-        vm.setEnv("CURVE_GRADUATION_TARGET", "1000000000000000000");
+        vm.setEnv("CURVE_GRADUATION_TARGET", "4000000000000000000");
         CurveDeploy.Params memory p = script.params();
         vm.expectRevert(abi.encodeWithSelector(Deploy.Preflight.selector, "owner is not a contract"));
         script.preflight(p);
