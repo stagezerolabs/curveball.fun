@@ -15,6 +15,7 @@ export function useMarketPreviewStats(
   client: MarketPreviewStatsClient | undefined,
   tokens: readonly Token[],
   _refreshKey: number,
+  options: { refetchInterval?: number | false; staleTime?: number } = {},
 ) {
   // Key on the token set only, never on prices or the markets fetchedAt tick:
   // including those changed the query key on every market refresh, dropping the
@@ -41,8 +42,8 @@ export function useMarketPreviewStats(
         ? fetchMarketPreviewStats(tokens, signal)
         : loadMarketPreviewStats(client!, tokens, activeDeploymentBlock),
     enabled: tokens.length > 0 && (backendEnabled || Boolean(client)),
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+    staleTime: options.staleTime ?? 30_000,
+    refetchInterval: options.refetchInterval ?? 60_000,
     retry: 1,
     placeholderData: (previous) => previous,
   });

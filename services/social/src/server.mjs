@@ -950,6 +950,43 @@ async function market(address) {
   return shapeMarket(result.rows[0]);
 }
 
+async function marketTape(address) {
+  const result = await pool.query(
+    `SELECT
+      (SELECT COALESCE(SUM(t.gross_curve_quote),0) FROM trades t
+       WHERE t.chain_id=m.chain_id AND t.token_address=m.token_address
+         AND t.orphaned=false AND t.block_timestamp>now()-interval '24 hours')
+      + (SELECT COALESCE(SUM(s.quote_amount),0) FROM venue_swaps s
+         WHERE s.chain_id=m.chain_id AND s.token_address=m.token_address
+           AND s.orphaned=false AND s.block_timestamp>now()-interval '24 hours') AS volume_24h_wei,
+      (SELECT COALESCE(SUM(t.token_amount),0) FROM trades t
+       WHERE t.chain_id=m.chain_id AND t.token_address=m.token_address
+         AND t.is_buy=true AND t.orphaned=false
+         AND t.block_timestamp>now()-interval '24 hours')
+      + (SELECT COALESCE(SUM(s.token_amount),0) FROM venue_swaps s
+         WHERE s.chain_id=m.chain_id AND s.token_address=m.token_address
+           AND s.is_buy=true AND s.orphaned=false
+           AND s.block_timestamp>now()-interval '24 hours') AS bought_24h_wei,
+      (SELECT COALESCE(SUM(a.amount),0) FROM asset_transfers a
+       WHERE a.chain_id=m.chain_id AND a.token_address=m.token_address
+         AND a.to_address='0x0000000000000000000000000000000000000000'
+         AND a.orphaned=false) AS burned_total_wei
+    FROM markets m
+    WHERE m.chain_id=$1 AND m.token_address=$2 AND m.orphaned=false`,
+    [config.chainId, address],
+  );
+  const row = result.rows[0];
+  if (!row)
+    throw Object.assign(new Error("Market not found."), { status: 404 });
+  return {
+    tokenAddress: address,
+    volume24hWei: String(row.volume_24h_wei),
+    bought24hWei: String(row.bought_24h_wei),
+    burnedTotalWei: String(row.burned_total_wei),
+    asOf: new Date().toISOString(),
+  };
+}
+
 async function marketTrades(url, tokenAddress, viewer) {
   const limit = boundedLimit(url, 50, 100);
   const cursor = decodeCursor(url.searchParams.get("cursor"));
@@ -1251,6 +1288,17 @@ export function createSocialServer({ subscribe } = {}) {
           response,
           200,
           await marketHolders(url, addressParam(marketHoldersMatch[1]), viewer),
+        );
+      }
+      const marketTapeMatch = url.pathname.match(
+        /^\/v1\/markets\/(0x[a-fA-F0-9]{40})\/tape$/,
+      );
+      if (request.method === "GET" && marketTapeMatch) {
+        return send(
+          request,
+          response,
+          200,
+          await marketTape(addressParam(marketTapeMatch[1])),
         );
       }
       const marketMatch = url.pathname.match(

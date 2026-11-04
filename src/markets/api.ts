@@ -317,6 +317,18 @@ export function fetchProtocolStats(signal?: AbortSignal) {
   }>("/v1/protocol/stats", signal);
 }
 
+export type MarketTapeStats = {
+  tokenAddress: Address;
+  volume24hWei: string;
+  bought24hWei: string;
+  burnedTotalWei: string;
+  asOf: string;
+};
+
+export function fetchMarketTapeStats(tokenAddress: Address, signal?: AbortSignal) {
+  return request<MarketTapeStats>(`/v1/markets/${tokenAddress}/tape`, signal);
+}
+
 export function candlePriceChange(
   candles: readonly MarketCandle[],
   now = Date.now() / 1_000,

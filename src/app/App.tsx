@@ -17,6 +17,16 @@ const MarketsPage = lazy(() =>
     default: module.MarketsPage,
   })),
 );
+const MarketTapeMarkets = lazy(() =>
+  import("../components/MarketTapeMarkets").then((module) => ({
+    default: module.MarketTapeMarkets,
+  })),
+);
+const MarketTapeCurve = lazy(() =>
+  import("../components/MarketTapeCurve").then((module) => ({
+    default: module.MarketTapeCurve,
+  })),
+);
 const LaunchPage = lazy(() =>
   import("../pages/LaunchPage").then((module) => ({
     default: module.LaunchPage,
@@ -208,7 +218,15 @@ export function App() {
           onThemeToggle={toggleTheme}
         />
       )}
-      <MarketTape />
+      {isLanding ? (
+        <Suspense fallback={<MarketTape />}>
+          <MarketTapeCurve />
+        </Suspense>
+      ) : (
+        <Suspense fallback={<MarketTape />}>
+          <MarketTapeMarkets navigate={navigate} />
+        </Suspense>
+      )}
       {page}
       {isLanding && <LandingFooter navigate={navigate} theme={theme} />}
     </div>
