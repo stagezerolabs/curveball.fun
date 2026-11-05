@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { usePrivy } from "@privy-io/react-auth";
-import { Collapsible } from "@base-ui/react/collapsible";
 import type { ReactNode } from "react";
 import { formatEther, parseAbi, parseEther } from "viem";
 import { useBalance, useReadContract } from "wagmi";
@@ -61,7 +60,6 @@ export function TradePanel({
     quoting,
     fetchQuote,
   } = useStore();
-  const [explain, setExplain] = useState(false);
   const { ready: privyReady, authenticated, login } = usePrivy();
   const marketFactory = launchpadAddress
     ? factoryForToken(token.factory)
@@ -218,11 +216,6 @@ export function TradePanel({
         </button>
       </div>
 
-      {venue === "pool" && (
-        <p className="notice" role="status">
-          This market trades in its Icarus basic pool. Quotes include the current pool fee.
-        </p>
-      )}
       {poolAvailability === "pool-pending" && (
         <p className="notice" role="status">
           Graduation is complete. Waiting for the Icarus pool address before trading opens.
@@ -267,34 +260,37 @@ export function TradePanel({
         </p>
       )}
 
-      <div className="amount-head">
-        <label htmlFor="trade-amount">Amount</label>
-        <div className="amount-presets">
-          {PRESETS.map((percent) => (
-            <button
-              key={percent}
-              type="button"
-              disabled={presetBalance === undefined}
-              onClick={() => applyPreset(percent)}
-            >
-              {percent === 100 ? "Max" : `${percent}%`}
-            </button>
-          ))}
+      <div className="trade-entry">
+        <div className="amount-head">
+          <label htmlFor="trade-amount">You pay</label>
+          <div className="amount-presets">
+            {PRESETS.map((percent) => (
+              <button
+                key={percent}
+                type="button"
+                disabled={presetBalance === undefined}
+                onClick={() => applyPreset(percent)}
+              >
+                {percent === 100 ? "Max" : `${percent}%`}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
 
-      <div className="amount-shell">
-        <input
-          id="trade-amount"
-          type="number"
-          min="0"
-          step="any"
-          inputMode="decimal"
-          autoComplete="off"
-          value={amount}
-          onChange={(event) => setAmount(event.target.value)}
-        />
-        <span className="amount-unit">{payingWith}</span>
+        <div className="amount-shell">
+          <input
+            id="trade-amount"
+            type="number"
+            min="0"
+            step="any"
+            inputMode="decimal"
+            autoComplete="off"
+            value={amount}
+            style={{ fontSize: amount.length > 18 ? "20px" : amount.length > 12 ? "24px" : undefined }}
+            onChange={(event) => setAmount(event.target.value)}
+          />
+          <span className="amount-unit">{payingWith}</span>
+        </div>
       </div>
 
       {side === "buy" && (
@@ -323,7 +319,7 @@ export function TradePanel({
         />
         <Row label="Slippage limit" value={`${SLIPPAGE_BPS / 100}%`} />
         <Row
-          label={graduatedVenue ? "Icarus pool fee" : "Curve fee + creator tax"}
+          label={graduatedVenue ? "Pool fee" : "Curve fee + creator tax"}
           value={
             graduatedVenue
               ? poolFeeBps === undefined
@@ -389,38 +385,22 @@ export function TradePanel({
           {tradeMessage}
         </p>
       )}
-
-      <Collapsible.Root
-        open={explain}
-        onOpenChange={setExplain}
-        className="trade-explain"
-      >
-        <Collapsible.Trigger type="button">
-          {graduatedVenue ? "How Icarus pool trades work" : "How curve trades work"}
-          <svg viewBox="0 0 20 20" aria-hidden="true">
-            <circle cx="10" cy="10" r="7" />
-            <path d="M10 9v5M10 6.5v.01" />
-          </svg>
-        </Collapsible.Trigger>
-        <Collapsible.Panel>
-          {graduatedVenue ? (
-            <p>
-              Your trade swaps WETH and this token in the Icarus basic pool.
-              The pool fee and available liquidity determine the quote. The
-              swap runs atomically and reverts if output falls below the
-              displayed slippage limit.
-            </p>
-          ) : (
-            <p>
-              Every trade runs against a constant-product bonding curve held by
-              the launchpad — no order book and no counterparty. The exchange rate
-              changes with each buy and sell, so larger orders move the curve
-              further. Your transaction reverts if the result lands below the
-              slippage limit.
-            </p>
-          )}
-        </Collapsible.Panel>
-      </Collapsible.Root>
+      {graduatedVenue && (
+        <div className="trade-powered-by">
+          <span>Powered by</span>
+          <a
+            href="https://icarus.finance/"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Visit Icarus Finance (opens in a new tab)"
+          >
+            <span className="trade-powered-mark" aria-hidden="true">
+              <img src="/icarus-mark.svg" alt="" />
+            </span>
+            <strong>Icarus</strong>
+          </a>
+        </div>
+      )}
     </section>
   );
 }

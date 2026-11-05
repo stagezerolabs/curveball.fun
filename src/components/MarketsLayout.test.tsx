@@ -1,4 +1,6 @@
 import { expect, test } from "bun:test";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Featured } from "./Featured";
 import { MarketList } from "./MarketList";
@@ -17,6 +19,19 @@ const tokens: Token[] = [1, 2, 3, 4].map((number) => ({
   curveLiquidityWeth: 2,
 }));
 
+function renderMarketList(element: ReactElement, primaryName?: string) {
+  const queryClient = new QueryClient();
+  if (primaryName) {
+    queryClient.setQueryData(
+      ["rns", "primary", tokens[0].creator.toLowerCase()],
+      primaryName,
+    );
+  }
+  return renderToStaticMarkup(
+    <QueryClientProvider client={queryClient}>{element}</QueryClientProvider>,
+  );
+}
+
 test("graduation feature shows only the top three live coins", () => {
   const html = renderToStaticMarkup(
     <Featured tokens={tokens} loading={false} navigate={() => undefined} />,
@@ -28,8 +43,8 @@ test("graduation feature shows only the top three live coins", () => {
   expect(html).toContain("MCAP");
 });
 
-test("market cards show creator, launch date, changes, volume, liquidity and cap", () => {
-  const html = renderToStaticMarkup(
+test("market cards show creator, changes, volume, liquidity and cap", () => {
+  const html = renderMarketList(
     <MarketList
       tokens={[tokens[0]]}
       loading={false}
@@ -52,8 +67,9 @@ test("market cards show creator, launch date, changes, volume, liquidity and cap
   expect(html).not.toContain('class="market-card-social-preview"');
   expect(html).toContain("Coin 1");
   expect(html).toContain("Creator");
-  expect(html).toContain("Created");
-  expect(html).toContain("Jan 1, 2026");
+  expect(html).toContain("0x0000…0001");
+  expect(html).not.toContain("Created");
+  expect(html).not.toContain("Jan 1, 2026");
   expect(html).toContain("1H");
   expect(html).toContain("6H");
   expect(html).toContain("24H");
@@ -75,8 +91,21 @@ test("market cards show creator, launch date, changes, volume, liquidity and cap
   expect(html).not.toContain('class="market-card-address"');
 });
 
+test("market cards show a creator's .rise primary name when available", () => {
+  const html = renderMarketList(
+    <MarketList
+      tokens={[tokens[0]]}
+      loading={false}
+      navigate={() => undefined}
+    />,
+    "creator.rise",
+  );
+  expect(html).toContain("Creator <strong>creator.rise</strong>");
+  expect(html).toContain(`title="${tokens[0].creator}"`);
+});
+
 test("row view uses a single-column list", () => {
-  const html = renderToStaticMarkup(
+  const html = renderMarketList(
     <MarketList
       tokens={tokens}
       loading={false}
@@ -90,7 +119,7 @@ test("row view uses a single-column list", () => {
 });
 
 test("graduated markets keep a full progress bar", () => {
-  const html = renderToStaticMarkup(
+  const html = renderMarketList(
     <MarketList
       tokens={[{ ...tokens[0], graduated: true }]}
       loading={false}
@@ -105,7 +134,7 @@ test("graduated markets keep a full progress bar", () => {
 
 test("a filled curve waiting for graduation is not marked live", () => {
   for (const pending of [true, false]) {
-    const html = renderToStaticMarkup(
+    const html = renderMarketList(
       <MarketList
         tokens={[{ ...tokens[0], progress: 100, pending }]}
         loading={false}

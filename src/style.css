@@ -3060,27 +3060,6 @@ select:focus-visible {
 .market-status.graduated {
   color: var(--orange-ink);
 }
-.milestone-pool-link {
-  color: var(--lime-ink);
-  display: inline-flex;
-  font-size: 14px;
-  font-weight: 700;
-  gap: 8px;
-  margin-top: 8px;
-  overflow-wrap: anywhere;
-}
-.milestone-pool-link code {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.milestone-pool-link:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-.milestone-pool-link:focus-visible {
-  outline: 2px solid var(--lime);
-  outline-offset: 3px;
-}
 .market-socials {
   display: flex;
   flex-wrap: wrap;
@@ -3665,9 +3644,9 @@ select:focus-visible {
 /* Trade panel */
 .side-toggle {
   background: var(--raise);
-  border-radius: 10px;
+  border-radius: 12px;
   display: flex;
-  gap: 2px;
+  gap: 4px;
   padding: 4px;
 }
 .trade-panel,
@@ -3678,11 +3657,55 @@ select:focus-visible {
   gap: 16px;
   padding: 22px 24px 24px;
 }
+.trade-panel {
+  gap: 14px;
+  min-width: 0;
+}
 .milestone-panel {
   align-content: start;
+  gap: 22px;
 }
-.side-toggle {
-  padding: 4px;
+.trade-powered-by {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 12px;
+  gap: 7px;
+  justify-content: center;
+  min-height: 28px;
+  padding-top: 3px;
+}
+.trade-powered-by a {
+  align-items: center;
+  color: var(--ink);
+  display: inline-flex;
+  font-size: 13px;
+  gap: 6px;
+}
+.trade-powered-by a:hover {
+  color: var(--lime-ink);
+}
+.trade-powered-mark {
+  align-items: center;
+  background: var(--green);
+  border-radius: 5px;
+  display: inline-flex;
+  flex: 0 0 24px;
+  height: 24px;
+  justify-content: center;
+}
+.trade-powered-mark img {
+  height: 16px;
+  width: auto;
+}
+.trade-powered-by a:focus-visible {
+  outline: 2px solid var(--lime);
+  outline-offset: 3px;
+}
+.trade-panel > .notice {
+  border: 0;
+  border-radius: 10px;
+  margin: 0;
 }
 .side-toggle button {
   background: none;
@@ -3701,12 +3724,20 @@ select:focus-visible {
   color: var(--ink);
 }
 .side-toggle button.active.buy {
-  background: #1f7a4d;
-  color: #f2fff7;
+  background: var(--market-up);
+  color: var(--paper);
 }
 .side-toggle button.active.sell {
   background: var(--orange);
   color: #1a0d07;
+}
+.trade-entry {
+  background: var(--surface);
+  border-radius: 12px;
+  display: grid;
+  gap: 11px;
+  min-width: 0;
+  padding: 14px;
 }
 .amount-head {
   align-items: center;
@@ -3714,33 +3745,33 @@ select:focus-visible {
   justify-content: space-between;
 }
 .amount-head label {
-  font-size: 15px;
-  font-weight: 600;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
 }
 .amount-presets {
   display: flex;
-  gap: 6px;
+  gap: 4px;
 }
 .amount-presets button {
   align-items: center;
-  background: transparent;
+  background: var(--raise);
   border: 0;
-  border-radius: 6px;
+  border-radius: 7px;
   color: var(--muted);
   display: inline-flex;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
-  gap: 4px;
   justify-content: center;
   line-height: 16px;
-  margin: -4px -8px;
-  min-height: 36px;
-  padding: 0 8px;
+  min-height: 28px;
+  padding: 0 9px;
   transition:
-    color 120ms ease-out,
-    border-color 120ms ease-out;
+    background-color 120ms ease-out,
+    color 120ms ease-out;
 }
 .amount-presets button:hover:not(:disabled) {
+  background: var(--panel);
   color: var(--ink);
 }
 .amount-presets button:disabled {
@@ -3750,11 +3781,11 @@ select:focus-visible {
 .amount-shell {
   align-items: center;
   background: var(--raise);
-  border-radius: 8px;
+  border-radius: 9px;
   display: flex;
   gap: 12px;
   min-width: 0;
-  padding: 0 20px;
+  padding: 0 14px;
 }
 .amount-shell:focus-within {
   outline: 2px solid var(--lime);
@@ -3764,33 +3795,49 @@ select:focus-visible {
   background: none;
   border: 0;
   color: var(--ink);
-  font-size: 32px;
+  font-size: 30px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   flex: 1;
   line-height: 1.2;
-  min-height: 64px;
+  min-height: 68px;
   min-width: 0;
   outline: 0;
   padding: 0;
   width: 100%;
 }
 .amount-unit {
-  background: var(--raise);
+  background: var(--surface);
   border-radius: 999px;
   flex: 0 0 auto;
   font-size: 13px;
   font-weight: 700;
-  padding: 7px 13px;
+  padding: 6px 11px;
 }
 .trade-summary {
+  background: var(--surface);
+  border-radius: 12px;
   display: grid;
-  gap: 9px;
+  gap: 12px;
+  min-width: 0;
+  padding: 15px 16px 16px;
 }
 .trade-row {
   display: flex;
   font-size: 14px;
+  gap: 12px;
   justify-content: space-between;
+}
+.trade-row:first-child {
+  align-items: baseline;
+  background: var(--raise);
+  border-radius: 9px;
+  margin: -3px -4px 2px;
+  padding: 11px 12px;
+}
+.trade-row:first-child strong {
+  font-size: 18px;
+  letter-spacing: -0.025em;
 }
 .trade-row span {
   color: var(--muted);
@@ -3798,6 +3845,7 @@ select:focus-visible {
 .trade-row strong {
   font-variant-numeric: tabular-nums;
   font-weight: 600;
+  max-width: 68%;
   overflow-wrap: anywhere;
   text-align: right;
 }
@@ -3808,7 +3856,7 @@ select:focus-visible {
   align-items: center;
   background: var(--surface);
   border: 0;
-  border-radius: 8px;
+  border-radius: 10px;
   color: var(--ink);
   display: flex;
   font-size: 15px;
@@ -3816,7 +3864,7 @@ select:focus-visible {
   gap: 12px;
   justify-content: center;
   line-height: 24px;
-  min-height: 54px;
+  min-height: 56px;
   padding: 0 16px;
   transition:
     background-color 120ms ease-out,
@@ -3826,9 +3874,9 @@ select:focus-visible {
   scale: 0.99;
 }
 .trade-submit.buy {
-  background: #1f7a4d;
+  background: var(--market-up);
   border-color: transparent;
-  color: #f2fff7;
+  color: var(--paper);
 }
 .trade-submit.sell {
   background: var(--orange);
@@ -3854,35 +3902,9 @@ select:focus-visible {
 .trade-hint.warn {
   color: var(--orange);
 }
-.trade-explain {
-  padding-top: 16px;
-}
-.trade-explain button {
-  align-items: center;
-  background: none;
-  border: 0;
-  color: var(--ink);
-  display: flex;
-  font-size: 15px;
-  justify-content: space-between;
-  min-height: 44px;
-  padding: 0;
-  width: 100%;
-}
-.trade-explain svg {
-  color: var(--muted);
-  fill: none;
-  height: 17px;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-width: 1.6;
-  width: 17px;
-}
-.trade-explain p {
-  color: var(--muted);
-  font-size: 14px;
-  line-height: 1.6;
-  margin: 12px 0 0;
+.trade-panel button:focus-visible {
+  outline: 2px solid var(--lime);
+  outline-offset: 2px;
 }
 
 /* Milestone + fee split */
@@ -3907,13 +3929,9 @@ select:focus-visible {
   line-height: 1.6;
   margin: 0;
 }
-.milestone-tag {
-  align-items: center;
-  color: var(--muted);
-  display: inline-flex;
-  font-size: 13px;
-  font-weight: 600;
-  gap: 6px;
+.milestone-progress {
+  display: grid;
+  gap: 10px;
 }
 .milestone-bar-row {
   display: flex;
@@ -3949,9 +3967,20 @@ select:focus-visible {
 }
 .milestone-figures {
   display: grid;
-  gap: 14px;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
   margin: 0;
+}
+.milestone-figures.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.milestone-figures.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.milestone-figures > div {
+  background: var(--surface);
+  border-radius: 10px;
+  min-width: 0;
+  padding: 12px 10px;
 }
 .milestone-figures dt,
 .about-facts dt {
@@ -3959,12 +3988,90 @@ select:focus-visible {
   font-size: 13px;
   margin-bottom: 4px;
 }
+.milestone-figures dt {
+  font-size: 11px;
+  line-height: 1.3;
+  min-height: 2.6em;
+}
 .milestone-figures dd,
 .about-facts dd {
   font-size: 17px;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   margin: 0;
+}
+.milestone-figures dd {
+  font-size: 16px;
+  letter-spacing: -0.025em;
+  white-space: nowrap;
+}
+.milestone-figures dd small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+.fee-split {
+  position: relative;
+}
+.fee-split-heading {
+  align-items: baseline;
+  display: flex;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 8px;
+  justify-content: space-between;
+}
+.fee-split-heading span:last-child {
+  color: var(--muted);
+  font-size: 17px;
+  font-weight: 400;
+  line-height: 1;
+}
+.fee-split-trigger {
+  background: none;
+  border: 0;
+  cursor: help;
+  display: block;
+  padding: 11px 0;
+  width: 100%;
+}
+.fee-split-trigger .split-bar {
+  width: 100%;
+}
+.fee-split-trigger:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid var(--lime);
+  outline-offset: 2px;
+}
+.fee-split-popover {
+  background: var(--raise);
+  border-radius: 10px;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.25);
+  left: 0;
+  opacity: 0;
+  padding: 14px;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  top: calc(100% - 2px);
+  transform: translateY(-4px);
+  transition: opacity 140ms ease, transform 140ms ease, visibility 140ms ease;
+  visibility: hidden;
+  z-index: 5;
+}
+.fee-split:hover .fee-split-popover,
+.fee-split-trigger:focus-visible + .fee-split-popover,
+.fee-split.open .fee-split-popover {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+  visibility: visible;
+}
+.fee-split-popover p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 12px 0 0;
 }
 .split-legend {
   display: grid;
@@ -3993,6 +4100,11 @@ select:focus-visible {
   display: grid;
   gap: 12px;
   padding-top: 16px;
+}
+.milestone-panel .claim-block {
+  background: var(--surface);
+  border-radius: 10px;
+  padding: 14px;
 }
 .market-sidebar > .holder-reserve-panel {
   align-content: start;
@@ -4030,16 +4142,6 @@ select:focus-visible {
   justify-content: center;
   width: 100%;
 }
-.creator-paid-status {
-  align-items: center;
-  color: var(--lime-ink);
-  display: flex;
-  font-size: 14px;
-  font-weight: 700;
-  gap: 8px;
-  margin: 0;
-}
-
 /* On-chain details */
 .detail-tabs {
   display: grid;
@@ -5469,16 +5571,12 @@ select:focus-visible {
   font-weight: 700;
 }
 .launch-preview-card {
-  aspect-ratio: 1;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 16px;
   display: grid;
-  grid-template-rows: 44% minmax(0, 1fr);
+  grid-template-rows: auto auto;
   overflow: hidden;
-}
-.launch-preview-card.has-options {
-  grid-template-rows: 34% minmax(0, 1fr);
 }
 
 /* Launchpad header */
@@ -5762,10 +5860,10 @@ select:focus-visible {
 }
 .launch-preview-art {
   align-items: center;
+  aspect-ratio: 16 / 9;
   background: var(--raise);
   color: var(--muted);
   display: flex;
-  height: 100%;
   justify-content: center;
   min-height: 0;
   overflow: hidden;
@@ -5785,15 +5883,16 @@ select:focus-visible {
   width: 36px;
 }
 .launch-preview-body {
-  display: grid;
-  gap: 0;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
   overflow: hidden;
-  padding: 10px 12px;
+  padding: 16px;
 }
 .launch-preview-name {
   font-size: 16px;
   letter-spacing: -0.025em;
+  line-height: 1.25;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -5802,6 +5901,8 @@ select:focus-visible {
 .launch-preview-symbol {
   color: var(--muted);
   font-size: 12px;
+  line-height: 1.4;
+  margin-top: 2px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -5811,12 +5912,12 @@ select:focus-visible {
   display: flex;
   gap: 8px;
   justify-content: space-between;
-  margin-top: 6px;
-  padding-top: 6px;
+  margin-top: 16px;
+  padding-top: 12px;
 }
 .launch-preview-facts > div {
   display: grid;
-  gap: 0;
+  gap: 3px;
   min-width: 0;
 }
 .launch-preview-facts > div:last-child {
@@ -5830,18 +5931,18 @@ select:focus-visible {
 }
 .launch-preview-facts span {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
 }
 .launch-preview-details {
   border-top: 1px solid var(--line);
   display: grid;
-  gap: 2px;
-  margin-top: 6px;
-  padding-top: 6px;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
 }
 .launch-preview-details > div {
   display: flex;
-  font-size: 11px;
+  font-size: 12px;
   gap: 8px;
   justify-content: space-between;
 }
@@ -8073,6 +8174,7 @@ img.profile-hero-avatar {
     max-width: none;
   }
   .launch-preview-art {
+    aspect-ratio: auto;
     height: 100%;
     min-height: 140px;
   }
@@ -8740,11 +8842,11 @@ img.profile-hero-avatar {
   content: "◷";
   margin-right: 4px;
 }
-.market-card-creator strong,
-.market-card-created-date time {
+.market-card-creator strong {
   color: var(--ink);
   font-weight: 600;
   margin-left: 4px;
+  overflow-wrap: anywhere;
 }
 .market-card-status {
   align-items: center;

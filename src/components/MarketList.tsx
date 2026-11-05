@@ -1,11 +1,19 @@
 import { AppLink } from "./Navigation";
 import { TokenAvatar } from "./TokenAvatar";
 import { UsdAmount } from "./UsdAmount";
-import { formatAddress } from "../lib/format.js";
-import { formatMarketDate } from "../lib/marketDisplay";
 import { getMarketDisplayStatus } from "../lib/marketState";
+import { useTraderName } from "../social/useTraderName";
 import type { MarketPreviewStatsByToken } from "../lib/marketPreviewStats";
 import type { Navigate, Token } from "../types";
+
+function MarketCardCreator({ address }: { address: Token["creator"] }) {
+  const { label } = useTraderName(address);
+  return (
+    <span className="market-card-creator" title={address}>
+      Creator <strong>{label}</strong>
+    </span>
+  );
+}
 
 function formatChange(value: number | null | undefined) {
   return value == null ? "—" : `${value > 0 ? "+" : ""}${value.toFixed(1)}%`;
@@ -108,12 +116,7 @@ export function MarketList({
                             ? "On the curve"
                             : status.label}
                         </span>
-                        <span className="market-card-creator" title={token.creator}>
-                          Creator <strong>{formatAddress(token.creator)}</strong>
-                        </span>
-                        <span className="market-card-created-date">
-                          Created <time dateTime={token.createdAt}>{formatMarketDate(token.createdAt)}</time>
-                        </span>
+                        <MarketCardCreator address={token.creator} />
                       </div>
                     </div>
                   </div>

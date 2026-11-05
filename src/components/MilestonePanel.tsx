@@ -1,15 +1,12 @@
+import { useState } from "react";
 import { useStore } from "../app/useStore.js";
 import { formatPercent } from "../lib/format.js";
 import type { Address } from "viem";
 import { formatEther } from "viem";
 import { useReadContract } from "wagmi";
 import { curveFeeEscrowAbi, curveLaunchpadAbi } from "../sdk/contracts";
-import {
-  activeChainId,
-  activeExplorerUrl,
-  launchpadAddress,
-} from "../lib/web3";
-import { getMarketDisplayStatus, selectTradeState } from "../lib/marketState";
+import { activeChainId, launchpadAddress } from "../lib/web3";
+import { selectTradeState } from "../lib/marketState";
 import { factoryForToken } from "../lib/marketFactories";
 import type { Token } from "../types";
 import { UsdAmount } from "./UsdAmount";
@@ -37,6 +34,7 @@ export function MilestonePanel({
   token: Token;
   address?: Address;
 }) {
+  const [feeSplitOpen, setFeeSplitOpen] = useState(false);
   const { isPending, claimPoolFees, claimEscrow, runBuyback, graduateMarket } =
     useStore() as {
       isPending: boolean;
@@ -47,7 +45,6 @@ export function MilestonePanel({
     };
 
   const progress = token.progress ?? 0;
-  const marketStatus = getMarketDisplayStatus(token);
   const marketFactory = launchpadAddress
     ? factoryForToken(token.factory)
     : undefined;
@@ -88,7 +85,7 @@ export function MilestonePanel({
     functionName: "claimable",
     args: [token.creator, quote!],
     chainId: activeChainId,
-    query: { enabled: Boolean(escrow && quote) },
+    query: { enabled: Boolean(isCreator && escrow && quote) },
   });
   const { data: tokenOwed, refetch: refetchTokenOwed } = useReadContract({
     address: escrow,
@@ -96,7 +93,7 @@ export function MilestonePanel({
     functionName: "claimable",
     args: [token.creator, token.address],
     chainId: activeChainId,
-    query: { enabled: Boolean(escrow) },
+    query: { enabled: Boolean(isCreator && escrow) },
   });
   const { data: buybackBalance, refetch: refetchBuyback } = useReadContract({
     address: escrow,
@@ -104,29 +101,41 @@ export function MilestonePanel({
     functionName: "buybackBalance",
     args: [token.address],
     chainId: activeChainId,
-    query: { enabled: Boolean(escrow && token.graduated) },
+    query: { enabled: Boolean(isCreator && escrow && token.graduated) },
   });
   const hasQuotePayment = quoteOwed !== undefined && quoteOwed > 0n;
   const hasTokenPayment = tokenOwed !== undefined && tokenOwed > 0n;
-  const creatorPaymentChecked =
-    quoteOwed !== undefined && tokenOwed !== undefined;
-  const creatorPaid =
-    creatorPaymentChecked && !hasQuotePayment && !hasTokenPayment;
   const targetMarketCap = getTargetMarketCap(token);
 
   return (
     <section className="milestone-panel" aria-label="Graduation and fees">
-      <header className="panel-head">
-        <h2>Milestone</h2>
-        {!token.graduated && (
-          <span className="milestone-tag">
-            {marketStatus.kind === "live" ? "On the curve" : marketStatus.label}
-          </span>
+      <dl
+        className={`milestone-figures ${token.graduationTargetWeth ? "three" : "two"}`}
+      >
+        {token.graduationTargetWeth && (
+          <div>
+            <dt>Graduation WETH</dt>
+            <dd>
+              {token.graduationTargetWeth} <small>WETH</small>
+            </dd>
+          </div>
         )}
-      </header>
+        <div>
+          <dt>Graduation cap</dt>
+          <dd>
+            <UsdAmount weth={targetMarketCap} compact />
+          </dd>
+        </div>
+        <div>
+          <dt>Current cap</dt>
+          <dd>
+            <UsdAmount weth={token.marketCap} compact />
+          </dd>
+        </div>
+      </dl>
 
       {!token.graduated && (
-        <>
+        <div className="milestone-progress">
           <div className="milestone-bar-row">
             <span>Progress to graduation</span>
             <strong>{formatPercent(progress)}</strong>
@@ -141,36 +150,14 @@ export function MilestonePanel({
           >
             <span style={{ width: formatPercent(progress) }} />
           </div>
-        </>
+        </div>
       )}
-
-      <dl className="milestone-figures">
-        {token.graduationTargetWeth && (
-          <div>
-            <dt>Pool WETH at graduation</dt>
-            <dd>{token.graduationTargetWeth} WETH</dd>
-          </div>
-        )}
-        <div>
-          <dt>Graduation market cap</dt>
-          <dd>
-            <UsdAmount weth={targetMarketCap} compact />
-          </dd>
-        </div>
-        <div>
-          <dt>Current market cap</dt>
-          <dd>
-            <UsdAmount weth={token.marketCap} compact />
-          </dd>
-        </div>
-      </dl>
 
       {canGraduate && (
         <div className="claim-block">
           <p className="panel-note">
             Bonding is complete. The keeper seeds the pool automatically; anyone
-            can also graduate the market now. The pool address appears here once
-            graduation is confirmed.
+            can also graduate the market now.
           </p>
           {address && (
             <button
@@ -193,22 +180,6 @@ export function MilestonePanel({
         </div>
       )}
 
-      {token.graduated && token.pool && (
-        <div className="claim-block">
-          <h3 className="panel-subhead">Pool</h3>
-          <a
-            className="milestone-pool-link"
-            href={`${activeExplorerUrl}/address/${token.pool}`}
-            target="_blank"
-            rel="noreferrer"
-            aria-label={`View pool ${token.pool} on the explorer`}
-          >
-            <code>{token.pool}</code> <span aria-hidden="true">↗</span>
-          </a>
-        </div>
-      )}
-
-      <h3 className="panel-subhead">Where pool fees go</h3>
       {creatorShare === null ||
       treasuryShare === null ||
       buybackShare === null ? (
@@ -216,71 +187,78 @@ export function MilestonePanel({
           Fee split unavailable — the launchpad could not be read.
         </p>
       ) : (
-        <>
-          <div className="split-bar" aria-hidden="true">
-            <span
-              className="split-creator"
-              style={{ width: `${creatorShare}%` }}
-            />
-            <span
-              className="split-treasury"
-              style={{ width: `${treasuryShare}%` }}
-            />
-            {buybackShare > 0 && (
-              <span
-                className="split-buyback"
-                style={{ width: `${buybackShare}%` }}
-              />
-            )}
+        <div className={`fee-split${feeSplitOpen ? " open" : ""}`}>
+          <div className="fee-split-heading">
+            <span>Where fees go</span>
+            <span aria-hidden="true">ⓘ</span>
           </div>
-          <ul className="split-legend">
-            <li>
-              <i className="split-creator" aria-hidden="true" />
-              Creator
-              <strong>{creatorShare}%</strong>
-            </li>
-            <li>
-              <i className="split-treasury" aria-hidden="true" />
-              Treasury
-              <strong>{treasuryShare}%</strong>
-            </li>
-            {buybackShare > 0 && (
+          <button
+            type="button"
+            className="fee-split-trigger"
+            aria-label={`Fee split: ${creatorShare}% creator, ${treasuryShare}% treasury, ${buybackShare}% buyback and burn`}
+            aria-controls="fee-split-details"
+            aria-expanded={feeSplitOpen}
+            onClick={() => setFeeSplitOpen((open) => !open)}
+          >
+            <span className="split-bar" aria-hidden="true">
+              <span
+                className="split-creator"
+                style={{ width: `${creatorShare}%` }}
+              />
+              <span
+                className="split-treasury"
+                style={{ width: `${treasuryShare}%` }}
+              />
+              {buybackShare > 0 && (
+                <span
+                  className="split-buyback"
+                  style={{ width: `${buybackShare}%` }}
+                />
+              )}
+            </span>
+          </button>
+          <div className="fee-split-popover" id="fee-split-details">
+            <ul className="split-legend">
               <li>
-                <i className="split-buyback" aria-hidden="true" />
-                Buyback and burn<strong>{buybackShare}%</strong>
+                <i className="split-creator" aria-hidden="true" />
+                Creator
+                <strong>{creatorShare}%</strong>
               </li>
-            )}
-          </ul>
-        </>
+              <li>
+                <i className="split-treasury" aria-hidden="true" />
+                Treasury
+                <strong>{treasuryShare}%</strong>
+              </li>
+              {buybackShare > 0 && (
+                <li>
+                  <i className="split-buyback" aria-hidden="true" />
+                  Buyback and burn<strong>{buybackShare}%</strong>
+                </li>
+              )}
+            </ul>
+            <p>Claimed pool fees are distributed to these destinations.</p>
+          </div>
+        </div>
       )}
 
-      {token.graduated && (
+      {token.graduated && isCreator && (
         <div className="claim-block">
           <h3 className="panel-subhead">Pool fees</h3>
-          <p className="panel-note">
-            Trading fees collect in the locked LP position. Anyone can route
-            them to the creator, treasury, and buyback.
-          </p>
-          {address ? (
-            <button
-              type="button"
-              className="primary-button claim-button"
-              disabled={isPending || !token.pool}
-              onClick={() =>
-                token.pool && claimPoolFees(token.pool, marketFactory)
-              }
-            >
-              {isPending ? "Claiming…" : "Claim pool fees"}
-            </button>
-          ) : (
-            <p className="panel-note">
-              Connect from the navigation to claim pool fees.
-            </p>
-          )}
+          <button
+            type="button"
+            className="primary-button claim-button"
+            disabled={isPending || !token.pool}
+            onClick={() =>
+              token.pool && claimPoolFees(token.pool, marketFactory)
+            }
+          >
+            {isPending ? "Claiming…" : "Claim pool fees"}
+          </button>
         </div>
       )}
 
       {token.graduated &&
+        isCreator &&
         buybackBalance !== undefined &&
         buybackBalance > 0n && (
           <div className="claim-block">
@@ -291,77 +269,55 @@ export function MilestonePanel({
               buyback skips without spending when the pool price strays from its
               recent average.
             </p>
-            {address && (
-              <button
-                type="button"
-                className="primary-button claim-button"
-                disabled={isPending}
-                onClick={async () => {
-                  await runBuyback(token.address, marketFactory);
-                  await refetchBuyback();
-                }}
-              >
-                {isPending ? "Running…" : "Run buyback"}
-              </button>
-            )}
+            <button
+              type="button"
+              className="primary-button claim-button"
+              disabled={isPending}
+              onClick={async () => {
+                await runBuyback(token.address, marketFactory);
+                await refetchBuyback();
+              }}
+            >
+              {isPending ? "Running…" : "Run buyback"}
+            </button>
           </div>
         )}
 
-      <div className="claim-block">
-        <h3 className="panel-subhead">Creator fees</h3>
-        {!creatorPaymentChecked && !hasQuotePayment && !hasTokenPayment && (
-          <p className="panel-note" role="status">
-            Checking creator payment…
-          </p>
-        )}
-        {creatorPaid && (
-          <p className="creator-paid-status" role="status">
-            <span aria-hidden="true">✓</span> Creator paid
-          </p>
-        )}
-        {(hasQuotePayment || hasTokenPayment) && !isCreator && (
-          <p className="panel-note">
-            The creator has{" "}
-            {hasQuotePayment ? `${formatEther(quoteOwed)} WETH` : ""}
-            {hasQuotePayment && hasTokenPayment ? " and " : ""}
-            {hasTokenPayment
-              ? `${formatEther(tokenOwed)} ${token.symbol}`
-              : ""}{" "}
-            waiting, across all of their launches. Only the creator's wallet can
-            claim it.
-          </p>
-        )}
-        {hasQuotePayment && quote && isCreator && (
-          <button
-            type="button"
-            className="primary-button claim-button"
-            disabled={isPending}
-            onClick={async () => {
-              await claimEscrow(quote, marketFactory);
-              await refetchQuoteOwed();
-            }}
-          >
-            {isPending
-              ? "Claiming…"
-              : `Claim ${formatEther(quoteOwed)} WETH (all your launches)`}
-          </button>
-        )}
-        {hasTokenPayment && isCreator && (
-          <button
-            type="button"
-            className="primary-button claim-button"
-            disabled={isPending}
-            onClick={async () => {
-              await claimEscrow(token.address, marketFactory);
-              await refetchTokenOwed();
-            }}
-          >
-            {isPending
-              ? "Claiming…"
-              : `Claim ${formatEther(tokenOwed)} ${token.symbol}`}
-          </button>
-        )}
-      </div>
+      {isCreator && (hasQuotePayment || hasTokenPayment) && (
+        <div className="claim-block">
+          <h3 className="panel-subhead">Creator fees</h3>
+          {hasQuotePayment && quote && (
+            <button
+              type="button"
+              className="primary-button claim-button"
+              disabled={isPending}
+              onClick={async () => {
+                await claimEscrow(quote, marketFactory);
+                await refetchQuoteOwed();
+              }}
+            >
+              {isPending
+                ? "Claiming…"
+                : `Claim ${formatEther(quoteOwed)} WETH (all your launches)`}
+            </button>
+          )}
+          {hasTokenPayment && (
+            <button
+              type="button"
+              className="primary-button claim-button"
+              disabled={isPending}
+              onClick={async () => {
+                await claimEscrow(token.address, marketFactory);
+                await refetchTokenOwed();
+              }}
+            >
+              {isPending
+                ? "Claiming…"
+                : `Claim ${formatEther(tokenOwed)} ${token.symbol}`}
+            </button>
+          )}
+        </div>
+      )}
     </section>
   );
 }

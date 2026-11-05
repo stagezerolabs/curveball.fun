@@ -12,6 +12,7 @@ RUN bun install --frozen-lockfile --network-concurrency=8
 
 COPY index.html vite.config.js tsconfig.json ./
 COPY api ./api
+COPY public ./public
 COPY src ./src
 
 EXPOSE 5173
