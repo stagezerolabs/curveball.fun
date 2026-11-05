@@ -1,9 +1,12 @@
 import { formatUnits } from "viem";
+import { formatSignificantAmount } from "../lib/format.js";
 
 type LaunchPreviewProps = {
   name: string;
   symbol: string;
   creatorTaxBps: number;
+  buybackShareBps?: number;
+  buybackUnavailable: boolean;
   initialBuy: string;
   imageUrl?: string;
   supply?: bigint;
@@ -22,6 +25,8 @@ export function LaunchPreview({
   name,
   symbol,
   creatorTaxBps,
+  buybackShareBps,
+  buybackUnavailable,
   initialBuy,
   imageUrl,
   supply,
@@ -33,7 +38,6 @@ export function LaunchPreview({
   const displaySymbol =
     symbol.trim().replace(/^\$/, "").toUpperCase() || "TOKEN";
   const buy = Number(initialBuy);
-  const showTax = creatorTaxBps > 0;
   const showBuy = Number.isFinite(buy) && buy > 0;
   const reserved =
     supply != null &&
@@ -54,9 +58,7 @@ export function LaunchPreview({
       <div className="launch-preview-heading">
         <span>Preview</span>
       </div>
-      <div
-        className={`launch-preview-card${showTax || showBuy || showAllocation ? " has-options" : ""}`}
-      >
+      <div className="launch-preview-card">
         <div className="launch-preview-art">
           {imageUrl ? (
             <img src={imageUrl} alt="Selected token artwork preview" />
@@ -87,8 +89,7 @@ export function LaunchPreview({
               <strong>WETH</strong>
             </div>
           </div>
-          {(showTax || showBuy || showAllocation) && (
-            <div className="launch-preview-details">
+          <div className="launch-preview-details">
               {showAllocation && (
                 <div>
                   <span>Curve sale</span>
@@ -107,20 +108,29 @@ export function LaunchPreview({
                   <strong>{formatSupply(pool)}</strong>
                 </div>
               )}
-              {showTax && (
-                <div>
-                  <span>Creator tax</span>
-                  <strong>{(creatorTaxBps / 100).toFixed(2)}%</strong>
-                </div>
-              )}
+              <div>
+                <span>Creator tax</span>
+                <strong>{(creatorTaxBps / 100).toFixed(2)}%</strong>
+              </div>
+              <div>
+                <span>Buyback</span>
+                <strong>
+                  {buybackShareBps === undefined
+                    ? buybackUnavailable
+                      ? "Unavailable"
+                      : "Loading…"
+                    : `${buybackShareBps / 100}% of trading fee`}
+                </strong>
+              </div>
               {showBuy && (
                 <div>
                   <span>Initial buy</span>
-                  <strong>{initialBuy} WETH</strong>
+                  <strong title={`${initialBuy} WETH`}>
+                    {formatSignificantAmount(buy)} WETH
+                  </strong>
                 </div>
               )}
-            </div>
-          )}
+          </div>
         </div>
       </div>
     </aside>

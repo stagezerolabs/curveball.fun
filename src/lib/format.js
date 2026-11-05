@@ -9,6 +9,17 @@ export function formatEthAmount(value) {
   return maximumFractionDigits === 12 ? "<0.000000000001" : "<0.00000001";
 }
 
+export function formatSignificantAmount(value) {
+  if (value === null || value === undefined || !Number.isFinite(value))
+    return "—";
+  if (value === 0) return "0";
+  if (Math.abs(value) < 0.000001) {
+    const [mantissa, exponent] = value.toExponential(4).split("e");
+    return `${mantissa.replace(/\.?0+$/, "")}e${exponent}`;
+  }
+  return value.toLocaleString("en-US", { maximumSignificantDigits: 5 });
+}
+
 export function formatPercent(value) {
   if (value === null || value === undefined || Number.isNaN(value)) return "0%";
   return `${Math.min(100, Math.max(0, value)).toFixed(1)}%`;

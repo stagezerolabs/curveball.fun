@@ -1,11 +1,22 @@
 import { parseEther } from "viem";
 
+export type InitialBuyPercent = 0 | 25 | 50 | 100;
+
+/** Keep the launch fee in WETH, then spend the selected share of the remainder. */
+export function initialBuyFromWethBalance(
+  balance: bigint,
+  launchFee: bigint,
+  percent: InitialBuyPercent,
+): bigint {
+  const spendable = balance > launchFee ? balance - launchFee : 0n;
+  return (spendable * BigInt(percent)) / 100n;
+}
+
 type LaunchFormInput = {
   name: string;
   symbol: string;
   initialBuy: string;
   launchFee: bigint | undefined;
-  feeAccepted: boolean;
   artworkUri: string;
   taxPercent: string;
   reservePercent: string;
@@ -38,7 +49,6 @@ export function canSubmitLaunch(input: LaunchFormInput): boolean {
     input.launchFee === undefined
   )
     return false;
-  if (input.launchFee > 0n && !input.feeAccepted) return false;
   if (!hasPublishedArtwork(input.artworkUri)) return false;
   const reserveBps = percentToBps(input.reservePercent);
   if (

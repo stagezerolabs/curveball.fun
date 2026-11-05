@@ -1717,12 +1717,10 @@ select:focus-visible {
 .launch-form input:focus-visible {
   outline-color: var(--lime);
 }
-.symbol-input:focus-within,
-.launch-unit-input:focus-within {
+.symbol-input:focus-within {
   outline: 2px solid var(--lime);
 }
-.symbol-input input:focus-visible,
-.launch-unit-input input:focus-visible {
+.symbol-input input:focus-visible {
   outline: 0;
 }
 .launch-form select {
@@ -1739,8 +1737,7 @@ select:focus-visible {
   font-weight: 400;
   line-height: 1.5;
 }
-.symbol-input,
-.launch-unit-input {
+.symbol-input {
   align-items: center;
   background: var(--surface);
   border-radius: 8px;
@@ -1757,13 +1754,6 @@ select:focus-visible {
   flex: 1;
   min-width: 0;
   padding-left: 6px;
-}
-.launch-unit-input i {
-  color: var(--muted);
-  font-size: 12px;
-  font-style: normal;
-  font-weight: 600;
-  padding-right: 16px;
 }
 .launch-button {
   background: var(--lime);
@@ -1897,6 +1887,58 @@ select:focus-visible {
 }
 .launch-modal-action svg {
   margin-left: 8px;
+}
+.launch-fee-review-amounts {
+  display: grid;
+  gap: 12px;
+  margin: 24px 0 0;
+}
+.launch-fee-review-amounts > div {
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+.launch-fee-review-amounts dt {
+  color: var(--muted);
+}
+.launch-fee-review-amounts dd {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  margin: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+.launch-fee-review-amounts .launch-fee-review-total {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+.launch-fee-review-total dt,
+.launch-fee-review-total dd {
+  color: var(--ink);
+  font-weight: 700;
+}
+.launch-fee-review-actions {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr 1fr;
+  margin-top: 24px;
+}
+.launch-fee-review-actions .launch-modal-action {
+  margin-top: 0;
+}
+.launch-fee-review-cancel {
+  background: var(--raise);
+  border: 0;
+  border-radius: 8px;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+.launch-fee-review-cancel:focus-visible {
+  outline: 2px solid var(--lime);
+  outline-offset: 3px;
 }
 .market-created-note {
   background: rgba(200, 241, 53, 0.1);
@@ -5976,6 +6018,74 @@ select:focus-visible {
   gap: 18px;
   padding-bottom: 32px;
 }
+.launch-form-group.launch-buy-group {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.launch-buy-field {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.launch-buy-heading {
+  align-items: baseline;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+.launch-buy-heading small,
+.launch-buy-help {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+.launch-buy-heading small {
+  margin-left: 6px;
+}
+.launch-buy-heading strong {
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+.launch-buy-options {
+  background: var(--surface);
+  border-radius: 9px;
+  display: grid;
+  gap: 4px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 4px;
+}
+.launch-buy-options button {
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  min-height: 42px;
+}
+.launch-buy-options button:hover:not(:disabled):not(.active) {
+  background: var(--raise);
+  color: var(--ink);
+}
+.launch-buy-options button.active {
+  background: var(--lime);
+  color: #10170f;
+}
+.launch-buy-options button:focus-visible {
+  outline: 2px solid var(--lime);
+  outline-offset: 2px;
+}
+.launch-buy-options button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.launch-buy-help {
+  line-height: 1.5;
+}
 .launch-group-heading h2 {
   font-size: 21px;
   letter-spacing: -0.03em;
@@ -6057,6 +6167,10 @@ select:focus-visible {
   outline: 2px solid var(--lime);
   outline-offset: 3px;
 }
+.launch-remove-image-destructive:hover,
+.launch-remove-image-destructive:focus-visible {
+  color: var(--market-down);
+}
 .launch-field-error {
   color: var(--orange-ink);
   font-size: 13px;
@@ -6071,49 +6185,6 @@ select:focus-visible {
   flex-wrap: wrap;
   gap: 8px 12px;
 }
-.launch-pair-field {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  display: flex;
-  gap: 16px;
-  justify-content: space-between;
-  padding: 15px 16px;
-}
-.launch-pair-field > span {
-  color: var(--muted);
-  font-size: 13px;
-}
-.launch-pair-field strong {
-  font-size: 14px;
-}
-.launch-fee-consent {
-  align-items: center;
-  color: var(--ink);
-  cursor: pointer;
-  display: flex;
-  font-size: 14px;
-  gap: 10px;
-  line-height: 1.4;
-}
-.launch-form .launch-fee-consent input[type="checkbox"] {
-  appearance: auto;
-  accent-color: var(--lime);
-  background: initial;
-  border: initial;
-  border-radius: 0;
-  flex: 0 0 18px;
-  height: 18px;
-  min-height: 18px;
-  margin: 0;
-  padding: 0;
-  width: 18px;
-}
-.launch-form .launch-fee-consent input[type="checkbox"]:focus-visible {
-  outline: 2px solid var(--lime);
-  outline-offset: 3px;
-}
-
 /* Admin workspace */
 .admin-page {
   padding-block: 36px 96px;
@@ -8235,8 +8306,7 @@ img.profile-hero-avatar {
   .launch-preview-heading {
     margin-bottom: 8px;
   }
-  .launch-preview-card,
-  .launch-preview-card.has-options {
+  .launch-preview-card {
     aspect-ratio: auto;
     grid-template-columns: 120px minmax(0, 1fr);
     grid-template-rows: auto;

@@ -5,14 +5,20 @@ import { ArrowIcon } from "../components/ArrowIcon";
 import { LaunchPreview } from "../components/LaunchPreview";
 import { useStore } from "../app/useStore.js";
 import { useAccount, useReadContract } from "wagmi";
-import { formatEther, parseEther } from "viem";
-import { curveLaunchpadAbi } from "../sdk/contracts";
+import { formatEther } from "viem";
+import { curveLaunchpadAbi, erc20Abi } from "../sdk/contracts";
 import {
   activeChainId,
   activeExplorerUrl,
   launchpadAddress,
 } from "../lib/web3";
-import { canSubmitLaunch, percentToBps } from "../lib/launchForm";
+import {
+  canSubmitLaunch,
+  initialBuyFromWethBalance,
+  percentToBps,
+  type InitialBuyPercent,
+} from "../lib/launchForm";
+import { formatSignificantAmount } from "../lib/format.js";
 import { publishTokenMetadata, uploadArtworkImage } from "../lib/artworkUpload";
 import type { Navigate } from "../types";
 
@@ -95,15 +101,22 @@ function sliderFill(value: string, max: number): React.CSSProperties {
   } as React.CSSProperties;
 }
 
+function displayWeth(amount: bigint): string {
+  return formatSignificantAmount(Number(formatEther(amount)));
+}
+
 export function LaunchPage({ navigate }: { navigate: Navigate }) {
   const dialogHeading = useRef<HTMLHeadingElement>(null);
   const imageInput = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const feeReviewConfirmed = useRef(false);
   const [draftName, setDraftName] = useState("");
   const [draftSymbol, setDraftSymbol] = useState("");
   const [draftTaxPercent, setDraftTaxPercent] = useState("0");
   const [draftReservePercent, setDraftReservePercent] = useState("4");
-  const [draftInitialBuy, setDraftInitialBuy] = useState("");
-  const [feeAccepted, setFeeAccepted] = useState(false);
+  const [selectedBuyPercent, setSelectedBuyPercent] =
+    useState<InitialBuyPercent>(0);
+  const [feeReviewOpen, setFeeReviewOpen] = useState(false);
   const [draftImageUrl, setDraftImageUrl] = useState<string>();
   const [artworkFile, setArtworkFile] = useState<File | null>(null);
   const [imageUpload, setImageUpload] = useState<ImageUpload | null>(null);
@@ -144,6 +157,21 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
   const { data: onchainLaunchFee, isError: launchFeeError } = useReadContract({
     ...launchpadRead,
     functionName: "launchFee",
+  });
+  const { data: quoteToken } = useReadContract({
+    ...launchpadRead,
+    functionName: "quoteToken",
+  });
+  const { data: wethBalance, isError: wethBalanceError } = useReadContract({
+    address: quoteToken ?? undefined,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: address ? [address] : undefined,
+    chainId: activeChainId,
+    query: {
+      enabled: Boolean(quoteToken && address),
+      refetchInterval: 15_000,
+    },
   });
   const launchFee = onchainLaunchFee;
   const buybackShareBps = feeDefaults?.[2];
@@ -297,14 +325,12 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
         ? "Add a token name and ticker to finish publishing artwork."
         : artworkStatus === "publishing"
           ? "Publishing token metadata to IPFS…"
-          : artworkStatus === "ready"
-            ? "Artwork ready on IPFS."
-            : imageUpload?.status === "error"
-              ? imageUpload.error
-              : metadataUpload?.error;
+          : imageUpload?.status === "error"
+            ? imageUpload.error
+            : metadataUpload?.error;
   useEffect(() => {
     if (launchProgress?.phase !== "success") return;
-    setFeeAccepted(false);
+    setSelectedBuyPercent(0);
     setArtworkFile(null);
     setImageUpload(null);
     setMetadataUpload(null);
@@ -318,6 +344,24 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
   }, [launchProgress?.phase, navigate, clearLaunchProgress]);
 
   const phase = launchProgress?.phase;
+  const noSpendableWeth =
+    wethBalance !== undefined &&
+    launchFee !== undefined &&
+    wethBalance <= launchFee;
+  const initialBuyWei =
+    selectedBuyPercent === 0
+      ? 0n
+      : wethBalance === undefined || launchFee === undefined
+        ? undefined
+        : initialBuyFromWethBalance(
+            wethBalance,
+            launchFee,
+            selectedBuyPercent,
+          );
+  const draftInitialBuy =
+    selectedBuyPercent === 0 || initialBuyWei === undefined
+      ? ""
+      : formatEther(initialBuyWei);
   const draftTaxBps = percentToBps(draftTaxPercent || "0") ?? 0;
   const draftReserveBps = percentToBps(draftReservePercent) ?? 0;
   const taxCap = creatorTaxCapBps;
@@ -331,12 +375,13 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
       (maxReserveBps !== undefined && draftReserveBps > Number(maxReserveBps)));
   const formReady =
     !imageError &&
+    (selectedBuyPercent === 0 ||
+      (initialBuyWei !== undefined && initialBuyWei > 0n)) &&
     canSubmitLaunch({
       name: draftName,
       symbol: draftSymbol,
       initialBuy: draftInitialBuy,
       launchFee,
-      feeAccepted,
       artworkUri: publishedUri,
       taxPercent: draftTaxPercent,
       reservePercent: draftReservePercent,
@@ -344,20 +389,17 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
         maxReserveBps === undefined ? undefined : Number(maxReserveBps),
       taxCapBps: creatorTaxCapBps,
     });
-  let launchTotal: string | null = null;
-  if (launchFee !== undefined && launchFee > 0n && draftInitialBuy.trim()) {
-    try {
-      const initialBuy = parseEther(draftInitialBuy);
-      if (initialBuy > 0n) launchTotal = formatEther(launchFee + initialBuy);
-    } catch {
-      /* The number input will show its own validation error. */
-    }
-  }
   const submitLaunch = (event: React.FormEvent<HTMLFormElement>) => {
     if (!formReady || !canCreate) {
       event.preventDefault();
       return;
     }
+    if (launchFee !== undefined && launchFee > 0n && !feeReviewConfirmed.current) {
+      event.preventDefault();
+      setFeeReviewOpen(true);
+      return;
+    }
+    feeReviewConfirmed.current = false;
     void create(event);
   };
 
@@ -404,6 +446,10 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
           name={draftName}
           symbol={draftSymbol}
           creatorTaxBps={draftTaxBps}
+          buybackShareBps={
+            buybackShareBps === undefined ? undefined : Number(buybackShareBps)
+          }
+          buybackUnavailable={feeDefaultsError}
           initialBuy={draftInitialBuy}
           imageUrl={draftImageUrl}
           supply={tokenSupply}
@@ -411,7 +457,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
           reserveBps={draftReserveBps}
           supplyUnavailable={supplyError || !launchpadAddress}
         />
-        <form className="launch-form" onSubmit={submitLaunch}>
+        <form ref={formRef} className="launch-form" onSubmit={submitLaunch}>
           <div className="launch-form-section">
             <div className="launch-form-group">
               <div className="launch-group-heading">
@@ -425,8 +471,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                   accept="image/png,image/jpeg,image/webp"
                   onChange={selectImage}
                   aria-describedby={[
-                    "launch-image-help",
-                    artworkFile && "launch-image-status",
+                    artworkFile && artworkStatus !== "ready" && "launch-image-status",
                     imageError && "launch-image-error",
                   ]
                     .filter(Boolean)
@@ -444,10 +489,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                   {draftImageUrl ? "Change preview image" : "Choose an image"}
                 </span>
               </label>
-              <p id="launch-image-help" className="launch-field-help">
-                PNG, JPEG, or WebP, under 2 MB.
-              </p>
-              {artworkFile && (
+              {artworkFile && artworkStatus !== "ready" && (
                 <div className="launch-upload-state">
                   <p
                     id="launch-image-status"
@@ -473,7 +515,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
               )}
               {(artworkFile || imageError) && (
                 <button
-                  className="launch-remove-image"
+                  className="launch-remove-image launch-remove-image-destructive"
                   type="button"
                   onClick={() => {
                     setDraftImageUrl(undefined);
@@ -528,39 +570,49 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
               </div>
             </div>
 
-            <div className="launch-form-group">
-              <div className="launch-pair-field">
-                <span>Paired asset</span>
-                <strong>WETH</strong>
-              </div>
-              <label className="launch-field-wide">
-                <span>
-                  Initial buy <b>Optional</b>
-                </span>
-                <span className="launch-unit-input">
-                  <input
-                    name="initialBuy"
-                    type="number"
-                    min="0"
-                    step="any"
-                    inputMode="decimal"
-                    placeholder="0"
-                    value={draftInitialBuy}
-                    onChange={(event) => setDraftInitialBuy(event.target.value)}
-                    aria-describedby="initial-buy-help"
-                  />
-                  <i>WETH</i>
-                </span>
-                <small id="initial-buy-help">
-                  Buy from your own curve as part of the launch.
-                </small>
-              </label>
-              {launchTotal !== null && (
-                <div className="launch-pair-field">
-                  <span>Maximum total (fee + initial buy limit)</span>
-                  <strong>{launchTotal} WETH</strong>
+            <div className="launch-form-group launch-buy-group">
+              <div className="launch-buy-field">
+                <div className="launch-buy-heading">
+                  <span>Initial buy <small>Optional</small></span>
+                  <strong>
+                    {selectedBuyPercent === 0
+                      ? "0"
+                      : initialBuyWei === undefined
+                        ? "…"
+                        : displayWeth(initialBuyWei)}{" "}
+                    WETH
+                  </strong>
                 </div>
-              )}
+                <div className="launch-buy-options" role="group" aria-label="Initial buy using available WETH">
+                  {([0, 25, 50, 100] as const).map((percent) => (
+                    <button
+                      key={percent}
+                      type="button"
+                      className={selectedBuyPercent === percent ? "active" : ""}
+                      aria-pressed={selectedBuyPercent === percent}
+                      disabled={
+                        percent !== 0 &&
+                        (wethBalance === undefined ||
+                          launchFee === undefined ||
+                          initialBuyFromWethBalance(wethBalance, launchFee, percent) === 0n)
+                      }
+                      onClick={() => setSelectedBuyPercent(percent)}
+                    >
+                      {percent === 0 ? "None" : percent === 100 ? "Max" : `${percent}%`}
+                    </button>
+                  ))}
+                </div>
+                <input type="hidden" name="initialBuy" value={draftInitialBuy} />
+                {address && (wethBalanceError || noSpendableWeth || wethBalance === undefined) && (
+                  <small className="launch-buy-help" role="status">
+                    {wethBalanceError
+                      ? "Could not read your WETH balance."
+                      : noSpendableWeth
+                        ? "No WETH available for an initial buy."
+                        : "Checking WETH balance…"}
+                  </small>
+                )}
+              </div>
             </div>
 
             <details className="launch-advanced">
@@ -622,29 +674,6 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                     reduces pool tokens, not curve sale tokens.
                   </small>
                 </label>
-                {tokenSupply !== undefined &&
-                  Number.isFinite(Number(draftReservePercent)) && (
-                    <div className="launch-pair-field">
-                      <span>Reserved tokens</span>
-                      <strong>
-                        {(
-                          (Number(formatEther(tokenSupply)) *
-                            Number(draftReservePercent)) /
-                          100
-                        ).toLocaleString()}
-                      </strong>
-                    </div>
-                  )}
-                <div className="launch-pair-field">
-                  <span>Buyback</span>
-                  <strong>
-                    {buybackShareBps == null
-                      ? feeDefaultsError
-                        ? "Unavailable"
-                        : "Loading…"
-                      : `${Number(buybackShareBps) / 100}% of trading fee`}
-                  </strong>
-                </div>
               </div>
             </details>
             <input type="hidden" name="creatorTaxBps" value={draftTaxBps} />
@@ -682,17 +711,6 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                 Checking launch fee…
               </p>
             )}
-            {launchFee !== undefined && launchFee > 0n && (
-              <label className="launch-fee-consent">
-                <input
-                  type="checkbox"
-                  required
-                  checked={feeAccepted}
-                  onChange={(event) => setFeeAccepted(event.target.checked)}
-                />
-                <span>I agree to pay the anti-spam fee.</span>
-              </label>
-            )}
             <div className="launch-form-actions">
               <button
                 className="launch-button"
@@ -727,6 +745,65 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
           </div>
         </form>
       </section>
+      <Dialog.Root open={feeReviewOpen} onOpenChange={setFeeReviewOpen}>
+        <Dialog.Portal>
+          <Dialog.Backdrop className="launch-modal-backdrop" />
+          <Dialog.Popup className="launch-modal launch-fee-review dismissible">
+            <Dialog.Close className="launch-modal-close" aria-label="Close fee review">
+              ×
+            </Dialog.Close>
+            <Dialog.Title>Review launch cost</Dialog.Title>
+            <Dialog.Description>
+              Launching a token includes an anti-spam fee paid in WETH.
+            </Dialog.Description>
+            <dl className="launch-fee-review-amounts">
+              <div>
+                <dt>Anti-spam fee</dt>
+                <dd title={`${formatEther(launchFee ?? 0n)} WETH`}>
+                  {displayWeth(launchFee ?? 0n)} WETH
+                </dd>
+              </div>
+              {initialBuyWei !== undefined && initialBuyWei > 0n && (
+                <div>
+                  <dt>Initial buy</dt>
+                  <dd title={`${formatEther(initialBuyWei)} WETH`}>
+                    {displayWeth(initialBuyWei)} WETH
+                  </dd>
+                </div>
+              )}
+              <div className="launch-fee-review-total">
+                <dt>Total</dt>
+                <dd
+                  title={`${formatEther((launchFee ?? 0n) + (initialBuyWei ?? 0n))} WETH`}
+                >
+                  {displayWeth((launchFee ?? 0n) + (initialBuyWei ?? 0n))} WETH
+                </dd>
+              </div>
+            </dl>
+            <div className="launch-fee-review-actions">
+              <Dialog.Close className="launch-fee-review-cancel">Cancel</Dialog.Close>
+              <button
+                type="button"
+                className="launch-modal-action"
+                disabled={!formReady || !canCreate || isPending}
+                onClick={() => {
+                  const form = formRef.current;
+                  if (!form || !form.reportValidity()) return;
+                  setFeeReviewOpen(false);
+                  feeReviewConfirmed.current = true;
+                  try {
+                    form.requestSubmit();
+                  } finally {
+                    feeReviewConfirmed.current = false;
+                  }
+                }}
+              >
+                Continue to wallet
+              </button>
+            </div>
+          </Dialog.Popup>
+        </Dialog.Portal>
+      </Dialog.Root>
       <Dialog.Root
         open={Boolean(launchProgress)}
         onOpenChange={(open) => {
