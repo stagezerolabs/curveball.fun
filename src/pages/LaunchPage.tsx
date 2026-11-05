@@ -88,6 +88,13 @@ const phaseCopy: Record<
   success: { title: "Token launched", detail: "Opening markets…" },
 };
 
+function sliderFill(value: string, max: number): React.CSSProperties {
+  const fill = max > 0 ? (Number(value) / max) * 100 : 0;
+  return {
+    "--range-fill": `${Math.max(0, Math.min(100, fill))}%`,
+  } as React.CSSProperties;
+}
+
 export function LaunchPage({ navigate }: { navigate: Navigate }) {
   const dialogHeading = useRef<HTMLHeadingElement>(null);
   const imageInput = useRef<HTMLInputElement>(null);
@@ -143,6 +150,12 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
   const creatorTaxCapBps = feeDefaults?.[3];
   const maxReservePercent =
     maxReserveBps === undefined ? null : Number(maxReserveBps) / 100;
+  useEffect(() => {
+    if (maxReservePercent === null) return;
+    setDraftReservePercent((current) =>
+      Number(current) > maxReservePercent ? String(maxReservePercent) : current,
+    );
+  }, [maxReservePercent]);
   // The guardian's pause stops new launches (and buys); nothing else gates who may launch.
   const canCreate = Boolean(address) && paused === false;
   const {
@@ -553,25 +566,25 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
             <details className="launch-advanced">
               <summary>Advanced options</summary>
               <div className="launch-advanced-fields">
-                <label className="launch-field-wide">
-                  <span>
-                    Creator tax <b>0–{Number(creatorTaxCapBps ?? 50) / 100}%</b>
+                <label className="launch-field-wide launch-range-field">
+                  <span className="launch-range-heading">
+                    <span>Creator tax</span>
+                    <strong>{draftTaxPercent}%</strong>
                   </span>
-                  <span className="launch-unit-input">
-                    <input
-                      type="number"
-                      min="0"
-                      max={Number(creatorTaxCapBps ?? 50) / 100}
-                      step="0.01"
-                      inputMode="decimal"
-                      value={draftTaxPercent}
-                      aria-invalid={taxInvalid}
-                      onChange={(event) =>
-                        setDraftTaxPercent(event.target.value)
-                      }
-                    />
-                    <i>%</i>
-                  </span>
+                  <input
+                    type="range"
+                    min="0"
+                    max={Number(creatorTaxCapBps ?? 50) / 100}
+                    step="0.01"
+                    value={draftTaxPercent}
+                    style={sliderFill(
+                      draftTaxPercent,
+                      Number(creatorTaxCapBps ?? 50) / 100,
+                    )}
+                    disabled={creatorTaxCapBps === undefined}
+                    aria-invalid={taxInvalid}
+                    onChange={(event) => setDraftTaxPercent(event.target.value)}
+                  />
                   {taxInvalid && (
                     <small className="launch-field-error" role="alert">
                       Creator tax must be 0–
@@ -579,27 +592,25 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                     </small>
                   )}
                 </label>
-                <label className="launch-field-wide">
-                  <span>
-                    Holder reserve <b>0–{maxReservePercent ?? "…"}%</b>
+                <label className="launch-field-wide launch-range-field">
+                  <span className="launch-range-heading">
+                    <span>Holder reserve</span>
+                    <strong>{draftReservePercent}%</strong>
                   </span>
-                  <span className="launch-unit-input">
-                    <input
-                      name="holderReservePercent"
-                      type="number"
-                      min="0"
-                      max={maxReservePercent ?? undefined}
-                      step="0.01"
-                      inputMode="decimal"
-                      required
-                      value={draftReservePercent}
-                      aria-invalid={reserveInvalid}
-                      onChange={(event) =>
-                        setDraftReservePercent(event.target.value)
-                      }
-                    />
-                    <i>%</i>
-                  </span>
+                  <input
+                    type="range"
+                    min="0"
+                    max={maxReservePercent ?? 4}
+                    step="0.01"
+                    value={draftReservePercent}
+                    style={sliderFill(
+                      draftReservePercent,
+                      maxReservePercent ?? 4,
+                    )}
+                    disabled={maxReservePercent === null}
+                    aria-invalid={reserveInvalid}
+                    onChange={(event) => setDraftReservePercent(event.target.value)}
+                  />
                   {reserveInvalid && (
                     <small className="launch-field-error" role="alert">
                       Holder reserve must be 0–{maxReservePercent ?? "…"}%.
