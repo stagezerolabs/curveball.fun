@@ -12,24 +12,23 @@ This directory describes the protocol implemented by the Solidity source in this
 
 ## Scope
 
-Production scope consists of the five contracts in `contracts/`, the curve library, and the three interface files. `scripts/CurveDeploy.sol` and `scripts/Deploy.s.sol` are included because immutable wiring, constructor ordering, network parameters, and authority validation are security-relevant. Files under `test/` are supporting evidence rather than production code.
+Production scope consists of the five singleton/token contracts (`CurveLaunchpad`, `CurveToken`, `CurveFeeEscrow`, `CurveBuybackTreasury`, and `CurveLpLocker`), the separately deployed `CurveIcarusSwapAdapter`, the curve library, and the three interface files. `scripts/CurveDeploy.sol`, `scripts/Deploy.s.sol`, and `scripts/DeployIcarusSwap.s.sol` are included because immutable wiring, constructor ordering, network parameters, and authority validation are security-relevant. Files under `test/` are supporting evidence rather than production code.
 
 The external Icarus factory and pools, RISE WETH, OpenZeppelin, Solady, off-chain metadata content, frontends, keepers, and governance implementations are dependencies or deployment context; their implementations are not in scope here. The exact behavior Curveball requires from Icarus and WETH is specified in [Integration specification](integration-spec.md).
 
 ## Build profile
 
-| Setting | Value |
-| --- | --- |
-| Solidity | `0.8.24` |
-| EVM | Shanghai |
-| Optimizer | enabled, 200 runs |
-| Build/test system | Foundry |
-| Package manager | pnpm, locked by `pnpm-lock.yaml` |
+| Setting           | Value                            |
+| ----------------- | -------------------------------- |
+| Solidity          | `0.8.24`                         |
+| EVM               | Shanghai                         |
+| Optimizer         | enabled, 200 runs                |
+| Build/test system | Foundry                          |
+| Package manager   | pnpm, locked by `pnpm-lock.yaml` |
 
 ```sh
 pnpm install --frozen-lockfile
 make test
-make sizes
 ```
 
 Fork suites require `RISE_MAINNET_RPC_URL` or `RISE_TESTNET_RPC_URL`; see the integration specification for pinned blocks and commands.

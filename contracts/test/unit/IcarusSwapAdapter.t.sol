@@ -14,7 +14,7 @@ contract IcarusSwapAdapterTest is Fixture {
     function setUp() public override {
         super.setUp();
         adapter = new CurveIcarusSwapAdapter(address(launchpad), address(weth), address(icarus));
-        token = _launch(creator, 0, 0);
+        token = _launch(creator, 0);
         _sellOut(alice, token);
         pool = IIcarusPool(launchpad.graduate(token));
     }
@@ -93,7 +93,7 @@ contract IcarusSwapAdapterTest is Fixture {
     }
 
     function test_rejectsUngraduatedAndUnregisteredPools() public {
-        address pending = _launch(creator, 0, 0);
+        address pending = _launch(creator, 0);
         vm.expectRevert(CurveIcarusSwapAdapter.PoolUnavailable.selector);
         adapter.quoteExactIn(pending, true, 0.01 ether);
 

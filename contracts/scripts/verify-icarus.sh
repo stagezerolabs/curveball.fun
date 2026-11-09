@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# M0 gate: read-only Icarus verification. Never broadcasts a transaction.
+# M0 gate: pinned, read-only Icarus verification. Never broadcasts a transaction.
 set -euo pipefail
 
-rpc_url="${RISE_RPC_URL:-https://rpc.risechain.com/}"
-factory="${ICARUS_FACTORY:-}"
+rpc_url="${RISE_MAINNET_RPC_URL:-${RISE_RPC_URL:-}}"
+pinned="${PINNED_VERIFICATION:-../deployments/4153/icarus-verification.json}"
+factory="${ICARUS_FACTORY:-0xEe10C6a0f158bFEeef3d48Dc0D26130Cf6115615}"
 weth="${QUOTE_TOKEN:-0x4200000000000000000000000000000000000006}"
 explorer_api="${BLOCKSCOUT_API:-https://explorer.risechain.com/api}"
 output="${VERIFY_OUTPUT:-../deployments/4153/icarus-verification.json}"
@@ -14,9 +15,12 @@ require() {
   command -v "$1" >/dev/null || { echo "Missing required command: $1" >&2; exit 1; }
 }
 
-for command in cast curl diff jq; do require "$command"; done
+for command in cast forge jq; do require "$command"; done
+[[ -n "$rpc_url" ]] || { echo "RISE_MAINNET_RPC_URL is required." >&2; exit 1; }
+[[ "$(cast chain-id --rpc-url "$rpc_url")" == "4153" ]] || { echo "RPC is not RISE mainnet (4153)." >&2; exit 1; }
+[[ -f "$pinned" ]] || { echo "Pinned Icarus verification is missing: $pinned" >&2; exit 1; }
 [[ "$factory" =~ ^0x[0-9a-fA-F]{40}$ ]] || {
-  echo "Set ICARUS_FACTORY to the candidate Icarus factory address; it is deliberately not hardcoded." >&2
+  echo "ICARUS_FACTORY is not an address." >&2
   exit 1
 }
 [[ "$weth" == "0x4200000000000000000000000000000000000006" ]] || {
@@ -37,6 +41,51 @@ call() {
 
 code_hash() {
   cast code "$1" --rpc-url "$rpc_url" | cast keccak
+}
+
+[[ "$(jq -er '.chainId' "$pinned")" == "4153" ]] || { echo "Pinned verification has the wrong chain." >&2; exit 1; }
+[[ "$(jq -er '.decision' "$pinned")" == "PASS_MAINNET_INTEGRATION_GATE" ]] || { echo "Pinned Icarus review did not pass." >&2; exit 1; }
+[[ "$(jq -er '.humanReview.diffReviewed' "$pinned")" == "true" ]] || { echo "Icarus source diff is not reviewed." >&2; exit 1; }
+[[ "$(printf '%s' "$factory" | tr '[:upper:]' '[:lower:]')" == "$(jq -er '.candidateFactory | ascii_downcase' "$pinned")" ]] || { echo "Icarus factory differs from the reviewed address." >&2; exit 1; }
+[[ "$(printf '%s' "$weth" | tr '[:upper:]' '[:lower:]')" == "$(jq -er '.wethVerification.address | ascii_downcase' "$pinned")" ]] || { echo "WETH differs from the reviewed address." >&2; exit 1; }
+
+implementation="$(call 'implementation()(address)')"
+[[ "$(printf '%s' "$implementation" | tr '[:upper:]' '[:lower:]')" == "$(jq -er '.verification.implementation.address | ascii_downcase' "$pinned")" ]] || {
+  echo "Icarus implementation address changed; STOP for review." >&2
+  exit 1
+}
+for entry in "factory:$factory:.verification.factory.codeHash" "implementation:$implementation:.verification.implementation.codeHash" "WETH:$weth:.wethVerification.codeHash"; do
+  name="${entry%%:*}"
+  address_and_path="${entry#*:}"
+  address="${address_and_path%%:*}"
+  path="${address_and_path#*:}"
+  [[ "$(code_hash "$address")" == "$(jq -er "$path" "$pinned")" ]] || {
+    echo "$name bytecode changed from the reviewed hash; STOP for review." >&2
+    exit 1
+  }
+done
+
+echo "Running pinned RISE mainnet fork lifecycle..." >&2
+[[ -f test/fork/Lifecycle.fork.t.sol && -f test/fork/Deploy.fork.t.sol ]] || {
+  echo "Mainnet fork suites are missing; STOP." >&2
+  exit 1
+}
+fork_output="$(CI_FORK=1 RISE_MAINNET_RPC_URL="$rpc_url" forge test --match-path 'test/fork/*' --match-contract MainnetFork)"
+grep -Eq '[1-9][0-9]* tests passed' <<<"$fork_output" || {
+  echo "$fork_output" >&2
+  echo "Mainnet fork suite matched no passing tests; STOP." >&2
+  exit 1
+}
+if [[ "${VERIFY_REFRESH:-0}" != "1" ]]; then
+  echo "Reviewed Icarus and WETH addresses, bytecode hashes, and mainnet fork lifecycle match the pinned record." >&2
+  exit 0
+fi
+
+# Refresh is an explicit evidence-generation operation; routine preflight exits above without writing.
+for command in curl diff; do require "$command"; done
+[[ "$human_review" == "ICARUS_DIFF_REVIEWED_2026_09_19" ]] || {
+  echo "HUMAN_REVIEW_ACK is required to refresh the reviewed Icarus evidence." >&2
+  exit 1
 }
 
 source_for() {
@@ -111,11 +160,8 @@ weth_decimals="$(cast call "$weth" 'decimals()(uint8)' --rpc-url "$rpc_url")"
   echo "RISE WETH metadata mismatch; STOP." >&2
   exit 1
 }
-echo "Running RISE fork lifecycle..." >&2
-RISE_MAINNET_RPC_URL="$rpc_url" forge test --match-path test/fork/IcarusFactory.t.sol >/dev/null
 echo "Writing verification evidence..." >&2
-decision="STOP_FOR_HUMAN_REVIEW"
-[[ "$human_review" == "ICARUS_DIFF_REVIEWED_2026_09_19" ]] && decision="PASS_MAINNET_INTEGRATION_GATE"
+decision="PASS_MAINNET_INTEGRATION_GATE"
 jq -n \
   --arg generated_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --arg factory "$factory" \

@@ -16,7 +16,7 @@ contract CurveTokenTransferLockTest is Fixture {
     function _launchedToken() internal returns (address t) {
         _fund(creator, LAUNCH_FEE + 0.2 ether);
         vm.prank(creator);
-        (t,) = launchpad.launch(_meta(), 0, 0, 0.2 ether, 0);
+        (t,) = launchpad.launch(_meta(), 0, 0.2 ether, 0);
     }
 
     function test_manualTransferToLaunchpad_revertsWhileLocked() public {

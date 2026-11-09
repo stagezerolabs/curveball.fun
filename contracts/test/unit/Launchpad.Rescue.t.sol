@@ -12,7 +12,7 @@ contract LaunchpadRescueTest is Fixture {
 
     function setUp() public override {
         super.setUp();
-        token = _launch(creator, 400, 0);
+        token = _launch(creator, 0);
         _buy(alice, token, 2 ether);
     }
 
@@ -60,12 +60,13 @@ contract LaunchpadRescueTest is Fixture {
 
     function test_rescue_skimmedPoolWeth() public {
         _sellOut(bob, token);
+        uint256 treasuryBefore = weth.balanceOf(treasury);
         address pool = icarus.createPool(token, address(weth), false);
         weth.mint(pool, 3 ether);
         launchpad.graduate(token);
         vm.prank(owner);
         launchpad.rescue(address(weth), treasury, 3 ether);
-        assertEq(weth.balanceOf(treasury), LAUNCH_FEE + 3 ether);
+        assertEq(weth.balanceOf(treasury), treasuryBefore + 3 ether);
         assertEq(weth.balanceOf(address(launchpad)), 0);
     }
 

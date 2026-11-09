@@ -8,12 +8,12 @@ import {IIcarusPool} from "../../contracts/interfaces/IIcarus.sol";
 import {MockIcarusPool} from "../mocks/MockIcarus.sol";
 
 contract LaunchpadGraduateTest is Fixture {
-    uint256 constant S = 1_000_000 ether;
-    uint256 constant C = 800_000 ether;
+    uint256 constant S = 1_000_000_000 ether;
+    uint256 constant C = 800_000_000 ether;
 
-    /// @dev Launches with `reserveBps`, trades a little both ways, and sells out.
-    function _readyMarket(uint16 reserveBps) internal returns (address token) {
-        token = _launch(creator, reserveBps, 0.05 ether);
+    /// @dev Launches, trades a little both ways, and sells out.
+    function _readyMarket() internal returns (address token) {
+        token = _launch(creator, 0.05 ether);
         uint256 bought = _buy(alice, token, 1.3 ether);
         _sell(alice, token, bought / 3);
         _sellOut(bob, token);
@@ -42,7 +42,7 @@ contract LaunchpadGraduateTest is Fixture {
         assertGt(IIcarusPool(pool).balanceOf(address(locker)), 0);
         assertEq(CurveToken(token).balanceOf(address(launchpad)), 0);
         assertTrue(CurveToken(token).unlocked());
-        assertEq(CurveToken(token).totalSupply(), C + m.reserveTokens + tokensToPool);
+        assertEq(CurveToken(token).totalSupply(), C + tokensToPool);
         assertEq(launchpad.held(token, creator) + launchpad.held(token, alice) + launchpad.held(token, bob), C);
     }
 
@@ -52,38 +52,20 @@ contract LaunchpadGraduateTest is Fixture {
         assertApproxEqAbs(tokens, quote * vT / vQ, 1);
     }
 
-    function test_graduate_opensAtTheCurveEndPrice_forEveryReserve() public {
-        uint16[3] memory reserves = [uint16(0), 100, 400];
-        for (uint256 i = 0; i < reserves.length; i++) {
-            address token = _readyMarket(reserves[i]);
-            CurveLaunchpad.Market memory m = launchpad.market(token);
-            uint256 expectedTokens = _tokensFor(m.realQuote, m);
-            if (reserves[i] == 400) assertGe(expectedTokens, S - C - m.reserveTokens, "R = MAX sits on the clamp");
-            uint256 cap = S - C - m.reserveTokens;
-            uint256 tokensToPool = expectedTokens < cap ? expectedTokens : cap;
-
-            address pool = launchpad.graduate(token);
-
-            _assertGraduated(token, pool, m.realQuote, tokensToPool);
-            if (reserves[i] != 400) _assertOpensAtCurveEndPrice(token, pool, m.virtualToken, m.virtualQuote);
-            assertEq(launchpad.totalRealQuote(), 0);
-            assertEq(weth.balanceOf(address(launchpad)), 0);
-        }
-    }
-
-    function test_graduate_atMaxReserve_driftStaysWithinTheClamp() public {
-        address token = _readyMarket(400);
+    function test_graduate_opensAtTheCurveEndPrice() public {
+        address token = _readyMarket();
         CurveLaunchpad.Market memory m = launchpad.market(token);
+        uint256 expectedTokens = _tokensFor(m.realQuote, m);
+        uint256 tokensToPool = expectedTokens < S - C ? expectedTokens : S - C;
         address pool = launchpad.graduate(token);
-        (uint256 tokens, uint256 quote) = _reserves(pool, token);
-        assertEq(tokens, S - C - m.reserveTokens);
-        // Clamping can only lift the opening price, and only by the sellout drift.
-        assertGe(quote * uint256(m.virtualToken), tokens * uint256(m.virtualQuote));
-        assertApproxEqRel(quote * uint256(m.virtualToken), tokens * uint256(m.virtualQuote), 1e6);
+        _assertGraduated(token, pool, m.realQuote, tokensToPool);
+        _assertOpensAtCurveEndPrice(token, pool, m.virtualToken, m.virtualQuote);
+        assertEq(launchpad.totalRealQuote(), 0);
+        assertEq(weth.balanceOf(address(launchpad)), 0);
     }
 
     function test_graduate_emitsGraduated() public {
-        address token = _readyMarket(0);
+        address token = _readyMarket();
         CurveLaunchpad.Market memory m = launchpad.market(token);
         uint256 tokensToPool = _tokensFor(m.realQuote, m);
         vm.expectEmit(true, false, false, true, address(launchpad));
@@ -92,7 +74,7 @@ contract LaunchpadGraduateTest is Fixture {
     }
 
     function test_graduate_revertsUnlessReady() public {
-        address token = _launch(creator, 0, 0.05 ether);
+        address token = _launch(creator, 0.05 ether);
         vm.expectRevert(CurveLaunchpad.NotReady.selector);
         launchpad.graduate(token);
 
@@ -103,7 +85,7 @@ contract LaunchpadGraduateTest is Fixture {
     }
 
     function test_graduate_stillWorksWhileIcarusIsPausedOrTheLaunchpadIs() public {
-        address token = _readyMarket(400);
+        address token = _readyMarket();
         icarus.setPauseState(true);
         vm.prank(guardian);
         launchpad.pause();
@@ -114,7 +96,7 @@ contract LaunchpadGraduateTest is Fixture {
     // ---------------------------------------------------------------- pre-created pools
 
     function test_graduate_reusesACleanPreCreatedPool() public {
-        address token = _readyMarket(0);
+        address token = _readyMarket();
         address precreated = icarus.createPool(address(weth), token, false);
         CurveLaunchpad.Market memory m = launchpad.market(token);
         assertEq(launchpad.graduate(token), precreated);
@@ -122,7 +104,7 @@ contract LaunchpadGraduateTest is Fixture {
     }
 
     function test_graduate_skimsAnUnsyncedDonation() public {
-        address token = _readyMarket(400);
+        address token = _readyMarket();
         address pool = icarus.createPool(token, address(weth), false);
         weth.mint(pool, 3 ether);
         CurveLaunchpad.Market memory m = launchpad.market(token);
@@ -135,7 +117,7 @@ contract LaunchpadGraduateTest is Fixture {
     }
 
     function test_graduate_matchesASyncedDonationInsideTheBuffer() public {
-        address token = _readyMarket(0);
+        address token = _readyMarket();
         address pool = icarus.createPool(token, address(weth), false);
         weth.mint(pool, 0.5 ether);
         MockIcarusPool(pool).sync();
@@ -151,7 +133,7 @@ contract LaunchpadGraduateTest is Fixture {
     }
 
     function test_graduate_neverRevertsOnASyncedDonationBeyondTheBuffer() public {
-        address token = _readyMarket(0);
+        address token = _readyMarket();
         address pool = icarus.createPool(token, address(weth), false);
         weth.mint(pool, 1_000 ether);
         MockIcarusPool(pool).sync();
@@ -165,7 +147,7 @@ contract LaunchpadGraduateTest is Fixture {
     }
 
     function test_graduate_revertsForAPoolThatAlreadyHasLp() public {
-        address token = _readyMarket(0);
+        address token = _readyMarket();
         address pool = icarus.createPool(token, address(weth), false);
         // Unreachable with the transfer lock (minting LP needs both tokens), so simulate it.
         vm.mockCall(pool, abi.encodeWithSelector(IIcarusPool.totalSupply.selector), abi.encode(uint256(1)));
@@ -174,7 +156,7 @@ contract LaunchpadGraduateTest is Fixture {
     }
 
     function test_graduate_revertsIfThePoolHoldsTokensBeforeTheTransfer() public {
-        address token = _readyMarket(0);
+        address token = _readyMarket();
         address pool = icarus.createPool(token, address(weth), false);
         (bool tokenIsToken0) = IIcarusPool(pool).token0() == token;
         bytes memory reserves = tokenIsToken0 ? abi.encode(1, 0, 0) : abi.encode(0, 1, 0);

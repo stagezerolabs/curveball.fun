@@ -36,14 +36,8 @@ contract CurveToken is ERC20 {
         _initialized = true;
     }
 
-    /// @notice Sets metadata and mints the whole supply: the reserve to `reserveRecipient`, the rest to the launchpad.
-    function initialize(
-        string calldata name_,
-        string calldata symbol_,
-        uint256 supply,
-        address reserveRecipient,
-        uint256 reserveAmount
-    ) external onlyLaunchpad {
+    /// @notice Sets metadata and mints the whole supply to the launchpad.
+    function initialize(string calldata name_, string calldata symbol_, uint256 supply) external onlyLaunchpad {
         if (_initialized) revert AlreadyInitialized();
         uint256 nameLength = bytes(name_).length;
         uint256 symbolLength = bytes(symbol_).length;
@@ -53,8 +47,7 @@ contract CurveToken is ERC20 {
         _initialized = true;
         _name = name_;
         _symbol = symbol_;
-        _mint(launchpad, supply - reserveAmount);
-        if (reserveAmount != 0) _mint(reserveRecipient, reserveAmount);
+        _mint(launchpad, supply);
     }
 
     function unlock() external onlyLaunchpad {

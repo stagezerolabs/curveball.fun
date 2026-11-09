@@ -3,12 +3,18 @@ import {
   getAddress,
   http,
   keccak256,
+  parseAbi,
   type Address,
   type Hex,
 } from "viem";
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { validateLaunchpad } from "../../src/deployment";
 import { curveFeeEscrowAbi, curveLaunchpadAbi } from "../../src/sdk/contracts";
+import {
+  matchesCompiledRuntime,
+  type RuntimeArtifact,
+} from "./verify-runtime-bytecode";
 
 const requestedNetwork = Bun.env.DEPLOYMENT_NETWORK?.trim() || "mainnet";
 if (requestedNetwork !== "mainnet" && requestedNetwork !== "testnet") {
@@ -40,12 +46,21 @@ const network =
 const { chainId, outputPath, rpcUrl, icarusFactory } = network;
 const broadcastPath = `contracts/broadcast/Deploy.s.sol/${chainId}/run-latest.json`;
 // The order Deploy.s.sol creates them in; the token implementation is created inside the launchpad's constructor.
-const expectedNames = [
+const coreNames = [
   "CurveFeeEscrow",
+  "CurveBuybackTreasury",
   "CurveLpLocker",
-  "CurveHolderReserve",
   "CurveLaunchpad",
 ] as const;
+const expectedNames = network.name === "mainnet" ? ["TimelockController", ...coreNames] : [...coreNames];
+const mainnetDeployer = getAddress("0xeEb364Ba1a9A4B6a75C41A39c4B91144a4aF156A");
+const mainnetTreasury = getAddress("0x7e6B1bEfC7dd622c20961140779eF61cd9C62Ce4");
+const timelockAbi = parseAbi([
+  "function getMinDelay() view returns (uint256)",
+  "function hasRole(bytes32 role, address account) view returns (bool)",
+]);
+const role = (name: string) => keccak256(new TextEncoder().encode(name));
+const adminRole = `0x${"00".repeat(32)}` as Hex;
 const weth = getAddress("0x4200000000000000000000000000000000000006");
 const explorerApiUrl = `${network.explorerOrigin}/api/v2/smart-contracts`;
 
@@ -54,6 +69,7 @@ type BroadcastTransaction = {
   contractName: string;
   contractAddress?: string;
   hash: Hex;
+  transaction?: { from?: string };
 };
 type BroadcastReceipt = {
   contractAddress?: string | null;
@@ -119,10 +135,33 @@ const created = creations.map((transaction, index) => {
   };
 });
 
-const launchpad = created[3].address;
+const launchpadDeployment = created.find((item) => item.name === "CurveLaunchpad");
+if (!launchpadDeployment) throw new Error("Missing CurveLaunchpad creation.");
+const launchpad = launchpadDeployment.address;
 const client = createPublicClient({ transport: http(rpcUrl) });
 if ((await client.getChainId()) !== chainId)
   throw new Error(`RPC is not RISE ${network.name}.`);
+if (network.name === "mainnet") {
+  const timelock = created[0];
+  if (timelock.name !== "TimelockController")
+    throw new Error("Missing mainnet timelock creation.");
+  if (creations.some((item) => !item.transaction?.from || getAddress(item.transaction.from) !== mainnetDeployer))
+    throw new Error("Mainnet broadcast used another deployer.");
+  const dirtyContracts = execFileSync(
+    "git",
+    ["status", "--porcelain", "--", "contracts"],
+    {
+      encoding: "utf8",
+    },
+  ).trim();
+  if (dirtyContracts)
+    throw new Error("Mainnet contract source is not committed.");
+  // A stale out/ artifact must never be allowed to attest a changed source tree.
+  execFileSync("forge", ["build", "--force"], {
+    cwd: "contracts",
+    stdio: "inherit",
+  });
+}
 const singletons = await validateLaunchpad(
   client as unknown as Parameters<typeof validateLaunchpad>[0],
   launchpad,
@@ -131,9 +170,9 @@ const singletons = await validateLaunchpad(
 const wired: Record<string, Address> = {
   CurveFeeEscrow: singletons.escrow,
   CurveLpLocker: singletons.locker,
-  CurveHolderReserve: singletons.reserve,
+  CurveBuybackTreasury: singletons.buybackTreasury,
 };
-for (const deployment of created.slice(0, 3)) {
+for (const deployment of created.filter((item) => item.name in wired)) {
   if (wired[deployment.name] !== deployment.address)
     throw new Error(
       `${deployment.name} does not match the launchpad's wiring.`,
@@ -157,9 +196,9 @@ const [
   feeDefaults,
   supply,
   curveSupply,
-  maxReserveBps,
   paused,
   escrowOwner,
+  walletCapBps,
 ] = (await Promise.all([
   read("owner"),
   read("guardian"),
@@ -169,13 +208,13 @@ const [
   read("feeDefaults"),
   read("SUPPLY"),
   read("CURVE_SUPPLY"),
-  read("MAX_RESERVE_BPS"),
   read("paused"),
   client.readContract({
     address: singletons.escrow,
     abi: curveFeeEscrowAbi,
     functionName: "owner",
-  }),
+  } as never),
+  read("walletCapBps"),
 ])) as [
   Address,
   Address,
@@ -185,20 +224,21 @@ const [
   readonly [number, number, number, number],
   bigint,
   bigint,
-  bigint,
   boolean,
   Address,
+  number,
 ];
 const [feeBps, creatorShareBps, buybackShareBps, taxCapBps] = feeDefaults;
 if (
   paused ||
   escrowOwner !== owner ||
-  launchFee !== 1_000_000_000_000_000n ||
+  launchFee !== 450_000_000_000_000n ||
   graduationTarget < 4n * 10n ** 18n ||
   feeBps !== 75 ||
   creatorShareBps !== 5_000 ||
   buybackShareBps !== 2_500 ||
   taxCapBps !== 50 ||
+  walletCapBps !== 500 ||
   (network.operator &&
     (owner !== network.operator ||
       guardian !== network.operator ||
@@ -206,7 +246,31 @@ if (
 ) {
   throw new Error(`${network.name} policy mismatch.`);
 }
-if (supply !== 1_000_000n * 10n ** 18n || curveSupply !== 800_000n * 10n ** 18n)
+if (network.name === "mainnet") {
+  const timelock = created[0].address;
+  if (owner !== timelock || guardian !== mainnetDeployer || treasury !== mainnetTreasury || graduationTarget !== 4n * 10n ** 18n)
+    throw new Error("Mainnet authority or graduation target mismatch.");
+  const readTimelockRole = (roleHash: Hex, account: Address) => client.readContract({
+    address: timelock,
+    abi: timelockAbi,
+    functionName: "hasRole",
+    args: [roleHash, account],
+  } as never) as Promise<boolean>;
+  const [delay, proposer, executor, canceller, selfAdmin, deployerAdmin] = await Promise.all([
+    client.readContract({ address: timelock, abi: timelockAbi, functionName: "getMinDelay" } as never) as Promise<bigint>,
+    readTimelockRole(role("PROPOSER_ROLE"), mainnetDeployer),
+    readTimelockRole(role("EXECUTOR_ROLE"), mainnetDeployer),
+    readTimelockRole(role("CANCELLER_ROLE"), mainnetDeployer),
+    readTimelockRole(adminRole, timelock),
+    readTimelockRole(adminRole, mainnetDeployer),
+  ]);
+  if (delay !== 2n * 24n * 60n * 60n || !proposer || !executor || !canceller || !selfAdmin || deployerAdmin)
+    throw new Error("Mainnet timelock roles or delay mismatch.");
+}
+if (
+  supply !== 1_000_000_000n * 10n ** 18n ||
+  curveSupply !== 800_000_000n * 10n ** 18n
+)
   throw new Error("Supply policy mismatch.");
 
 const verified = [
@@ -214,8 +278,8 @@ const verified = [
   {
     name: "CurveToken",
     address: singletons.tokenImplementation,
-    hash: created[3].hash,
-    blockNumber: created[3].blockNumber,
+    hash: launchpadDeployment.hash,
+    blockNumber: launchpadDeployment.blockNumber,
   },
 ];
 const codeHashes: Record<string, Hex> = {};
@@ -224,6 +288,15 @@ for (const deployment of verified) {
   const code = await client.getBytecode({ address: deployment.address });
   if (!code || code === "0x")
     throw new Error(`${deployment.name} has no live code.`);
+  if (network.name === "mainnet") {
+    const artifactPath = `contracts/out/${deployment.name}.sol/${deployment.name}.json`;
+    const artifact = (await Bun.file(artifactPath).json()) as RuntimeArtifact;
+    if (!matchesCompiledRuntime(code, artifact)) {
+      throw new Error(
+        `${deployment.name} runtime bytecode does not match this compiled checkout.`,
+      );
+    }
+  }
   codeHashes[deployment.name] = keccak256(code);
 
   let verifiedName = "";
@@ -254,9 +327,9 @@ const gitCommit = Bun.spawnSync(["git", "rev-parse", "HEAD"])
   .stdout.toString()
   .trim();
 const sourceFiles = [
-  ...Array.from(new Bun.Glob("contracts/**/*.sol").scanSync({ cwd: "contracts" })).map(
-    (file) => `contracts/${file}`,
-  ),
+  ...Array.from(
+    new Bun.Glob("contracts/**/*.sol").scanSync({ cwd: "contracts" }),
+  ).map((file) => `contracts/${file}`),
   "contracts/scripts/CurveDeploy.sol",
   "contracts/scripts/Deploy.s.sol",
   "contracts/foundry.toml",
@@ -282,7 +355,7 @@ const record = {
   sourceTreeSha256,
   sourceWorkingTreeDirty,
   launchpad,
-  deploymentBlock: created[3].blockNumber.toString(),
+  deploymentBlock: launchpadDeployment.blockNumber.toString(),
   quote: singletons.quoteToken,
   icarusFactory,
   owner,
@@ -293,11 +366,11 @@ const record = {
   feeDefaults: { feeBps, creatorShareBps, buybackShareBps, taxCapBps },
   supply: supply.toString(),
   curveSupply: curveSupply.toString(),
-  maxReserveBps: maxReserveBps.toString(),
+  walletCapBps,
   singletons: {
     escrow: singletons.escrow,
     locker: singletons.locker,
-    reserve: singletons.reserve,
+    buybackTreasury: singletons.buybackTreasury,
     tokenImplementation: singletons.tokenImplementation,
   },
   codeHashes,

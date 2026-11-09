@@ -18,7 +18,7 @@ contract MockLaunchpad is ICurveLaunchpad {
 
     address public treasury;
     address public locker;
-    uint256 public curveSupply = 800_000 ether;
+    uint256 public curveSupply = 800_000_000 ether;
 
     mapping(address token => Policy) internal _policy;
     mapping(address token => address) public poolOf;
@@ -28,12 +28,9 @@ contract MockLaunchpad is ICurveLaunchpad {
         treasury = treasury_;
     }
 
-    function createToken(uint256 supply, address reserveRecipient, uint256 reserveAmount)
-        external
-        returns (CurveToken token)
-    {
+    function createToken(uint256 supply) external returns (CurveToken token) {
         token = CurveToken(Clones.clone(address(tokenImplementation)));
-        token.initialize("Mock", "MOCK", supply, reserveRecipient, reserveAmount);
+        token.initialize("Mock", "MOCK", supply);
     }
 
     function unlock(CurveToken token) external {

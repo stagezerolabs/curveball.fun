@@ -2,8 +2,8 @@
 const contracts = {
   curveLaunchpadAbi: "CurveLaunchpad",
   curveFeeEscrowAbi: "CurveFeeEscrow",
+  curveBuybackTreasuryAbi: "CurveBuybackTreasury",
   curveLpLockerAbi: "CurveLpLocker",
-  curveHolderReserveAbi: "CurveHolderReserve",
   curveTokenAbi: "CurveToken",
 } as const;
 const outputPath = new URL("../../src/sdk/abis.generated.ts", import.meta.url)

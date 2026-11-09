@@ -58,8 +58,13 @@ const broadcast = (await Bun.file(broadcastPath).json()) as {
 const creations = broadcast.transactions.filter(
   (transaction) => transaction.transactionType === "CREATE",
 );
-if (creations.length !== 1 || creations[0].contractName !== "CurveIcarusSwapAdapter")
-  throw new Error("Broadcast does not contain exactly one swap adapter creation.");
+if (
+  creations.length !== 1 ||
+  creations[0].contractName !== "CurveIcarusSwapAdapter"
+)
+  throw new Error(
+    "Broadcast does not contain exactly one swap adapter creation.",
+  );
 const creation = creations[0];
 if (!creation.contractAddress)
   throw new Error("Broadcast is missing the swap adapter address.");
@@ -84,8 +89,14 @@ const abi = parseAbi([
   "function quoteToken() view returns (address)",
   "function icarusFactory() view returns (address)",
 ]);
-const readAdapter = (functionName: "launchpad" | "quoteToken" | "icarusFactory") =>
-  client.readContract({ address: adapter, abi, functionName } as never) as Promise<Address>;
+const readAdapter = (
+  functionName: "launchpad" | "quoteToken" | "icarusFactory",
+) =>
+  client.readContract({
+    address: adapter,
+    abi,
+    functionName,
+  } as never) as Promise<Address>;
 const [code, wiredLaunchpad, wiredQuote, wiredFactory] = await Promise.all([
   client.getBytecode({ address: adapter }),
   readAdapter("launchpad"),
@@ -100,25 +111,35 @@ const artifact = (await Bun.file(
   "contracts/out/CurveIcarusSwapAdapter.sol/CurveIcarusSwapAdapter.json",
 ).json()) as { bytecode: { object: Hex } };
 if (!/^0x[0-9a-fA-F]+$/.test(artifact.bytecode.object))
-  throw new Error("Compiled swap adapter bytecode is missing; run forge build.");
+  throw new Error(
+    "Compiled swap adapter bytecode is missing; run forge build.",
+  );
 const constructorArgs = encodeAbiParameters(
   [{ type: "address" }, { type: "address" }, { type: "address" }],
   [launchpad, quoteToken, icarusFactory],
 );
-const expectedCreationCode = `${artifact.bytecode.object}${constructorArgs.slice(2)}`.toLowerCase();
+const expectedCreationCode =
+  `${artifact.bytecode.object}${constructorArgs.slice(2)}`.toLowerCase();
 const [deploymentTx, liveReceipt] = await Promise.all([
   client.getTransaction({ hash: creation.hash }),
   client.getTransactionReceipt({ hash: creation.hash }),
 ]);
-if (deploymentTx.to !== null || deploymentTx.input.toLowerCase() !== expectedCreationCode)
-  throw new Error("Deployed swap adapter creation code does not match this checkout.");
+if (
+  deploymentTx.to !== null ||
+  deploymentTx.input.toLowerCase() !== expectedCreationCode
+)
+  throw new Error(
+    "Deployed swap adapter creation code does not match this checkout.",
+  );
 if (
   liveReceipt.status !== "success" ||
   !liveReceipt.contractAddress ||
   getAddress(liveReceipt.contractAddress) !== adapter ||
   liveReceipt.blockNumber !== BigInt(receipt.blockNumber)
 ) {
-  throw new Error("Onchain swap adapter receipt does not match the broadcast record.");
+  throw new Error(
+    "Onchain swap adapter receipt does not match the broadcast record.",
+  );
 }
 if (
   getAddress(wiredLaunchpad) !== launchpad ||
@@ -130,9 +151,14 @@ if (
 
 let verified = false;
 for (let attempt = 0; attempt < 12; attempt += 1) {
-  const response = await fetch(`${explorerOrigin}/api/v2/smart-contracts/${adapter}`);
+  const response = await fetch(
+    `${explorerOrigin}/api/v2/smart-contracts/${adapter}`,
+  );
   if (response.ok) {
-    const source = (await response.json()) as { is_verified?: boolean; name?: string };
+    const source = (await response.json()) as {
+      is_verified?: boolean;
+      name?: string;
+    };
     if (source.is_verified && source.name === "CurveIcarusSwapAdapter") {
       verified = true;
       break;
@@ -140,7 +166,8 @@ for (let attempt = 0; attempt < 12; attempt += 1) {
   }
   if (attempt < 11) await Bun.sleep(1_000);
 }
-if (!verified) throw new Error("Swap adapter source is not verified on Blockscout.");
+if (!verified)
+  throw new Error("Swap adapter source is not verified on Blockscout.");
 
 const record = {
   version: "icarus-swap-v1",
@@ -154,4 +181,6 @@ const record = {
   transactionHash: creation.hash,
 };
 await Bun.write(adapterRecordPath, `${JSON.stringify(record, null, 2)}\n`);
-console.log(`Recorded verified swap adapter ${adapter} for RISE ${networkName}.`);
+console.log(
+  `Recorded verified swap adapter ${adapter} for RISE ${networkName}.`,
+);

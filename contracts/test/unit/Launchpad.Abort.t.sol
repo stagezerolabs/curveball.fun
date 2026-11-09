@@ -6,8 +6,8 @@ import {CurveLaunchpad} from "../../contracts/CurveLaunchpad.sol";
 import {CurveToken} from "../../contracts/CurveToken.sol";
 
 contract LaunchpadAbortTest is Fixture {
-    uint256 constant S = 1_000_000 ether;
-    uint256 constant C = 800_000 ether;
+    uint256 constant S = 1_000_000_000 ether;
+    uint256 constant C = 800_000_000 ether;
 
     address token;
     uint256 timeout;
@@ -15,7 +15,7 @@ contract LaunchpadAbortTest is Fixture {
     function setUp() public override {
         super.setUp();
         timeout = launchpad.GRADUATION_TIMEOUT();
-        token = _launch(creator, 400, 0);
+        token = _launch(creator, 0);
         _buy(alice, token, 1 ether);
         _sellOut(bob, token);
     }
@@ -83,7 +83,7 @@ contract LaunchpadAbortTest is Fixture {
     }
 
     function test_abort_revertsForTradingOrGraduatedMarkets() public {
-        address trading = _launch(creator, 0, 0.05 ether);
+        address trading = _launch(creator, 0.05 ether);
         vm.warp(block.timestamp + timeout);
         vm.expectRevert(CurveLaunchpad.NotAbortable.selector);
         launchpad.abortGraduation(trading);

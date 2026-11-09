@@ -34,8 +34,16 @@ contract CurveIcarusSwapAdapter is ReentrancyGuard {
         uint256 amountOut
     );
 
-    constructor(address launchpad_, address quoteToken_, address icarusFactory_) {
-        if (launchpad_.code.length == 0 || quoteToken_.code.length == 0 || icarusFactory_.code.length == 0) {
+    constructor(
+        address launchpad_,
+        address quoteToken_,
+        address icarusFactory_
+    ) {
+        if (
+            launchpad_.code.length == 0 ||
+            quoteToken_.code.length == 0 ||
+            icarusFactory_.code.length == 0
+        ) {
             revert InvalidConfig();
         }
         launchpad = ICurveLaunchpad(launchpad_);
@@ -44,9 +52,13 @@ contract CurveIcarusSwapAdapter is ReentrancyGuard {
     }
 
     /// @notice Current fee-inclusive output for one graduated token/WETH basic-pool swap.
-    function quoteExactIn(address token, bool buy, uint256 amountIn) external view returns (uint256 amountOut) {
+    function quoteExactIn(
+        address token,
+        bool buy,
+        uint256 amountIn
+    ) external view returns (uint256 amountOut) {
         if (amountIn == 0) revert InvalidTrade();
-        (IIcarusPool pool, address inputToken,) = _poolFor(token, buy);
+        (IIcarusPool pool, address inputToken, ) = _poolFor(token, buy);
         amountOut = pool.getAmountOut(amountIn, inputToken);
     }
 
@@ -56,23 +68,47 @@ contract CurveIcarusSwapAdapter is ReentrancyGuard {
     /// @param amountIn Exact input amount in the input asset's smallest units.
     /// @param minOut Minimum acceptable output amount; protects against reserve and fee changes.
     /// @param deadline Last block timestamp at which this swap can execute.
-    function swapExactIn(address token, bool buy, uint256 amountIn, uint256 minOut, uint256 deadline)
-        external
-        nonReentrant
-        returns (uint256 amountOut)
-    {
+    function swapExactIn(
+        address token,
+        bool buy,
+        uint256 amountIn,
+        uint256 minOut,
+        uint256 deadline
+    ) external nonReentrant returns (uint256 amountOut) {
         if (amountIn == 0 || minOut == 0) revert InvalidTrade();
         if (block.timestamp > deadline) revert Expired();
-        (IIcarusPool pool, address inputToken, bool outputIsToken0) = _poolFor(token, buy);
+        (IIcarusPool pool, address inputToken, bool outputIsToken0) = _poolFor(
+            token,
+            buy
+        );
         amountOut = pool.getAmountOut(amountIn, inputToken);
         if (amountOut < minOut) revert Slippage();
 
-        IERC20(inputToken).safeTransferFrom(msg.sender, address(pool), amountIn);
-        pool.swap(outputIsToken0 ? amountOut : 0, outputIsToken0 ? 0 : amountOut, msg.sender, "");
-        emit SwapExecuted(token, msg.sender, address(pool), buy, amountIn, amountOut);
+        IERC20(inputToken).safeTransferFrom(
+            msg.sender,
+            address(pool),
+            amountIn
+        );
+        pool.swap(
+            outputIsToken0 ? amountOut : 0,
+            outputIsToken0 ? 0 : amountOut,
+            msg.sender,
+            ""
+        );
+        emit SwapExecuted(
+            token,
+            msg.sender,
+            address(pool),
+            buy,
+            amountIn,
+            amountOut
+        );
     }
 
-    function _poolFor(address token, bool buy)
+    function _poolFor(
+        address token,
+        bool buy
+    )
         internal
         view
         returns (IIcarusPool pool, address inputToken, bool outputIsToken0)
@@ -81,13 +117,19 @@ contract CurveIcarusSwapAdapter is ReentrancyGuard {
         if (icarusFactory.isPaused()) revert PoolPaused();
 
         address poolAddress = launchpad.poolOf(token);
-        if (poolAddress == address(0) || poolAddress != icarusFactory.getPool(token, quoteToken, false)) {
+        if (
+            poolAddress == address(0) ||
+            poolAddress != icarusFactory.getPool(token, quoteToken, false)
+        ) {
             revert PoolUnavailable();
         }
         pool = IIcarusPool(poolAddress);
         address token0 = pool.token0();
         address token1 = pool.token1();
-        if (!((token0 == token && token1 == quoteToken) || (token0 == quoteToken && token1 == token))) {
+        if (
+            !((token0 == token && token1 == quoteToken) ||
+                (token0 == quoteToken && token1 == token))
+        ) {
             revert PoolMismatch();
         }
         inputToken = buy ? quoteToken : token;

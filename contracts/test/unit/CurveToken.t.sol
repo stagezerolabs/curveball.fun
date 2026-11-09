@@ -7,13 +7,11 @@ import {CurveToken} from "../../contracts/CurveToken.sol";
 
 /// @dev The test contract plays the launchpad: it deploys the implementation, so it is `launchpad`.
 contract CurveTokenTest is Test {
-    uint256 constant SUPPLY = 1_000_000 ether;
-    uint256 constant RESERVE = 40_000 ether;
+    uint256 constant SUPPLY = 1_000_000_000 ether;
     address constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
 
     CurveToken implementation;
     CurveToken token;
-    address reserve = makeAddr("reserve");
     address alice;
     uint256 aliceKey;
     address bob = makeAddr("bob");
@@ -27,7 +25,7 @@ contract CurveTokenTest is Test {
 
     function _clone(string memory name_, string memory symbol_, bytes32 salt) internal returns (CurveToken t) {
         t = CurveToken(Clones.cloneDeterministic(address(implementation), salt));
-        t.initialize(name_, symbol_, SUPPLY, reserve, RESERVE);
+        t.initialize(name_, symbol_, SUPPLY);
     }
 
     function _permit(CurveToken t, address spender, uint256 value) internal {
@@ -54,44 +52,43 @@ contract CurveTokenTest is Test {
 
     // ---------------------------------------------------------------- initialize
 
-    function test_initialize_mintsSupplyAndReserve() public view {
+    function test_initialize_mintsFullSupply() public view {
         assertEq(token.name(), "Curve Meme");
         assertEq(token.symbol(), "MEME");
         assertEq(token.decimals(), 18);
         assertEq(token.totalSupply(), SUPPLY);
-        assertEq(token.balanceOf(reserve), RESERVE);
-        assertEq(token.balanceOf(address(this)), SUPPLY - RESERVE - 100 ether);
+        assertEq(token.balanceOf(address(this)), SUPPLY - 100 ether);
         assertEq(token.launchpad(), address(this));
         assertFalse(token.unlocked());
     }
 
     function test_initialize_onlyOnce() public {
         vm.expectRevert(CurveToken.AlreadyInitialized.selector);
-        token.initialize("Again", "AGN", SUPPLY, reserve, 0);
+        token.initialize("Again", "AGN", SUPPLY);
     }
 
     function test_initialize_onlyLaunchpad() public {
         CurveToken t = CurveToken(Clones.clone(address(implementation)));
         vm.prank(bob);
         vm.expectRevert(CurveToken.NotLaunchpad.selector);
-        t.initialize("Meme", "MEME", SUPPLY, reserve, 0);
+        t.initialize("Meme", "MEME", SUPPLY);
     }
 
     function test_initialize_implementationIsSealed() public {
         vm.expectRevert(CurveToken.AlreadyInitialized.selector);
-        implementation.initialize("Impl", "IMPL", SUPPLY, reserve, 0);
+        implementation.initialize("Impl", "IMPL", SUPPLY);
     }
 
     function test_initialize_rejectsBadMetadata() public {
         address t = Clones.clone(address(implementation));
         vm.expectRevert(CurveToken.InvalidMetadata.selector);
-        CurveToken(t).initialize("", "MEME", SUPPLY, reserve, 0);
+        CurveToken(t).initialize("", "MEME", SUPPLY);
         vm.expectRevert(CurveToken.InvalidMetadata.selector);
-        CurveToken(t).initialize("Meme", "", SUPPLY, reserve, 0);
+        CurveToken(t).initialize("Meme", "", SUPPLY);
         vm.expectRevert(CurveToken.InvalidMetadata.selector);
-        CurveToken(t).initialize(string(new bytes(65)), "MEME", SUPPLY, reserve, 0);
+        CurveToken(t).initialize(string(new bytes(65)), "MEME", SUPPLY);
         vm.expectRevert(CurveToken.InvalidMetadata.selector);
-        CurveToken(t).initialize("Meme", string(new bytes(13)), SUPPLY, reserve, 0);
+        CurveToken(t).initialize("Meme", string(new bytes(13)), SUPPLY);
     }
 
     // ---------------------------------------------------------------- transfer lock
@@ -100,12 +97,6 @@ contract CurveTokenTest is Test {
         vm.prank(alice);
         vm.expectRevert(CurveToken.Locked.selector);
         token.transfer(bob, 1 ether);
-    }
-
-    function test_lock_blocksReserveUntilUnlock() public {
-        vm.prank(reserve);
-        vm.expectRevert(CurveToken.Locked.selector);
-        token.transfer(alice, 1 ether);
     }
 
     function test_lock_blocksApproveThenTransferFrom() public {

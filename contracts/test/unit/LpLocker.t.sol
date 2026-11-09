@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import {Test} from "forge-std/Test.sol";
+import {CurveBuybackTreasury} from "../../contracts/CurveBuybackTreasury.sol";
 import {CurveFeeEscrow} from "../../contracts/CurveFeeEscrow.sol";
 import {CurveLpLocker} from "../../contracts/CurveLpLocker.sol";
 import {CurveToken} from "../../contracts/CurveToken.sol";
@@ -10,7 +11,7 @@ import {MockLaunchpad} from "../mocks/MockLaunchpad.sol";
 import {MockWETH} from "../mocks/MockWETH.sol";
 
 contract LpLockerTest is Test {
-    uint256 constant SUPPLY = 1_000_000 ether;
+    uint256 constant SUPPLY = 1_000_000_000 ether;
 
     address treasury = makeAddr("treasury");
     address creator = makeAddr("creator");
@@ -20,17 +21,22 @@ contract LpLockerTest is Test {
     MockIcarusFactory factory = new MockIcarusFactory();
     MockLaunchpad launchpad = new MockLaunchpad(treasury);
     CurveFeeEscrow escrow;
+    CurveBuybackTreasury buybackTreasury;
     CurveLpLocker locker;
 
     function setUp() public {
-        escrow = new CurveFeeEscrow(address(launchpad), address(weth), address(factory), address(this));
+        address predicted = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 1);
+        escrow = new CurveFeeEscrow(address(launchpad), address(weth), address(factory), address(this), predicted);
+        buybackTreasury = new CurveBuybackTreasury(
+            address(launchpad), address(escrow), address(weth), address(factory), address(this)
+        );
         locker = new CurveLpLocker(address(launchpad), address(escrow));
         launchpad.setLocker(address(locker));
     }
 
     /// @dev Graduates a fresh token into a pool whose LP sits in the locker.
     function _graduate() internal returns (CurveToken token, MockIcarusPool pool) {
-        token = launchpad.createToken(SUPPLY, address(0), 0);
+        token = launchpad.createToken(SUPPLY);
         launchpad.setFeePolicy(address(token), creator, 5_000, 2_000);
         launchpad.unlock(token);
         pool = MockIcarusPool(factory.createPool(address(token), address(weth), false));
@@ -88,11 +94,11 @@ contract LpLockerTest is Test {
         assertGt(quoteFeesA, 0);
         assertEq(tokenFeesB, 0);
         assertGt(quoteFeesB, quoteFeesA);
-        assertEq(weth.balanceOf(address(escrow)), quoteFeesA + quoteFeesB);
-        assertEq(escrow.buybackBalance(address(a)), quoteFeesA * 2_000 / 10_000);
-        assertEq(escrow.buybackBalance(address(b)), quoteFeesB * 2_000 / 10_000);
+        assertEq(weth.balanceOf(address(escrow)), (quoteFeesA + quoteFeesB) * 8_000 / 10_000);
+        assertEq(buybackTreasury.quoteBudget(), (quoteFeesA + quoteFeesB) * 2_000 / 10_000);
+        assertEq(buybackTreasury.tokenBudget(address(a)), tokenFeesA * 2_000 / 10_000);
         assertEq(escrow.claimable(creator, address(a)), tokenFeesA * 5_000 / 10_000);
-        assertEq(a.totalSupply(), supplyA - tokenFeesA * 2_000 / 10_000, "meme-side buyback share is burned");
+        assertEq(a.totalSupply(), supplyA, "LP fees do not burn market tokens");
         assertEq(weth.balanceOf(address(locker)), 5 ether);
         assertEq(a.balanceOf(address(locker)), 7 ether);
         assertEq(poolA.balanceOf(address(locker)), lpA);

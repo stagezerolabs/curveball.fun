@@ -3,8 +3,8 @@ pragma solidity 0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {CurveBuybackTreasury} from "../../contracts/CurveBuybackTreasury.sol";
 import {CurveFeeEscrow} from "../../contracts/CurveFeeEscrow.sol";
-import {CurveHolderReserve} from "../../contracts/CurveHolderReserve.sol";
 import {CurveLaunchpad} from "../../contracts/CurveLaunchpad.sol";
 import {CurveLpLocker} from "../../contracts/CurveLpLocker.sol";
 import {CurveMath} from "../../contracts/libraries/CurveMath.sol";
@@ -33,7 +33,6 @@ contract Handler is Test {
         LpClaim,
         FeeClaim,
         Buyback,
-        ReserveClaim,
         Rescue,
         Admin,
         Pause,
@@ -49,14 +48,13 @@ contract Handler is Test {
     }
 
     uint256 public constant ACTIONS = uint256(type(Action).max) + 1;
-    uint256 internal constant S = 1_000_000 ether;
-    uint256 internal constant C = 800_000 ether;
+    uint256 internal constant S = 1_000_000_000 ether;
+    uint256 internal constant C = 800_000_000 ether;
     uint256 internal constant MAX_MARKETS = 4;
 
     CurveLaunchpad public immutable launchpad;
     CurveFeeEscrow public immutable escrow;
     CurveLpLocker public immutable locker;
-    CurveHolderReserve public immutable reserve;
     MockWETH public immutable weth;
     MockIcarusFactory public immutable icarus;
     address public immutable owner;
@@ -85,7 +83,6 @@ contract Handler is Test {
     uint256 public launchpadSurplus;
     mapping(address token => uint256) public lastSupply;
     mapping(address pool => uint256) public lastLockerLp;
-    mapping(address token => uint256) public reserveClaimed;
     /// @notice Tokens holders sent the launchpad after graduation, less what was rescued.
     mapping(address token => uint256) public donatedAfterGraduation;
 
@@ -99,38 +96,36 @@ contract Handler is Test {
         CurveLaunchpad launchpad_,
         CurveFeeEscrow escrow_,
         CurveLpLocker locker_,
-        CurveHolderReserve reserve_,
         MockWETH weth_,
         MockIcarusFactory icarus_,
         address owner_,
         address guardian_
     ) {
-        (launchpad, escrow, locker, reserve, weth, icarus) = (launchpad_, escrow_, locker_, reserve_, weth_, icarus_);
+        (launchpad, escrow, locker, weth, icarus) = (launchpad_, escrow_, locker_, weth_, icarus_);
         (owner, guardian, treasury) = (owner_, guardian_, launchpad_.treasury());
         actors.push(makeAddr("actor0"));
         actors.push(makeAddr("actor1"));
         actors.push(makeAddr("actor2"));
         actors.push(makeAddr("actor3"));
         // Two markets from the start, so trading actions have something to act on in every run.
-        launch(0, 0, 400, 0.1 ether);
-        launch(1, 50, 0, 0);
+        launch(0, 0, 0.1 ether);
+        launch(1, 50, 0);
     }
 
     // ---------------------------------------------------------------- curve
 
-    function launch(uint256 actorSeed, uint16 taxBps, uint16 reserveBps, uint256 firstBuy) public step {
+    function launch(uint256 actorSeed, uint16 taxBps, uint256 firstBuy) public step {
         if (tokens.length >= MAX_MARKETS) return;
         address actor = _actor(actorSeed);
         CurveLaunchpad.FeeDefaults memory fees = _feeDefaults();
         taxBps = uint16(bound(taxBps, 0, fees.taxCapBps));
-        reserveBps = uint16(bound(reserveBps, 0, 400));
         firstBuy = firstBuy % 3 == 0 ? 0 : bound(firstBuy, 0.001 ether, 2 ether);
         _fund(actor, launchpad.launchFee() + firstBuy);
         uint256 vQ0 = launchpad.graduationTarget() * (S - C) / C;
 
         bool paused = launchpad.paused();
         vm.prank(actor);
-        try launchpad.launch(_meta(), taxBps, reserveBps, firstBuy, 0) returns (address token, uint256) {
+        try launchpad.launch(_meta(), taxBps, firstBuy, 0) returns (address token, uint256) {
             if (paused) _violate("launch while paused");
             tokens.push(token);
             ghosts[token] = Ghost(CurveLaunchpad.State.Trading, 0, fees, taxBps, vQ0);
@@ -379,34 +374,23 @@ contract Handler is Test {
     function buyback(uint256 marketSeed) external step {
         (address token,) = _graduated(marketSeed);
         if (token == address(0)) return;
-        uint256 last = escrow.lastBuyback(token);
-        bool due =
-            escrow.buybackBalance(token) != 0 && (last == 0 || block.timestamp >= last + escrow.BUYBACK_INTERVAL());
-        try escrow.buyback(token) returns (uint256 burned) {
-            if (!due) _violate("buyback ran early or with nothing to buy");
+        CurveBuybackTreasury buybacks = escrow.buybackTreasury();
+        if (buybacks.curveToken() == address(0)) {
+            vm.prank(owner);
+            buybacks.setCurveToken(token);
+        }
+        if (buybacks.tokenBudget(token) != 0) {
+            try buybacks.convert(token) {}
+            catch {
+                _violate("fee conversion reverted");
+            }
+        }
+        if (buybacks.quoteBudget() == 0 || buybacks.curveToken() != token) return;
+        vm.prank(owner);
+        try buybacks.buyback() returns (uint256 burned) {
             if (burned != 0) reached[Action.Buyback]++;
         } catch {
-            if (due) _violate("due buyback reverted instead of skipping");
-        }
-    }
-
-    function reserveClaim(uint256 actorSeed, uint256 marketSeed) external step {
-        address token = _token(marketSeed);
-        address actor = _actor(actorSeed);
-        for (uint256 i = 0; i < actors.length && reserve.claimable(token, actor) == 0; i++) {
-            actor = _actor(actorSeed % actors.length + i + 1);
-        }
-        uint256 claimable = reserve.claimable(token, actor);
-        bool graduated = ghosts[token].state == CurveLaunchpad.State.Graduated;
-        if (!graduated && claimable != 0) _violate("reserve claimable before graduation");
-        vm.prank(actor);
-        try reserve.claim(token) returns (uint256 amount) {
-            if (!graduated) _violate("reserve claimed before graduation");
-            if (amount != claimable) _violate("reserve paid other than claimable");
-            reserveClaimed[token] += amount;
-            reached[Action.ReserveClaim]++;
-        } catch {
-            if (claimable != 0) _violate("claimable reserve reverted");
+            _violate("due buyback reverted");
         }
     }
 
@@ -537,7 +521,7 @@ contract Handler is Test {
         (uint256 r0, uint256 r1,) = MockIcarusPool(pool).getReserves();
         (uint256 poolTokens, uint256 quote) = MockIcarusPool(pool).token0() == token ? (r0, r1) : (r1, r0);
         if (quote != quoteInPool) _violate("pool quote is not realQuote plus the synced donation");
-        uint256 cap = S - C - m.reserveTokens;
+        uint256 cap = S - C;
         uint256 ideal = quoteInPool * uint256(m.virtualToken) / uint256(m.virtualQuote);
         if (poolTokens != (ideal < cap ? ideal : cap)) _violate("pool opened off the curve-end price");
     }

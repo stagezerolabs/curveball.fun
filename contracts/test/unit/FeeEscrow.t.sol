@@ -3,6 +3,7 @@ pragma solidity 0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {CurveBuybackTreasury} from "../../contracts/CurveBuybackTreasury.sol";
 import {CurveFeeEscrow} from "../../contracts/CurveFeeEscrow.sol";
 import {CurveToken} from "../../contracts/CurveToken.sol";
 import {IIcarusPool} from "../../contracts/interfaces/IIcarus.sol";
@@ -11,7 +12,7 @@ import {MockLaunchpad} from "../mocks/MockLaunchpad.sol";
 import {MockWETH} from "../mocks/MockWETH.sol";
 
 contract FeeEscrowTest is Test {
-    uint256 constant SUPPLY = 1_000_000 ether;
+    uint256 constant SUPPLY = 1_000_000_000 ether;
     uint16 constant CREATOR_SHARE = 5_000;
     uint16 constant BUYBACK_SHARE = 2_000;
 
@@ -25,13 +26,17 @@ contract FeeEscrowTest is Test {
     MockIcarusFactory factory = new MockIcarusFactory();
     MockLaunchpad launchpad = new MockLaunchpad(treasury);
     CurveFeeEscrow escrow;
+    CurveBuybackTreasury buybackTreasury;
     CurveToken token;
     MockIcarusPool pool;
 
     function setUp() public {
-        escrow = new CurveFeeEscrow(address(launchpad), address(weth), address(factory), owner);
+        address predicted = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 1);
+        escrow = new CurveFeeEscrow(address(launchpad), address(weth), address(factory), owner, predicted);
+        buybackTreasury =
+            new CurveBuybackTreasury(address(launchpad), address(escrow), address(weth), address(factory), owner);
         launchpad.setLocker(locker);
-        token = launchpad.createToken(SUPPLY, address(0), 0);
+        token = launchpad.createToken(SUPPLY);
         launchpad.setFeePolicy(address(token), creator, CREATOR_SHARE, BUYBACK_SHARE);
     }
 
@@ -53,11 +58,11 @@ contract FeeEscrowTest is Test {
 
         uint256 toCreator = escrow.claimable(creator, address(weth));
         uint256 toTreasury = escrow.claimable(treasury, address(weth));
-        uint256 toBuyback = escrow.buybackBalance(address(token));
+        uint256 toBuyback = buybackTreasury.quoteBudget();
         assertEq(toCreator + toTreasury + toBuyback, uint256(fee) + tax);
         assertEq(toCreator, uint256(fee) * creatorShare / 10_000 + tax);
         assertEq(toBuyback, uint256(fee) * buybackShare / 10_000);
-        assertEq(escrow.totalOwed(address(weth)), uint256(fee) + tax);
+        assertEq(escrow.totalOwed(address(weth)), uint256(fee) + tax - toBuyback);
     }
 
     function test_distribute_revertsWhenUnbacked() public {
@@ -82,7 +87,7 @@ contract FeeEscrowTest is Test {
         escrow.distribute(address(token), address(weth), 1 ether, 0);
         vm.prank(address(launchpad));
         escrow.distribute(address(token), address(weth), 1 ether, 0);
-        assertEq(escrow.totalOwed(address(weth)), 2 ether);
+        assertEq(escrow.totalOwed(address(weth)), 1.6 ether);
     }
 
     function test_distribute_revertsForForeignAsset() public {
@@ -93,18 +98,20 @@ contract FeeEscrowTest is Test {
         escrow.distribute(address(token), address(other), 1 ether, 0);
     }
 
-    function test_distribute_memeAsset_burnsBuybackShare() public {
+    function test_distribute_marketTokenFeeShareFundsConversionBudget() public {
         launchpad.unlock(token);
+        pool = MockIcarusPool(factory.createPool(address(token), address(weth), false));
+        launchpad.setPool(address(token), address(pool));
         launchpad.send(token, address(escrow), 100 ether);
         vm.prank(locker);
         escrow.distribute(address(token), address(token), 100 ether, 0);
 
-        assertEq(token.totalSupply(), SUPPLY - 20 ether);
+        assertEq(token.totalSupply(), SUPPLY);
         assertEq(token.balanceOf(address(escrow)), 80 ether);
         assertEq(escrow.claimable(creator, address(token)), 50 ether);
         assertEq(escrow.claimable(treasury, address(token)), 30 ether);
         assertEq(escrow.totalOwed(address(token)), 80 ether);
-        assertEq(escrow.buybackBalance(address(token)), 0);
+        assertEq(buybackTreasury.tokenBudget(address(token)), 20 ether);
     }
 
     // ---------------------------------------------------------------- claim
@@ -121,7 +128,8 @@ contract FeeEscrowTest is Test {
         vm.prank(treasury);
         escrow.claim(address(weth));
         assertEq(weth.balanceOf(treasury), 3 ether);
-        assertEq(escrow.totalOwed(address(weth)), 2 ether, "only the buyback balance remains");
+        assertEq(escrow.totalOwed(address(weth)), 0);
+        assertEq(buybackTreasury.quoteBudget(), 2 ether);
     }
 
     // ---------------------------------------------------------------- buyback
@@ -139,6 +147,8 @@ contract FeeEscrowTest is Test {
         // does not, so mark it here like the real `graduate` flow does.
         vm.prank(address(launchpad));
         escrow.markGraduated(address(token), address(pool));
+        vm.prank(owner);
+        buybackTreasury.setCurveToken(address(token));
         for (uint256 i = 0; i < observationWindows; i++) {
             vm.warp(block.timestamp + 1801);
             pool.sync();
@@ -153,28 +163,32 @@ contract FeeEscrowTest is Test {
         pool.swap(out0, out1, attacker, "");
     }
 
-    function _expectSkip(CurveFeeEscrow.SkipReason reason) internal {
-        uint256 balance = escrow.buybackBalance(address(token));
-        vm.expectEmit(address(escrow));
-        emit CurveFeeEscrow.BuybackSkipped(address(token), reason);
-        assertEq(escrow.buyback(address(token)), 0);
-        assertEq(escrow.buybackBalance(address(token)), balance);
-        assertEq(escrow.lastBuyback(address(token)), 0, "a skip must not start the interval");
+    function _ownerBuyback() internal returns (uint256) {
+        vm.prank(owner);
+        return buybackTreasury.buyback();
+    }
+
+    function _expectSkip() internal {
+        uint256 balance = buybackTreasury.quoteBudget();
+        vm.prank(owner);
+        assertEq(buybackTreasury.buyback(), 0);
+        assertEq(buybackTreasury.quoteBudget(), balance);
+        assertEq(buybackTreasury.lastBuyback(), 0);
     }
 
     function test_buyback_revertsBeforeGraduation() public {
         _distribute(4 ether, 0);
-        vm.expectRevert(CurveFeeEscrow.NotGraduated.selector);
-        escrow.buyback(address(token));
+        vm.expectRevert(CurveBuybackTreasury.NotReady.selector);
+        buybackTreasury.buyback();
     }
 
-    /// @dev The buyback credit of a never-graduated market is locked; the view makes it readable
-    ///      for holders trackers and rescue accounting.
-    function test_lockedBuyback_readsTheNeverGraduatedBalance() public {
+    function test_buybackBudget_staysAvailableAfterTargetSelection() public {
         _distribute(4 ether, 0);
-        assertEq(escrow.lockedBuyback(address(token)), 0.8 ether, "pre-graduation buyback credit is locked");
+        assertEq(buybackTreasury.quoteBudget(), 0.8 ether);
+        assertEq(buybackTreasury.curveToken(), address(0));
         _graduate(3, 0);
-        assertEq(escrow.lockedBuyback(address(token)), 0, "after graduation it is spendable via buyback");
+        assertEq(buybackTreasury.quoteBudget(), 0.8 ether);
+        assertEq(buybackTreasury.curveToken(), address(token));
     }
 
     function test_buyback_spendsAChunk_andBurnsTheOutput() public {
@@ -182,54 +196,51 @@ contract FeeEscrowTest is Test {
         uint256 expectedOut = pool.getAmountOut(0.01 ether, address(weth));
         uint256 supplyBefore = token.totalSupply();
 
-        uint256 burned = escrow.buyback(address(token));
+        uint256 burned = _ownerBuyback();
 
         assertEq(burned, expectedOut);
         assertEq(token.totalSupply(), supplyBefore - burned);
         assertEq(token.balanceOf(address(escrow)), 0);
-        assertEq(escrow.buybackBalance(address(token)), 0.03 ether);
-        assertEq(escrow.totalOwed(address(weth)), 0.19 ether);
-        assertEq(weth.balanceOf(address(escrow)), 0.19 ether);
-        assertEq(escrow.lastBuyback(address(token)), block.timestamp);
+        assertEq(buybackTreasury.quoteBudget(), 0.03 ether);
+        assertEq(escrow.totalOwed(address(weth)), 0.16 ether);
+        assertEq(weth.balanceOf(address(escrow)), 0.16 ether);
+        assertEq(buybackTreasury.lastBuyback(), block.timestamp);
     }
 
     function test_buyback_capsTheChunkAtMaxPoolImpact() public {
         _graduate(3, 4 ether);
-        escrow.buyback(address(token));
-        assertEq(escrow.buybackBalance(address(token)), 0.8 ether - 10 ether * 25 / 10_000);
+        _ownerBuyback();
+        assertEq(buybackTreasury.quoteBudget(), 0.8 ether - 10 ether * 25 / 10_000);
     }
 
     function test_buyback_spendsADustBalanceWhole() public {
         _graduate(3, 15);
-        assertEq(escrow.buybackBalance(address(token)), 3);
-        assertGt(escrow.buyback(address(token)), 0);
-        assertEq(escrow.buybackBalance(address(token)), 0);
+        assertEq(buybackTreasury.quoteBudget(), 3);
+        assertGt(_ownerBuyback(), 0);
+        assertEq(buybackTreasury.quoteBudget(), 0);
     }
 
     function test_buyback_worksForEitherPoolOrientation() public {
         bool firstIsToken0 = address(token) < address(weth);
         while ((address(token) < address(weth)) == firstIsToken0) {
-            token = launchpad.createToken(SUPPLY, address(0), 0);
+            token = launchpad.createToken(SUPPLY);
         }
         launchpad.setFeePolicy(address(token), creator, CREATOR_SHARE, BUYBACK_SHARE);
         _graduate(3, 0.2 ether);
         uint256 expectedOut = pool.getAmountOut(0.01 ether, address(weth));
-        assertEq(escrow.buyback(address(token)), expectedOut);
+        assertEq(_ownerBuyback(), expectedOut);
     }
 
-    function test_buyback_revertsInsideInterval_andKeepsWorkingOnAnIdlePool() public {
+    function test_buyback_keepsWorkingOnAnIdlePoolForOwner() public {
         _graduate(3, 40 ether);
-        escrow.buyback(address(token));
-        vm.warp(block.timestamp + 1 hours - 1);
-        vm.expectRevert(CurveFeeEscrow.TooSoon.selector);
-        escrow.buyback(address(token));
+        _ownerBuyback();
 
         // Nobody else touches the pool: each buyback's own price move must not wedge the next one.
         vm.warp(block.timestamp + 1);
         for (uint256 i = 0; i < 6; i++) {
-            uint256 balance = escrow.buybackBalance(address(token));
-            assertGt(escrow.buyback(address(token)), 0);
-            assertLt(escrow.buybackBalance(address(token)), balance);
+            uint256 balance = buybackTreasury.quoteBudget();
+            assertGt(_ownerBuyback(), 0);
+            assertLt(buybackTreasury.quoteBudget(), balance);
             vm.warp(block.timestamp + 1 hours);
         }
     }
@@ -243,22 +254,21 @@ contract FeeEscrowTest is Test {
         uint256 burned;
         for (uint256 i = 0; i < 2 && burned == 0; i++) {
             vm.warp(block.timestamp + 1 hours);
-            burned = escrow.buyback(address(token));
+            burned = _ownerBuyback();
         }
         assertGt(burned, 0);
     }
 
     function test_buyback_revertsWithNothingToBuy() public {
-        _graduate(3, 4 ether);
-        CurveToken other = launchpad.createToken(SUPPLY, address(0), 0);
-        launchpad.setPool(address(other), address(pool));
-        vm.expectRevert(CurveFeeEscrow.NothingToBuy.selector);
-        escrow.buyback(address(other));
+        _graduate(3, 0);
+        vm.prank(owner);
+        vm.expectRevert(CurveBuybackTreasury.NothingToSpend.selector);
+        buybackTreasury.buyback();
     }
 
     function test_buyback_skipsWithTooFewObservations() public {
         _graduate(2, 4 ether);
-        _expectSkip(CurveFeeEscrow.SkipReason.FewObservations);
+        _expectSkip();
     }
 
     /// @dev Fail-closed: a pool reachable through the launchpad but never recorded at graduation
@@ -275,38 +285,41 @@ contract FeeEscrowTest is Test {
             pool.sync();
         }
         assertGt(pool.observationLength(), 3);
-        assertEq(escrow.seedObservations(address(token)), 0, "the mock launchpad does not graduate");
+        assertEq(buybackTreasury.seedObservations(address(token)), 0, "the mock launchpad does not graduate");
 
         _distribute(4 ether, 0);
-        _expectSkip(CurveFeeEscrow.SkipReason.FewObservations);
+        vm.prank(owner);
+        vm.expectRevert(CurveBuybackTreasury.InvalidTarget.selector);
+        buybackTreasury.setCurveToken(address(token));
+        assertEq(buybackTreasury.quoteBudget(), 0.8 ether);
     }
 
     function test_buyback_skipsWhenQuoteReverts() public {
         _graduate(3, 4 ether);
         vm.mockCallRevert(address(pool), abi.encodeWithSelector(IIcarusPool.quote.selector), "");
-        _expectSkip(CurveFeeEscrow.SkipReason.QuoteFailed);
+        _expectSkip();
     }
 
     function test_buyback_skipsWhileIcarusIsPaused() public {
         _graduate(3, 4 ether);
         factory.setPauseState(true);
-        _expectSkip(CurveFeeEscrow.SkipReason.PoolPaused);
+        _expectSkip();
         assertEq(weth.balanceOf(address(pool)), 10 ether, "no quote left stranded in the pool");
 
         factory.setPauseState(false);
-        assertGt(escrow.buyback(address(token)), 0);
+        assertGt(_ownerBuyback(), 0);
     }
 
     function test_buyback_toleratesASmallFrontRun() public {
         _graduate(3, 4 ether);
         _frontRun(0.01 ether);
-        assertGt(escrow.buyback(address(token)), 0);
+        assertGt(_ownerBuyback(), 0);
     }
 
     function test_buyback_skipsWhenSandwichedBeyondTheBand() public {
         _graduate(3, 4 ether);
         _frontRun(0.1 ether);
-        _expectSkip(CurveFeeEscrow.SkipReason.Slippage);
+        _expectSkip();
     }
 
     // ---------------------------------------------------------------- admin

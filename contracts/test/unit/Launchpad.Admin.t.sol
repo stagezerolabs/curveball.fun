@@ -24,8 +24,8 @@ contract LaunchpadAdminTest is Test {
         c.icarusFactory = makeAddr("icarus");
         c.escrow = makeAddr("escrow");
         c.locker = makeAddr("locker");
-        c.reserve = makeAddr("reserve");
         c.launchFee = 0.001 ether;
+        c.walletCapBps = 10_000;
         c.graduationTarget = 4 ether;
         c.fees = CurveLaunchpad.FeeDefaults(75, 5_000, 2_500, 50);
     }
@@ -39,19 +39,22 @@ contract LaunchpadAdminTest is Test {
         assertEq(launchpad.guardian(), guardian);
         assertEq(launchpad.locker(), makeAddr("locker"));
         assertEq(launchpad.graduationTarget(), 4 ether);
-        assertEq(launchpad.curveSupply(), 800_000 ether);
-        assertEq(launchpad.MAX_RESERVE_TOKENS(), 40_000 ether);
-        assertEq(launchpad.MAX_RESERVE_BPS(), 400);
+        assertEq(launchpad.CURVE_SUPPLY(), 800_000_000 ether);
         CurveToken implementation = CurveToken(launchpad.tokenImplementation());
         assertEq(implementation.launchpad(), address(launchpad));
         vm.prank(address(launchpad));
         vm.expectRevert(CurveToken.AlreadyInitialized.selector);
-        implementation.initialize("x", "x", 1, address(0), 0);
+        implementation.initialize("x", "x", 1);
     }
 
     function test_constructor_rejectsBadConfig() public {
         CurveLaunchpad.Config memory c = _config();
         c.escrow = address(0);
+        vm.expectRevert(CurveLaunchpad.InvalidConfig.selector);
+        new CurveLaunchpad(c);
+
+        c = _config();
+        c.walletCapBps = 0;
         vm.expectRevert(CurveLaunchpad.InvalidConfig.selector);
         new CurveLaunchpad(c);
 

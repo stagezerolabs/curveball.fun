@@ -3,7 +3,7 @@ pragma solidity 0.8.24;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Fixture} from "../Fixture.sol";
-import {CurveFeeEscrow} from "../../contracts/CurveFeeEscrow.sol";
+import {CurveBuybackTreasury} from "../../contracts/CurveBuybackTreasury.sol";
 import {MockIcarusPool} from "../mocks/MockIcarus.sol";
 
 /// @dev Regression suite for audit finding "TWAP is not reliable (CurveFeeEscrow)".
@@ -11,7 +11,7 @@ import {MockIcarusPool} from "../mocks/MockIcarus.sol";
 /// Pre-fix: a pool pre-created without minting and stacked with zeroed observations by the public
 /// `sync()` made the first buyback's two-window TWAP query return 0, voiding the slippage band
 /// (the first 25% chunk could be bought at a manipulated price; later buybacks degraded until real
-/// observations displaced the zeros). Fix: the escrow stores the pool's observation count at
+/// observations displaced the zeros). Fix: the buyback treasury stores the pool's observation count at
 /// graduation and skips until both sampled windows were recorded over seeded reserves, and skips
 /// on a zero TWAP as defense in depth.
 contract FeeEscrowTwapPoison is Fixture {
@@ -26,7 +26,7 @@ contract FeeEscrowTwapPoison is Fixture {
     function _sellOutAndAccrueFees() internal returns (address t) {
         _fund(creator, LAUNCH_FEE + 0.2 ether);
         vm.prank(creator);
-        (t,) = launchpad.launch(_meta(), 50, 0, 0.2 ether, 0);
+        (t,) = launchpad.launch(_meta(), 50, 0.2 ether, 0);
         _sellOut(bob, t); // market Ready; 25% of buy fees already credited to the buyback balance
     }
 
@@ -42,9 +42,9 @@ contract FeeEscrowTwapPoison is Fixture {
         return p;
     }
 
-    /// @dev The exact chunk the escrow will spend on the next buyback.
+    /// @dev The exact chunk the buyback treasury will spend on the next buyback.
     function _nextChunk() internal view returns (uint256 amountIn) {
-        uint256 balance = escrow.buybackBalance(token);
+        uint256 balance = escrow.buybackTreasury().quoteBudget();
         amountIn = balance * 2_500 / 10_000;
         if (amountIn == 0) amountIn = balance;
         (uint256 r0, uint256 r1,) = pool.getReserves();
@@ -67,13 +67,17 @@ contract FeeEscrowTwapPoison is Fixture {
         return pool.token0() == token ? r1 : r0;
     }
 
-    function _expectSkip(CurveFeeEscrow.SkipReason reason) internal {
-        uint256 balance = escrow.buybackBalance(token);
-        vm.expectEmit(address(escrow));
-        emit CurveFeeEscrow.BuybackSkipped(token, reason);
-        assertEq(escrow.buyback(token), 0);
-        assertEq(escrow.buybackBalance(token), balance, "a skip must preserve the credit");
-        assertEq(escrow.lastBuyback(token), 0, "a skip must not start the interval");
+    function _ownerBuyback() internal returns (uint256) {
+        CurveBuybackTreasury buybacks = escrow.buybackTreasury();
+        vm.prank(owner);
+        return buybacks.buyback();
+    }
+
+    function _expectSkip() internal {
+        uint256 balance = escrow.buybackTreasury().quoteBudget();
+        assertEq(_ownerBuyback(), 0);
+        assertEq(escrow.buybackTreasury().quoteBudget(), balance);
+        assertEq(escrow.buybackTreasury().lastBuyback(), 0);
     }
 
     // ------------------------------------------------------------- fix regressions
@@ -84,18 +88,21 @@ contract FeeEscrowTwapPoison is Fixture {
         token = _sellOutAndAccrueFees();
         pool = _preCreateAndPoison(token);
         assertEq(launchpad.graduate(token), address(pool), "graduation reuses the empty pre-created pool");
+        CurveBuybackTreasury buybacks = escrow.buybackTreasury();
+        vm.prank(owner);
+        buybacks.setCurveToken(token);
 
-        assertEq(escrow.seedObservations(token), 5, "the graduation count includes the stacked zeros");
+        assertEq(escrow.buybackTreasury().seedObservations(token), 5, "the graduation count includes the stacked zeros");
         assertGt(pool.observationLength(), 3, "the old guard alone would pass");
-        _expectSkip(CurveFeeEscrow.SkipReason.FewObservations);
+        _expectSkip();
 
         // It must keep skipping until BOTH sample windows are post-graduation. With the graduation
         // count at 5, the earliest sampled index (observationLength - 3) must reach 5, i.e. three
-        // live pushes. The escrow's own hourly syncs provide one per attempt.
+        // live pushes. The treasury's own hourly syncs provide one per attempt.
         vm.warp(block.timestamp + 1 hours);
-        _expectSkip(CurveFeeEscrow.SkipReason.FewObservations);
+        _expectSkip();
         vm.warp(block.timestamp + 1 hours);
-        _expectSkip(CurveFeeEscrow.SkipReason.FewObservations);
+        _expectSkip();
 
         // Third retry: two live windows now fill the sample, the TWAP is real, and the buyback
         // runs without any price manipulation room (a front-run would skip, see below).
@@ -105,7 +112,7 @@ contract FeeEscrowTwapPoison is Fixture {
         uint256 twap = pool.quote(address(weth), amountIn, 2);
         uint256 spot = pool.getAmountOut(amountIn, address(weth));
         assertApproxEqRel(twap, spot, 0.02e18, "the reference price is now genuine");
-        assertGt(escrow.buyback(token), 0, "a mature sample lets the buyback run");
+        assertGt(_ownerBuyback(), 0, "a mature sample lets the buyback run");
     }
 
     /// @dev The exploit path is dead: the same 2%-of-pool front-run the clean pool already rejects
@@ -114,18 +121,21 @@ contract FeeEscrowTwapPoison is Fixture {
         token = _sellOutAndAccrueFees();
         pool = _preCreateAndPoison(token);
         launchpad.graduate(token);
+        CurveBuybackTreasury buybacks = escrow.buybackTreasury();
+        vm.prank(owner);
+        buybacks.setCurveToken(token);
 
         // Mature the sample: two skipped retries push one live observation each, then a third
         // push (an eventual retry) opens the gate — the next attempt prices against a genuine TWAP.
         for (uint256 i = 0; i < 2; i++) {
             vm.warp(block.timestamp + 1 hours);
-            escrow.buyback(token); // skips; each sync pushes one live observation
+            _ownerBuyback(); // skips; each sync pushes one live observation
         }
         vm.warp(block.timestamp + 1 hours);
         pool.sync();
         assertGt(pool.observationLength(), 3);
         _frontRun(_quoteReserve() * 2 / 100); // ~4% spot move, far outside the 1% band
-        _expectSkip(CurveFeeEscrow.SkipReason.Slippage);
+        _expectSkip();
     }
 
     /// @dev Control: with a pool created and seeded by graduation (normal flow), the same gate does
@@ -133,9 +143,12 @@ contract FeeEscrowTwapPoison is Fixture {
     ///      >1% move.
     function test_control_cleanPool_rejectsSameFrontRun() public {
         token = _sellOutAndAccrueFees();
-        launchpad.graduate(token); // pool created and seeded at graduation (normal flow)
+        launchpad.graduate(token);
+        CurveBuybackTreasury buybacks = escrow.buybackTreasury();
+        vm.prank(owner); // pool created and seeded at graduation (normal flow)
+        buybacks.setCurveToken(token);
         pool = MockIcarusPool(launchpad.poolOf(token));
-        assertEq(escrow.seedObservations(token), 1);
+        assertEq(escrow.buybackTreasury().seedObservations(token), 1);
         for (uint256 i = 0; i < 3; i++) {
             vm.warp(block.timestamp + WINDOW);
             pool.sync();
@@ -143,7 +156,7 @@ contract FeeEscrowTwapPoison is Fixture {
         assertGt(pool.observationLength(), 3);
 
         _frontRun(_quoteReserve() * 2 / 100); // ~4% spot move
-        _expectSkip(CurveFeeEscrow.SkipReason.Slippage);
+        _expectSkip();
     }
 
     /// @dev Pool mechanics documentation: with the zeros stacked pre-seed, quote() (the external
@@ -153,6 +166,9 @@ contract FeeEscrowTwapPoison is Fixture {
         token = _sellOutAndAccrueFees();
         pool = _preCreateAndPoison(token);
         launchpad.graduate(token);
+        CurveBuybackTreasury buybacks = escrow.buybackTreasury();
+        vm.prank(owner);
+        buybacks.setCurveToken(token);
 
         uint256 amountIn = _nextChunk();
         uint256 fairOut = pool.getAmountOut(amountIn, address(weth));

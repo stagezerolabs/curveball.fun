@@ -11,7 +11,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {CurveToken} from "./CurveToken.sol";
 import {ICurveLaunchpad} from "./interfaces/ICurveLaunchpad.sol";
-import {ICurveFeeEscrow, ICurveHolderReserve, ICurveLpLocker} from "./interfaces/ICurveSingletons.sol";
+import {ICurveFeeEscrow, ICurveLpLocker} from "./interfaces/ICurveSingletons.sol";
 import {IIcarusFactory, IIcarusPool} from "./interfaces/IIcarus.sol";
 import {CurveMath} from "./libraries/CurveMath.sol";
 
@@ -24,12 +24,11 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     uint256 internal constant BPS = 10_000;
-    uint256 public constant SUPPLY = 1_000_000 ether;
-    uint256 public constant CURVE_SUPPLY = 800_000 ether;
-    /// @dev The largest reserve for which the pool still gets enough tokens at the closing price:
-    ///      the ideal seed is (S − C)·C/S, which leaves (S − C)²/S of the non-curve supply.
-    uint256 public constant MAX_RESERVE_TOKENS = (SUPPLY - CURVE_SUPPLY) * (SUPPLY - CURVE_SUPPLY) / SUPPLY;
-    uint256 public constant MAX_RESERVE_BPS = MAX_RESERVE_TOKENS * BPS / SUPPLY;
+    uint256 public constant SUPPLY = 1_000_000_000 ether;
+    uint256 public constant CURVE_SUPPLY = 800_000_000 ether;
+    /// @notice Maximum net curve tokens one wallet may hold before graduation.
+    uint256 public immutable MAX_WALLET_CURVE_TOKENS;
+    uint16 public immutable walletCapBps;
     uint256 public constant MAX_FEE_BPS = 200;
     uint256 public constant MAX_TAX_BPS = 50;
     uint256 public constant MAX_LAUNCH_FEE = 0.01 ether;
@@ -46,8 +45,8 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
         address icarusFactory;
         address escrow;
         address locker;
-        address reserve;
         uint256 launchFee;
+        uint16 walletCapBps;
         uint256 graduationTarget;
         FeeDefaults fees;
     }
@@ -88,9 +87,9 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
         uint128 virtualQuote;
         uint128 initialVirtualQuote;
         uint128 realQuote;
-        uint128 reserveTokens;
         uint40 readyAt;
         address pool;
+        uint40 launchedAt;
     }
 
     address public immutable treasury;
@@ -98,7 +97,6 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
     address public immutable icarusFactory;
     address public immutable escrow;
     address public immutable locker;
-    address public immutable reserve;
     address public immutable tokenImplementation;
     uint256 public immutable launchFee;
 
@@ -122,10 +120,9 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
         uint16 feeBps,
         uint16 creatorShareBps,
         uint16 buybackShareBps,
-        uint16 taxBps,
-        uint256 reserveTokens
+        uint16 taxBps
     );
-    /// @param quoteAmount What the trader paid on a buy (curve quote, fee and tax) or received on a sell.
+    /// @param quoteAmount What the trader paid on a buy (curve quote and all fees/taxes) or received on a sell.
     event Trade(
         address indexed token,
         address indexed trader,
@@ -134,6 +131,7 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
         uint256 tokenAmount,
         uint256 fee,
         uint256 tax,
+        uint256 antiSnipeTax,
         uint256 virtualToken,
         uint256 virtualQuote
     );
@@ -151,6 +149,7 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
 
     error InvalidConfig();
     error InvalidLaunch();
+    error WalletCapExceeded();
     error NotTrading();
     error Slippage();
     error Expired();
@@ -171,8 +170,8 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
     constructor(Config memory config) Ownable(config.owner) {
         if (
             config.treasury == address(0) || config.quoteToken == address(0) || config.icarusFactory == address(0)
-                || config.escrow == address(0) || config.locker == address(0) || config.reserve == address(0)
-                || config.launchFee > MAX_LAUNCH_FEE
+                || config.escrow == address(0) || config.locker == address(0) || config.launchFee > MAX_LAUNCH_FEE
+                || config.walletCapBps == 0 || config.walletCapBps > BPS
         ) revert InvalidConfig();
         // Curve trading math is scale-invariant, but the quote-denominated constants and defaults
         // (MIN_TARGET, MAX_LAUNCH_FEE, graduation target, launch fee) are tuned for 18 decimals.
@@ -183,8 +182,9 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
         icarusFactory = config.icarusFactory;
         escrow = config.escrow;
         locker = config.locker;
-        reserve = config.reserve;
         launchFee = config.launchFee;
+        walletCapBps = config.walletCapBps;
+        MAX_WALLET_CURVE_TOKENS = CURVE_SUPPLY * config.walletCapBps / BPS;
         tokenImplementation = address(new CurveToken());
         _setGuardian(config.guardian);
         _setFeeDefaults(config.fees);
@@ -196,9 +196,8 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
     /// @notice Launches a token on a fresh curve, optionally buying from it in the same transaction.
     /// @dev The fee policy and starting virtual quote are snapshotted; later admin changes never reach
     ///      this market. `uri` is emitted, not stored. The first buy goes to the caller, like any buy.
-    /// @param reserveBps Share of supply minted to the holder reserve, at most `MAX_RESERVE_BPS`.
     /// @param maxSpend Quote to spend on the first buy (curve quote, fee and tax); 0 skips it.
-    function launch(Metadata calldata meta, uint16 taxBps, uint16 reserveBps, uint256 maxSpend, uint256 minOut)
+    function launch(Metadata calldata meta, uint16 taxBps, uint256 maxSpend, uint256 minOut)
         external
         nonReentrant
         whenNotPaused
@@ -206,13 +205,11 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
     {
         uint256 uriLength = bytes(meta.uri).length;
         if (uriLength == 0 || uriLength > MAX_URI_LENGTH) revert InvalidLaunch();
-        uint256 reserveTokens = SUPPLY * reserveBps / BPS;
-        token = _createMarket(taxBps, reserveTokens);
+        token = _createMarket(taxBps);
 
         if (launchFee != 0) IERC20(quoteToken).safeTransferFrom(msg.sender, treasury, launchFee);
-        CurveToken(token).initialize(meta.name, meta.symbol, SUPPLY, reserve, reserveTokens);
-        if (reserveTokens != 0) ICurveHolderReserve(reserve).register(token, reserveTokens);
-        _emitLaunch(token, meta, taxBps, reserveTokens);
+        CurveToken(token).initialize(meta.name, meta.symbol, SUPPLY);
+        _emitLaunch(token, meta, taxBps);
 
         if (maxSpend != 0) tokensOut = _buy(token, maxSpend, minOut);
         else if (minOut != 0) revert InvalidLaunch();
@@ -265,15 +262,48 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
             IERC20(quoteToken).safeTransfer(escrow, q.fee + q.tax);
             ICurveFeeEscrow(escrow).distribute(token, quoteToken, q.fee, q.tax);
         }
-        emit Trade(token, msg.sender, false, q.net, amount, q.fee, q.tax, vT, vQ);
+        emit Trade(token, msg.sender, false, q.net, amount, q.fee, q.tax, 0, vT, vQ);
         return q.net;
     }
 
     /// @notice What `buy(token, maxSpend, …)` would do now, ignoring pause and state.
     function previewBuy(address token, uint256 maxSpend) external view returns (CurveMath.Buy memory) {
         Market storage m = markets[token];
-        uint256 vT = m.virtualToken;
-        return CurveMath.quoteBuy(vT, m.virtualQuote, vT - (SUPPLY - CURVE_SUPPLY), maxSpend, m.feeBps, m.taxBps);
+        return _quoteBuy(m, maxSpend, m.virtualToken - (SUPPLY - CURVE_SUPPLY));
+    }
+
+    /// @notice Buy quote validated against `account`'s remaining pre-graduation wallet capacity.
+    function previewBuyFor(address token, address account, uint256 maxSpend)
+        external
+        view
+        returns (CurveMath.Buy memory quote)
+    {
+        uint256 capacity = remainingWalletCapacity(token, account);
+        if (capacity == 0) revert WalletCapExceeded();
+        quote = _quoteBuy(markets[token], maxSpend, capacity);
+    }
+
+    /// @notice Number of curve tokens the wallet may still buy in this market.
+    function remainingWalletCapacity(address token, address account) public view returns (uint256) {
+        uint256 current = held[token][account];
+        return current >= MAX_WALLET_CURVE_TOKENS ? 0 : MAX_WALLET_CURVE_TOKENS - current;
+    }
+
+    /// @notice Additional buy tax in basis points; zero from five seconds after launch.
+    function antiSnipeTaxBps(address token) public view returns (uint256) {
+        Market storage m = markets[token];
+        if (m.state == State.None) return 0;
+        return _antiSnipeTaxBps(m);
+    }
+
+    function _antiSnipeTaxBps(Market storage m) internal view returns (uint256) {
+        uint256 elapsed = block.timestamp - uint256(m.launchedAt);
+        if (elapsed == 0) return 9_900;
+        if (elapsed == 1) return 2_500;
+        if (elapsed == 2) return 300;
+        if (elapsed == 3) return 36;
+        if (elapsed == 4) return 4;
+        return 0;
     }
 
     /// @notice What `sell(token, amount, …)` would pay now, ignoring state.
@@ -311,14 +341,14 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
         uint256 quoteInPool = realQuote + quoteReserve;
         uint256 tokensToPool = Math.min(
             CurveMath.tokensFor(quoteInPool, vT, m.virtualQuote),
-            Math.min(SUPPLY - CURVE_SUPPLY - m.reserveTokens, IERC20(token).balanceOf(address(this)))
+            Math.min(SUPPLY - CURVE_SUPPLY, IERC20(token).balanceOf(address(this)))
         );
         IERC20(quoteToken).safeTransfer(pool, realQuote);
         IERC20(token).safeTransfer(pool, tokensToPool);
         IIcarusPool(pool).mint(locker);
         (tokenReserve, quoteReserve) = _reserves(pool, token);
         if (tokenReserve != tokensToPool || quoteReserve != quoteInPool) revert MintMismatch();
-        // The escrow's buyback TWAP must never sample the empty observations that can accumulate in
+        // The buyback treasury's TWAP must never sample the empty observations that can accumulate in
         // a pre-created pool before seeding; mark this pool's observation count as the zero point.
         ICurveFeeEscrow(escrow).markGraduated(token, pool);
 
@@ -395,11 +425,6 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
     }
 
     /// @inheritdoc ICurveLaunchpad
-    function curveSupply() external pure returns (uint256) {
-        return CURVE_SUPPLY;
-    }
-
-    /// @inheritdoc ICurveLaunchpad
     function feePolicy(address token)
         external
         view
@@ -417,9 +442,9 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
     // ---------------------------------------------------------------- internal
 
     /// @dev Clones the token at the caller's next deterministic address and snapshots its market.
-    function _createMarket(uint16 taxBps, uint256 reserveTokens) internal returns (address token) {
+    function _createMarket(uint16 taxBps) internal returns (address token) {
         FeeDefaults memory fees = feeDefaults;
-        if (taxBps > fees.taxCapBps || reserveTokens > MAX_RESERVE_TOKENS) revert InvalidLaunch();
+        if (taxBps > fees.taxCapBps) revert InvalidLaunch();
         uint128 vQ0 = CurveMath.initialVirtualQuote(graduationTarget, SUPPLY, CURVE_SUPPLY).toUint128();
         token = Clones.cloneDeterministic(tokenImplementation, _salt(msg.sender, launchNonce[msg.sender]++));
         markets[token] = Market({
@@ -433,9 +458,9 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
             virtualQuote: vQ0,
             initialVirtualQuote: vQ0,
             realQuote: 0,
-            reserveTokens: uint128(reserveTokens),
             readyAt: 0,
-            pool: address(0)
+            pool: address(0),
+            launchedAt: uint40(block.timestamp)
         });
     }
 
@@ -447,7 +472,9 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
         uint256 vT = m.virtualToken;
         uint256 vQ = m.virtualQuote;
         uint256 remaining = vT - (SUPPLY - CURVE_SUPPLY);
-        CurveMath.Buy memory b = CurveMath.quoteBuy(vT, vQ, remaining, maxSpend, m.feeBps, m.taxBps);
+        uint256 capacity = remainingWalletCapacity(token, msg.sender);
+        if (capacity == 0) revert WalletCapExceeded();
+        CurveMath.Buy memory b = _quoteBuy(m, maxSpend, capacity);
         if (b.tokensOut < minOut) revert Slippage();
 
         vT -= b.tokensOut;
@@ -471,13 +498,26 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
             IERC20(quoteToken).safeTransferFrom(msg.sender, escrow, b.fee + b.tax);
             ICurveFeeEscrow(escrow).distribute(token, quoteToken, b.fee, b.tax);
         }
+        if (b.antiSnipeTax != 0) IERC20(quoteToken).safeTransferFrom(msg.sender, treasury, b.antiSnipeTax);
         IERC20(token).safeTransfer(msg.sender, b.tokensOut);
-        emit Trade(token, msg.sender, true, b.spent, b.tokensOut, b.fee, b.tax, vT, vQ);
+        emit Trade(token, msg.sender, true, b.spent, b.tokensOut, b.fee, b.tax, b.antiSnipeTax, vT, vQ);
         return b.tokensOut;
     }
 
     function _expired(Market storage m) internal view returns (bool) {
         return block.timestamp >= uint256(m.readyAt) + GRADUATION_TIMEOUT;
+    }
+
+    function _quoteBuy(Market storage m, uint256 maxSpend, uint256 walletCapacity)
+        internal
+        view
+        returns (CurveMath.Buy memory)
+    {
+        uint256 vT = m.virtualToken;
+        uint256 remaining = vT - (SUPPLY - CURVE_SUPPLY);
+        return CurveMath.quoteBuy(
+            vT, m.virtualQuote, Math.min(remaining, walletCapacity), maxSpend, m.feeBps, m.taxBps, _antiSnipeTaxBps(m)
+        );
     }
 
     function _abort(Market storage m, address token) internal returns (State) {
@@ -500,19 +540,10 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
     }
 
     /// @dev Its own frame: emitting three calldata strings inside `launch` runs out of stack.
-    function _emitLaunch(address token, Metadata calldata meta, uint16 taxBps, uint256 reserveTokens) internal {
+    function _emitLaunch(address token, Metadata calldata meta, uint16 taxBps) internal {
         Market storage m = markets[token];
         emit LaunchCreated(
-            token,
-            msg.sender,
-            meta.name,
-            meta.symbol,
-            meta.uri,
-            m.feeBps,
-            m.creatorShareBps,
-            m.buybackShareBps,
-            taxBps,
-            reserveTokens
+            token, msg.sender, meta.name, meta.symbol, meta.uri, m.feeBps, m.creatorShareBps, m.buybackShareBps, taxBps
         );
     }
 

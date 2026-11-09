@@ -32,8 +32,8 @@ interface IIcarusGaugeFees {
 ///      reproducible runs; FORK_BLOCK overrides it if the RPC no longer serves that state.
 abstract contract LifecycleFork is Test, CurveDeploy {
     address constant WETH = 0x4200000000000000000000000000000000000006;
-    uint256 constant S = 1_000_000 ether;
-    uint256 constant C = 800_000 ether;
+    uint256 constant S = 1_000_000_000 ether;
+    uint256 constant C = 800_000_000 ether;
     uint256 constant TARGET = 4 ether;
 
     address owner = makeAddr("owner");
@@ -68,6 +68,7 @@ abstract contract LifecycleFork is Test, CurveDeploy {
                 quoteToken: WETH,
                 icarusFactory: address(icarus),
                 launchFee: 0,
+                walletCapBps: 10_000,
                 graduationTarget: TARGET,
                 fees: CurveLaunchpad.FeeDefaults(75, 5_000, 2_500, 50)
             })
@@ -75,10 +76,12 @@ abstract contract LifecycleFork is Test, CurveDeploy {
     }
 
     function test_fork_graduatesIntoAFreshPool_andEarnsFees_andBuysBack() public {
-        address token = _launchAndSellOut(100);
+        address token = _launchAndSellOut();
         CurveLaunchpad.Market memory m = d.launchpad.market(token);
 
         IIcarusPool pool = IIcarusPool(d.launchpad.graduate(token));
+        vm.prank(owner);
+        d.buybackTreasury.setCurveToken(token);
         assertEq(icarus.getPool(token, WETH, false), address(pool));
         (uint256 tokens, uint256 quote) = _reserves(pool, token);
         assertEq(quote, m.realQuote);
@@ -105,25 +108,27 @@ abstract contract LifecycleFork is Test, CurveDeploy {
         (uint256 tokenFees, uint256 quoteFees) = d.locker.claim(address(pool));
         assertGt(tokenFees, 0);
         assertGt(quoteFees, 0);
-        assertEq(d.escrow.totalOwed(WETH), owedBefore + quoteFees);
+        assertEq(d.escrow.totalOwed(WETH), owedBefore + quoteFees - quoteFees * 2_500 / 10_000);
         assertGe(IERC20(WETH).balanceOf(address(d.escrow)), d.escrow.totalOwed(WETH));
 
         // The real factory's pause stops swaps only: the buyback skips without starting its interval.
-        assertEq(d.escrow.buyback(token), 0);
-        assertEq(d.escrow.lastBuyback(token), 0);
+        vm.prank(owner);
+        assertEq(d.buybackTreasury.buyback(), 0);
+        assertEq(d.buybackTreasury.lastBuyback(), 0);
         _setIcarusPaused(false);
 
         uint256 supply = IERC20(token).totalSupply();
-        uint256 burned = d.escrow.buyback(token);
+        vm.prank(owner);
+        uint256 burned = d.buybackTreasury.buyback();
         assertGt(burned, 0, "buyback skipped on the real pool");
         assertEq(IERC20(token).totalSupply(), supply - burned);
         assertEq(IERC20(token).balanceOf(address(d.escrow)), d.escrow.totalOwed(token));
     }
 
     /// @dev A griefer pre-creates the pool and syncs a WETH donation; graduation matches it instead of reverting.
-    ///      No reserve, so the burn buffer can absorb the 10% donation at the curve-end price.
+    ///      The burn buffer can absorb the 10% donation at the curve-end price.
     function test_fork_matchesASyncedDonationInAPreCreatedPool() public {
-        address token = _launchAndSellOut(0);
+        address token = _launchAndSellOut();
         IIcarusPool pool = IIcarusPool(icarus.createPool(token, WETH, false));
         _wrap(address(this), 0.001 ether);
         IERC20(WETH).transfer(address(pool), 0.001 ether);
@@ -140,7 +145,7 @@ abstract contract LifecycleFork is Test, CurveDeploy {
 
     /// @dev Icarus's pauser can't force an abort: graduation never checks the pause.
     function test_fork_graduatesWhileIcarusIsPaused() public {
-        address token = _launchAndSellOut(0);
+        address token = _launchAndSellOut();
         _setIcarusPaused(true);
         address pool = d.launchpad.graduate(token);
         assertEq(uint8(d.launchpad.market(token).state), uint8(CurveLaunchpad.State.Graduated));
@@ -153,13 +158,13 @@ abstract contract LifecycleFork is Test, CurveDeploy {
         assertEq(icarus.isPaused(), state);
     }
 
-    function _launchAndSellOut(uint16 reserveBps) internal returns (address token) {
+    function _launchAndSellOut() internal returns (address token) {
         uint256 maxSpend = TARGET * 102 / 100;
         _wrap(creator, maxSpend);
         vm.startPrank(creator);
         IERC20(WETH).approve(address(d.launchpad), type(uint256).max);
-        (token,) =
-            d.launchpad.launch(CurveLaunchpad.Metadata("Fork launch", "FORK", "ipfs://fork"), 0, reserveBps, 0, 0);
+        (token,) = d.launchpad.launch(CurveLaunchpad.Metadata("Fork launch", "FORK", "ipfs://fork"), 0, 0, 0);
+        vm.warp(block.timestamp + 5);
         d.launchpad.buy(token, maxSpend, C, block.timestamp);
         vm.stopPrank();
         assertEq(uint8(d.launchpad.market(token).state), uint8(CurveLaunchpad.State.Ready));
@@ -179,33 +184,8 @@ abstract contract LifecycleFork is Test, CurveDeploy {
         IWETH(WETH).deposit{value: amount}();
     }
 
-    function _reserves(IIcarusPool pool, address token) internal view returns (uint256 tokens, uint256 quote) {
-        (uint256 r0, uint256 r1,) = pool.getReserves();
-        (tokens, quote) = pool.token0() == token ? (r0, r1) : (r1, r0);
-    }
-}
-
-contract LifecycleMainnetForkTest is LifecycleFork {
-    function _rpcVar() internal pure override returns (string memory) {
-        return "RISE_MAINNET_RPC_URL";
-    }
-
-    function _chainId() internal pure override returns (uint256) {
-        return 4153;
-    }
-
-    function _icarusFactory() internal pure override returns (address) {
-        return 0xEe10C6a0f158bFEeef3d48Dc0D26130Cf6115615;
-    }
-
-    function _forkBlock() internal pure override returns (uint256) {
-        return 24_722_082;
-    }
-}
-
-contract LifecycleTestnetForkTest is LifecycleFork {
-    function test_fork_adapterTradesBothDirectionsOnTheRealIcarusPool() public {
-        address token = _launchAndSellOut(0);
+    function _assertAdapterTradesBothDirections() internal {
+        address token = _launchAndSellOut();
         address pool = d.launchpad.graduate(token);
         CurveIcarusSwapAdapter adapter = new CurveIcarusSwapAdapter(address(d.launchpad), WETH, address(icarus));
         _wrap(trader, 0.01 ether);
@@ -231,8 +211,41 @@ contract LifecycleTestnetForkTest is LifecycleFork {
         assertEq(IERC20(WETH).balanceOf(address(adapter)), 0);
     }
 
+    function _reserves(IIcarusPool pool, address token) internal view returns (uint256 tokens, uint256 quote) {
+        (uint256 r0, uint256 r1,) = pool.getReserves();
+        (tokens, quote) = pool.token0() == token ? (r0, r1) : (r1, r0);
+    }
+}
+
+contract LifecycleMainnetForkTest is LifecycleFork {
+    function test_fork_adapterTradesBothDirectionsOnTheRealIcarusPool() public {
+        _assertAdapterTradesBothDirections();
+    }
+
+    function _rpcVar() internal pure override returns (string memory) {
+        return "RISE_MAINNET_RPC_URL";
+    }
+
+    function _chainId() internal pure override returns (uint256) {
+        return 4153;
+    }
+
+    function _icarusFactory() internal pure override returns (address) {
+        return 0xEe10C6a0f158bFEeef3d48Dc0D26130Cf6115615;
+    }
+
+    function _forkBlock() internal pure override returns (uint256) {
+        return 24_722_082;
+    }
+}
+
+contract LifecycleTestnetForkTest is LifecycleFork {
+    function test_fork_adapterTradesBothDirectionsOnTheRealIcarusPool() public {
+        _assertAdapterTradesBothDirections();
+    }
+
     function test_fork_testnetFeesAreConfigurableAndGaugeShareAccumulates() public {
-        address token = _launchAndSellOut(0);
+        address token = _launchAndSellOut();
         IIcarusPool pool = IIcarusPool(d.launchpad.graduate(token));
         assertEq(icarus.getFee(address(pool), false), 30);
         assertEq(icarus.getUnstakedFee(address(pool)), 1000);

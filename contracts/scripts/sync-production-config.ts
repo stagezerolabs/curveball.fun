@@ -54,7 +54,9 @@ const values = {
   VITE_ICARUS_SWAP_ADAPTER_CODE_HASH: swapAdapterCodeHash,
 };
 async function updateEnv(path: string, entries: Record<string, string>) {
-  let source = (await Bun.file(path).exists()) ? await Bun.file(path).text() : "";
+  let source = (await Bun.file(path).exists())
+    ? await Bun.file(path).text()
+    : "";
   for (const [key, value] of Object.entries(entries)) {
     const line = `${key}=${value}`;
     source = new RegExp(`^${key}=.*$`, "m").test(source)
@@ -63,19 +65,17 @@ async function updateEnv(path: string, entries: Record<string, string>) {
   }
   source = source.replace(/^VITE_FACTORY_VERSION=.*(?:\r?\n|$)/m, "");
   await Bun.write(path, source);
-  console.log(`Updated ${path} for RISE ${requestedNetwork} launchpad ${record.launchpad}.`);
+  console.log(
+    `Updated ${path} for RISE ${requestedNetwork} launchpad ${record.launchpad}.`,
+  );
 }
 
 if (isTestnet) {
-  for (const path of [".env", ".env.local", ".env.testnet.local"]) {
-    await updateEnv(path, values);
-  }
-  await updateEnv("services/social/.env", {
+  await updateEnv(".env", {
+    ...values,
     SOCIAL_CHAIN_ID: String(chainId),
     SOCIAL_LAUNCHPAD_ADDRESS: record.launchpad,
     SOCIAL_DEPLOYMENT_BLOCK: record.deploymentBlock,
-  });
-  await updateEnv("keeper/.env", {
     KEEPER_CHAIN_ID: String(chainId),
     KEEPER_LAUNCHPAD_ADDRESS: record.launchpad,
     KEEPER_DEPLOYMENT_BLOCK: record.deploymentBlock,

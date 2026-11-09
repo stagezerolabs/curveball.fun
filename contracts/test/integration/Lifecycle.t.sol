@@ -3,17 +3,15 @@ pragma solidity 0.8.24;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Fixture} from "../Fixture.sol";
+import {CurveBuybackTreasury} from "../../contracts/CurveBuybackTreasury.sol";
 import {CurveFeeEscrow} from "../../contracts/CurveFeeEscrow.sol";
-import {CurveHolderReserve} from "../../contracts/CurveHolderReserve.sol";
 import {CurveLaunchpad} from "../../contracts/CurveLaunchpad.sol";
 import {MockIcarusPool} from "../mocks/MockIcarus.sol";
 
 /// @dev One market from launch to its last claim, asserting where every wei went at each step.
 contract LifecycleTest is Fixture {
-    uint256 constant S = 1_000_000 ether;
-    uint256 constant C = 800_000 ether;
-    uint16 constant RESERVE_BPS = 400;
-    uint256 constant RESERVE_TOKENS = S * RESERVE_BPS / 10_000;
+    uint256 constant S = 1_000_000_000 ether;
+    uint256 constant C = 800_000_000 ether;
 
     address carol = makeAddr("carol");
     address token;
@@ -26,7 +24,8 @@ contract LifecycleTest is Fixture {
     function _assertWethConserved() internal view {
         uint256 accounted = weth.balanceOf(creator) + weth.balanceOf(alice) + weth.balanceOf(bob)
             + weth.balanceOf(carol) + weth.balanceOf(treasury) + weth.balanceOf(address(launchpad))
-            + weth.balanceOf(address(escrow)) + weth.balanceOf(address(locker));
+            + weth.balanceOf(address(escrow)) + weth.balanceOf(address(locker))
+            + weth.balanceOf(address(escrow.buybackTreasury()));
         if (address(pool) != address(0)) {
             accounted += weth.balanceOf(address(pool)) + weth.balanceOf(pool.poolFees())
             + weth.balanceOf(pool.gaugeFees());
@@ -34,10 +33,10 @@ contract LifecycleTest is Fixture {
         assertEq(accounted, weth.totalSupply(), "WETH conserved");
     }
 
-    /// @dev The quote side's `totalOwed` already counts the buyback balance.
+    /// @dev Escrow claims and the treasury's buyback budget are backed separately.
     function _assertEscrowBacked() internal view {
         assertGe(weth.balanceOf(address(escrow)), escrow.totalOwed(address(weth)));
-        assertLe(escrow.buybackBalance(token), escrow.totalOwed(address(weth)));
+        assertGe(weth.balanceOf(address(escrow.buybackTreasury())), escrow.buybackTreasury().quoteBudget());
         assertGe(IERC20(token).balanceOf(address(escrow)), escrow.totalOwed(token));
     }
 
@@ -50,7 +49,7 @@ contract LifecycleTest is Fixture {
     }
 
     function test_lifecycle_launchToLastClaim() public {
-        _launchWithReserveAndFirstBuy();
+        _launchWithFirstBuy();
         _tradeBothWays();
         _sellOutTheCurve();
         _graduate();
@@ -58,21 +57,19 @@ contract LifecycleTest is Fixture {
         _claimLpFees();
         _claimFees();
         _buybackAndBurn();
-        _claimReserve();
     }
 
-    function _launchWithReserveAndFirstBuy() internal {
+    function _launchWithFirstBuy() internal {
         _fund(creator, LAUNCH_FEE + 0.2 ether);
         vm.prank(creator);
-        (token, creatorTokens) = launchpad.launch(_meta(), 50, RESERVE_BPS, 0.2 ether, 0);
+        (token, creatorTokens) = launchpad.launch(_meta(), 50, 0.2 ether, 0);
 
-        assertEq(weth.balanceOf(treasury), LAUNCH_FEE);
+        assertGt(weth.balanceOf(treasury), LAUNCH_FEE, "opening buy tax goes to treasury");
+        vm.warp(block.timestamp + 5);
         assertEq(IERC20(token).totalSupply(), S);
-        assertEq(IERC20(token).balanceOf(address(reserve)), RESERVE_TOKENS);
-        assertEq(reserve.reserveOf(token), RESERVE_TOKENS);
         assertEq(IERC20(token).balanceOf(creator), creatorTokens);
         assertEq(launchpad.held(token, creator), creatorTokens);
-        assertEq(IERC20(token).balanceOf(address(launchpad)), S - RESERVE_TOKENS - creatorTokens);
+        assertEq(IERC20(token).balanceOf(address(launchpad)), S - creatorTokens);
         _assertWethConserved();
         _assertEscrowBacked();
     }
@@ -108,13 +105,16 @@ contract LifecycleTest is Fixture {
     function _graduate() internal {
         uint256 realQuote = launchpad.market(token).realQuote;
         pool = MockIcarusPool(launchpad.graduate(token));
+        CurveBuybackTreasury buybacks = escrow.buybackTreasury();
+        vm.prank(owner);
+        buybacks.setCurveToken(token);
 
         (uint256 poolTokens, uint256 poolQuote) = _reserves();
         assertEq(poolQuote, realQuote);
         assertEq(launchpad.totalRealQuote(), 0);
         assertEq(weth.balanceOf(address(launchpad)), 0);
         assertEq(IERC20(token).balanceOf(address(launchpad)), 0);
-        assertEq(IERC20(token).totalSupply(), C + RESERVE_TOKENS + poolTokens, "the rest is burned");
+        assertEq(IERC20(token).totalSupply(), C + poolTokens, "the rest is burned");
         assertEq(pool.balanceOf(address(locker)) + pool.balanceOf(address(1)), pool.totalSupply());
         _assertWethConserved();
     }
@@ -142,9 +142,10 @@ contract LifecycleTest is Fixture {
         assertGt(tokenFees, 0);
         assertGt(quoteFees, 0);
         uint256 burned = supplyBefore - IERC20(token).totalSupply();
-        assertEq(burned, tokenFees * 2_500 / 10_000, "the buyback share of token fees burns at once");
-        assertEq(escrow.totalOwed(token), tokenFees - burned);
-        assertEq(escrow.totalOwed(address(weth)), wethOwedBefore + quoteFees);
+        assertEq(burned, 0, "LP fee shares do not burn market tokens directly");
+        assertEq(escrow.buybackTreasury().tokenBudget(token), tokenFees * 2_500 / 10_000);
+        assertEq(escrow.totalOwed(token), tokenFees - tokenFees * 2_500 / 10_000);
+        assertEq(escrow.totalOwed(address(weth)), wethOwedBefore + quoteFees - quoteFees * 2_500 / 10_000);
         assertEq(weth.balanceOf(address(locker)), 0);
         assertEq(IERC20(token).balanceOf(address(locker)), 0);
         _assertEscrowBacked();
@@ -172,49 +173,27 @@ contract LifecycleTest is Fixture {
         assertEq(weth.balanceOf(creator), creatorWethBefore + creatorOwed);
         assertEq(weth.balanceOf(treasury), treasuryWethBefore + treasuryOwed);
         assertEq(IERC20(token).balanceOf(creator), creatorTokens + creatorTokenFees);
-        assertEq(escrow.totalOwed(address(weth)), escrow.buybackBalance(token));
+        assertEq(escrow.totalOwed(address(weth)), 0);
         assertEq(escrow.totalOwed(token), 0);
-        assertEq(weth.balanceOf(address(escrow)), escrow.buybackBalance(token), "only the buyback balance is left");
+        assertEq(weth.balanceOf(address(escrow)), 0);
         _assertWethConserved();
     }
 
     function _buybackAndBurn() internal {
+        CurveBuybackTreasury buybacks = escrow.buybackTreasury();
         for (uint256 i = 0; i < 3; i++) {
-            uint256 balance = escrow.buybackBalance(token);
+            uint256 balance = buybacks.quoteBudget();
             uint256 supplyBefore = IERC20(token).totalSupply();
-            uint256 burned = escrow.buyback(token);
+            vm.prank(owner);
+            uint256 burned = buybacks.buyback();
             assertGt(burned, 0);
-            assertLt(escrow.buybackBalance(token), balance);
+            assertLt(buybacks.quoteBudget(), balance);
             assertEq(supplyBefore - IERC20(token).totalSupply(), burned);
-            vm.expectRevert(CurveFeeEscrow.TooSoon.selector);
-            escrow.buyback(token);
             vm.warp(block.timestamp + 1 hours);
         }
-        assertEq(weth.balanceOf(address(escrow)), escrow.buybackBalance(token));
+        assertEq(weth.balanceOf(address(escrow)), 0);
         assertEq(IERC20(token).balanceOf(address(escrow)), 0, "every bought token is burned");
         _assertWethConserved();
-    }
-
-    function _claimReserve() internal {
-        uint256 paid;
-        address[3] memory holders = [creator, alice, bob];
-        for (uint256 i = 0; i < holders.length; i++) {
-            uint256 expected = RESERVE_TOKENS * launchpad.held(token, holders[i]) / C;
-            uint256 balanceBefore = IERC20(token).balanceOf(holders[i]);
-            vm.prank(holders[i]);
-            assertEq(reserve.claim(token), expected);
-            assertEq(IERC20(token).balanceOf(holders[i]), balanceBefore + expected);
-            paid += expected;
-        }
-        vm.prank(carol);
-        vm.expectRevert(CurveHolderReserve.NothingToClaim.selector);
-        reserve.claim(token);
-        vm.prank(alice);
-        vm.expectRevert(CurveHolderReserve.AlreadyClaimed.selector);
-        reserve.claim(token);
-
-        assertLe(RESERVE_TOKENS - paid, holders.length, "only round-down dust stays behind");
-        assertEq(IERC20(token).balanceOf(address(reserve)), RESERVE_TOKENS - paid);
     }
 
     function _reserves() internal view returns (uint256 tokens, uint256 quote) {

@@ -10,8 +10,8 @@ import {Handler} from "./Handler.sol";
 /// @dev System-wide accounting and lifecycle invariants over every market launched by the handler.
 ///      Call-level safety properties are checked by the handler and surface here as its violation count.
 contract InvariantsTest is Fixture {
-    uint256 constant S = 1_000_000 ether;
-    uint256 constant C = 800_000 ether;
+    uint256 constant S = 1_000_000_000 ether;
+    uint256 constant C = 800_000_000 ether;
     /// @dev At least this share of a run's calls must do their action rather than return early.
     ///      The worst runs observed reach about 35%; a broken action drops whole categories to 0.
     uint256 constant MIN_REACHED_BPS = 2_000;
@@ -20,9 +20,9 @@ contract InvariantsTest is Fixture {
 
     function setUp() public override {
         super.setUp();
-        handler = new Handler(launchpad, escrow, locker, reserve, weth, icarus, owner, guardian);
+        handler = new Handler(launchpad, escrow, locker, weth, icarus, owner, guardian);
 
-        bytes4[] memory selectors = new bytes4[](20);
+        bytes4[] memory selectors = new bytes4[](19);
         selectors[0] = Handler.launch.selector;
         selectors[1] = Handler.buy.selector;
         selectors[2] = Handler.sell.selector;
@@ -38,11 +38,10 @@ contract InvariantsTest is Fixture {
         selectors[12] = Handler.lpClaim.selector;
         selectors[13] = Handler.feeClaim.selector;
         selectors[14] = Handler.buyback.selector;
-        selectors[15] = Handler.reserveClaim.selector;
-        selectors[16] = Handler.rescue.selector;
-        selectors[17] = Handler.admin.selector;
-        selectors[18] = Handler.pause.selector;
-        selectors[19] = Handler.icarusPause.selector;
+        selectors[15] = Handler.rescue.selector;
+        selectors[16] = Handler.admin.selector;
+        selectors[17] = Handler.pause.selector;
+        selectors[18] = Handler.icarusPause.selector;
         targetSelector(FuzzSelector(address(handler), selectors));
         targetContract(address(handler));
     }
@@ -79,7 +78,8 @@ contract InvariantsTest is Fixture {
     function invariant_wethConserved() public view {
         address[] memory accounts = _accounts();
         uint256 sum = weth.balanceOf(handler.sink()) + weth.balanceOf(address(launchpad))
-            + weth.balanceOf(address(escrow)) + weth.balanceOf(address(locker)) + weth.balanceOf(address(reserve));
+            + weth.balanceOf(address(escrow)) + weth.balanceOf(address(locker))
+            + weth.balanceOf(address(escrow.buybackTreasury()));
         for (uint256 i = 0; i < accounts.length; i++) {
             sum += weth.balanceOf(accounts[i]);
         }
@@ -105,7 +105,7 @@ contract InvariantsTest is Fixture {
             } else {
                 assertEq(m.realQuote, m.virtualQuote - m.initialVirtualQuote);
                 assertEq(m.pool, address(0));
-                assertGe(IERC20(tokens[i]).balanceOf(address(launchpad)), S - m.reserveTokens - sold);
+                assertGe(IERC20(tokens[i]).balanceOf(address(launchpad)), S - sold);
             }
         }
     }
@@ -116,12 +116,16 @@ contract InvariantsTest is Fixture {
         address[] memory accounts = _accounts();
         uint256 owedQuote = _sumClaimable(accounts, address(weth));
         for (uint256 i = 0; i < tokens.length; i++) {
-            owedQuote += escrow.buybackBalance(tokens[i]);
+            assertGe(
+                IERC20(tokens[i]).balanceOf(address(escrow.buybackTreasury())),
+                escrow.buybackTreasury().tokenBudget(tokens[i])
+            );
             uint256 owedToken = _sumClaimable(accounts, tokens[i]);
             assertEq(escrow.totalOwed(tokens[i]), owedToken);
             assertGe(IERC20(tokens[i]).balanceOf(address(escrow)), owedToken);
         }
         assertEq(escrow.totalOwed(address(weth)), owedQuote);
+        assertGe(weth.balanceOf(address(escrow.buybackTreasury())), escrow.buybackTreasury().quoteBudget());
         assertGe(weth.balanceOf(address(escrow)), owedQuote);
     }
 
@@ -144,18 +148,6 @@ contract InvariantsTest is Fixture {
                 address pool = icarus.getPool(tokens[i], address(weth), false);
                 if (pool != address(0)) assertEq(IERC20(tokens[i]).balanceOf(pool), 0);
             }
-        }
-    }
-
-    /// @dev 6. Reserve claims never exceed the reserve, and the rest is still held.
-    function invariant_reserveClaimsBounded() public view {
-        address[] memory tokens = _tokens();
-        for (uint256 i = 0; i < tokens.length; i++) {
-            uint256 reserved = launchpad.market(tokens[i]).reserveTokens;
-            uint256 claimed = handler.reserveClaimed(tokens[i]);
-            assertEq(reserve.reserveOf(tokens[i]), reserved);
-            assertLe(claimed, reserved);
-            assertEq(IERC20(tokens[i]).balanceOf(address(reserve)), reserved - claimed);
         }
     }
 
@@ -186,7 +178,7 @@ contract InvariantsTest is Fixture {
         handler.warp(1 hours);
         handler.admin(true, 100, 4_000, 3_000, 25);
         handler.admin(false, 0, 0, 0, 2 ether);
-        handler.launch(2, 0, 100, 0);
+        handler.launch(2, 0, 0);
         handler.graduate(3, 0);
         for (uint256 i = 0; i < 4; i++) {
             handler.warp(1801);
@@ -197,7 +189,6 @@ contract InvariantsTest is Fixture {
         handler.lpClaim(0);
         handler.feeClaim(0, 0, true);
         handler.buyback(0);
-        handler.reserveClaim(0, 0);
         handler.rescue(0, 0, 0.5 ether);
         handler.abort(2, 1, 0);
         handler.pause(true);

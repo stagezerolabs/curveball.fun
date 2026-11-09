@@ -16,8 +16,3 @@ interface ICurveFeeEscrow {
 interface ICurveLpLocker {
     function register(address token, address pool) external;
 }
-
-/// @notice Pays a launch's reserve pro rata to its curve holders after graduation.
-interface ICurveHolderReserve {
-    function register(address token, uint256 amount) external;
-}

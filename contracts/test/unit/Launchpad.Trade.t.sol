@@ -3,19 +3,21 @@ pragma solidity 0.8.24;
 
 import {Fixture} from "../Fixture.sol";
 import {CurveLaunchpad} from "../../contracts/CurveLaunchpad.sol";
+import {CurveBuybackTreasury} from "../../contracts/CurveBuybackTreasury.sol";
 import {CurveToken} from "../../contracts/CurveToken.sol";
 import {CurveMath} from "../../contracts/libraries/CurveMath.sol";
 import {MockIcarusPool} from "../mocks/MockIcarus.sol";
 
 contract LaunchpadTradeTest is Fixture {
-    uint256 constant S = 1_000_000 ether;
-    uint256 constant C = 800_000 ether;
+    uint256 constant S = 1_000_000_000 ether;
+    uint256 constant C = 800_000_000 ether;
 
     address token;
 
     function setUp() public override {
         super.setUp();
-        token = _launch(creator, 400, 0);
+        token = _launch(creator, 0);
+        vm.warp(block.timestamp + 5);
     }
 
     function _market() internal view returns (CurveLaunchpad.Market memory) {
@@ -33,6 +35,115 @@ contract LaunchpadTradeTest is Fixture {
 
     // ---------------------------------------------------------------- buy
 
+    function test_antiSnipeTax_decaysAtSecondBoundaries() public {
+        address fresh = _launch(bob, 0);
+        uint256[6] memory rates = [uint256(9_900), 2_500, 300, 36, 4, 0];
+        uint256 start = block.timestamp;
+        for (uint256 i; i < rates.length; ++i) {
+            vm.warp(start + i);
+            assertEq(launchpad.antiSnipeTaxBps(fresh), rates[i]);
+            CurveMath.Buy memory quote = launchpad.previewBuy(fresh, 1 ether);
+            assertEq(quote.antiSnipeTax, quote.curveQuote * rates[i] / 10_000);
+        }
+        vm.warp(start + 100);
+        assertEq(launchpad.antiSnipeTaxBps(fresh), 0);
+    }
+
+    function test_antiSnipeTax_onInitialBuyGoesToTreasury() public {
+        uint256 treasuryBefore = weth.balanceOf(treasury);
+        address fresh = _launch(bob, 1 ether);
+        assertGt(CurveToken(fresh).balanceOf(bob), 0);
+        assertEq(launchpad.antiSnipeTaxBps(fresh), 9_900);
+        assertGt(weth.balanceOf(treasury) - treasuryBefore, LAUNCH_FEE);
+        assertEq(weth.balanceOf(address(launchpad)), launchpad.totalRealQuote());
+    }
+
+    function test_openingBuyQuoteAndChargesCreditProtocolTreasuryAcrossBoundary() public {
+        address fresh = _launch(bob, 0);
+        address secondBuyer = makeAddr("secondBuyer");
+        CurveBuybackTreasury buybacks = escrow.buybackTreasury();
+        uint256 treasuryBefore = weth.balanceOf(treasury);
+        uint256 protocolCreditBefore = escrow.claimable(treasury, address(weth));
+        uint256 buybackBefore = buybacks.quoteBudget();
+
+        CurveMath.Buy memory first = launchpad.previewBuyFor(fresh, alice, 1 ether);
+        assertEq(launchpad.antiSnipeTaxBps(fresh), 9_900);
+        assertEq(first.antiSnipeTax, first.curveQuote * 9_900 / 10_000);
+        _fund(alice, 1 ether);
+        uint256 aliceBefore = weth.balanceOf(alice);
+        vm.prank(alice);
+        assertEq(launchpad.buy(fresh, 1 ether, first.tokensOut, block.timestamp), first.tokensOut);
+        assertEq(aliceBefore - weth.balanceOf(alice), first.spent);
+
+        vm.warp(block.timestamp + 5);
+        CurveMath.Buy memory second = launchpad.previewBuyFor(fresh, secondBuyer, 1 ether);
+        assertEq(launchpad.antiSnipeTaxBps(fresh), 0);
+        assertEq(second.antiSnipeTax, 0);
+        _fund(secondBuyer, 1 ether);
+        uint256 secondBuyerBefore = weth.balanceOf(secondBuyer);
+        vm.prank(secondBuyer);
+        assertEq(launchpad.buy(fresh, 1 ether, second.tokensOut, block.timestamp), second.tokensOut);
+        assertEq(secondBuyerBefore - weth.balanceOf(secondBuyer), second.spent);
+
+        uint256 protocolShare = first.fee - first.fee * 5_000 / 10_000 - first.fee * 2_500 / 10_000 + second.fee
+            - second.fee * 5_000 / 10_000 - second.fee * 2_500 / 10_000;
+        assertEq(weth.balanceOf(treasury) - treasuryBefore, first.antiSnipeTax);
+        assertEq(escrow.claimable(treasury, address(weth)) - protocolCreditBefore, protocolShare);
+        assertEq(
+            weth.balanceOf(treasury) - treasuryBefore + escrow.claimable(treasury, address(weth))
+                - protocolCreditBefore,
+            protocolShare + first.antiSnipeTax
+        );
+        assertEq(buybacks.quoteBudget() - buybackBefore, first.fee * 2_500 / 10_000 + second.fee * 2_500 / 10_000);
+    }
+
+    function _readyBuybackWithRecentBurn() internal returns (CurveBuybackTreasury buybacks) {
+        address fresh = _launch(bob, 0);
+        _sellOut(alice, fresh);
+        MockIcarusPool pool = MockIcarusPool(launchpad.graduate(fresh));
+        buybacks = escrow.buybackTreasury();
+        vm.prank(owner);
+        buybacks.setCurveToken(fresh);
+        for (uint256 i; i < 3; ++i) {
+            vm.warp(block.timestamp + 1801);
+            pool.sync();
+        }
+        vm.prank(owner);
+        assertGt(buybacks.buyback(), 0);
+    }
+
+    function test_untrustedCallerCannotTriggerFreshTreasuryBuyback() public {
+        CurveBuybackTreasury buybacks = _readyBuybackWithRecentBurn();
+        vm.prank(makeAddr("outsider"));
+        vm.expectRevert(CurveBuybackTreasury.BuybackNotStale.selector);
+        buybacks.buyback();
+    }
+
+    function test_untrustedCallerCanTriggerStaleTreasuryBuyback() public {
+        CurveBuybackTreasury buybacks = _readyBuybackWithRecentBurn();
+        vm.warp(buybacks.lastBuyback() + buybacks.STALENESS());
+        vm.prank(makeAddr("outsider"));
+        assertGt(buybacks.buyback(), 0);
+    }
+
+    function test_ownerCanTriggerFreshTreasuryBuyback() public {
+        CurveBuybackTreasury buybacks = _readyBuybackWithRecentBurn();
+        vm.prank(owner);
+        assertGt(buybacks.buyback(), 0);
+    }
+
+    function test_antiSnipeTax_buyAndSellRouting() public {
+        address fresh = _launch(bob, 0);
+        CurveMath.Buy memory quote = launchpad.previewBuy(fresh, 1 ether);
+        uint256 treasuryBefore = weth.balanceOf(treasury);
+        uint256 bought = _buy(alice, fresh, 1 ether);
+        assertEq(bought, quote.tokensOut);
+        assertEq(weth.balanceOf(treasury) - treasuryBefore, quote.antiSnipeTax);
+        CurveMath.Sell memory sellQuote = launchpad.previewSell(fresh, bought / 2);
+        assertEq(_sell(alice, fresh, bought / 2), sellQuote.net);
+        assertEq(weth.balanceOf(treasury) - treasuryBefore, quote.antiSnipeTax);
+    }
+
     function test_buy_matchesThePreview_andAccountsEverything() public {
         CurveMath.Buy memory preview = launchpad.previewBuy(token, 1 ether);
         _fund(alice, 1 ether);
@@ -45,6 +156,7 @@ contract LaunchpadTradeTest is Fixture {
             preview.tokensOut,
             preview.fee,
             preview.tax,
+            preview.antiSnipeTax,
             S - preview.tokensOut,
             1 ether + preview.curveQuote
         );
@@ -58,15 +170,16 @@ contract LaunchpadTradeTest is Fixture {
         assertEq(weth.balanceOf(address(launchpad)), preview.curveQuote);
         assertEq(launchpad.totalRealQuote(), preview.curveQuote);
         assertEq(_market().realQuote, _market().virtualQuote - _market().initialVirtualQuote);
-        assertEq(weth.balanceOf(address(escrow)), preview.fee);
-        assertEq(escrow.totalOwed(address(weth)), preview.fee);
+        assertEq(weth.balanceOf(address(escrow)), preview.fee - preview.fee * 2_500 / 10_000);
+        assertEq(escrow.totalOwed(address(weth)), preview.fee - preview.fee * 2_500 / 10_000);
         assertEq(escrow.claimable(creator, address(weth)), preview.fee * 5_000 / 10_000);
     }
 
     function test_buy_creatorTaxIsCreditedToTheCreator() public {
         _fund(creator, LAUNCH_FEE);
         vm.prank(creator);
-        (address taxed,) = launchpad.launch(_meta(), 50, 0, 0, 0);
+        (address taxed,) = launchpad.launch(_meta(), 50, 0, 0);
+        vm.warp(block.timestamp + 5);
         CurveMath.Buy memory preview = launchpad.previewBuy(taxed, 1 ether);
         assertEq(preview.tax, preview.curveQuote * 50 / 10_000);
         _buy(alice, taxed, 1 ether);
@@ -182,7 +295,9 @@ contract LaunchpadTradeTest is Fixture {
 
         assertEq(net, preview.net);
         assertEq(weth.balanceOf(alice), balanceBefore + net);
-        assertEq(weth.balanceOf(address(escrow)), escrowBefore + preview.fee + preview.tax);
+        assertEq(
+            weth.balanceOf(address(escrow)), escrowBefore + preview.fee + preview.tax - preview.fee * 2_500 / 10_000
+        );
         assertEq(launchpad.held(token, alice), bought - bought / 2);
         assertEq(CurveToken(token).balanceOf(alice), bought - bought / 2);
         assertEq(weth.balanceOf(address(launchpad)), launchpad.totalRealQuote());
@@ -216,7 +331,7 @@ contract LaunchpadTradeTest is Fixture {
     // ---------------------------------------------------------------- isolation and routing
 
     function test_twoMarkets_areIsolated() public {
-        address other = _launch(bob, 0, 0);
+        address other = _launch(bob, 0);
         _buy(alice, token, 2 ether);
         CurveLaunchpad.Market memory untouched = launchpad.market(other);
         uint256 boughtOther = _buy(bob, other, 0.5 ether);

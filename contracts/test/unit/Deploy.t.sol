@@ -30,7 +30,7 @@ contract DeployTest is Fixture {
     }
 
     function test_fixture_isWiredThroughCurveDeploy() public view {
-        _checkWiring(Deployment(launchpad, escrow, locker, reserve), _params());
+        _checkWiring(Deployment(launchpad, escrow, locker, escrow.buybackTreasury()), _params());
         assertEq(launchpad.owner(), owner);
         assertEq(escrow.owner(), owner);
         assertEq(launchpad.graduationTarget(), TARGET);

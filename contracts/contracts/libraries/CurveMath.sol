@@ -22,6 +22,7 @@ library CurveMath {
         uint256 curveQuote;
         uint256 fee;
         uint256 tax;
+        uint256 antiSnipeTax;
     }
 
     struct Sell {
@@ -51,10 +52,22 @@ library CurveMath {
         pure
         returns (Buy memory b)
     {
+        return quoteBuy(vT, vQ, remaining, maxSpend, feeBps, taxBps, 0);
+    }
+
+    function quoteBuy(
+        uint256 vT,
+        uint256 vQ,
+        uint256 remaining,
+        uint256 maxSpend,
+        uint256 feeBps,
+        uint256 taxBps,
+        uint256 antiSnipeBps
+    ) internal pure returns (Buy memory b) {
         if (maxSpend == 0 || maxSpend > type(uint128).max) revert InvalidAmount();
         if (remaining == 0) revert SoldOut();
         uint256 k = vT * vQ;
-        uint256 budget = maxSpend * BPS / (BPS + feeBps + taxBps);
+        uint256 budget = maxSpend * BPS / (BPS + feeBps + taxBps + antiSnipeBps);
         b.tokensOut = vT - Math.ceilDiv(k, vQ + budget);
         if (b.tokensOut > remaining) {
             b.tokensOut = remaining;
@@ -65,10 +78,11 @@ library CurveMath {
         if (b.tokensOut == 0) revert ZeroOutput();
         b.fee = b.curveQuote * feeBps / BPS;
         b.tax = b.curveQuote * taxBps / BPS;
+        b.antiSnipeTax = b.curveQuote * antiSnipeBps / BPS;
         // The final fill is exempt: near sellout a buyer can leave so little that any fill's fee rounds
         // to 0, and rejecting it would wedge the curve just short of graduation.
         if (feeBps != 0 && b.fee == 0 && b.tokensOut != remaining) revert DustTrade();
-        b.spent = b.curveQuote + b.fee + b.tax;
+        b.spent = b.curveQuote + b.fee + b.tax + b.antiSnipeTax;
     }
 
     /// @notice Sells `amount` tokens; fee and tax come out of the gross quote paid by the curve.

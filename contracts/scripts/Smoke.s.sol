@@ -3,82 +3,78 @@ pragma solidity 0.8.24;
 
 import {Script, console2} from "forge-std/Script.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {CurveFeeEscrow} from "../contracts/CurveFeeEscrow.sol";
-import {CurveHolderReserve} from "../contracts/CurveHolderReserve.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {CurveLaunchpad} from "../contracts/CurveLaunchpad.sol";
-import {CurveLpLocker} from "../contracts/CurveLpLocker.sol";
-import {IIcarusPool} from "../contracts/interfaces/IIcarus.sol";
 
 interface IWETH {
     function deposit() external payable;
     function withdraw(uint256 amount) external;
 }
 
-/// @notice One market through the live testnet deployment: launch, sell, sell out, graduate, a pool
-///      swap, the LP fee claim, the creator's fee and reserve claims, and a buyback that must skip
-///      (the fresh pool has no TWAP yet). Every step is asserted, so a failure stops the simulation
-///      before anything is broadcast. The broadcasting account is the creator and only trader.
+/// @dev The recorded testnet launchpad still takes reserveBps in its launch call.
+interface ILegacyLaunchpad {
+    function launch(
+        CurveLaunchpad.Metadata calldata meta,
+        uint16 taxBps,
+        uint16 reserveBps,
+        uint256 maxSpend,
+        uint256 minOut
+    ) external returns (address token, uint256 tokensOut);
+}
+
+/// @notice Broadcasts only a smoke-token launch and one small first buy on RISE testnet.
+/// @dev Full sellout and graduation are simulated in test/fork/Smoke.fork.t.sol.
 contract Smoke is Script {
+    using SafeERC20 for IERC20;
+
     address internal constant WETH = 0x4200000000000000000000000000000000000006;
     uint256 internal constant FIRST_BUY = 0.003 ether;
-    uint256 internal constant POOL_SWAP = 0.001 ether;
-
-    CurveLaunchpad launchpad;
-    CurveFeeEscrow escrow;
-    CurveLpLocker locker;
-    CurveHolderReserve reserve;
 
     function run() external {
         require(block.chainid == 11_155_931, "RISE testnet only");
         string memory record = vm.readFile(string.concat(vm.projectRoot(), "/../deployments/11155931/curveball.json"));
-        launchpad = CurveLaunchpad(vm.parseJsonAddress(record, ".launchpad"));
-        escrow = CurveFeeEscrow(vm.parseJsonAddress(record, ".singletons.escrow"));
-        locker = CurveLpLocker(vm.parseJsonAddress(record, ".singletons.locker"));
-        reserve = CurveHolderReserve(vm.parseJsonAddress(record, ".singletons.reserve"));
-
-        // Cover the full curve quote, its trading fee, the launch fee, and the pool swap.
-        uint256 wrap = launchpad.graduationTarget() * 102 / 100 + launchpad.launchFee() + POOL_SWAP + 0.01 ether;
+        CurveLaunchpad launchpad = CurveLaunchpad(vm.parseJsonAddress(record, ".launchpad"));
+        require(launchpad.quoteToken() == WETH, "unexpected quote token");
+        bool legacy = _isLegacy(launchpad);
 
         vm.startBroadcast();
-        (, address me,) = vm.readCallers();
-        IWETH(WETH).deposit{value: wrap}();
-        IERC20(WETH).approve(address(launchpad), type(uint256).max);
+        (, address broadcaster,) = vm.readCallers();
+        uint256 maxPayment = launchpad.launchFee() + FIRST_BUY;
+        IWETH(WETH).deposit{value: maxPayment}();
+        IERC20(WETH).forceApprove(address(launchpad), maxPayment);
 
-        (address token, uint256 firstTokens) = launchpad.launch(
-            CurveLaunchpad.Metadata("Curveball Smoke", "SMOKE", "ipfs://curveball-smoke"), 0, 100, FIRST_BUY, 0
-        );
-        console2.log("token", token);
-        require(launchpad.held(token, me) == firstTokens && firstTokens != 0, "first buy");
+        (address token, uint256 tokensOut) = _launchAndBuy(launchpad, broadcaster, legacy);
 
-        IERC20(token).approve(address(launchpad), firstTokens / 2);
-        require(launchpad.sell(token, firstTokens / 2, 1, block.timestamp + 1 hours) != 0, "sell");
-
-        launchpad.buy(token, IERC20(WETH).balanceOf(me) - POOL_SWAP, 1, block.timestamp + 1 hours);
-        require(launchpad.market(token).state == CurveLaunchpad.State.Ready, "sellout");
-        require(launchpad.held(token, me) == launchpad.CURVE_SUPPLY(), "held is the whole curve");
-
-        IIcarusPool pool = IIcarusPool(launchpad.graduate(token));
-        console2.log("pool", address(pool));
-        require(launchpad.market(token).state == CurveLaunchpad.State.Graduated, "graduated");
-        require(pool.balanceOf(address(locker)) != 0, "locker holds the LP");
-
-        uint256 out = pool.getAmountOut(POOL_SWAP, WETH);
-        IERC20(WETH).transfer(address(pool), POOL_SWAP);
-        bool tokenIsToken0 = pool.token0() == token;
-        pool.swap(tokenIsToken0 ? out : 0, tokenIsToken0 ? 0 : out, me, "");
-
-        (, uint256 quoteFees) = locker.claim(address(pool));
-        require(quoteFees != 0, "LP fees reached the escrow");
-        require(escrow.claim(WETH) != 0, "creator fees paid");
-        uint256 reserved = reserve.claim(token);
-        require(reserved == reserve.reserveOf(token), "a sole holder claims the whole reserve");
-        require(escrow.buyback(token) == 0 && escrow.lastBuyback(token) == 0, "buyback skips without a TWAP");
-
-        IWETH(WETH).withdraw(IERC20(WETH).balanceOf(me));
+        uint256 unspent = IERC20(WETH).balanceOf(broadcaster);
+        if (unspent != 0) IWETH(WETH).withdraw(unspent);
         vm.stopBroadcast();
 
-        console2.log("tokens held", IERC20(token).balanceOf(me));
-        console2.log("reserve claimed", reserved);
-        console2.log("LP quote fees", quoteFees);
+        console2.log("smoke token", token);
+        console2.log("tokens bought", tokensOut);
+    }
+
+    function _launchAndBuy(CurveLaunchpad launchpad, address broadcaster, bool legacy)
+        internal
+        returns (address token, uint256 tokensOut)
+    {
+        // my SMOKE token config
+        CurveLaunchpad.Metadata memory meta = CurveLaunchpad.Metadata(
+            "Curved Road", "ROAD", "ipfs://bafkreie7vw53rfslxv4kuiqsjxqydbetn3koxiohf72bmjvplp6oofgbzm"
+        );
+        (token, tokensOut) = legacy
+            ? ILegacyLaunchpad(address(launchpad)).launch(meta, 0, 0, FIRST_BUY, 1)
+            : launchpad.launch(meta, 0, FIRST_BUY, 1);
+        require(tokensOut != 0 && launchpad.held(token, broadcaster) == tokensOut, "first buy");
+        require(launchpad.poolOf(token) == address(0), "unexpected graduation");
+    }
+
+    function _isLegacy(CurveLaunchpad launchpad) internal view returns (bool) {
+        (bool ok, bytes memory data) = address(launchpad).staticcall(abi.encodeWithSignature("walletCapBps()"));
+        if (ok && data.length == 32) {
+            require(abi.decode(data, (uint16)) == 500, "unsupported wallet cap");
+            return false;
+        }
+        require(launchpad.CURVE_SUPPLY() == 800_000 ether, "unsupported legacy release");
+        return true;
     }
 }

@@ -11,7 +11,7 @@ interface ITestnetFactoryPause {
 }
 
 /// @dev `Deploy.s.sol` against live RISE state: the testnet run end to end, and the mainnet preflight
-///      rejecting an owner that isn't a timelock. Same skip and CI_FORK=1 rules as the lifecycle forks.
+///      checking the pinned EOA roles before its timelock is created. Same skip and CI_FORK=1 rules.
 abstract contract DeployFork is Test {
     Deploy script;
 
@@ -44,10 +44,9 @@ contract DeployTestnetForkTest is DeployFork {
         assertEq(d.launchpad.treasury(), TESTNET_OPERATOR);
         assertEq(d.escrow.owner(), TESTNET_OPERATOR);
         assertEq(d.launchpad.graduationTarget(), 4 ether);
-        assertEq(d.launchpad.launchFee(), 0.001 ether);
+        assertEq(d.launchpad.launchFee(), 0.00045 ether);
         assertEq(d.escrow.launchpad(), address(d.launchpad));
         assertEq(d.locker.launchpad(), address(d.launchpad));
-        assertEq(address(d.reserve.launchpad()), address(d.launchpad));
     }
 
     function test_preflight_allowsPausedFactoryBecauseOnlySwapsAreBlocked() public {
@@ -59,17 +58,30 @@ contract DeployTestnetForkTest is DeployFork {
 }
 
 contract DeployMainnetForkTest is DeployFork {
+    address constant MAINNET_DEPLOYER = 0xeEb364Ba1a9A4B6a75C41A39c4B91144a4aF156A;
+    address constant MAINNET_TREASURY = 0x7e6B1bEfC7dd622c20961140779eF61cd9C62Ce4;
+
     function setUp() public {
         _fork("RISE_MAINNET_RPC_URL", 4_153);
     }
 
-    function test_preflight_rejectsAnOwnerThatIsNotATimelock() public {
-        vm.setEnv("CURVE_OWNER", vm.toString(makeAddr("eoa owner")));
-        vm.setEnv("CURVE_GUARDIAN", vm.toString(makeAddr("guardian")));
-        vm.setEnv("CURVE_TREASURY", vm.toString(makeAddr("treasury")));
-        vm.setEnv("CURVE_GRADUATION_TARGET", "4000000000000000000");
+    function test_preflight_pinsMainnetRolesAndTarget() public {
         CurveDeploy.Params memory p = script.params();
-        vm.expectRevert(abi.encodeWithSelector(Deploy.Preflight.selector, "owner is not a contract"));
+        assertEq(p.guardian, MAINNET_DEPLOYER);
+        assertEq(p.treasury, MAINNET_TREASURY);
+        assertEq(p.graduationTarget, 4 ether);
+        assertEq(p.owner, address(0), "the owner timelock is created during deployment");
+        script.preflight(p);
+
+        p.guardian = makeAddr("wrong guardian");
+        vm.expectRevert(abi.encodeWithSelector(Deploy.Preflight.selector, "unexpected mainnet guardian"));
+        script.preflight(p);
+    }
+
+    function test_preflight_rejectsAnotherTreasury() public {
+        CurveDeploy.Params memory p = script.params();
+        p.treasury = makeAddr("wrong treasury");
+        vm.expectRevert(abi.encodeWithSelector(Deploy.Preflight.selector, "unexpected mainnet treasury"));
         script.preflight(p);
     }
 }

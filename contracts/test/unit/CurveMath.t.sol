@@ -28,8 +28,8 @@ contract CurveMathHarness {
 }
 
 contract CurveMathTest is Test {
-    uint256 constant S = 1_000_000 ether;
-    uint256 constant C = 800_000 ether;
+    uint256 constant S = 1_000_000_000 ether;
+    uint256 constant C = 800_000_000 ether;
     uint256 constant FEE = 75;
     uint256 constant TAX = 50;
 
@@ -180,7 +180,7 @@ contract CurveMathTest is Test {
         h.quoteSell(S - 1 ether, 2.5 ether, 1 ether, 1e4, FEE, TAX);
         // About 100 wei gross: nonzero output, but the fee rounds to zero.
         vm.expectRevert(CurveMath.DustTrade.selector);
-        h.quoteSell(S - 1 ether, 2.5 ether, 1 ether, 4e7, FEE, TAX);
+        h.quoteSell(S - 1 ether, 2.5 ether, 1 ether, 4e10, FEE, TAX);
     }
 
     function test_sell_revertsBeyondReserve() public {
