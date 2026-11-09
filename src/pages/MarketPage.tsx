@@ -5,7 +5,6 @@ import { useStore } from "../app/useStore.js";
 import { AppLink } from "../components/Navigation";
 import { MarketHeader } from "../components/MarketHeader";
 import { MarketAbout } from "../components/MarketAbout";
-import { HolderAirdropPanel } from "../components/HolderAirdropPanel";
 import { MilestonePanel } from "../components/MilestonePanel";
 import { TradePanel } from "../components/TradePanel";
 import {
@@ -100,11 +99,15 @@ export function MarketPage({
     if (
       !address ||
       !resolvedToken?.factory ||
+      !resolvedToken.supply ||
+      !resolvedToken.curveSupply ||
       resolvedToken.graduated ||
       (!publicClient && !backendEnabled)
     )
       return;
     const launchpad = resolvedToken.factory;
+    const tokenSupply = BigInt(resolvedToken.supply);
+    const curveSupply = BigInt(resolvedToken.curveSupply);
     const shownLifecycle = resolvedToken.lifecycle;
     const shownSoldOut = Boolean(
       resolvedToken.pending || (resolvedToken.progress ?? 0) >= 100,
@@ -130,6 +133,8 @@ export function MarketPage({
             launchpad,
             address,
           ),
+          tokenSupply,
+          curveSupply,
         );
         if (
           active &&
@@ -163,6 +168,8 @@ export function MarketPage({
     resolvedToken?.lifecycle,
     resolvedToken?.pending,
     resolvedToken?.progress,
+    resolvedToken?.supply,
+    resolvedToken?.curveSupply,
     publicClient,
     loadToken,
   ]);
@@ -212,9 +219,6 @@ export function MarketPage({
         <aside className="market-sidebar" aria-label="Market actions">
           <TradePanel token={resolvedToken} address={walletAddress} />
           <MilestonePanel token={resolvedToken} address={walletAddress} />
-          {resolvedToken.reserveTokens !== "0" && (
-            <HolderAirdropPanel token={resolvedToken} />
-          )}
         </aside>
       </div>
 

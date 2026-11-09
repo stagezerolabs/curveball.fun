@@ -22,7 +22,7 @@
 
 - **Keeper wallet empties unnoticed** — the balance alert must not spam (1 alert/hour while below threshold) but must fire when crossing below, in Sentry and logs.
 - **Cost model numbers fabricated** — every figure must trace to a measured testnet receipt or an explicitly labeled assumption range; the doc must show its arithmetic.
-- **Ceremony can't be faked** — the ceremony doc must require each signer to independently verify the record's `codeHashes` against `forge inspect` output *before* any signature.
+- **Ceremony can't be faked** — the ceremony doc must require each signer to independently verify the record's `codeHashes` against `forge inspect` output _before_ any signature.
 - **Doctor misleads with stale env** — `doctor.sh` must exit non-zero on any failed check and print which check failed; `--offline` must not mark network-dependent checks as passed.
 - **Monitoring doc drifts from reality** — every referenced command (systemd units, backup restore) must be copy-pasteable from the actual repo paths/compose files.
 
@@ -31,12 +31,14 @@
 ### Task 1: Keeper cost model (measured, not guessed)
 
 **Files:**
+
 - Create: `deploy/estimate-costs.mjs`
 - Create: `deploy/estimate-costs.test.mjs`
 - Create: `docs/operations/cost-model.md`
 - Test: `bun test deploy/estimate-costs.test.mjs`
 
 **Interfaces:**
+
 - Produces: `export function gasToWei(gasUsed: number, gwei: number): number`; `export function estimateMonthly({ graduationsPerDay, abortsPerDay, buybacksPerDay, gasPerGraduation, gasPerAbort, gasPerBuyback, gwei, keeperGasRefillReserveDays }): { monthlyGasUnits: number; monthlyGasWei: number; annualGasWei: number; refillAmountWei: number }`.
 - Reads: record `deployments/<chainId>/curveball.json` transactions + optional RPC/explorer fetch of gasUsed for each tx (HTTPS-only; `--offline` uses provided `--gas-per-*` defaults).
 
@@ -60,6 +62,7 @@ git commit -m "feat(ops): keeper cost model from measured testnet receipts"
 ### Task 2: Keeper balance alert
 
 **Files:**
+
 - Modify: `keeper/graduation-keeper.mjs`
 - Modify: `keeper/instrument.mjs`
 - Modify: `keeper/graduation-keeper.test.mjs`
@@ -67,6 +70,7 @@ git commit -m "feat(ops): keeper cost model from measured testnet receipts"
 - Test: `npm test` in `keeper/`
 
 **Interfaces:**
+
 - Produces: `export function decideBalanceAlert({ balanceWei, thresholdWei, lastAlertAtMs, nowMs }): "alert" | "ok" | "skip"` — `"alert"` when `balanceWei < thresholdWei` and (`lastAlertAtMs == null` or `nowMs - lastAlertAtMs >= 3_600_000`); `"ok"` when above threshold; `"skip"` when below but within the 1h window.
 - Config: `KEEPER_BALANCE_ALERT_THRESHOLD_ETH` (default `0.01`, must parse as finite ≥ 0), `KEEPER_BALANCE_CHECK_INTERVAL_MS` (default `600_000`, ≥ 60_000). Both validated in `main()`'s existing config block.
 
@@ -88,11 +92,13 @@ git commit -m "feat(keeper): rate-limited balance alert via Sentry"
 ### Task 3: Monitoring, backups, and process supervision doc
 
 **Files:**
+
 - Create: `docs/operations/monitoring.md`
 - Modify: `deploy/README.md` (link to monitoring doc)
 - Test: doc-internal commands validated by running them against the local stack (`docker compose --env-file deploy/production.env -f compose.production.yaml config` and `bun run --cwd packages/db build`)
 
 **Interfaces:**
+
 - Produces: runnable, copy-pasteable sections: (1) systemd unit snippets for `social-api`, `social-indexer`, `social-worker`, `keeper` (WorkingDirectory + `ExecStart` from `services/social/package.json` and `keeper/package.json` scripts; `Restart=always; RestartSec=5`); (2) health checks: `curl -sf https://social-api.curveball.fun/health` and keeper process + log checks; (3) Postgres backup: `pg_dump` (schema + data) with the existing `postgres_data` volume caveat, retention, and a **quarterly restore drill checklist**; (4) Sentry alert routing table (error levels, `curveball-backend@<release>`, `curveball-keeper@<release>`), sampling rates; (5) Nginx proxy rate-limit snippet for `/api/artwork` (2 MB body limit + burst limit) per `deploy/README.md`.
 
 - [ ] **Step 1: Write the doc** with every command inline, referencing the real unit names/scripts from `package.json` files.
@@ -107,10 +113,12 @@ git commit -m "docs(ops): monitoring, backup and supervision runbooks"
 ### Task 4: Mainnet authority ceremony doc (multisig + timelock)
 
 **Files:**
+
 - Create: `docs/operations/mainnet-ceremony.md`
 - Modify: `docs/operations/mainnet-runbook.md` (from the deployment-record plan) to link here for the authorities step
 
 **Interfaces:**
+
 - Produces: the ceremony checklist covering: Safe multisig creation for owner-proposer (recommend 2-of-3), guardian multisig (recommend 3-of-5 with one hardware-wallet signer), treasury Safe; TimelockController deployment with `minDelay = 2 days` via OZ (recommended default, matches `CURVE_MIN_TIMELOCK_DELAY`), `PROPOSER_ROLE` → proposer Safe, `EXECUTOR_ROLE` → `address(0)` (anyone can execute after delay); signer pre-verification steps (each signer runs `forge inspect <contract> deployedBytecode | cast keccak` and compares to `deployments/<chain>/curveball.json.codeHashes`); the "explicit production policy" approval step (who signs off, how it's recorded); and out-of-band key custody notes (never in env, never in CI).
 
 - [ ] **Step 1: Write the doc** — include exact OZ deploy commands (`cast send`/`forge create` snippets are prohibited as broadcast-by-default; use script-based deploy with the existing `CurveDeploy.sol` pattern and a new `TimelockDeploy.s.sol` if needed — note the choice explicitly).
@@ -126,12 +134,14 @@ git commit -m "docs(ops): mainnet authority ceremony and timelock deploy script"
 ### Task 5: `deploy/doctor.sh` — environment and record health
 
 **Files:**
+
 - Create: `deploy/doctor.sh`
 - Create: `deploy/doctor.test.sh` (bash + bun; runs fixtures)
 - Modify: `deploy/README.md` (usage line)
 - Test: `bash deploy/doctor.test.sh` (or via `bun test`, choose one and keep it consistent)
 
 **Interfaces:**
+
 - Produces: `deploy/doctor.sh [--network mainnet|testnet] [--offline]` printing one line per check (`[ok] | [FAIL] name — detail`) and exiting `1` if any check fails. Checks: required binaries (`cast`, `bun`, `docker`), RPC reachable + chain id matches record (skip in `--offline`), record exists + `bun contracts/scripts/record-schema.ts` parse (via a tiny `--check` entry on `record-schema.ts` exporting `checkJsonFile(path)`), `.env.production`/`deploy/*.env` parity with record launchpad/block, git clean vs recorded `sourceCommit` (warn only), `SENTRY_*` placeholders absent, and `SOCIAL_ADMIN_ADDRESS` set when network is mainnet (explicitly nowhere near `0x5cc42e…`).
 
 - [ ] **Step 1: Write the failing test** — fixture dir with a valid v2 record + envs: (a) all-pass run exits 0 and prints `[ok]` for each check; (b) tampered record (bad address) exits 1 naming the record check; (c) `--offline` exits 0 while network checks are labeled `[skip]` (never `[ok]`); (d) missing `SOCIAL_ADMIN_ADDRESS` on mainnet exits 1.

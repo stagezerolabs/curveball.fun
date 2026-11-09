@@ -70,6 +70,8 @@ test("discovery reads each launch's market from the launchpad and derives its st
       throw new Error(`Unexpected launchpad ${address}`);
     },
     readContract: async ({ functionName }: { functionName: string }) => {
+      if (functionName === "SUPPLY") return 1_000_000n * 10n ** 18n;
+      if (functionName === "CURVE_SUPPLY") return 800_000n * 10n ** 18n;
       if (functionName === "market")
         return {
           creator,
@@ -82,7 +84,6 @@ test("discovery reads each launch's market from the launchpad and derives its st
           virtualQuote: 0n,
           initialVirtualQuote,
           realQuote: 0n,
-          reserveTokens: 40_000n * 10n ** 18n,
           readyAt: 1_700_000_000,
           pool,
         };
@@ -115,7 +116,6 @@ test("discovery reads each launch's market from the launchpad and derives its st
     readyAt: 1_700_000_000,
     progress: 100,
     pool,
-    reserveTokens: (40_000n * 10n ** 18n).toString(),
     graduationTargetWeth: "0.01",
     metadataUri: "ipfs://new",
   });

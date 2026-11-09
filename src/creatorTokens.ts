@@ -1,6 +1,6 @@
 import { formatEther, getAddress, zeroAddress, type Address } from "viem";
 import { curveLaunchpadAbi } from "./sdk/contracts";
-import { CURVE_SUPPLY, MARKET_STATES, TOKEN_SUPPLY } from "./sdk/sdk";
+import { MARKET_STATES } from "./sdk/sdk";
 import { activeDeploymentBlock, launchpadAddress } from "./lib/web3";
 import { buildBlockRanges } from "./lib/marketChart";
 import type { Token } from "./types";
@@ -81,19 +81,22 @@ export type LaunchpadMarket = Readonly<{
   virtualQuote: bigint;
   initialVirtualQuote: bigint;
   realQuote: bigint;
-  reserveTokens: bigint;
   readyAt: number;
   pool: Address;
 }>;
 
 /** The token fields that follow from a market's on-chain state. */
-export function marketFields(market: LaunchpadMarket) {
+export function marketFields(
+  market: LaunchpadMarket,
+  tokenSupply: bigint,
+  curveSupply: bigint,
+) {
   const lifecycle = MARKET_STATES[market.state] ?? "none";
-  const sold = TOKEN_SUPPLY - market.virtualToken;
-  const terminalVirtualToken = TOKEN_SUPPLY - CURVE_SUPPLY;
+  const sold = tokenSupply - market.virtualToken;
+  const terminalVirtualToken = tokenSupply - curveSupply;
   // The curve ends where virtualToken reaches S − C; k = S · initialVirtualQuote is fixed until graduation.
   const terminalVirtualQuote =
-    (TOKEN_SUPPLY * market.initialVirtualQuote + terminalVirtualToken - 1n) /
+    (tokenSupply * market.initialVirtualQuote + terminalVirtualToken - 1n) /
     terminalVirtualToken;
   const price =
     market.virtualToken === 0n
@@ -109,16 +112,14 @@ export function marketFields(market: LaunchpadMarket) {
     creatorShareBps: market.creatorShareBps,
     buybackShareBps: market.buybackShareBps,
     creatorTaxBps: market.taxBps,
-    reserveTokens: market.reserveTokens.toString(),
-    progress: Number((sold * 10_000n) / CURVE_SUPPLY) / 100,
-    supply: TOKEN_SUPPLY.toString(),
-    curveSupply: CURVE_SUPPLY.toString(),
+    progress: Number((sold * 10_000n) / curveSupply) / 100,
+    supply: tokenSupply.toString(),
+    curveSupply: curveSupply.toString(),
     price,
     targetPrice:
       Number(formatEther(terminalVirtualQuote)) /
       Number(formatEther(terminalVirtualToken)),
-    marketCap:
-      price === null ? null : price * Number(formatEther(TOKEN_SUPPLY)),
+    marketCap: price === null ? null : price * Number(formatEther(tokenSupply)),
     curveLiquidityWeth:
       lifecycle === "graduated" ? null : Number(formatEther(market.realQuote)),
     graduationTargetWeth: formatEther(
@@ -183,6 +184,21 @@ async function discoverTokensForFactory(
   );
   if (!logs.length) return [];
 
+  const [tokenSupply, curveSupply] = await Promise.all([
+    client.readContract({
+      address: launchpad,
+      abi: curveLaunchpadAbi,
+      functionName: "SUPPLY",
+    }) as Promise<bigint>,
+    client.readContract({
+      address: launchpad,
+      abi: curveLaunchpadAbi,
+      functionName: "CURVE_SUPPLY",
+    }) as Promise<bigint>,
+  ]);
+  if (curveSupply <= 0n || tokenSupply <= curveSupply)
+    throw new Error("Invalid launchpad supply policy.");
+
   return Promise.all(
     logs.map(async (log) => {
       const {
@@ -217,7 +233,7 @@ async function discoverTokensForFactory(
         createdAt: new Date(Number(block.timestamp) * 1_000).toISOString(),
         createdBlock: log.blockNumber.toString(),
         quoteSymbol: "WETH",
-        ...marketFields(market),
+        ...marketFields(market, tokenSupply, curveSupply),
       } satisfies Token;
     }),
   );

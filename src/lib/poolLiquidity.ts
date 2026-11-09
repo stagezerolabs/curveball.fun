@@ -13,10 +13,14 @@ export function poolLiquidityWeth(
   const quote = quoteToken.toLowerCase();
   const first = token0.toLowerCase();
   const second = token1.toLowerCase();
-  if (market === quote || !(
-    (first === market && second === quote) ||
-    (first === quote && second === market)
-  )) return null;
+  if (
+    market === quote ||
+    !(
+      (first === market && second === quote) ||
+      (first === quote && second === market)
+    )
+  )
+    return null;
   const quoteReserve = first === quote ? reserves[0] : reserves[1];
   return Number(formatEther(quoteReserve)) * 2;
 }

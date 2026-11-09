@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Curveball | Supply, burns, and buybacks</title>
+    <style>
+      :root { color-scheme: light; font: 16px/1.55 system-ui, sans-serif; color: #182320; background: #f6f8f6; }
+      * { box-sizing: border-box; }
+      body { max-width: 860px; margin: auto; padding: 40px 24px 72px; }
+      header { border-bottom: 2px solid #183d32; padding-bottom: 18px; }
+      .eyebrow { margin: 0 0 8px; color: #17634c; font-size: .8rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+      h1 { margin: 0; font-size: clamp(2rem, 5vw, 3rem); line-height: 1.15; }
+      h2 { margin: 34px 0 10px; font-size: 1.35rem; line-height: 1.25; }
+      p, ul { margin: 10px 0 16px; }
+      li { margin: 7px 0; }
+      .meta { color: #53645c; font-size: .92rem; }
+      .example { padding: 16px 18px; border-left: 4px solid #17634c; background: #e9f3ed; }
+      .table-wrap { overflow-x: auto; }
+      table { width: 100%; border-collapse: collapse; background: #fff; }
+      th, td { padding: 11px 13px; border-bottom: 1px solid #d9e2dc; text-align: left; vertical-align: top; }
+      th { background: #e9f0eb; }
+      @media (max-width: 600px) { body { padding: 26px 16px 56px; } th, td { padding: 9px; } }
+      @media print { :root { background: #fff; } body { max-width: none; padding: 0; } }
+    </style>
+  </head>
+  <body>
+    <header>
+      <p class="eyebrow">Curveball / management brief</p>
+      <h1>Supply, burns, and buybacks</h1>
+      <p class="meta">Current release candidate · 9 November 2026</p>
+    </header>
+
+    <h2>Supply and the wallet limit</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Number</th><th>What it means</th></tr></thead>
+        <tbody>
+          <tr><td>1 billion tokens</td><td>Minted for each new market</td></tr>
+          <tr><td>800 million</td><td>Available for sale on the curve</td></tr>
+          <tr><td>200 million</td><td>Held by the launchpad for pool seeding or burning at graduation</td></tr>
+          <tr><td>40 million</td><td>Maximum net curve purchases held by one address before graduation; sells restore capacity</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>A complete 800 million-token sellout needs at least 20 buying addresses if none sell. The cap is per address, so one group can use several wallets. Transfers between holders are restricted while the curve is active; after graduation, the curve wallet cap no longer applies. These rules limit single-wallet concentration but cannot guarantee fair distribution.</p>
+
+    <h2>What burns at graduation</h2>
+    <p>When the curve sells out, the launchpad pairs the WETH raised with some of its remaining tokens in an Icarus pool, locks its LP position permanently, and burns any launchpad tokens left over. There is no holder reserve or holder claim in this release.</p>
+    <p class="example">At a clean sellout with a <strong>4 WETH target</strong>, about <strong>160 million tokens</strong> seed the pool and <strong>40 million tokens</strong> burn. Rounding and permitted pool deposits can change the final counts. The 4 WETH becomes locked market liquidity, not treasury revenue.</p>
+    <p>If a market is ready to graduate for seven days without graduation, anyone can abort that attempt. Trading can continue and a later sellout can graduate. This graduation burn is separate from treasury buybacks.</p>
+
+    <h2>How later buybacks work</h2>
+    <p>At the current default, 25% of each 0.75% curve trade fee funds a <strong>shared WETH buyback budget</strong>. After graduation, 25% of Curveball's claimed LP fees also funds it. Fees received as market tokens must first be converted to WETH.</p>
+    <p>The treasury owner must permanently choose one graduated CURVE token. Permissionless calls then use the pooled WETH budget to buy and burn that token, even when fees came from other markets. Funding the budget does not itself burn tokens. Swaps use price observations and size limits; a paused pool or failed price check can skip a purchase, leaving the budget for later. Public buyback calls have a one-day wait after a successful buyback.</p>
+    <p>A burn reduces the selected token's supply. It does not set a price floor or distribute cash to holders.</p>
+
+    <h2>What the team must operate</h2>
+    <ul>
+      <li>Approve and record the one permanent buyback token selection after it graduates.</li>
+      <li>Assign collection of locked LP fees and treasury escrow claims; the keeper does not do either automatically.</li>
+      <li>Report WETH budget, token credits awaiting conversion, skipped swaps, actual purchases, and tokens burned as separate figures.</li>
+      <li>Check wallet concentration across related addresses when assessing distribution.</li>
+    </ul>
+  </body>
+</html>

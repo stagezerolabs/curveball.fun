@@ -9,8 +9,11 @@ import { poolLiquidityWeth } from "./poolLiquidity";
 /** Live WETH-equivalent liquidity for graduated markets visible on the page. */
 export function useGraduatedPoolLiquidity(tokens: Token[]) {
   const pools = useMemo(
-    () => tokens.filter((token): token is Token & { pool: Address } =>
-      token.graduated && Boolean(token.pool)),
+    () =>
+      tokens.filter(
+        (token): token is Token & { pool: Address } =>
+          token.graduated && Boolean(token.pool),
+      ),
     [tokens],
   );
   const { data: quoteToken } = useReadContract({
@@ -21,11 +24,27 @@ export function useGraduatedPoolLiquidity(tokens: Token[]) {
     query: { enabled: Boolean(launchpadAddress && pools.length) },
   });
   const contracts = useMemo(
-    () => pools.flatMap((token) => [
-      { address: token.pool, abi: icarusPoolAbi, functionName: "token0" as const, chainId: activeChainId },
-      { address: token.pool, abi: icarusPoolAbi, functionName: "token1" as const, chainId: activeChainId },
-      { address: token.pool, abi: icarusPoolAbi, functionName: "getReserves" as const, chainId: activeChainId },
-    ]),
+    () =>
+      pools.flatMap((token) => [
+        {
+          address: token.pool,
+          abi: icarusPoolAbi,
+          functionName: "token0" as const,
+          chainId: activeChainId,
+        },
+        {
+          address: token.pool,
+          abi: icarusPoolAbi,
+          functionName: "token1" as const,
+          chainId: activeChainId,
+        },
+        {
+          address: token.pool,
+          abi: icarusPoolAbi,
+          functionName: "getReserves" as const,
+          chainId: activeChainId,
+        },
+      ]),
     [pools],
   );
   const { data } = useReadContracts({
@@ -43,7 +62,12 @@ export function useGraduatedPoolLiquidity(tokens: Token[]) {
       const token0Read = data?.[index * 3];
       const token1Read = data?.[index * 3 + 1];
       const reservesRead = data?.[index * 3 + 2];
-      if (token0Read?.status !== "success" || token1Read?.status !== "success" || reservesRead?.status !== "success") return;
+      if (
+        token0Read?.status !== "success" ||
+        token1Read?.status !== "success" ||
+        reservesRead?.status !== "success"
+      )
+        return;
       const value = poolLiquidityWeth(
         token.address,
         quoteToken,

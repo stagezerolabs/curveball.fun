@@ -1,7 +1,7 @@
 import { getAddress, type Address, type Hex } from "viem";
 import {
   curveFeeEscrowAbi,
-  curveHolderReserveAbi,
+  curveBuybackTreasuryAbi,
   curveLaunchpadAbi,
   curveLpLockerAbi,
 } from "./sdk/contracts";
@@ -19,7 +19,7 @@ export type LaunchpadDeployment = {
   launchpad: Address;
   escrow: Address;
   locker: Address;
-  reserve: Address;
+  buybackTreasury: Address;
   tokenImplementation: Address;
   quoteToken: Address;
   icarusFactory: Address;
@@ -37,26 +37,20 @@ export async function validateLaunchpad(
     );
   if (!(await hasCode(client, launchpad)))
     throw new Error("Launchpad has no deployed code.");
-  const [
-    escrow,
-    locker,
-    reserve,
-    tokenImplementation,
-    quoteToken,
-    icarusFactory,
-  ] = await Promise.all(
-    [
-      "escrow",
-      "locker",
-      "reserve",
-      "tokenImplementation",
-      "quoteToken",
-      "icarusFactory",
-    ].map((functionName) => read(launchpad, curveLaunchpadAbi, functionName)),
-  );
+  const [escrow, locker, tokenImplementation, quoteToken, icarusFactory] =
+    await Promise.all(
+      [
+        "escrow",
+        "locker",
+        "tokenImplementation",
+        "quoteToken",
+        "icarusFactory",
+      ].map((functionName) => read(launchpad, curveLaunchpadAbi, functionName)),
+    );
   if (expectedQuote && quoteToken !== getAddress(expectedQuote))
     throw new Error("Quote token mismatch.");
-  const singletons = { escrow, locker, reserve, tokenImplementation };
+  const buybackTreasury = await read(escrow, curveFeeEscrowAbi, "buybackTreasury");
+  const singletons = { escrow, locker, buybackTreasury, tokenImplementation };
   for (const [name, address] of Object.entries(singletons)) {
     if (!(await hasCode(client, address)))
       throw new Error(`${name} has no deployed code.`);
@@ -64,10 +58,12 @@ export async function validateLaunchpad(
   const backPointers = await Promise.all([
     read(escrow, curveFeeEscrowAbi, "launchpad"),
     read(locker, curveLpLockerAbi, "launchpad"),
-    read(reserve, curveHolderReserveAbi, "launchpad"),
+    read(buybackTreasury, curveBuybackTreasuryAbi, "launchpad"),
   ]);
   if (backPointers.some((pointer) => pointer !== getAddress(launchpad)))
     throw new Error("A singleton points at another launchpad.");
+  if ((await read(buybackTreasury, curveBuybackTreasuryAbi, "escrow")) !== escrow)
+    throw new Error("Buyback treasury points at another escrow.");
   if ((await read(locker, curveLpLockerAbi, "escrow")) !== escrow)
     throw new Error("Locker points at another escrow.");
   return {

@@ -1,5 +1,7 @@
 # Deployment Record v2 + Mainnet Config Pipeline Implementation Plan
 
+> **Historical implementation plan.** Its HolderReserve, old minimum target, and record-schema assumptions do not describe the current release. Consult [deployment documentation](../../../contracts/README.md) and [the current protocol spec](../../../contracts/docs/protocol-spec.md) before operating the scripts.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Upgrade the deployment record to a machine-validated `record-v2` schema with authorities/build metadata, make the config pipeline testnet-independent, add live-record drift verification, and ship a mainnet runbook.
@@ -23,7 +25,7 @@
 - **Operator regenerates production env from a stale record** — `prepare-production-env` must refuse when record `chainId` ≠ requested network, and must never write a `testnet-` release for a mainnet record.
 - **Bytecode hash drift between local build and live chain** — `record-production` must compare each singleton's live keccak against the built artifact bytecode and abort on mismatch for mainnet.
 - **Timelock with zero delay slips through** — preflight must enforce `getMinDelay() ≥ CURVE_MIN_TIMELOCK_DELAY` (default 2 days), not just `!= 0`.
-- **Frontend RPC default leaks to public** — the frontend Vite build needs *some* public RPC; the record/config tooling must not bless `https://rpc.risechain.com` as an operational RPC for private flows.
+- **Frontend RPC default leaks to public** — the frontend Vite build needs _some_ public RPC; the record/config tooling must not bless `https://rpc.risechain.com` as an operational RPC for private flows.
 - **Record consumers silently break on schema change** — every consumer (`sync-production-config.ts`, `prepare-production-env.mjs`, `Smoke.s.sol`, keeper `readConstants`) must be updated in the same commit as the schema bump.
 
 ---
@@ -31,11 +33,13 @@
 ### Task 1: Record schema v2 + validator
 
 **Files:**
+
 - Create: `contracts/scripts/record-schema.ts`
 - Create: `contracts/scripts/record-schema.test.ts`
 - Test: `bun test contracts/scripts/record-schema.test.ts`
 
 **Interfaces:**
+
 - Produces: `export type DeploymentRecord` (exact shape below), `export function parseAndValidateRecord(input: unknown): DeploymentRecord`, `export class RecordValidationError extends Error { fields: string[] }`.
 
 - [ ] **Step 1: Write the failing test**
@@ -43,16 +47,46 @@
 ```ts
 // record-schema.test.ts
 import { parseAndValidateRecord, RecordValidationError } from "./record-schema";
-const VALID = { /* exact fixture object per the type below, mainnet variant */ };
-test("accepts a valid mainnet record", () => expect(parseAndValidateRecord(VALID).chainId).toBe(4153));
+const VALID = {/* exact fixture object per the type below, mainnet variant */};
+test("accepts a valid mainnet record", () =>
+  expect(parseAndValidateRecord(VALID).chainId).toBe(4153));
 test.each([
-  ["missing authorities.timelock on mainnet", {...VALID, authorities: {...VALID.authorities, timelock: null}}],
-  ["timelock delay 0", {...VALID, authorities: {...VALID.authorities, timelock: {delaySeconds: 0, proposer: VALID.authorities.owner}}}],
-  ["feeBps 201", {...VALID, policy: {...VALID.policy, feeDefaults: {...VALID.policy.feeDefaults, feeBps: 201}}}],
-  ["bad chainId", {...VALID, chainId: 1}],
-  ["codeHash not 66-hex", {...VALID, codeHashes: {...VALID.codeHashes, CurveLaunchpad: "0x1234"}}],
-  ["transactions name/order mismatch", {...VALID, transactions: [...VALID.transactions].reverse()}],
-])("rejects %s", (_name, bad) => expect(() => parseAndValidateRecord(bad)).toThrow(RecordValidationError));
+  [
+    "missing authorities.timelock on mainnet",
+    { ...VALID, authorities: { ...VALID.authorities, timelock: null } },
+  ],
+  [
+    "timelock delay 0",
+    {
+      ...VALID,
+      authorities: {
+        ...VALID.authorities,
+        timelock: { delaySeconds: 0, proposer: VALID.authorities.owner },
+      },
+    },
+  ],
+  [
+    "feeBps 201",
+    {
+      ...VALID,
+      policy: {
+        ...VALID.policy,
+        feeDefaults: { ...VALID.policy.feeDefaults, feeBps: 201 },
+      },
+    },
+  ],
+  ["bad chainId", { ...VALID, chainId: 1 }],
+  [
+    "codeHash not 66-hex",
+    { ...VALID, codeHashes: { ...VALID.codeHashes, CurveLaunchpad: "0x1234" } },
+  ],
+  [
+    "transactions name/order mismatch",
+    { ...VALID, transactions: [...VALID.transactions].reverse() },
+  ],
+])("rejects %s", (_name, bad) =>
+  expect(() => parseAndValidateRecord(bad)).toThrow(RecordValidationError),
+);
 ```
 
 - [ ] **Step 2: Run the test to verify it fails** — `bun test contracts/scripts/record-schema.test.ts` → FAIL (module missing)
@@ -66,27 +100,49 @@ export type DeploymentRecord = {
   version: "record-v2";
   release: "mainnet" | "testnet";
   chainId: 4153 | 11155931;
-  deployedAt: string;                    // ISO 8601
-  sourceCommit: string;                  // 40-hex
+  deployedAt: string; // ISO 8601
+  sourceCommit: string; // 40-hex
   sourceDirty: boolean;
   build: { forge: string; bytecodeHashesMatchBuild: boolean };
-  launchpad: string; deploymentBlock: string;
-  quote: string; icarusFactory: string;
+  launchpad: string;
+  deploymentBlock: string;
+  quote: string;
+  icarusFactory: string;
   authorities: {
     owner: string;
     timelock: { delaySeconds: number; proposer: string } | null; // non-null iff mainnet
-    guardian: string; guardianKind: "multisig" | "eoa";
-    treasury: string; treasuryKind: "safe" | "eoa";
+    guardian: string;
+    guardianKind: "multisig" | "eoa";
+    treasury: string;
+    treasuryKind: "safe" | "eoa";
   };
   policy: {
-    launchFee: string; graduationTarget: string;
-    feeDefaults: { feeBps: number; creatorShareBps: number; buybackShareBps: number; taxCapBps: number };
-    supply: string; curveSupply: string; maxReserveBps: string;
+    launchFee: string;
+    graduationTarget: string;
+    feeDefaults: {
+      feeBps: number;
+      creatorShareBps: number;
+      buybackShareBps: number;
+      taxCapBps: number;
+    };
+    supply: string;
+    curveSupply: string;
+    maxReserveBps: string;
   };
-  singletons: { escrow: string; locker: string; reserve: string; tokenImplementation: string };
+  singletons: {
+    escrow: string;
+    locker: string;
+    reserve: string;
+    tokenImplementation: string;
+  };
   codeHashes: Record<string, string>;
   sourceVerification: Record<string, { name: string; url: string }>;
-  transactions: Array<{ name: string; address: string; hash: string; blockNumber: string }>;
+  transactions: Array<{
+    name: string;
+    address: string;
+    hash: string;
+    blockNumber: string;
+  }>;
   urls: { explorer: string; readiness?: string };
 };
 ```
@@ -105,12 +161,14 @@ git commit -m "feat(scripts): record-v2 schema and validator"
 ### Task 2: Unit-testable deploy preflight + timelock delay floor
 
 **Files:**
+
 - Create: `contracts/scripts/DeployChecks.sol` (library, importable by tests)
 - Modify: `contracts/scripts/Deploy.s.sol` — `preflight()` delegates to `DeployChecks`, reads no env inside checks
 - Create: `contracts/test/unit/DeployPreflight.t.sol`
 - Modify: `contracts/Makefile` — no change yet (tests run via `forge test`)
 
 **Interfaces:**
+
 - Produces: `library DeployChecks { function checkAuthority(CheckParams memory p) external view; }` where `CheckParams` carries `(bool isMainnet, address owner, address proposer, address guardian, address treasury, uint256 timelockDelay, uint256 minDelay, address icarusFactory)`; reverts with `Preflight(string)` — reuses existing `Preflight` error style (define `error Preflight(string)` inside the library and let `Deploy` and tests catch it).
 - Consumes: `Deploy.s.sol` keeps `params()` reading env (`CURVE_OWNER`, `CURVE_GUARDIAN`, `CURVE_TREASURY`, `CURVE_TIMELOCK_PROPOSER`, `CURVE_GRADUATION_TARGET`, new `CURVE_MIN_TIMELOCK_DELAY` default 172800).
 
@@ -132,11 +190,13 @@ git commit -m "feat(deploy): unit-testable authority preflight with min timelock
 ### Task 3: record-production emits record-v2 with live verification
 
 **Files:**
+
 - Modify: `contracts/scripts/record-production.ts`
 - Modify: `contracts/scripts/sync-production-config.ts` (validate via schema)
 - Test: extend `contracts/scripts/record-schema.test.ts` with a live-record fixture test (structurally only; network calls stay in the script)
 
 **Interfaces:**
+
 - Consumes: `parseAndValidateRecord` from Task 1; `DeploymentRecord` type.
 - Produces: rewritten `record-production.ts` that (1) calls `DeployChecks`-style logic implicitly by reading live `owner`/`guardian`/`treasury` and `getMinDelay()` (mainnet: abort if call fails, require `delaySeconds ≥ CURVE_MIN_TIMELOCK_DELAY` and `proposer` from env `CURVE_TIMELOCK_PROPOSER`), (2) computes `bytecodeHashesMatchBuild` by reading each singleton's `out/<Contract>.sol/<Contract>.json` → `deployedBytecode.object` → `keccak256("0x" + object)`, aborting on mismatch for mainnet, (3) writes `sourceDirty`, `build.forge` (from `forge --version`), `deployedAt`, `urls`, (4) validates the assembled record through `parseAndValidateRecord` before writing.
 
@@ -158,11 +218,13 @@ git commit -m "feat(scripts): emit and validate record-v2 with build bytecode ve
 ### Task 4: Mainnet-capable production env generator
 
 **Files:**
+
 - Modify: `deploy/prepare-production-env.mjs`
 - Create: `deploy/prepare-production-env.test.mjs`
 - Test: `bun test deploy/prepare-production-env.test.mjs`
 
 **Interfaces:**
+
 - Produces: `export function createProductionEnv({ network, rootDir, recordPath, envFiles, outDir })` — pure, no imports of real paths; `main()` reads `process.argv` for `--network` (default `testnet`), resolves `deployments/<chainId>/curveball.json` from the record itself (never the hard-coded `11155931` path).
 - Consumes: `parseAndValidateRecord` (Task 1) — reject any record that fails schema.
 
@@ -184,11 +246,13 @@ git commit -m "feat(deploy): network-aware production env generator with record 
 ### Task 5: Live-record drift verification + config parity check
 
 **Files:**
+
 - Create: `contracts/scripts/verify-record.ts`
 - Modify: `contracts/Makefile` (targets `verify-record`, `verify-record-testnet`, `ensure-record-absent`)
 - Test: `contracts/scripts/record-schema.test.ts` gains a `verifyLiveRecord(record, client)` structural test (mock client), and a README note that real drift checks run against testnet RPC via `make verify-record-testnet` (CI_FORK-gated, skips without RPC).
 
 **Interfaces:**
+
 - Produces: `export async function verifyLiveRecord(record, client, network): Promise<Array<{check: string; ok: boolean; detail?: string}>>` — re-reads `owner/guardian/treasury/launchFee/graduationTarget/feeDefaults/paused`, `singletons` via `validateLaunchpad`, live `keccak256(getBytecode)` vs record `codeHashes`, explorer `is_verified/name` vs record `sourceVerification`; returns per-check results, throws on RPC/network error only.
 
 - [ ] **Step 1: Write the failing test** — mock client returning canned view values; assert a drift in `owner` produces `ok:false` with `check:"authorities.owner"` and that a matching record yields all `ok:true`.
@@ -209,6 +273,7 @@ git commit -m "feat(deploy): verify live chain against the deployment record"
 ### Task 6: Mainnet runbook + schema/consumer migration, docs
 
 **Files:**
+
 - Create: `docs/operations/mainnet-runbook.md`
 - Modify: `deploy/README.md`, `deploy/production.env.example` (mainnet-oriented comments), `keepers`/`services/social` README references to `KEEPER_LAUNCHPAD_ADDRESS` etc. (no code change — parity is enforced by Task 4)
 - Consumers to migrate in this task (must land together): `contracts/scripts/Smoke.s.sol` (reads `launchpad`, `singletons` — no schema break), `contracts/scripts/sync-production-config.ts` (validates through `parseAndValidateRecord`), `keeper` reads (unchanged — top-level fields preserved).

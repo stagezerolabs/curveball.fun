@@ -6,7 +6,8 @@ ENV NODE_ENV=production
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
-COPY graduation-keeper.mjs instrument.mjs ./
+COPY main.mjs abi.mjs ./
+COPY src/ ./src/
 
 USER node
-CMD ["node", "--import", "./instrument.mjs", "graduation-keeper.mjs"]
+CMD ["node", "--import", "./src/runtime/instrument.mjs", "main.mjs"]

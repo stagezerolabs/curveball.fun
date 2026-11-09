@@ -1,9 +1,7 @@
 import { getAddress, isAddress, type Address } from "viem";
 
-const configuredAdmin = String(
-  import.meta.env.VITE_ADMIN_ADDRESS ||
-    "0x5cc42e772f67089b4670eec4dcd904be2f2d511c",
-).trim();
+const configuredAdmin = String(import.meta.env.VITE_ADMIN_ADDRESS || "").trim();
+if (!configuredAdmin) throw new Error("VITE_ADMIN_ADDRESS is required.");
 if (!isAddress(configuredAdmin))
   throw new Error("VITE_ADMIN_ADDRESS must be a valid Ethereum address.");
 

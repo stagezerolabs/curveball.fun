@@ -71,6 +71,20 @@
       "when": 1792506558855,
       "tag": "0009_greedy_cerebro",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794043567112,
+      "tag": "0010_ordinary_patch",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794046553052,
+      "tag": "0011_narrow_mac_gargan",
+      "breakpoints": true
     }
   ]
 }

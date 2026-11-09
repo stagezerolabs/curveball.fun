@@ -42,8 +42,9 @@ export function MarketTape({
   return (
     <aside
       className={`market-snapshot-ticker${renderMarkets ? " has-markets" : ""}`}
-      aria-label={renderMarkets ? "CURVE and market stats" : "CURVE token stats"}
-      title="CURVE preview using SMOKE token data on RISE Testnet"
+      aria-label={
+        renderMarkets ? "CURVE and market stats" : "CURVE token stats"
+      }
     >
       <div className="market-snapshot-track">
         {Array.from({ length: 4 }, (_, index) => (

@@ -24,8 +24,9 @@ export function MarketTapeMarkets({ navigate }: { navigate: Navigate }) {
     (state: { marketError: string }) => state.marketError,
   );
   const loadMarkets = useStore(
-    (state: { loadMarkets: (client?: CreatorTokenClient) => Promise<Token[]> }) =>
-      state.loadMarkets,
+    (state: {
+      loadMarkets: (client?: CreatorTokenClient) => Promise<Token[]>;
+    }) => state.loadMarkets,
   );
   const stats = useMarketPreviewStats(
     publicClient as MarketPreviewStatsClient | undefined,
@@ -70,7 +71,9 @@ export function MarketTapeMarkets({ navigate }: { navigate: Navigate }) {
                 change == null ? null : Math.round(change * 10) / 10;
               const content = (
                 <>
-                  <span className="market-snapshot-symbol">${token.symbol}</span>
+                  <span className="market-snapshot-symbol">
+                    ${token.symbol}
+                  </span>
                   <strong className="market-snapshot-volume">
                     {formatEthAmount(preview.volume24h)} <small>WETH</small>
                   </strong>
@@ -103,7 +106,10 @@ export function MarketTapeMarkets({ navigate }: { navigate: Navigate }) {
                   {content}
                 </AppLink>
               ) : (
-                <span className="market-snapshot market-snapshot-token" key={token.address}>
+                <span
+                  className="market-snapshot market-snapshot-token"
+                  key={token.address}
+                >
                   {content}
                 </span>
               );

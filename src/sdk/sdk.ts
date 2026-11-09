@@ -28,7 +28,7 @@ import {
 } from "./curveballSdk";
 import {
   curveFeeEscrowAbi,
-  curveHolderReserveAbi,
+  curveBuybackTreasuryAbi,
   curveLaunchpadAbi,
   curveLpLockerAbi,
   erc20Abi,
@@ -79,7 +79,6 @@ export type ConfirmedTrade = ConfirmedWrite &
   }>;
 export type LaunchInput = TokenInput & {
   creatorTaxBps?: number;
-  holderReserveBps?: number;
 };
 type WalletSession = Readonly<{ address: Address; connector?: Connector }>;
 
@@ -93,9 +92,10 @@ export const MARKET_STATES = [
 ] as const;
 export type MarketLifecycle = (typeof MARKET_STATES)[number];
 
-// The launchpad's SUPPLY and CURVE_SUPPLY constants; every market uses them.
-export const TOKEN_SUPPLY = 1_000_000n * 10n ** 18n;
-export const CURVE_SUPPLY = 800_000n * 10n ** 18n;
+// New deployments mint one billion tokens. Runtime reads below support the existing
+// one-million-token testnet deployment until it is replaced.
+export const TOKEN_SUPPLY = 1_000_000_000n * 10n ** 18n;
+export const CURVE_SUPPLY = 800_000_000n * 10n ** 18n;
 
 const defaultActions = {
   getAccount,
@@ -177,14 +177,21 @@ export function quoteFirstBuy(
   graduationTarget: bigint,
   feeBps: number,
   taxBps: number,
+  tokenSupply: bigint,
+  curveSupply: bigint,
+  antiSnipeBps = 0,
+  walletCapBps = 10_000,
 ): bigint {
   const initialVirtualQuote =
-    (graduationTarget * (TOKEN_SUPPLY - CURVE_SUPPLY)) / CURVE_SUPPLY;
-  const budget = (maxSpend * BPS) / (BPS + BigInt(feeBps) + BigInt(taxBps));
-  const k = TOKEN_SUPPLY * initialVirtualQuote;
+    (graduationTarget * (tokenSupply - curveSupply)) / curveSupply;
+  const budget =
+    (maxSpend * BPS) /
+    (BPS + BigInt(feeBps) + BigInt(taxBps) + BigInt(antiSnipeBps));
+  const k = tokenSupply * initialVirtualQuote;
   const denominator = initialVirtualQuote + budget;
-  const tokensOut = TOKEN_SUPPLY - (k + denominator - 1n) / denominator;
-  return tokensOut < CURVE_SUPPLY ? tokensOut : CURVE_SUPPLY;
+  const tokensOut = tokenSupply - (k + denominator - 1n) / denominator;
+  const walletCap = (curveSupply * BigInt(walletCapBps)) / BPS;
+  return tokensOut < walletCap ? tokensOut : walletCap;
 }
 
 // Some RPC endpoints briefly serve the pre-approval block after confirming the approval receipt.
@@ -210,6 +217,45 @@ export function createCurveballSdk(
 ) {
   const launchpad = deployment.launchpad;
   const chainId = deployment.chainId;
+  let walletCapPromise: Promise<bigint> | undefined;
+  function getWalletCapBps() {
+    walletCapPromise ??= actions.readContract(config, {
+      address: launchpad, abi: curveLaunchpadAbi, functionName: "walletCapBps", chainId,
+    }).then((value) => BigInt(value)).catch(async () =>
+      (await getSupplies()).tokenSupply >= TOKEN_SUPPLY ? 500n : 10_000n
+    );
+    return walletCapPromise;
+  }
+
+  let suppliesPromise:
+    Promise<{ tokenSupply: bigint; curveSupply: bigint }> | undefined;
+
+  function getSupplies() {
+    suppliesPromise ??= Promise.all([
+      actions.readContract(config, {
+        address: launchpad,
+        abi: curveLaunchpadAbi,
+        functionName: "SUPPLY",
+        chainId,
+      }),
+      actions.readContract(config, {
+        address: launchpad,
+        abi: curveLaunchpadAbi,
+        functionName: "CURVE_SUPPLY",
+        chainId,
+      }),
+    ])
+      .then(([tokenSupply, curveSupply]) => {
+        if (curveSupply <= 0n || tokenSupply <= curveSupply)
+          throw new CurveballSdkError("Invalid launchpad supply policy.");
+        return { tokenSupply, curveSupply };
+      })
+      .catch((error: unknown) => {
+        suppliesPromise = undefined;
+        throw error;
+      });
+    return suppliesPromise;
+  }
 
   async function ensureWalletChain(
     connector?: Connector,
@@ -243,7 +289,7 @@ export function createCurveballSdk(
     const account = actions.getAccount(config);
     if (!account.address)
       throw new CurveballSdkError("Connect a wallet to continue.");
-    // Wagmi's cached chain can lag the provider: Privy's embedded wallet provider starts on chain 1
+    // Wagmi's cached chain can lag the provider: the active wallet provider may report an old chain
     // without Wagmi seeing it, and viem then rejects the write. Ask the wallet itself.
     await ensureWalletChain(account.connector, account.chainId);
     return {
@@ -343,8 +389,13 @@ export function createCurveballSdk(
     const tokenAddress = getAddress(token);
     const poolAddress = getAddress(pool);
     const market = await readMarket(tokenAddress);
-    if (market.lifecycle !== "graduated" || getAddress(market.pool) !== poolAddress)
-      throw new CurveballSdkError("This market is not trading on the selected Icarus pool.");
+    if (
+      market.lifecycle !== "graduated" ||
+      getAddress(market.pool) !== poolAddress
+    )
+      throw new CurveballSdkError(
+        "This market is not trading on the selected Icarus pool.",
+      );
     const [quoteToken, factory] = await Promise.all([
       readQuoteToken(),
       actions.readContract(config, {
@@ -387,11 +438,18 @@ export function createCurveballSdk(
       ![getAddress(token0), getAddress(token1)].includes(tokenAddress) ||
       ![getAddress(token0), getAddress(token1)].includes(getAddress(quoteToken))
     ) {
-      throw new CurveballSdkError("This Icarus pool does not match the graduated market.");
+      throw new CurveballSdkError(
+        "This Icarus pool does not match the graduated market.",
+      );
     }
     if (paused)
       throw new CurveballSdkError("Icarus pool swaps are currently paused.");
-    return { tokenAddress, poolAddress, quoteToken: getAddress(quoteToken), factory: getAddress(factory) };
+    return {
+      tokenAddress,
+      poolAddress,
+      quoteToken: getAddress(quoteToken),
+      factory: getAddress(factory),
+    };
   }
 
   async function poolAmountOut(
@@ -407,7 +465,9 @@ export function createCurveballSdk(
       chainId,
     });
     if (output <= 0n)
-      throw new CurveballSdkError("This trade is too small for the Icarus pool.");
+      throw new CurveballSdkError(
+        "This trade is too small for the Icarus pool.",
+      );
     return output;
   }
 
@@ -512,12 +572,17 @@ export function createCurveballSdk(
       throw new CurveballSdkError("Trade amount must be greater than zero.");
     const address = getAddress(token);
     if (side === "buy") {
+      const account = actions.getAccount(config).address;
+      if (account && (await getWalletCapBps()) < 10_000n) {
+        const quote = await actions.readContract(config, {
+          address: launchpad, abi: curveLaunchpadAbi,
+          functionName: "previewBuyFor", args: [address, account, input], chainId,
+        });
+        return quote.tokensOut;
+      }
       const quote = await actions.readContract(config, {
-        address: launchpad,
-        abi: curveLaunchpadAbi,
-        functionName: "previewBuy",
-        args: [address, input],
-        chainId,
+        address: launchpad, abi: curveLaunchpadAbi,
+        functionName: "previewBuy", args: [address, input], chainId,
       });
       return quote.tokensOut;
     }
@@ -532,40 +597,36 @@ export function createCurveballSdk(
   }
 
   async function readLaunchPolicy() {
-    const [fees, launchFee, graduationTarget, maxReserveBps] =
-      await Promise.all([
-        actions.readContract(config, {
-          address: launchpad,
-          abi: curveLaunchpadAbi,
-          functionName: "feeDefaults",
-          chainId,
-        }),
-        actions.readContract(config, {
-          address: launchpad,
-          abi: curveLaunchpadAbi,
-          functionName: "launchFee",
-          chainId,
-        }),
-        actions.readContract(config, {
-          address: launchpad,
-          abi: curveLaunchpadAbi,
-          functionName: "graduationTarget",
-          chainId,
-        }),
-        actions.readContract(config, {
-          address: launchpad,
-          abi: curveLaunchpadAbi,
-          functionName: "MAX_RESERVE_BPS",
-          chainId,
-        }),
-      ]);
+    const [fees, launchFee, graduationTarget, supplies, walletCapBps] = await Promise.all([
+      actions.readContract(config, {
+        address: launchpad,
+        abi: curveLaunchpadAbi,
+        functionName: "feeDefaults",
+        chainId,
+      }),
+      actions.readContract(config, {
+        address: launchpad,
+        abi: curveLaunchpadAbi,
+        functionName: "launchFee",
+        chainId,
+      }),
+      actions.readContract(config, {
+        address: launchpad,
+        abi: curveLaunchpadAbi,
+        functionName: "graduationTarget",
+        chainId,
+      }),
+      getSupplies(),
+      getWalletCapBps(),
+    ]);
     const [feeBps, , , taxCapBps] = fees;
     return {
       feeBps,
       taxCapBps,
       launchFee,
       graduationTarget,
-      maxReserveBps: Number(maxReserveBps),
+      walletCapBps,
+      ...supplies,
     };
   }
 
@@ -586,16 +647,6 @@ export function createCurveballSdk(
         `Creator tax must be 0–${policy.taxCapBps / 100}%.`,
       );
     }
-    const reserveBps = input.holderReserveBps ?? 0;
-    if (
-      !Number.isInteger(reserveBps) ||
-      reserveBps < 0 ||
-      reserveBps > policy.maxReserveBps
-    ) {
-      throw new CurveballSdkError(
-        `Holder reserve must be 0–${policy.maxReserveBps / 100}%.`,
-      );
-    }
     if (initialBuy < 0n)
       throw new CurveballSdkError("Initial buy cannot be negative.");
     const minOut =
@@ -607,6 +658,10 @@ export function createCurveballSdk(
               policy.graduationTarget,
               policy.feeBps,
               tax,
+              policy.tokenSupply,
+              policy.curveSupply,
+              9_900,
+              Number(policy.walletCapBps),
             ),
             deployment.slippageBps,
           );
@@ -628,7 +683,7 @@ export function createCurveballSdk(
           address: launchpad,
           abi: curveLaunchpadAbi,
           functionName: "launch",
-          args: [meta, tax, reserveBps, initialBuy, minOut],
+          args: [meta, tax, initialBuy, minOut],
           chainId,
         }),
       approved,
@@ -692,6 +747,7 @@ export function createCurveballSdk(
     const account = wallet.address;
     const tokenAddress = getAddress(token);
     await readMarket(tokenAddress);
+    const { tokenSupply } = await getSupplies();
     const asset = side === "buy" ? await readQuoteToken() : tokenAddress;
     const { approved, wrapped } = await ensureApproval(wallet, asset, input, {
       wrap: side === "buy",
@@ -734,7 +790,7 @@ export function createCurveballSdk(
       wrappedAmount: wrapped,
       marketState: event
         ? {
-            sold: TOKEN_SUPPLY - event.virtualToken,
+            sold: tokenSupply - event.virtualToken,
             virtualQuote: event.virtualQuote,
             virtualToken: event.virtualToken,
           }
@@ -755,12 +811,24 @@ export function createCurveballSdk(
     const adapter = deployment.swapAdapter;
     const expectedAdapterCodeHash = deployment.swapAdapterCodeHash;
     if (!adapter || !expectedAdapterCodeHash)
-      throw new CurveballSdkError("Icarus trading is not configured for this market yet.");
+      throw new CurveballSdkError(
+        "Icarus trading is not configured for this market yet.",
+      );
     if (input <= 0n || displayedQuote <= 0n)
-      throw new CurveballSdkError("Refresh the Icarus trade quote before continuing.");
-    const adapterCode = await actions.getBytecode(config, { address: adapter, chainId });
-    if (!adapterCode || keccak256(adapterCode).toLowerCase() !== expectedAdapterCodeHash)
-      throw new CurveballSdkError("The configured Icarus swap adapter failed bytecode verification.");
+      throw new CurveballSdkError(
+        "Refresh the Icarus trade quote before continuing.",
+      );
+    const adapterCode = await actions.getBytecode(config, {
+      address: adapter,
+      chainId,
+    });
+    if (
+      !adapterCode ||
+      keccak256(adapterCode).toLowerCase() !== expectedAdapterCodeHash
+    )
+      throw new CurveballSdkError(
+        "The configured Icarus swap adapter failed bytecode verification.",
+      );
     const route = await readPoolRoute(token, pool);
     const [adapterLaunchpad, adapterQuote, adapterFactory] = await Promise.all([
       actions.readContract(config, {
@@ -787,13 +855,17 @@ export function createCurveballSdk(
       getAddress(adapterQuote) !== route.quoteToken ||
       getAddress(adapterFactory) !== route.factory
     ) {
-      throw new CurveballSdkError("The configured Icarus swap adapter does not match this market.");
+      throw new CurveballSdkError(
+        "The configured Icarus swap adapter does not match this market.",
+      );
     }
     const minimumOutput = applySlippage(displayedQuote, deployment.slippageBps);
     if (minimumOutput <= 0n)
       throw new CurveballSdkError("Trade output is too small.");
     if ((await poolAmountOut(side, route, input)) < minimumOutput)
-      throw new CurveballSdkError("The Icarus price moved beyond your slippage limit. Refresh the quote.");
+      throw new CurveballSdkError(
+        "The Icarus price moved beyond your slippage limit. Refresh the quote.",
+      );
     const wallet = await ensureWallet();
     const asset = side === "buy" ? route.quoteToken : route.tokenAddress;
     const { approved, wrapped } = await ensureApproval(wallet, asset, input, {
@@ -802,7 +874,9 @@ export function createCurveballSdk(
       onPhase: (phase) => onProgress?.(phase),
     });
     if ((await poolAmountOut(side, route, input)) < minimumOutput)
-      throw new CurveballSdkError("The Icarus price moved beyond your slippage limit. Refresh the quote.");
+      throw new CurveballSdkError(
+        "The Icarus price moved beyond your slippage limit. Refresh the quote.",
+      );
     const deadline = createDeadline(Date.now(), deployment.deadlineSeconds);
     const simulation = await simulateAfterApproval(
       () =>
@@ -811,7 +885,13 @@ export function createCurveballSdk(
           address: adapter,
           abi: icarusSwapAdapterAbi,
           functionName: "swapExactIn",
-          args: [route.tokenAddress, side === "buy", input, minimumOutput, deadline],
+          args: [
+            route.tokenAddress,
+            side === "buy",
+            input,
+            minimumOutput,
+            deadline,
+          ],
           chainId,
         }),
       approved,
@@ -933,7 +1013,7 @@ export function createCurveballSdk(
     return confirm(await writeWithWallet(wallet, simulation.request));
   }
 
-  const readSingleton = (functionName: "escrow" | "locker" | "reserve") =>
+  const readSingleton = (functionName: "escrow" | "locker") =>
     actions.readContract(config, {
       address: launchpad,
       abi: curveLaunchpadAbi,
@@ -965,21 +1045,22 @@ export function createCurveballSdk(
     ]);
   }
 
-  /** Permissionless: spends one paced chunk of a graduated market's buyback balance and burns the tokens. */
-  async function buyback(token: Address) {
-    return write(await readSingleton("escrow"), curveFeeEscrowAbi, "buyback", [
-      getAddress(token),
-    ]);
+  /** Converts a graduated market's LP-token fee share to the shared WETH budget. */
+  async function convertBuybackFees(token: Address) {
+    const treasury = await actions.readContract(config, {
+      address: await readSingleton("escrow"), abi: curveFeeEscrowAbi,
+      functionName: "buybackTreasury", chainId,
+    });
+    return write(treasury, curveBuybackTreasuryAbi, "convert", [getAddress(token)]);
   }
 
-  /** Pays the connected wallet its holder-reserve share of a graduated token. */
-  async function claimReserve(token: Address) {
-    return write(
-      await readSingleton("reserve"),
-      curveHolderReserveAbi,
-      "claim",
-      [getAddress(token)],
-    );
+  /** Spends one guarded chunk of the shared budget on CURVE and burns it. */
+  async function buyback() {
+    const treasury = await actions.readContract(config, {
+      address: await readSingleton("escrow"), abi: curveFeeEscrowAbi,
+      functionName: "buybackTreasury", chainId,
+    });
+    return write(treasury, curveBuybackTreasuryAbi, "buyback", []);
   }
 
   /** Permissionless: seeds a sold-out market's pool and locks its LP. */
@@ -1022,7 +1103,7 @@ export function createCurveballSdk(
     claimPoolFees,
     claimEscrow,
     buyback,
-    claimReserve,
+    convertBuybackFees,
     graduate,
     abortGraduation,
   });

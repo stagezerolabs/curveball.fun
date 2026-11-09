@@ -39,7 +39,7 @@ function TraderRow({
 /**
  * Ranking methodology is intentionally not exposed in the product UI: publishing exact thresholds
  * would make the board easier to game. The canonical, tested rules live in
- * `services/social/src/performance.mjs` (`LEADERBOARD_RULES`, `scoreExpressions`, and
+ * `services/backend/src/analytics/performance.mjs` (`LEADERBOARD_RULES`, `scoreExpressions`, and
  * `eligibleExpressions`). In brief, Track record scores qualified wallets by known-basis estimated
  * return, Emerging scores qualified recent wallets by known-basis estimated net P&L, and the API
  * supplies a return-ranked provisional board when no wallet qualifies.

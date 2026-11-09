@@ -1,0 +1,62 @@
+services:
+  migrate:
+    build:
+      context: ../..
+      dockerfile: services/backend/Dockerfile
+      args:
+        VITE_CHAIN_ID: ${VITE_CHAIN_ID:?set VITE_CHAIN_ID}
+        VITE_RPC_URL: ${VITE_RPC_URL:?set VITE_RPC_URL}
+        VITE_LAUNCHPAD_ADDRESS: ${VITE_LAUNCHPAD_ADDRESS:?set VITE_LAUNCHPAD_ADDRESS}
+        VITE_DEPLOYMENT_BLOCK: ${VITE_DEPLOYMENT_BLOCK:?set VITE_DEPLOYMENT_BLOCK}
+        VITE_ICARUS_SWAP_ADAPTER: ${VITE_ICARUS_SWAP_ADAPTER:-}
+        VITE_ICARUS_SWAP_ADAPTER_CODE_HASH: ${VITE_ICARUS_SWAP_ADAPTER_CODE_HASH:-}
+        VITE_PRIVY_APP_ID: ${VITE_PRIVY_APP_ID:?set VITE_PRIVY_APP_ID}
+        VITE_PRIVY_CLIENT_ID: ${VITE_PRIVY_CLIENT_ID:-}
+        VITE_SOCIAL_API_URL: ${VITE_SOCIAL_API_URL:?set VITE_SOCIAL_API_URL}
+        VITE_ADMIN_ADDRESS: ${VITE_ADMIN_ADDRESS:?set VITE_ADMIN_ADDRESS}
+    command: ["bun", "services/backend/src/entrypoints/migrate.mjs"]
+    environment: &social-env
+      SOCIAL_DATABASE_URL: ${SOCIAL_DATABASE_URL:?set the Supabase pooled runtime URL}
+      SOCIAL_DIRECT_DATABASE_URL: ${SOCIAL_DIRECT_DATABASE_URL:?set the Supabase direct migration URL}
+      # Defaults to the RISE testnet local stack; RISE mainnet is chain 4153 (https://rpc.risechain.com).
+      SOCIAL_RPC_URL: ${SOCIAL_RPC_URL:-https://testnet.riselabs.xyz}
+      SOCIAL_CHAIN_ID: ${SOCIAL_CHAIN_ID:-11155931}
+      SOCIAL_LAUNCHPAD_ADDRESS: ${SOCIAL_LAUNCHPAD_ADDRESS:?set SOCIAL_LAUNCHPAD_ADDRESS}
+      SOCIAL_ADMIN_ADDRESS: ${SOCIAL_ADMIN_ADDRESS:?set SOCIAL_ADMIN_ADDRESS}
+      SOCIAL_DEPLOYMENT_BLOCK: ${SOCIAL_DEPLOYMENT_BLOCK:?set SOCIAL_DEPLOYMENT_BLOCK}
+      SOCIAL_ALLOWED_ORIGINS: ${SOCIAL_ALLOWED_ORIGINS:-https://curveball.fun}
+      SOCIAL_PUBLIC_ORIGIN: ${SOCIAL_PUBLIC_ORIGIN:-https://social-api.curveball.fun}
+      PRIVY_APP_ID: ${PRIVY_APP_ID:?set PRIVY_APP_ID}
+      PRIVY_APP_SECRET: ${PRIVY_APP_SECRET:?set PRIVY_APP_SECRET}
+      SOCIAL_DATABASE_SSL: "true"
+      SOCIAL_DATABASE_CA_FILE: certs/supabase-root-2021.crt
+      SOCIAL_PROTOCOL_ACCOUNTS: ${SOCIAL_PROTOCOL_ACCOUNTS:-}
+      SENTRY_DSN: ${SENTRY_BACKEND_DSN:?set the Curveball Backend Sentry DSN}
+      SENTRY_ENVIRONMENT: production
+      SENTRY_RELEASE: ${SENTRY_BACKEND_RELEASE:?set curveball-backend@deployed-commit}
+
+  api:
+    build:
+      context: ../..
+      dockerfile: services/backend/Dockerfile
+    command:
+      [
+        "bun",
+        "--preload",
+        "./services/backend/src/platform/instrument.mjs",
+        "services/backend/src/entrypoints/main.mjs",
+      ]
+    restart: unless-stopped
+    environment:
+      <<: *social-env
+      PINATA_JWT: ${PINATA_JWT:?set PINATA_JWT}
+    ports:
+      - "127.0.0.1:8787:8787"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8787/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5

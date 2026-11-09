@@ -17,6 +17,13 @@ test("only resolves HTTPS and valid IPFS paths", () => {
   );
   expect(publicContentUrl("javascript:alert(1)")).toBeNull();
   expect(publicContentUrl("ipfs://bad-cid")).toBeNull();
+  expect(publicContentUrl("https://gateway.pinata.cloud/ipfs/test")).toBe(
+    "https://gateway.pinata.cloud/ipfs/test",
+  );
+  expect(publicContentUrl("https://attacker.example/track.png")).toBeNull();
+  expect(
+    publicContentUrl("https://gateway.pinata.cloud@attacker.example/track.png"),
+  ).toBeNull();
 });
 
 test("reads the image recorded in token metadata", async () => {

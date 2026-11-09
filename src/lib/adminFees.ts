@@ -38,7 +38,7 @@ export type FactoryFunds = {
   treasuryWallet: { address: Address; balance: bigint };
   /** The treasury's unclaimed share of trading and pool fees. */
   treasuryInEscrow: { address: Address; balance: bigint };
-  /** Everything the escrow holds: creator and treasury fees plus every market's buyback balance. */
+  /** Everything the escrow holds for creator and treasury fee claims. */
   escrowHeld: { address: Address; balance: bigint };
 };
 

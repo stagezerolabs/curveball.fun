@@ -192,8 +192,6 @@ export const markets = curveball.table(
     launchedAt: timestamp("launched_at", { withTimezone: true }).notNull(),
     totalSupply: numeric("total_supply", { precision: 78, scale: 0 }),
     curveSupply: numeric("curve_supply", { precision: 78, scale: 0 }),
-    reserveAmount: numeric("reserve_amount", { precision: 78, scale: 0 }),
-    reserveBps: integer("reserve_bps"),
     initialVirtualQuote: numeric("initial_virtual_quote", {
       precision: 78,
       scale: 0,
@@ -253,6 +251,7 @@ export const trades = curveball.table(
     netTraderQuote: uint256("net_trader_quote"),
     feeQuote: uint256("fee_quote"),
     creatorTaxQuote: uint256("creator_tax_quote"),
+    antiSnipeTaxQuote: uint256("anti_snipe_tax_quote").default("0"),
     tokenAmount: uint256("token_amount"),
     virtualQuoteAfter: uint256("virtual_quote_after"),
     virtualTokenAfter: uint256("virtual_token_after"),
@@ -419,7 +418,7 @@ export const protocolFlows = curveball.table(
     ),
     check(
       "protocol_flows_category_check",
-      sql`${table.category} in ('launch_fee','fee_accrued','fee_claimed','pool_fee','quote_credited','meme_credited','vested_claim','reserve_registered','reserve_claim','buyback','rescue')`,
+      sql`${table.category} in ('launch_fee','fee_accrued','fee_claimed','pool_fee','quote_credited','meme_credited','vested_claim','buyback','rescue')`,
     ),
   ],
 );
@@ -445,53 +444,6 @@ export const buybackExecutions = curveball.table(
       table.chainId,
       table.tokenAddress,
       table.blockNumber,
-    ),
-  ],
-);
-
-export const reserveRounds = curveball.table(
-  "reserve_rounds",
-  {
-    chainId: chainId(),
-    tokenAddress: text("token_address").notNull(),
-    roundId: uint256("round_id"),
-    snapshotBlock: uint256("snapshot_block"),
-    amount: uint256("amount"),
-    eligibleSupply: uint256("eligible_supply"),
-    transactionHash: text("transaction_hash").notNull(),
-    createdBlock: uint256("created_block"),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-    orphaned: boolean("orphaned").notNull().default(false),
-  },
-  (table) => [
-    primaryKey({ columns: [table.chainId, table.tokenAddress, table.roundId] }),
-  ],
-);
-
-export const reserveClaims = curveball.table(
-  "reserve_claims",
-  {
-    logicalId: text("logical_id").primaryKey(),
-    chainId: chainId(),
-    tokenAddress: text("token_address").notNull(),
-    roundId: uint256("round_id"),
-    holderAddress: text("holder_address").notNull(),
-    amount: uint256("amount"),
-    transactionHash: text("transaction_hash").notNull(),
-    blockNumber: uint256("block_number"),
-    claimedAt: timestamp("claimed_at", { withTimezone: true }).notNull(),
-    orphaned: boolean("orphaned").notNull().default(false),
-  },
-  (table) => [
-    index("reserve_claims_holder_idx").on(
-      table.chainId,
-      table.holderAddress,
-      table.claimedAt,
-    ),
-    index("reserve_claims_round_idx").on(
-      table.chainId,
-      table.tokenAddress,
-      table.roundId,
     ),
   ],
 );

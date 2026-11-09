@@ -1,21 +1,56 @@
-# Local stack: Postgres-backed social service (API, indexer, worker), the market keeper, and the Vite
-# frontend, all wired to the launchpad recorded in deployments/<chainId>/curveball.json. Everything runs
+# Local stack: one Bun/Fastify backend (app, API, indexer, worker), the market keeper, and Postgres.
+# Everything runs
 # locally: Postgres persists in the preview_postgres volume, and the chain values (RPC, chain id,
-# launchpad) come from the per-service ignored .env files injected at runtime, never baked into images.
+# launchpad) come from the single ignored root .env file, injected at runtime.
 # Host ports can be moved with FRONTEND_PORT, SOCIAL_API_PORT, and POSTGRES_PORT.
 name: curveball
 
-x-social: &social
+x-backend: &backend
   build:
     context: .
-    dockerfile: services/social/Dockerfile
-  image: curveball-social:local
-  env_file: services/social/.env
-  environment:
-    &local-db # Local Postgres on the compose network; overrides the fallback URLs in services/social/.env.
+    dockerfile: services/backend/Dockerfile
+    args:
+      VITE_CHAIN_ID: ${VITE_CHAIN_ID:?set VITE_CHAIN_ID in .env}
+      VITE_RPC_URL: ${VITE_RPC_URL:?set VITE_RPC_URL in .env}
+      VITE_LAUNCHPAD_ADDRESS: ${VITE_LAUNCHPAD_ADDRESS:?set VITE_LAUNCHPAD_ADDRESS in .env}
+      VITE_DEPLOYMENT_BLOCK: ${VITE_DEPLOYMENT_BLOCK:?set VITE_DEPLOYMENT_BLOCK in .env}
+      VITE_ICARUS_SWAP_ADAPTER: ${VITE_ICARUS_SWAP_ADAPTER:-}
+      VITE_ICARUS_SWAP_ADAPTER_CODE_HASH: ${VITE_ICARUS_SWAP_ADAPTER_CODE_HASH:-}
+      VITE_PRIVY_APP_ID: ${VITE_PRIVY_APP_ID:?set VITE_PRIVY_APP_ID in .env}
+      VITE_PRIVY_CLIENT_ID: ${VITE_PRIVY_CLIENT_ID:-}
+      VITE_SOCIAL_API_URL: ${VITE_SOCIAL_API_URL:-http://localhost:8787}
+      VITE_ADMIN_ADDRESS: ${VITE_ADMIN_ADDRESS:-}
+      CURVEBALL_LOCAL_PREVIEW: "1"
+  image: curveball-backend:local
+  environment: &local-db
     SOCIAL_DATABASE_URL: postgres://curveball:curveball_preview@postgres:5432/curveball
     SOCIAL_DIRECT_DATABASE_URL: postgres://curveball:curveball_preview@postgres:5432/curveball
     SOCIAL_DATABASE_SSL: "false"
+    SOCIAL_RPC_URL: ${SOCIAL_RPC_URL:?set SOCIAL_RPC_URL in .env}
+    SOCIAL_CHAIN_ID: ${SOCIAL_CHAIN_ID:?set SOCIAL_CHAIN_ID in .env}
+    SOCIAL_CHAIN_NAME: ${SOCIAL_CHAIN_NAME:-RISE Testnet}
+    SOCIAL_NATIVE_SYMBOL: ${SOCIAL_NATIVE_SYMBOL:-ETH}
+    SOCIAL_LAUNCHPAD_ADDRESS: ${SOCIAL_LAUNCHPAD_ADDRESS:?set SOCIAL_LAUNCHPAD_ADDRESS in .env}
+    SOCIAL_ADMIN_ADDRESS: ${SOCIAL_ADMIN_ADDRESS:-}
+    SOCIAL_PROTOCOL_ACCOUNTS: ${SOCIAL_PROTOCOL_ACCOUNTS:-}
+    SOCIAL_DEPLOYMENT_BLOCK: ${SOCIAL_DEPLOYMENT_BLOCK:?set SOCIAL_DEPLOYMENT_BLOCK in .env}
+    SOCIAL_PORT: ${SOCIAL_PORT:-8787}
+    SOCIAL_ALLOWED_ORIGINS: ${SOCIAL_ALLOWED_ORIGINS:-http://localhost:5173}
+    SOCIAL_PUBLIC_ORIGIN: ${SOCIAL_PUBLIC_ORIGIN:-http://localhost:8787}
+    SOCIAL_CONFIRMATIONS: ${SOCIAL_CONFIRMATIONS:-2}
+    SOCIAL_POLL_INTERVAL_MS: ${SOCIAL_POLL_INTERVAL_MS:-3000}
+    SOCIAL_LOG_RANGE: ${SOCIAL_LOG_RANGE:-2000}
+    SOCIAL_METADATA_REFRESH_MS: ${SOCIAL_METADATA_REFRESH_MS:-300000}
+    SOCIAL_IPFS_GATEWAY: ${SOCIAL_IPFS_GATEWAY:-}
+    SOCIAL_METADATA_HOSTS: ${SOCIAL_METADATA_HOSTS:-}
+    SOCIAL_RNS_API_URL: ${SOCIAL_RNS_API_URL:-}
+    SOCIAL_DB_POOL_SIZE: ${SOCIAL_DB_POOL_SIZE:-10}
+    PRIVY_APP_ID: ${PRIVY_APP_ID:?set PRIVY_APP_ID in .env}
+    PRIVY_APP_SECRET: ${PRIVY_APP_SECRET:?set PRIVY_APP_SECRET in .env}
+    SENTRY_DSN: ${SENTRY_BACKEND_DSN:-}
+    SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-development}
+    SENTRY_RELEASE: ${SENTRY_BACKEND_RELEASE:-}
+    SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-}
 
 services:
   postgres:
@@ -35,24 +70,28 @@ services:
       retries: 10
 
   migrate:
-    <<: *social
-    command: ["bun", "services/social/src/migrate.mjs"]
+    <<: *backend
+    command: ["bun", "services/backend/src/entrypoints/migrate.mjs"]
     depends_on:
       postgres:
         condition: service_healthy
 
   api:
-    <<: *social
+    <<: *backend
+    environment:
+      <<: *local-db
+      PINATA_JWT: ${PINATA_JWT:-}
     command:
       [
         "bun",
         "--preload",
-        "./services/social/src/instrument.mjs",
-        "services/social/src/api.mjs",
+        "./services/backend/src/platform/instrument.mjs",
+        "services/backend/src/entrypoints/main.mjs",
       ]
     restart: unless-stopped
     ports:
       - "127.0.0.1:${SOCIAL_API_PORT:-8787}:8787"
+      - "127.0.0.1:${FRONTEND_PORT:-5173}:8787"
     depends_on:
       postgres:
         condition: service_healthy
@@ -64,66 +103,21 @@ services:
       timeout: 5s
       retries: 5
 
-  indexer:
-    <<: *social
-    command:
-      [
-        "bun",
-        "--preload",
-        "./services/social/src/instrument.mjs",
-        "services/social/src/indexer-runner.mjs",
-      ]
-    restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
-
-  worker:
-    <<: *social
-    command:
-      [
-        "bun",
-        "--preload",
-        "./services/social/src/instrument.mjs",
-        "services/social/src/worker.mjs",
-      ]
-    restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
-
   keeper:
     build: keeper
     image: curveball-keeper:local
-    env_file: keeper/.env
+    environment:
+      KEEPER_CHAIN_ID: ${KEEPER_CHAIN_ID:?set KEEPER_CHAIN_ID in .env}
+      KEEPER_RPC_URL: ${KEEPER_RPC_URL:?set KEEPER_RPC_URL in .env}
+      KEEPER_LAUNCHPAD_ADDRESS: ${KEEPER_LAUNCHPAD_ADDRESS:?set KEEPER_LAUNCHPAD_ADDRESS in .env}
+      KEEPER_DEPLOYMENT_BLOCK: ${KEEPER_DEPLOYMENT_BLOCK:?set KEEPER_DEPLOYMENT_BLOCK in .env}
+      KEEPER_PRIVATE_KEY: ${KEEPER_PRIVATE_KEY:?set KEEPER_PRIVATE_KEY in .env}
+      KEEPER_POLL_INTERVAL_MS: ${KEEPER_POLL_INTERVAL_MS:-10000}
+      SENTRY_DSN: ${SENTRY_KEEPER_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-development}
+      SENTRY_RELEASE: ${SENTRY_KEEPER_RELEASE:-}
+      SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-}
     restart: unless-stopped
-
-  frontend:
-    build:
-      context: .
-      dockerfile: frontend.Dockerfile
-    image: curveball-frontend:local
-    # Later files win: .env holds shared values (PINATA_JWT, WalletConnect, Privy), .env.local the
-    # launchpad written by `make configure-testnet`.
-    env_file:
-      - path: .env
-        required: false
-      - path: .env.local
-        required: false
-    ports:
-      - "127.0.0.1:${FRONTEND_PORT:-5173}:5173"
-    depends_on:
-      api:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:5173/"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
 
 volumes:
   preview_postgres:

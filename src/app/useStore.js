@@ -496,7 +496,13 @@ export const useStore = create(
         const requestId = ++quoteRequestId;
         const value = Number(amount);
         const venue = token ? tradeVenueForMarket(token) : null;
-        if (!token || !amount || !Number.isFinite(value) || value <= 0 || venue === "pool-pending") {
+        if (
+          !token ||
+          !amount ||
+          !Number.isFinite(value) ||
+          value <= 0 ||
+          venue === "pool-pending"
+        ) {
           set({ quotePreview: null, quoteContext: null, quoting: false });
           return;
         }
@@ -504,11 +510,16 @@ export const useStore = create(
         try {
           const input = parseEther(amount);
           const sdk = sdkForMarket(token.factory);
-          const out = venue === "pool"
-            ? await sdk.quotePoolTrade(side, token.address, token.pool, input)
-            : await sdk.quoteTrade(side, token.address, input);
+          const out =
+            venue === "pool"
+              ? await sdk.quotePoolTrade(side, token.address, token.pool, input)
+              : await sdk.quoteTrade(side, token.address, input);
           if (requestId !== quoteRequestId) return;
-          set({ quotePreview: out, quoteContext: tradeQuoteKey(token, side, amount), quoting: false });
+          set({
+            quotePreview: out,
+            quoteContext: tradeQuoteKey(token, side, amount),
+            quoting: false,
+          });
         } catch {
           if (requestId === quoteRequestId)
             set({ quotePreview: null, quoteContext: null, quoting: false });
@@ -524,7 +535,6 @@ export const useStore = create(
           symbol: String(form.get("symbol") ?? ""),
           uri: String(form.get("uri") ?? ""),
           creatorTaxBps: Number(form.get("creatorTaxBps") ?? 0),
-          holderReserveBps: Number(form.get("holderReserveBps") ?? 0),
         };
         // The launchpad rejects an empty metadata URI, and metadata is published with the artwork.
         if (!hasPublishedArtwork(input.uri)) {
@@ -602,7 +612,14 @@ export const useStore = create(
       },
 
       trade: async (side, token) => {
-        const { amount, quotePreview, quoteContext, startAction, endAction, handleActionError } = get();
+        const {
+          amount,
+          quotePreview,
+          quoteContext,
+          startAction,
+          endAction,
+          handleActionError,
+        } = get();
         startAction();
         set({ tradeProgress: { side, phase: "preparing" } });
 
@@ -621,19 +638,34 @@ export const useStore = create(
           const sdk = sdkForMarket(token.factory);
           let result;
           if (venue === "pool") {
-            if (quotePreview === null || quoteContext !== tradeQuoteKey(token, side, amount))
-              throw Error("Wait for a current Icarus pool quote before trading.");
+            if (
+              quotePreview === null ||
+              quoteContext !== tradeQuoteKey(token, side, amount)
+            )
+              throw Error(
+                "Wait for a current Icarus pool quote before trading.",
+              );
             result = await sdk.tradePool(
-              side, token.address, token.pool, input, onProgress, quotePreview,
+              side,
+              token.address,
+              token.pool,
+              input,
+              onProgress,
+              quotePreview,
             );
           } else {
             result = await sdk.trade(side, token.address, input, onProgress);
           }
 
           quoteRequestId += 1;
-          set((state) => confirmedTradeStateUpdate(
-            state, side, token, venue === "pool" ? { ...result, marketState: null } : result,
-          ));
+          set((state) =>
+            confirmedTradeStateUpdate(
+              state,
+              side,
+              token,
+              venue === "pool" ? { ...result, marketState: null } : result,
+            ),
+          );
           if (venue === "pool") void get().fetchQuote(token);
         } catch (error) {
           handleActionError(error);
@@ -644,7 +676,7 @@ export const useStore = create(
 
       // Permissionless market actions: the caller pays gas, and nothing is routed to whoever clicks.
       // CurveLpLocker.claim sends LP fees to the escrow for the market's split; buyback spends one paced
-      // chunk of the market's buyback balance and burns what it buys; graduate seeds a sold-out pool.
+      // chunk of the shared CURVE budget and burns CURVE; graduate seeds a sold-out pool.
       claimPoolFees: (pool, factory) =>
         get().runMarketAction(
           factory,
@@ -659,7 +691,7 @@ export const useStore = create(
       runBuyback: (token, factory) =>
         get().runMarketAction(
           factory,
-          (sdk) => sdk.buyback(token),
+          (sdk) => sdk.buyback(),
           "Running the buyback…",
           "Buyback submitted. It skips without spending when the pool price is unsafe.",
         ),
@@ -672,22 +704,13 @@ export const useStore = create(
           "Market graduated into its pool.",
         ),
 
-      // Escrow and reserve claims pay the connected wallet: creator fees across all of its launches,
-      // and its holder-reserve share of one graduated token.
+      // Escrow claims pay creator fees to the connected wallet.
       claimEscrow: (asset, factory) =>
         get().runMarketAction(
           factory,
           (sdk) => sdk.claimEscrow(asset),
           "Claiming fees…",
           "Fees sent to your wallet.",
-        ),
-
-      claimReserve: (token, factory) =>
-        get().runMarketAction(
-          factory,
-          (sdk) => sdk.claimReserve(token),
-          "Claiming your holder reserve…",
-          "Holder reserve sent to your wallet.",
         ),
 
       runMarketAction: async (

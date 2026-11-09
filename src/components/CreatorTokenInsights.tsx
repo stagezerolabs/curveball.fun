@@ -58,15 +58,7 @@ export function CreatorTokenInsights({
       if (!client) throw new Error("No chain client available.");
       const latestBlock = await client.getBlockNumber();
       const block = latestBlock > 0n ? latestBlock - 1n : latestBlock;
-      // The launchpad holds unsold curve tokens and the holder reserve holds the reserve; neither is a holder.
-      const reserve = token.factory
-        ? await client.readContract({
-            address: token.factory,
-            abi: curveLaunchpadAbi,
-            functionName: "reserve",
-          })
-        : null;
-      const excluded = [token.factory, token.pool, reserve].filter(
+      const excluded = [token.factory, token.pool].filter(
         (value): value is Address => Boolean(value),
       );
       const holders = await readHolderSnapshot(

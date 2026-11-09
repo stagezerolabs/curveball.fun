@@ -1,3 +1,4 @@
+import { motion, useReducedMotion } from "motion/react";
 import { TokenAvatar } from "./TokenAvatar";
 import { formatPercent } from "../lib/format.js";
 import type { Token } from "../types";
@@ -70,6 +71,14 @@ export function MarketHeader({
     ? 100
     : Math.min(100, Math.max(0, token.progress ?? 0));
   const status = getMarketDisplayStatus(token);
+  const prefersReducedMotion = useReducedMotion();
+  const pulseBondingProgress =
+    !prefersReducedMotion &&
+    status.kind === "live" &&
+    soldPercent > 0 &&
+    soldPercent < 100;
+  const pulseDuration = 2.6 - soldPercent * 0.017;
+  const pulseDim = 0.9 - soldPercent * 0.0015;
   const direction =
     marketCapChange?.percent == null
       ? "unavailable"
@@ -158,7 +167,43 @@ export function MarketHeader({
             <dt>Bonding status</dt>
             <dd>{token.graduated ? "100%" : formatPercent(token.progress)}</dd>
             <dd className="market-stat-progress-track">
-              <progress aria-label="Curve sold" value={soldPercent} max={100} />
+              <progress
+                className="visually-hidden"
+                aria-label="Curve sold"
+                value={soldPercent}
+                max={100}
+              />
+              <span className="market-bonding-track" aria-hidden="true">
+                <motion.span
+                  className="market-bonding-fill"
+                  style={{ width: `${soldPercent}%` }}
+                  initial={false}
+                  animate={
+                    pulseBondingProgress
+                      ? {
+                          opacity: [1, pulseDim, 1, 1, 1],
+                          filter: [
+                            "brightness(1)",
+                            "brightness(0.9)",
+                            "brightness(1.18)",
+                            "brightness(1)",
+                            "brightness(1)",
+                          ],
+                        }
+                      : { opacity: 1, filter: "brightness(1)" }
+                  }
+                  transition={
+                    pulseBondingProgress
+                      ? {
+                          duration: pulseDuration,
+                          times: [0, 0.07, 0.16, 0.28, 1],
+                          ease: "easeOut",
+                          repeat: Infinity,
+                        }
+                      : { duration: 0 }
+                  }
+                />
+              </span>
             </dd>
             <dd className="market-stat-note">
               {status.kind === "live" ? "To graduation" : status.label}

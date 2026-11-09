@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Curveball | Fees and revenue</title>
+    <style>
+      :root { color-scheme: light; font: 16px/1.55 system-ui, sans-serif; color: #182320; background: #f6f8f6; }
+      * { box-sizing: border-box; }
+      body { max-width: 860px; margin: auto; padding: 40px 24px 72px; }
+      header { border-bottom: 2px solid #183d32; padding-bottom: 18px; }
+      .eyebrow { margin: 0 0 8px; color: #17634c; font-size: .8rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+      h1 { margin: 0; font-size: clamp(2rem, 5vw, 3rem); line-height: 1.15; }
+      h2 { margin: 34px 0 10px; font-size: 1.35rem; line-height: 1.25; }
+      p, ul { margin: 10px 0 16px; }
+      li { margin: 7px 0; }
+      .meta { color: #53645c; font-size: .92rem; }
+      .example { padding: 16px 18px; border-left: 4px solid #17634c; background: #e9f3ed; }
+      .table-wrap { overflow-x: auto; }
+      table { width: 100%; border-collapse: collapse; background: #fff; }
+      th, td { padding: 11px 13px; border-bottom: 1px solid #d9e2dc; text-align: left; vertical-align: top; }
+      th { background: #e9f0eb; }
+      @media (max-width: 600px) { body { padding: 26px 16px 56px; } th, td { padding: 9px; } }
+      @media print { :root { background: #fff; } body { max-width: none; padding: 0; } }
+    </style>
+  </head>
+  <body>
+    <header>
+      <p class="eyebrow">Curveball / management brief</p>
+      <h1>Fees and revenue</h1>
+      <p class="meta">Current release candidate · 9 November 2026</p>
+    </header>
+
+    <h2>What users pay</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Charge</th><th>Current rule</th><th>Who receives it</th></tr></thead>
+        <tbody>
+          <tr><td>Launch</td><td>0.00045 WETH, fixed when the new launchpad is deployed</td><td>Protocol treasury</td></tr>
+          <tr><td>Curve trades</td><td>0.75% of the curve quote on buys and sells</td><td>Half to creator; one quarter each to treasury and shared buyback budget</td></tr>
+          <tr><td>Creator tax</td><td>Creator chooses 0–0.5% when launching a market</td><td>Creator</td></tr>
+          <tr><td>Opening buy tax</td><td>99%, 25%, 3%, 0.36%, and 0.04% in elapsed seconds 0–4; zero from second 5</td><td>Protocol treasury</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>The opening tax applies to an optional first buy made during launch. Buys pay fees on top of the amount entering the curve; sells have the curve fee and creator tax deducted from proceeds. Each market keeps its launch-time fee policy, even if defaults later change.</p>
+
+    <h2>What the numbers mean</h2>
+    <p class="example">For a <strong>1 WETH curve quote</strong> with the maximum creator tax, a buy costs <strong>1.0125 WETH</strong> after the opening period or <strong>2.0025 WETH</strong> in second 0. A sell returning 1 WETH before fees pays the trader <strong>0.9875 WETH</strong>. Price impact and rounding are excluded.</p>
+    <p>On that 1 WETH curve quote, the 0.0075 WETH base fee divides into 0.00375 WETH for the creator, 0.001875 WETH for treasury, and 0.001875 WETH for buybacks. The maximum creator tax adds 0.005 WETH for the creator. Creator and treasury trading fees are held in escrow until claimed. These are shares of a trade fee, not shares of all money spent.</p>
+    <p>After graduation, Icarus charges its own pool fee. The 9 November factory read was 0.3% per volatile swap, with 10% of that fee routed to its gauge. The remaining 0.27% goes to fee-earning LPs. Curveball splits only fees claimed by its locked LP position: 50% creator, 25% treasury, 25% buyback. Other LPs and the gauge keep their own shares. Pool settings and Curveball's LP share must be checked before forecasting revenue.</p>
+
+    <h2>Product and operating decisions</h2>
+    <ul>
+      <li>Show the opening tax and full buy cost in the trading and launch review screens, especially for a first buy during launch.</li>
+      <li>Describe pool revenue as a share of <em>Curveball's claimed LP fees</em>, not a share of every Icarus swap fee.</li>
+      <li>Record the new deployment and verify market-specific fees before publishing live rates. Assign someone to claim LP and treasury fees; the keeper does not collect them.</li>
+    </ul>
+  </body>
+</html>

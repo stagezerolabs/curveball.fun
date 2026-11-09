@@ -61,9 +61,7 @@ export function tradeLogToActivity(
     isBuy,
     tokenAmount,
     quoteAmount,
-    ...(virtualQuote === undefined
-      ? {}
-      : { virtualQuoteAfter: virtualQuote }),
+    ...(virtualQuote === undefined ? {} : { virtualQuoteAfter: virtualQuote }),
     timestamp,
     blockNumber: log.blockNumber,
     logIndex: log.logIndex,

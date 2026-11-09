@@ -227,8 +227,7 @@ export function LandingPage({ navigate }: { navigate: Navigate }) {
             <summary>Where do trading fees go?</summary>
             <p>
               Curve and pool fees are split between the creator, the protocol
-              treasury, and a buyback that buys the token from its pool and
-              burns it. Each market shows its exact fee and split; buybacks
+              protocol treasury, and a shared buyback treasury that buys and burns CURVE after it graduates. Each market shows its exact fee and split; buybacks
               happen separately from trades, in small chunks.
             </p>
           </details>

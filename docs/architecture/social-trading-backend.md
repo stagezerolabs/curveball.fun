@@ -56,11 +56,11 @@ Implemented:
 - Resumable Postgres-outbox SSE, cached RNS identity reads, and normalized token-metadata refresh.
 - A shared API-process outbox poller serves SSE clients with bounded replay/backpressure instead of one database poll per connection. Authenticated social writes have a per-wallet process-local limit.
 - Independently runnable API, advisory-locked indexer, and background worker processes.
-- Privy access-token verification with linked active-wallet authorization.
+- RISE Wallet signature verification with short-lived, address-bound social sessions.
 - Profiles, follows, bidirectional block enforcement, reports, notes, conviction reactions, notifications, and preferences.
 - Idempotent Copy Intents, append-only status events, submitted execution records, indexer confirmation, and reorg reversal.
 - Copy preferences, reload-safe pending-intent recovery, execution history, and wallet-confirmed submission.
-- ERC-20 holdings, protocol fee/buyback/reserve ledgers, holder snapshots, and protocol-stat reads.
+- ERC-20 holdings, protocol fee and buyback accounting, holder snapshots, and protocol-stat reads.
 - Verified Icarus pool swaps, reorg-aware venue execution history, and unified curve/pool market stats and candles.
 - Onchain-factory-owner moderation queue operations in the existing admin surface.
 

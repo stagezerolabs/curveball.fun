@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Curveball | Mainnet launch decision</title>
+    <style>
+      :root { color-scheme: light; font: 16px/1.55 system-ui, sans-serif; color: #182320; background: #f6f8f6; }
+      * { box-sizing: border-box; }
+      body { max-width: 860px; margin: auto; padding: 40px 24px 72px; }
+      header { border-bottom: 2px solid #183d32; padding-bottom: 18px; }
+      .eyebrow { margin: 0 0 8px; color: #17634c; font-size: .8rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+      h1 { margin: 0; font-size: clamp(2rem, 5vw, 3rem); line-height: 1.15; }
+      h2 { margin: 34px 0 10px; font-size: 1.35rem; line-height: 1.25; }
+      p, ul { margin: 10px 0 16px; }
+      li { margin: 7px 0; }
+      .meta { color: #53645c; font-size: .92rem; }
+      .example { padding: 16px 18px; border-left: 4px solid #17634c; background: #e9f3ed; }
+      .table-wrap { overflow-x: auto; }
+      table { width: 100%; border-collapse: collapse; background: #fff; }
+      th, td { padding: 11px 13px; border-bottom: 1px solid #d9e2dc; text-align: left; vertical-align: top; }
+      th { background: #e9f0eb; }
+      @media (max-width: 600px) { body { padding: 26px 16px 56px; } th, td { padding: 9px; } }
+      @media print { :root { background: #fff; } body { max-width: none; padding: 0; } }
+    </style>
+  </head>
+  <body>
+    <header>
+      <p class="eyebrow">Curveball / management brief</p>
+      <h1>Mainnet launch decision</h1>
+      <p class="meta">Current release candidate · 9 November 2026 · RISE mainnet</p>
+    </header>
+
+    <h2>The release being considered</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Choice</th><th>Current plan</th><th>Business meaning</th></tr></thead>
+        <tbody>
+          <tr><td>Supply</td><td>1 billion tokens per market; 800 million offered on the curve</td><td>The rest seeds the pool or burns at graduation; no holder reserve</td></tr>
+          <tr><td>Launch fee</td><td>0.00045 WETH, fixed at deployment</td><td>Goes directly to the treasury; its dollar value changes with ETH price</td></tr>
+          <tr><td>Graduation target</td><td>Chosen before deployment; 4 WETH minimum</td><td>Raised WETH becomes locked pool liquidity, not treasury cash</td></tr>
+          <tr><td>Trading</td><td>0.75% default curve fee; creator may add 0–0.5%</td><td>Base fee splits 50% creator, 25% treasury, 25% buyback</td></tr>
+          <tr><td>Opening protection</td><td>Buy tax falls from 99% in second 0 to zero after second 4</td><td>First buys, including an optional buy during launch, cost much more</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>The owner can change fee defaults for future markets; each market keeps the policy set at launch. The 0.00045 WETH launch fee is an ETH amount, not a guaranteed $1 price.</p>
+
+    <h2>Example: a 4 WETH sellout</h2>
+    <p class="example">Assume buyers fill the curve after the opening tax ends, with no sells or creator tax. They spend about <strong>4.03 WETH</strong>: 4 WETH enters the locked pool, and 0.03 WETH is the curve fee. Of that fee, 0.015 WETH is credited to the creator, 0.0075 WETH to treasury, and 0.0075 WETH to buybacks. Creator and treasury trading fees need claiming; treasury receives the 0.00045 WETH launch fee immediately.</p>
+    <p>The pool starts with about 4 WETH and 160 million market tokens; about 40 million tokens burn. A full sellout needs at least 20 buying addresses under the 40 million-token per-address curve cap. Gas, opening tax, optional creator tax, extra trading, and rounding change actual costs and receipts. A controlled full graduation at this target puts the 4 WETH liquidity at market risk.</p>
+
+    <h2>How revenue continues after graduation</h2>
+    <p>Icarus pool trading has its own fee. Curveball can claim fees only from its locked LP share, then splits those claims 50% to the creator, 25% to treasury, and 25% to the shared buyback treasury. On 9 November, the Icarus factory reported a 0.3% volatile swap fee and routed 10% of that fee to its gauge; these settings and the LP share can change. Fee claims require an operator. Buybacks require a permanent choice of one graduated token and successful purchase transactions; a funded budget alone is not a burn.</p>
+
+    <h2>Conditions for public release</h2>
+    <ul>
+      <li><strong>Product:</strong> approve the target and fee wording; show the opening tax and full buy cost before trading is enabled.</li>
+      <li><strong>Governance:</strong> record and verify the treasury, guardian, multisig, and owner timelock with at least a two-day delay; test claims and emergency actions.</li>
+      <li><strong>Deployment:</strong> tag the release, rerun contract and app checks, verify Icarus settings and bytecode, deploy and independently reconcile core and swap-adapter records.</li>
+      <li><strong>Operations:</strong> rehearse the isolated production stack, wallet flow, indexer recovery, backups, monitoring, and a small launch/buy/sell canary before opening traffic.</li>
+    </ul>
+
+    <h2>Management decisions</h2>
+    <ul>
+      <li>Set the initial graduation target and decide whether to fund a full 4 WETH canary.</li>
+      <li>Approve governance signers, thresholds, addresses, and the owner of LP-fee collection and treasury claims.</li>
+      <li>Assign owners for indexer correctness, service monitoring, backups, and incident response; sign off on the verified release record.</li>
+    </ul>
+  </body>
+</html>

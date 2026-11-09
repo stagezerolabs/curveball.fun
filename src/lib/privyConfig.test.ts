@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { privyConfig } from "./privyConfig";
-import { activeChainId, wagmiConfig } from "./web3";
+import { activeChain, activeChainId, wagmiConfig } from "./web3";
 
 describe("Privy authentication", () => {
   test("requires wallet login so account creation includes a SIWE ownership signature", () => {
@@ -16,5 +16,9 @@ describe("Privy authentication", () => {
     expect(privyConfig.supportedChains.map((chain) => chain.id)).toEqual([
       activeChainId,
     ]);
+    expect(activeChain.testnet).toBe(activeChainId !== 4_153);
+    if (activeChainId === 4_153) {
+      expect(activeChain.name).toBe("RISE Mainnet");
+    }
   });
 });

@@ -16,7 +16,6 @@ export type Token = {
   lifecycle?: MarketLifecycle;
   /** Unix seconds when the curve sold out; the abort timeout runs from here. */
   readyAt?: number | null;
-  reserveTokens?: string | null;
   feeBps?: number | null;
   creatorTaxBps?: number | null;
   creatorShareBps?: number | null;

@@ -11,7 +11,12 @@ import {
   type TransactionReceipt,
 } from "viem";
 import type { Config } from "wagmi";
-import { createCurveballSdk, quoteFirstBuy, TOKEN_SUPPLY } from "./sdk";
+import {
+  createCurveballSdk,
+  quoteFirstBuy,
+  CURVE_SUPPLY,
+  TOKEN_SUPPLY,
+} from "./sdk";
 import {
   defineCurveballDeployment,
   RISE_TESTNET_CHAIN_ID,
@@ -46,7 +51,6 @@ const market = {
   virtualQuote: 2_500_000_000_000_000n,
   initialVirtualQuote: 2_500_000_000_000_000n,
   realQuote: 0n,
-  reserveTokens: 0n,
   readyAt: 0,
   pool: "0x0000000000000000000000000000000000000000",
 };
@@ -74,8 +78,9 @@ function tradeLog(
         { type: "uint256" },
         { type: "uint256" },
         { type: "uint256" },
+        { type: "uint256" },
       ],
-      [isBuy, quoteAmount, tokenAmount, 3n, 2n, virtualToken, virtualQuote],
+      [isBuy, quoteAmount, tokenAmount, 3n, 2n, 0n, virtualToken, virtualQuote],
     ),
   } as unknown as Log;
 }
@@ -97,9 +102,8 @@ function launchLog() {
         { type: "uint16" },
         { type: "uint16" },
         { type: "uint16" },
-        { type: "uint256" },
       ],
-      ["Test", "TST", uri, 75, 5_000, 2_500, 0, 0n],
+      ["Test", "TST", uri, 75, 5_000, 2_500, 0],
     ),
   } as unknown as Log;
 }
@@ -111,7 +115,9 @@ function reads(overrides: Record<string, unknown> = {}) {
     quoteToken: quote,
     launchFee: 0n,
     graduationTarget: parseEther("0.01"),
-    MAX_RESERVE_BPS: 400n,
+    SUPPLY: TOKEN_SUPPLY,
+    CURVE_SUPPLY,
+    walletCapBps: 500,
     feeDefaults: [75, 5_000, 2_500, 50],
     ...overrides,
   };
@@ -123,14 +129,35 @@ function reads(overrides: Record<string, unknown> = {}) {
   };
 }
 
+test("first-buy quote respects a five-percent curve wallet cap", () => {
+  expect(quoteFirstBuy(parseEther("100"), parseEther("4"), 75, 0,
+    1_000_000_000n * 10n ** 18n, 800_000_000n * 10n ** 18n, 9_900, 500)).toBe(40_000_000n * 10n ** 18n);
+});
+
 test("a first buy is quoted exactly as the launchpad filled it on testnet", () => {
   // The smoke launch: 0.003 WETH at a 0.01 target, 75 bps fee and no tax received this many tokens.
-  expect(quoteFirstBuy(3_000_000_000_000_000n, parseEther("0.01"), 75, 0)).toBe(
-    543_601_359_003_397_503_945_291n,
-  );
-  expect(quoteFirstBuy(parseEther("100"), parseEther("0.01"), 75, 0)).toBe(
-    800_000n * 10n ** 18n,
-  );
+  const legacySupply = 1_000_000n * 10n ** 18n;
+  const legacyCurveSupply = 800_000n * 10n ** 18n;
+  expect(
+    quoteFirstBuy(
+      3_000_000_000_000_000n,
+      parseEther("0.01"),
+      75,
+      0,
+      legacySupply,
+      legacyCurveSupply,
+    ),
+  ).toBe(543_601_359_003_397_503_945_291n);
+  expect(
+    quoteFirstBuy(
+      parseEther("100"),
+      parseEther("0.01"),
+      75,
+      0,
+      legacySupply,
+      legacyCurveSupply,
+    ),
+  ).toBe(800_000n * 10n ** 18n);
 });
 
 test("a graduated market quotes the canonical Icarus pool and rejects a paused factory", async () => {
@@ -184,11 +211,17 @@ test("pool buy approves only the bytecode-pinned adapter and uses the displayed 
       balanceOf: 0n,
       allowance: () => (approved ? 100n : 0n),
     }),
-    simulateContract: async (_config: unknown, request: { functionName: string }) => {
+    simulateContract: async (
+      _config: unknown,
+      request: { functionName: string },
+    ) => {
       simulations.push(request);
       return { request };
     },
-    writeContract: async (_config: unknown, request: { functionName: string }) => {
+    writeContract: async (
+      _config: unknown,
+      request: { functionName: string },
+    ) => {
       if (request.functionName === "approve") approved = true;
       return hash;
     },
@@ -253,7 +286,7 @@ test("buy progress follows each wallet prompt and its network confirmation, appr
     readContract: reads({
       balanceOf: 0n,
       allowance: () => (approved ? 100n : 0n),
-      previewBuy: {
+      previewBuyFor: {
         tokensOut: 100n,
         spent: 100n,
         curveQuote: 99n,
@@ -550,10 +583,7 @@ test("a launch wraps and approves the fee plus the first buy, then calls launch 
     {} as Config,
     deployment,
     actions,
-  ).launchAndBuy(
-    { name: "Test", symbol: "TST", uri, holderReserveBps: 100 },
-    initialBuy,
-  );
+  ).launchAndBuy({ name: "Test", symbol: "TST", uri }, initialBuy);
   expect(simulations.map((request) => request.functionName)).toEqual([
     "deposit",
     "approve",
@@ -561,31 +591,34 @@ test("a launch wraps and approves the fee plus the first buy, then calls launch 
   ]);
   expect(simulations[0].value).toBe(fee + initialBuy);
   expect(simulations[1].args).toEqual([deployment.launchpad, fee + initialBuy]);
-  const expectedMinOut = (543_601_359_003_397_503_945_291n * 9_700n) / 10_000n;
+  const expectedMinOut =
+    (quoteFirstBuy(
+      initialBuy,
+      parseEther("0.01"),
+      75,
+      0,
+      TOKEN_SUPPLY,
+      CURVE_SUPPLY,
+      9_900,
+      500,
+    ) *
+      9_700n) /
+    10_000n;
   expect(simulations[2].args).toEqual([
     { name: "Test", symbol: "TST", uri },
     0,
-    100,
     initialBuy,
     expectedMinOut,
   ]);
   expect(result.minimumOutput).toBe(expectedMinOut);
 });
 
-test("launch limits come from the launchpad: reserve cap, tax cap, and a required metadata URI", async () => {
+test("launch limits come from the launchpad: tax cap and a required metadata URI", async () => {
   const actions = {
     getAccount: () => ({ address: wallet, chainId: RISE_TESTNET_CHAIN_ID }),
     readContract: reads(),
   } as unknown as WagmiActions;
   const sdk = createCurveballSdk({} as Config, deployment, actions);
-  await expect(
-    sdk.createToken({
-      name: "Test",
-      symbol: "TST",
-      uri,
-      holderReserveBps: 401,
-    }),
-  ).rejects.toThrow("0–4%");
   await expect(
     sdk.createToken({ name: "Test", symbol: "TST", uri, creatorTaxBps: 51 }),
   ).rejects.toThrow("0–0.5%");
@@ -596,8 +629,8 @@ test("launch limits come from the launchpad: reserve cap, tax cap, and a require
 
 test("claims and keeper actions go to the singleton that owns them", async () => {
   const escrow = "0x00000000000000000000000000000000000000e1" as Address;
+  const buybackTreasury = "0x00000000000000000000000000000000000000e3" as Address;
   const locker = "0x00000000000000000000000000000000000000e2" as Address;
-  const reserve = "0x00000000000000000000000000000000000000e3" as Address;
   const pool = "0x00000000000000000000000000000000000000f1" as Address;
   const calls: Array<{
     address: Address;
@@ -606,7 +639,7 @@ test("claims and keeper actions go to the singleton that owns them", async () =>
   }> = [];
   const actions = {
     getAccount: () => ({ address: wallet, chainId: RISE_TESTNET_CHAIN_ID }),
-    readContract: reads({ escrow, locker, reserve, tokenOf: token }),
+    readContract: reads({ escrow, locker, buybackTreasury, tokenOf: token }),
     simulateContract: async (
       _config: unknown,
       request: {
@@ -625,8 +658,7 @@ test("claims and keeper actions go to the singleton that owns them", async () =>
 
   await sdk.claimEscrow(quote);
   await sdk.claimPoolFees(pool);
-  await sdk.claimReserve(token);
-  await sdk.buyback(token);
+  await sdk.buyback();
   await sdk.graduate(token);
   await sdk.abortGraduation(token);
   expect(
@@ -638,15 +670,14 @@ test("claims and keeper actions go to the singleton that owns them", async () =>
   ).toEqual([
     [escrow, "claim", [quote]],
     [locker, "claim", [pool]],
-    [reserve, "claim", [token]],
-    [escrow, "buyback", [token]],
+    [buybackTreasury, "buyback", []],
     [deployment.launchpad, "graduate", [token]],
     [deployment.launchpad, "abortGraduation", [token]],
   ]);
 });
 
 test("a wallet whose provider is still on chain 1 is switched before the launch is sent", async () => {
-  // Privy's embedded wallet provider starts on chain 1 while Wagmi's cached connection can already say RISE.
+  // The connected wallet provider starts on chain 1 while Wagmi's cached connection can already say RISE.
   let providerChainId = 1;
   const switched: number[] = [];
   const actions = {
@@ -708,7 +739,7 @@ test("a launch rechecks the same wallet connector when its provider changes befo
     },
     readContract: reads(),
     simulateContract: async (_config: unknown, request: object) => {
-      // Privy's provider can finish initializing after the SDK's initial check and fall back to chain 1.
+      // The wallet provider can finish initializing after the SDK's initial check and fall back to chain 1.
       providerChainId = 1;
       return { request };
     },

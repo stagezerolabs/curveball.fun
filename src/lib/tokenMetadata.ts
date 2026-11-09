@@ -1,5 +1,6 @@
 const CID = /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|baf[a-z2-7]{20,})(\/[^\s?#]*)?$/i;
 const MAX_METADATA_BYTES = 32_000;
+const TRUSTED_CONTENT_HOSTS = new Set(["gateway.pinata.cloud"]);
 const cache = new Map<
   string,
   Promise<{ image: string | null; description: string | null } | null>
@@ -41,7 +42,10 @@ export function publicContentUrl(uri: string): string | null {
   }
   try {
     const url = new URL(uri);
-    return url.protocol === "https:" ? url.href : null;
+    return url.protocol === "https:" &&
+      TRUSTED_CONTENT_HOSTS.has(url.hostname.toLowerCase())
+      ? url.href
+      : null;
   } catch {
     return null;
   }

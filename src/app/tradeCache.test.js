@@ -81,12 +81,10 @@ test("a confirmed Icarus pool trade invalidates indexed prices without applying 
   };
   const state = {
     ...before,
-    ...confirmedTradeStateUpdate(
-      before,
-      "sell",
-      token,
-      { quotedOutput: 500_000_000_000_000_000n, marketState: null },
-    ),
+    ...confirmedTradeStateUpdate(before, "sell", token, {
+      quotedOutput: 500_000_000_000_000_000n,
+      marketState: null,
+    }),
   };
   expect(state.tokenCache[key].price).toBe(0.5);
   expect(state.tokenCache[key].marketCap).toBe(500);

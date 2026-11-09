@@ -45,7 +45,7 @@ export const activeExplorerUrl =
 export const isActiveTestnet = activeChainId !== RISE_MAINNET_CHAIN_ID;
 export const activeDeploymentBlock = BigInt(env.VITE_DEPLOYMENT_BLOCK);
 
-export const riseTestnet = defineChain({
+export const activeChain = defineChain({
   id: activeChainId,
   name:
     activeChainId === RISE_MAINNET_CHAIN_ID
@@ -63,10 +63,10 @@ export const riseTestnet = defineChain({
 
 // Public RPCs drop log queries under load; viem retries with exponential backoff.
 const transports = {
-  [riseTestnet.id]: http(rpcUrl, { retryCount: 5, retryDelay: 500 }),
+  [activeChain.id]: http(rpcUrl, { retryCount: 5, retryDelay: 500 }),
 };
 export const wagmiConfig = createConfig({
-  chains: [riseTestnet],
+  chains: [activeChain],
   transports,
   ssr: true,
   multiInjectedProviderDiscovery: false,

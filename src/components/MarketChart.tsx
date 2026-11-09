@@ -370,7 +370,7 @@ export function MarketChart({
   }, [candles, interval, themeVersion, usdPerEth]);
 
   return (
-    <div className="market-main">
+    <>
       <section
         className="market-chart-panel"
         aria-label={`${token.symbol} market cap chart`}
@@ -462,6 +462,6 @@ export function MarketChart({
           backendEnabled ? (backendTrades.data?.followingTraderCount ?? 0) : 0
         }
       />
-    </div>
+    </>
   );
 }

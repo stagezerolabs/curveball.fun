@@ -4,7 +4,7 @@ import { formatPercent } from "../lib/format.js";
 import type { Address } from "viem";
 import { formatEther } from "viem";
 import { useReadContract } from "wagmi";
-import { curveFeeEscrowAbi, curveLaunchpadAbi } from "../sdk/contracts";
+import { curveFeeEscrowAbi, curveLaunchpadAbi, curveBuybackTreasuryAbi } from "../sdk/contracts";
 import { activeChainId, launchpadAddress } from "../lib/web3";
 import { selectTradeState } from "../lib/marketState";
 import { factoryForToken } from "../lib/marketFactories";
@@ -95,13 +95,17 @@ export function MilestonePanel({
     chainId: activeChainId,
     query: { enabled: Boolean(isCreator && escrow) },
   });
+  const { data: buybackTreasury } = useReadContract({
+    address: escrow, abi: curveFeeEscrowAbi, functionName: "buybackTreasury",
+    chainId: activeChainId, query: { enabled: Boolean(escrow) },
+  });
+  const { data: curveTarget } = useReadContract({
+    address: buybackTreasury, abi: curveBuybackTreasuryAbi, functionName: "curveToken",
+    chainId: activeChainId, query: { enabled: Boolean(buybackTreasury) },
+  });
   const { data: buybackBalance, refetch: refetchBuyback } = useReadContract({
-    address: escrow,
-    abi: curveFeeEscrowAbi,
-    functionName: "buybackBalance",
-    args: [token.address],
-    chainId: activeChainId,
-    query: { enabled: Boolean(isCreator && escrow && token.graduated) },
+    address: buybackTreasury, abi: curveBuybackTreasuryAbi, functionName: "quoteBudget",
+    chainId: activeChainId, query: { enabled: Boolean(buybackTreasury) },
   });
   const hasQuotePayment = quoteOwed !== undefined && quoteOwed > 0n;
   const hasTokenPayment = tokenOwed !== undefined && tokenOwed > 0n;
@@ -257,22 +261,18 @@ export function MilestonePanel({
         </div>
       )}
 
-      {token.graduated &&
-        isCreator &&
-        buybackBalance !== undefined &&
+      {buybackBalance !== undefined &&
         buybackBalance > 0n && (
           <div className="claim-block">
             <h3 className="panel-subhead">Buyback</h3>
             <p className="panel-note">
-              {formatEther(buybackBalance)} WETH waits to buy {token.symbol}{" "}
-              from the pool and burn it, in small chunks at most once an hour. A
-              buyback skips without spending when the pool price strays from its
-              recent average.
+              {formatEther(buybackBalance)} WETH in the shared treasury funds CURVE buybacks.
+              {curveTarget ? ` Target: ${curveTarget}.` : " The target will be set after CURVE graduates."}
             </p>
             <button
               type="button"
               className="primary-button claim-button"
-              disabled={isPending}
+              disabled={isPending || !curveTarget || curveTarget === "0x0000000000000000000000000000000000000000"}
               onClick={async () => {
                 await runBuyback(token.address, marketFactory);
                 await refetchBuyback();

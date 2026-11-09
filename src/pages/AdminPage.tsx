@@ -80,7 +80,7 @@ function FundsPanel({ funds }: { funds: FactoryFunds }) {
         {[
           { label: "Treasury wallet", fund: funds.treasuryWallet },
           { label: "Treasury fees in escrow", fund: funds.treasuryInEscrow },
-          { label: "Escrow total (fees and buybacks)", fund: funds.escrowHeld },
+          { label: "Escrow fee claims", fund: funds.escrowHeld },
         ].map(({ label, fund }) => (
           <div key={label} className="admin-fund-row">
             <dt>{label}</dt>

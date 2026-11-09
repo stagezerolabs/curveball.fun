@@ -1,0 +1,21 @@
+{
+  "name": "@curveball/backend",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "bun": ">=1.4.0"
+  },
+  "scripts": {
+    "start": "bun run --cwd ../../packages/db build && bun run --cwd ../.. build:testnet && bun --preload ./src/platform/instrument.mjs src/entrypoints/main.mjs",
+    "migrate": "bun run --cwd ../../packages/db build && bun src/entrypoints/migrate.mjs",
+    "test": "bun run --cwd ../../packages/db build && bun test tests"
+  },
+  "dependencies": {
+    "@curveball/db": "workspace:*",
+    "@fastify/static": "^8.0.0",
+    "@privy-io/node": "0.36.0",
+    "@sentry/bun": "^11.8.0",
+    "fastify": "^5.0.0",
+    "viem": "2.57.3"
+  }
+}

@@ -17,7 +17,7 @@ import { socialApiConfigured } from "../social/api";
 import { useNotifications } from "../social/useNotifications";
 import { useTraderName } from "../social/useTraderName";
 import type { Theme } from "../lib/theme";
-import { activeChainId, riseTestnet } from "../lib/web3";
+import { activeChain, activeChainId } from "../lib/web3";
 import { AccountPopover } from "./AccountPopover";
 
 const RISK_NOTICE_DISMISSED_KEY = "curveball:risk-notice-dismissed";
@@ -576,7 +576,7 @@ export function LandingFooter({
 
         <nav className="landing-footer-column" aria-label="Network">
           <h2>Network</h2>
-          <span>{riseTestnet.name}</span>
+          <span>{activeChain.name}</span>
           <a href={activeExplorerUrl} target="_blank" rel="noreferrer">
             Explorer ↗
           </a>

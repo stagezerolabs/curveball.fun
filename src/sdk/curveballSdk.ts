@@ -51,14 +51,21 @@ export function defineCurveballDeployment(input: {
     );
   }
   if (Boolean(input.swapAdapter) !== Boolean(input.swapAdapterCodeHash))
-    throw new Error("Swap adapter address and bytecode hash must be configured together.");
-  if (input.swapAdapterCodeHash && !/^0x[0-9a-fA-F]{64}$/.test(input.swapAdapterCodeHash))
+    throw new Error(
+      "Swap adapter address and bytecode hash must be configured together.",
+    );
+  if (
+    input.swapAdapterCodeHash &&
+    !/^0x[0-9a-fA-F]{64}$/.test(input.swapAdapterCodeHash)
+  )
     throw new Error("Invalid swap adapter bytecode hash.");
 
   return Object.freeze({
     chainId: input.chainId,
     launchpad: getAddress(input.launchpad),
-    ...(input.swapAdapter ? { swapAdapter: getAddress(input.swapAdapter) } : {}),
+    ...(input.swapAdapter
+      ? { swapAdapter: getAddress(input.swapAdapter) }
+      : {}),
     ...(input.swapAdapterCodeHash
       ? { swapAdapterCodeHash: input.swapAdapterCodeHash.toLowerCase() as Hex }
       : {}),

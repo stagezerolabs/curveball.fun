@@ -127,27 +127,54 @@ export function MarketList({
                   <dl className="market-card-metrics">
                     <div>
                       <dt>1H</dt>
-                      <dd className={changeClass(stats?.change1h)}>{formatChange(stats?.change1h)}</dd>
+                      <dd className={changeClass(stats?.change1h)}>
+                        {formatChange(stats?.change1h)}
+                      </dd>
                     </div>
                     <div>
                       <dt>6H</dt>
-                      <dd className={changeClass(stats?.change6h)}>{formatChange(stats?.change6h)}</dd>
+                      <dd className={changeClass(stats?.change6h)}>
+                        {formatChange(stats?.change6h)}
+                      </dd>
                     </div>
                     <div>
                       <dt>24H</dt>
-                      <dd className={changeClass(stats?.change24h)}>{formatChange(stats?.change24h)}</dd>
+                      <dd className={changeClass(stats?.change24h)}>
+                        {formatChange(stats?.change24h)}
+                      </dd>
                     </div>
                     <div>
                       <dt>Volume 24h</dt>
-                      <dd><UsdAmount weth={stats?.volume24h} compact /></dd>
+                      <dd>
+                        <UsdAmount weth={stats?.volume24h} compact />
+                      </dd>
                     </div>
                     <div>
-                      <dt title={token.graduated ? "Both sides of the Icarus pool at its current reserve price" : "WETH deposited on the bonding curve"}>Liquidity</dt>
-                      <dd><UsdAmount weth={token.graduated ? poolLiquidityWeth[token.address.toLowerCase()] : token.curveLiquidityWeth} compact /></dd>
+                      <dt
+                        title={
+                          token.graduated
+                            ? "Both sides of the Icarus pool at its current reserve price"
+                            : "WETH deposited on the bonding curve"
+                        }
+                      >
+                        Liquidity
+                      </dt>
+                      <dd>
+                        <UsdAmount
+                          weth={
+                            token.graduated
+                              ? poolLiquidityWeth[token.address.toLowerCase()]
+                              : token.curveLiquidityWeth
+                          }
+                          compact
+                        />
+                      </dd>
                     </div>
                     <div>
                       <dt>Market cap</dt>
-                      <dd><UsdAmount weth={token.marketCap} compact /></dd>
+                      <dd>
+                        <UsdAmount weth={token.marketCap} compact />
+                      </dd>
                     </div>
                   </dl>
                   {followSignal[token.address.toLowerCase()] ? (

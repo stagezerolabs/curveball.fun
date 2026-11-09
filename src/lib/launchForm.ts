@@ -19,9 +19,7 @@ type LaunchFormInput = {
   launchFee: bigint | undefined;
   artworkUri: string;
   taxPercent: string;
-  reservePercent: string;
-  /** The launchpad's MAX_RESERVE_BPS and fee-default tax cap; undefined until read. */
-  maxReserveBps: number | undefined;
+  /** The launchpad's fee-default tax cap; undefined until read. */
   taxCapBps: number | undefined;
 };
 
@@ -39,8 +37,7 @@ export function percentToBps(percent: string): number | null {
 }
 
 /**
- * Whether the launch can be submitted. The launchpad rejects an empty metadata URI, a reserve above
- * MAX_RESERVE_BPS and a tax above the cap, so each is checked here before the wallet is asked.
+ * Whether the launch can be submitted. Check metadata and creator tax before the wallet is asked.
  */
 export function canSubmitLaunch(input: LaunchFormInput): boolean {
   if (
@@ -50,13 +47,6 @@ export function canSubmitLaunch(input: LaunchFormInput): boolean {
   )
     return false;
   if (!hasPublishedArtwork(input.artworkUri)) return false;
-  const reserveBps = percentToBps(input.reservePercent);
-  if (
-    reserveBps === null ||
-    input.maxReserveBps === undefined ||
-    reserveBps > input.maxReserveBps
-  )
-    return false;
   const taxBps = percentToBps(input.taxPercent || "0");
   if (
     taxBps === null ||

@@ -1,13 +1,11 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useQuery } from "@tanstack/react-query";
-import { Tabs } from "@base-ui/react/tabs";
 import { useAccount, usePublicClient } from "wagmi";
 import type { Address } from "viem";
 import { useStore } from "../app/useStore.js";
 import { AppLink } from "../components/Navigation";
 import { CreatorTokenInsights } from "../components/CreatorTokenInsights";
-import { HolderAirdropPanel } from "../components/HolderAirdropPanel";
 import { TokenAvatar } from "../components/TokenAvatar";
 import { UsdAmount } from "../components/UsdAmount";
 import type { CreatorTokenClient } from "../creatorTokens";
@@ -21,7 +19,6 @@ import type { ProfileTab } from "./TraderProfilePage";
 import { selectProfileAuthView } from "./profileAuthGate";
 
 type LaunchFilter = "all" | "live" | "ready" | "graduated";
-type ProfileSection = "holders" | "airdrops";
 
 const TraderProfilePage = lazy(() =>
   import("./TraderProfilePage").then((module) => ({
@@ -108,7 +105,6 @@ function CreatorLaunchDashboard({
     [tokens],
   );
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
-  const [activeSection, setActiveSection] = useState<ProfileSection>("holders");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<LaunchFilter>("all");
   const visibleTokens = useMemo(() => {
@@ -157,7 +153,7 @@ function CreatorLaunchDashboard({
       ) : !tokens.length ? (
         <div className="profile-empty-state">
           <strong>No launches yet</strong>
-          <p>Tokens you create show up here with their holders and reserve.</p>
+          <p>Tokens you create show up here with their holders.</p>
           <AppLink
             className="profile-secondary-action"
             route="launch"
@@ -295,45 +291,12 @@ function CreatorLaunchDashboard({
                     </AppLink>
                   </div>
                 </header>
-                <Tabs.Root
-                  value={activeSection}
-                  onValueChange={(value) =>
-                    setActiveSection(value as ProfileSection)
-                  }
-                >
-                  <Tabs.List
-                    className="profile-section-nav profile-subnav"
-                    aria-label="Selected token view"
-                  >
-                    <Tabs.Tab
-                      value="holders"
-                      className={activeSection === "holders" ? "active" : ""}
-                    >
-                      Holders
-                    </Tabs.Tab>
-                    <Tabs.Tab
-                      value="airdrops"
-                      className={activeSection === "airdrops" ? "active" : ""}
-                    >
-                      Holder reserve
-                    </Tabs.Tab>
-                    <Tabs.Indicator className="profile-section-indicator" />
-                  </Tabs.List>
-                  <Tabs.Panel
-                    key={`${selectedToken.address}-${activeSection}`}
-                    value={activeSection}
-                    className="profile-token-workspace profile-section-panel"
-                  >
-                    {activeSection === "holders" ? (
-                      <CreatorTokenInsights
-                        token={selectedToken}
-                        navigate={navigate}
-                      />
-                    ) : (
-                      <HolderAirdropPanel token={selectedToken} />
-                    )}
-                  </Tabs.Panel>
-                </Tabs.Root>
+                <div className="profile-token-workspace profile-section-panel">
+                  <CreatorTokenInsights
+                    token={selectedToken}
+                    navigate={navigate}
+                  />
+                </div>
               </>
             ) : (
               <p className="profile-directory-empty">

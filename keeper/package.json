@@ -6,8 +6,8 @@
     "node": "^20.19.0 || ^22.12.0 || >=23.2.0"
   },
   "scripts": {
-    "start": "node --import ./instrument.mjs graduation-keeper.mjs",
-    "test": "node --test graduation-keeper.test.mjs"
+    "start": "node --import ./src/runtime/instrument.mjs main.mjs",
+    "test": "node --test test/*.test.mjs test/*/*.test.mjs"
   },
   "dependencies": {
     "@sentry/node": "^11.8.0",

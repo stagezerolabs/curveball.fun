@@ -73,9 +73,7 @@ export function MarketDepositsChart({
       ? null
       : currentQuote * multiplier;
   const formatValue = (value: number) =>
-    currency === "usd"
-      ? compactUsd(value)
-      : compactQuote(value, quoteSymbol);
+    currency === "usd" ? compactUsd(value) : compactQuote(value, quoteSymbol);
 
   useEffect(() => {
     const observer = new MutationObserver(() =>
@@ -200,7 +198,9 @@ export function MarketDepositsChart({
       <header className="market-deposits-head">
         <div>
           <p>Total Deposits ({currency === "usd" ? "USD" : quoteSymbol})</p>
-          <strong>{currentValue === null ? "—" : formatValue(currentValue)}</strong>
+          <strong>
+            {currentValue === null ? "—" : formatValue(currentValue)}
+          </strong>
         </div>
         <div className="market-deposits-controls">
           <div
@@ -253,9 +253,12 @@ export function MarketDepositsChart({
           <p className="market-deposits-message">Deposit history unavailable</p>
         )}
         {empty && <p className="market-deposits-message">No deposits yet</p>}
-        {!loading && !unavailable && currency === "usd" && usdPerEth === null && (
-          <p className="market-deposits-message">USD rate unavailable</p>
-        )}
+        {!loading &&
+          !unavailable &&
+          currency === "usd" &&
+          usdPerEth === null && (
+            <p className="market-deposits-message">USD rate unavailable</p>
+          )}
         <div ref={chartRef} className="market-deposits-canvas" />
       </div>
     </section>

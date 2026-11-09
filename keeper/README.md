@@ -2,14 +2,34 @@
 
 A standalone Node.js worker for the active Curveball launchpad. It discovers launches and, for each market, takes the one permissionless action it needs. It needs no HTTP server.
 
-| Market                                                           | Action                                                                 |
-| ---------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| Ready (sold out)                                                 | `graduate`. Icarus's pause doesn't matter: graduation never checks it. |
-| Ready past `GRADUATION_TIMEOUT`, and `graduate` would revert     | `abortGraduation`, which reopens sells                                 |
-| Aborted and sold out again                                       | `graduate`                                                             |
-| Graduated, with a buyback balance and `BUYBACK_INTERVAL` elapsed | `escrow.buyback`                                                       |
+The worker is organized by responsibility:
 
-A buyback that emits `BuybackSkipped` (too few TWAP observations, Icarus paused, or the price outside the band) spends nothing and doesn't start the interval, so the keeper backs off: one interval, then doubling up to six hours. Failed actions retry after a minute, doubling to the same cap.
+| Path                               | Purpose                                                                   |
+| ---------------------------------- | ------------------------------------------------------------------------- |
+| `main.mjs`                         | Configuration, clients, sweep coordination, polling cadence, and shutdown |
+| `abi.mjs`                          | Exported launchpad, escrow, and buyback treasury contract ABIs            |
+| `src/features/markets/catalog.mjs`     | Discover launches and track the scan cursor                               |
+| `src/features/markets/constants.mjs`   | Read launchpad and treasury configuration                                 |
+| `src/features/markets/status.mjs`      | Read a market's current state and token credit                            |
+| `src/features/graduation/decision.mjs` | Choose the next market action                                             |
+| `src/features/graduation/actions.mjs`  | Simulate graduation, graduate, or abort after timeout                     |
+| `src/features/buybacks/actions.mjs`    | Convert market credits and run the shared CURVE buyback                   |
+| `src/runtime/retry.mjs`                | Schedule and reset action retries                                         |
+| `src/runtime/transactions.mjs`         | Send one wallet transaction at a time                                     |
+| `src/runtime/instrument.mjs`           | Sentry initialization, error reporting, and sweep tracing                 |
+
+All tests live under `test/`, grouped to match the feature and runtime modules. Shared mock-chain setup lives in `test/support/`; `test/keeper.test.mjs` checks sweep coordination. `main.mjs` can be imported without starting the worker.
+
+| Market                                                       | Action                                                                 |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------- |
+| Ready (sold out)                                             | `graduate`. Icarus's pause doesn't matter: graduation never checks it. |
+| Ready past `GRADUATION_TIMEOUT`, and `graduate` would revert | `abortGraduation`, which reopens sells                                 |
+| Aborted and sold out again                                   | `graduate`                                                             |
+| Graduated, with market-token fee credit                      | `buybackTreasury.convert`                                              |
+
+A swap that emits `SwapSkipped` (too few TWAP observations, Icarus paused, or the price outside the band) spends nothing, so the keeper backs off for one hour, then doubles up to six hours. Failed actions retry after a minute, doubling to the same cap.
+
+The keeper also runs the shared CURVE buyback when its global WETH budget is funded and the target is set. The treasury owner can trigger it immediately; a non-owner keeper waits until one day after the last successful buyback. The worker requires an escrow with a buyback treasury and fails its initial read on incompatible deployments.
 
 ## Run on a VPS
 
@@ -24,7 +44,7 @@ Set the `KEEPER_*` environment variables in `.env.example` through your process 
 
 Set `SENTRY_DSN` to the **Curveball Keeper** project DSN in the same process manager or container environment. `npm start` and the Docker image preload Sentry before the keeper starts. Set `SENTRY_ENVIRONMENT=production` and `SENTRY_RELEASE` to `curveball-keeper@<deployed-commit-sha>` so keeper releases stay distinct from backend releases. Tracing samples 10% in production and 100% locally by default; `SENTRY_TRACES_SAMPLE_RATE` can override it. A missing DSN leaves Sentry disabled.
 
-`KEEPER_LAUNCHPAD_ADDRESS` and `KEEPER_DEPLOYMENT_BLOCK` must match the `launchpad` and `deploymentBlock` in `deployments/<chainId>/curveball.json`, and `KEEPER_CHAIN_ID` must be that chain. The worker scans from that block on every start so it can recover missed launches; there is no persisted cursor. Market reads run with bounded concurrency and wallet transactions run sequentially to preserve nonce order. The default interval is 10 seconds after each sweep finishes. Markets in states that change only slowly are polled at their own cadence instead of every sweep: a trading market every minute, and a graduated market with no buyback balance every ten minutes — so the read cost stays with the markets that can act.
+`KEEPER_LAUNCHPAD_ADDRESS` and `KEEPER_DEPLOYMENT_BLOCK` must match the `launchpad` and `deploymentBlock` in `deployments/<chainId>/curveball.json`, and `KEEPER_CHAIN_ID` must be that chain. The worker scans from that block on every start so it can recover missed launches; there is no persisted cursor. Market reads run with bounded concurrency and wallet transactions run sequentially to preserve nonce order. The default interval is 10 seconds after each sweep finishes. Markets in states that change only slowly are polled at their own cadence instead of every sweep: a trading market every minute, and a graduated market with no token fee credit every ten minutes — so the read cost stays with the markets that can act.
 
 The worker logs submitted transaction hashes, graduations, aborts, buyback skips with their reason, and failures. It has no HTTP health endpoint or built-in alerting. Monitor the process, logs, and keeper ETH balance.
 

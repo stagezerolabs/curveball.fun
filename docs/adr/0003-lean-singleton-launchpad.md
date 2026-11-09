@@ -1,5 +1,7 @@
 # Replace the V1 service mesh with a lean singleton launchpad
 
+> **Historical decision record.** The current source replaces `CurveHolderReserve` with `CurveBuybackTreasury`, has no holder claims, caps each address at 5% of the curve allocation, and routes pooled fee credits toward one permanently selected graduated CURVE token. The escrow buyback and hourly pacing described below were superseded. See [the current protocol spec](../../contracts/docs/protocol-spec.md) and [operations guide](../operations/buyback-burn-reserve-bundling.html).
+
 Curveball's contracts move from twelve wired service contracts plus two per-launch deployments to one `CurveLaunchpad` singleton that holds every market's virtual-reserve curve. The other pieces are:
 
 - an EIP-1167 `CurveToken` clone per launch;

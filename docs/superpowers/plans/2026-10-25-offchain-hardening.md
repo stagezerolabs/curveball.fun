@@ -23,7 +23,7 @@
 
 - **Mainnet boots with the default admin** — after this plan, an unset `SOCIAL_ADMIN_ADDRESS` must be a hard error (no fallback), on every chain.
 - **Malformed input still reaches SQL casts** — the flagged routes (cursors, `=ANY($n::bigint[])` casts, ids) must return 400 before hitting the DB.
-- **Rate limiter makes write paths fail closed under Postgres hiccups** — the limiter must fail *open* on DB errors (log + allow) but the per-key budget itself must never be bypassable by an attacker; add a test for both directions.
+- **Rate limiter makes write paths fail closed under Postgres hiccups** — the limiter must fail _open_ on DB errors (log + allow) but the per-key budget itself must never be bypassable by an attacker; add a test for both directions.
 - **Reorg deeper than `REORG_OVERLAP` leaves stale truth** — recovery must re-fetch canonical logs for the range and reconcile, not just orphan.
 - **A reorged-away market still ranks traders** — analytics/leaderboard queries must filter `orphaned=false` end-to-end, and notifications from orphaned rows must be retracted.
 
@@ -32,12 +32,14 @@
 ### Task 1: Remove the moderator default fallback
 
 **Files:**
+
 - Modify: `services/social/src/config.mjs`
 - Modify: `services/social/.env.example`
 - Create: `services/social/src/config.test.mjs`
 - Test: `bun test src/config.test.mjs`
 
 **Interfaces:**
+
 - Produces: `export function loadConfig(env: Record<string, string | undefined>): Config` — pure; `main config = loadConfig(process.env)` at import. `admin` requires `SOCIAL_ADMIN_ADDRESS`; missing or non-address → `throw new Error("SOCIAL_ADMIN_ADDRESS is required.")`; `0x5cc42e772f67089b4670eec4dcd904be2f2d511c` is explicitly rejected with `"SOCIAL_ADMIN_ADDRESS must not use the removed default address."` when the value equals it.
 
 - [ ] **Step 1: Write the failing test** — `loadConfig({...minimalEnv, SOCIAL_ADMIN_ADDRESS: undefined})` throws; `loadConfig({...minimalEnv, SOCIAL_ADMIN_ADDRESS: "0x5cc42e772f67089b4670eec4dcd904be2f2d511c"})` throws; valid env returns `config.adminAddress === addr.toLowerCase()`.
@@ -58,12 +60,14 @@ git commit -m "fix(social): require SOCIAL_ADMIN_ADDRESS, remove default fallbac
 ### Task 2: Shared request validation (400s, not 500s)
 
 **Files:**
+
 - Create: `services/social/src/validation.mjs`
 - Modify: `services/social/src/server.mjs` (routes flagged by prior review: cursor decoding at `:55-64`-equivalent, notifications `=ANY($3::bigint[])`, markets template; keep the same behavior for valid inputs)
 - Create: `services/social/src/validation.test.mjs`
 - Test: `bun test src/validation.test.mjs` + `bun test src/server.mjs`-equivalent smoke if a server test exists
 
 **Interfaces:**
+
 - Produces: `export function decodeCursor(value: string | null): unknown` (throws `HttpError(400, "The pagination cursor is invalid.")` on malformed base64url/non-object JSON), `export function parseId(value: unknown): number` (positive safe integer or 400), `export function parseBigIntArray(value: unknown): bigint[]` (array of digit strings / integers, else 400), `export function boundedLimit(url, fallback?, maximum?)` (move from `server.mjs`).
 - Consumes: nothing; pure module.
 
@@ -85,6 +89,7 @@ git commit -m "feat(social): shared input validation, 400 before SQL casts"
 ### Task 3: DB-backed rate limiting + artwork burst guard
 
 **Files:**
+
 - Create: `services/social/src/rateLimit.mjs`
 - Create: `services/social/src/rateLimit.test.mjs`
 - Modify: `services/social/src/server.mjs` (apply to authenticated writes and admin routes)
@@ -95,6 +100,7 @@ git commit -m "feat(social): shared input validation, 400 before SQL casts"
 - Test: `bun test src/rateLimit.test.mjs`, `bun test` in `api/` — actually run `bun test api/artwork.test.js` from repo root if that is the current runner (confirm with the existing test file's runner)
 
 **Interfaces:**
+
 - Produces: `export function createRateLimiter(pool): { consume(key: string, opts: { windowMs: number; max: number }): Promise<boolean> }` — fixed window via one upsert row in a new `rate_limits` table: `INSERT ... ON CONFLICT (key, window_start) DO UPDATE SET count = rate_limits.count + 1 WHERE rate_limits.count < $max RETURNING count`; returns true (allowed) when the row returns, false when it doesn't (insert path also uses `WHERE` to bound). DB errors → log + `return true` (fail open), documented.
 - Config: `SOCIAL_RATE_LIMIT_WRITES_PER_MIN` (default 30), `SOCIAL_RATE_LIMIT_ADMIN_PER_MIN` (default 5), validated as positive integers.
 - Migration: one Drizzle migration creating `rate_limits (key text, window_start bigint, count int, primary key (key, window_start))`.
@@ -117,6 +123,7 @@ git commit -m "feat(social): DB-backed rate limiting and artwork burst guard"
 ### Task 4: Indexer finality depth + deep-reorg recovery (I1)
 
 **Files:**
+
 - Modify: `services/social/src/config.mjs` (new env)
 - Modify: `services/social/src/indexer.mjs` (finality column logic, recovery sweep; locate `REORG_OVERLAP` at `:93`, `chains/chain_logs` inserts `:134-153`, orphan sweep `:1144-1149`)
 - Modify: `services/social/.env.example`
@@ -124,6 +131,7 @@ git commit -m "feat(social): DB-backed rate limiting and artwork burst guard"
 - Test: `bun test src/indexer.test.mjs`
 
 **Interfaces:**
+
 - Config: `SOCIAL_FINALIZED_CONFIRMATIONS` (default `10`), distinct from `SOCIAL_CONFIRMATIONS` (observed, stays `2`). `chains.finality_confirmations` insert at `:480-487` uses the new value.
 - Produces: `export function finalizeRangeSql(chainId, fromBlock, toBlock): string` and `export function deepRecoveryScanSql(...): string` — query builders unit-testable without DB. Recovery: when an orphaned `chain_logs` row is found at `block_number <= latest - REORG_OVERLAP` (deeper than overlap), re-fetch canonical logs for its range via the existing log-fetch path and `ON CONFLICT ... DO UPDATE orphaned=false, canonical=true` (same shape as `:149-153`), then re-run the projector for that range (reuse the existing rebuild). Add `indexer-runner`-level gating so recovery runs at most once per sweep.
 
@@ -145,12 +153,14 @@ git commit -m "fix(indexer): finality at 10 confirmations with deep-reorg recove
 ### Task 5: Transactional orphan propagation + analytics exclusion (I2, I7)
 
 **Files:**
+
 - Modify: `services/social/src/indexer.mjs` (orphan sweep around `:1144-1149`, `markets`/`trades`/`venue_swaps`/`asset_transfers` orphan updates `:430`, `:852`, `:1149`)
 - Modify: `services/social/src/performance.mjs` / `pulseSql.mjs` / `server.mjs` analytics queries (add `orphaned=false` join filters where missing)
 - Create: `services/social/src/orphan.test.mjs`
 - Test: `bun test src/orphan.test.mjs` (mocked pool asserting transaction boundaries)
 
 **Interfaces:**
+
 - Produces: `export function orphanRangeSql(chainId, fromBlock, toBlock): { statements: string[]; transaction: true }` — all derived-table orphan updates (`chain_logs`, `markets`, `trades`, `venue_swaps`, `asset_transfers`, and any other table with `orphaned`) issued inside ONE transaction (`BEGIN; … COMMIT;` via `pool.query` with a client), ordered so `chain_logs` is last after its dependents; returns the ordered statements for tests.
 - Analytics: every query that powers wallet analytics/leaderboard/trader rankings filters `orphaned=false` on all joined ledger tables (existing filters at `:176`, `:269`, `:382`, `:1132` are the model; find and fix the gaps the prior review found — a reorged-away market contributing to rankings).
 
@@ -158,7 +168,7 @@ git commit -m "fix(indexer): finality at 10 confirmations with deep-reorg recove
 
 - [ ] **Step 2: Run the test to verify it fails** — `bun test src/orphan.test.mjs` → FAIL
 
-- [ ] **Step 3: Implement** — wrap the orphan sweep in a single transaction using `pool.connect()` and `client.query('BEGIN')/…/COMMIT` with try/catch rollback; add the missing analytics filters; keep the existing per-table upserts for the *rebuild* path unchanged.
+- [ ] **Step 3: Implement** — wrap the orphan sweep in a single transaction using `pool.connect()` and `client.query('BEGIN')/…/COMMIT` with try/catch rollback; add the missing analytics filters; keep the existing per-table upserts for the _rebuild_ path unchanged.
 
 - [ ] **Step 4: Run the test to verify it passes** — `bun test src/orphan.test.mjs` → PASS; full `bun test` green.
 
@@ -172,6 +182,7 @@ git commit -m "fix(indexer): transactional orphan propagation and analytics excl
 ### Task 6: Log-position stability, asset orphan, outbox retraction (I9, I3, I4)
 
 **Files:**
+
 - Modify: `packages/db/drizzle` (2 migrations: `assets.orphaned` boolean default false; `notification_outbox.retracted` boolean default false)
 - Modify: `services/social/src/indexer.mjs` (upsert conflict targets for `asset_transfers`/`venue_swaps` on `logical_id`; `catch` around the range insert that retries once after re-fetching the canonical block; metadata purge for orphaned assets)
 - Modify: `services/social/src/worker.mjs` / `outboxHub.mjs` (retraction pass: rows whose source row is orphaned get `retracted=true`; SSE clients receive a retraction event)
@@ -179,6 +190,7 @@ git commit -m "fix(indexer): transactional orphan propagation and analytics excl
 - Test: `bun test src/retraction.test.mjs`
 
 **Interfaces:**
+
 - Produces: `export function retractNotificationsSql(chainId): string` — updates `notification_outbox` to `retracted=true` where linked `chain_logs`/source rows are `orphaned=true`; `export function upsertAssetTransferSql(...)` — `ON CONFLICT (logical_id) DO UPDATE` including `block_hash` (position-shift safe); `export function markAssetsOrphanedSql(chainId, fromBlock, toBlock)`.
 
 - [ ] **Step 1: Write the failing test** — (a) `retractNotificationsSql` marks rows retracted only when linked source is orphaned; (b) `upsertAssetTransferSql` does not abort when `log_index` shifts (assert conflict target is `logical_id` and `block_hash` is updated); (c) `markAssetsOrphanedSql` sets `orphaned=true` for the range and a following metadata refresh purges their stored metadata; (d) outbox retraction emits a retraction to SSE subscribers (mock hub).
@@ -199,6 +211,7 @@ git commit -m "fix(indexer): reorg-safe upserts, asset orphan, outbox retraction
 ### Task 7: Docs + prior-review delta
 
 **Files:**
+
 - Modify: `docs/architecture/social-trading-backend.md` (status section: finalized confirmations, rate limits, orphan propagation, retraction)
 - Modify: `docs/audits/dreadnode-2026-10-18/README.md` or add `docs/audits/STATUS.md` mapping each finding (M1, L1-L4, I1-I9) to commit/fix/status
 - Test: none (doc-only)

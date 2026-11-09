@@ -12,8 +12,6 @@ const ready = {
   launchFee: 400_000_000_000_000n,
   artworkUri: "ipfs://bafy" + "a".repeat(55),
   taxPercent: "0",
-  reservePercent: "4",
-  maxReserveBps: 400,
   taxCapBps: 50,
 };
 
@@ -37,9 +35,15 @@ test("initial buy presets use spendable WETH after reserving the launch fee", ()
   const balance = 1_000_000_000_000_000_000n;
   const fee = 100_000_000_000_000_000n;
   expect(initialBuyFromWethBalance(balance, fee, 0)).toBe(0n);
-  expect(initialBuyFromWethBalance(balance, fee, 25)).toBe(225_000_000_000_000_000n);
-  expect(initialBuyFromWethBalance(balance, fee, 50)).toBe(450_000_000_000_000_000n);
-  expect(initialBuyFromWethBalance(balance, fee, 100)).toBe(900_000_000_000_000_000n);
+  expect(initialBuyFromWethBalance(balance, fee, 25)).toBe(
+    225_000_000_000_000_000n,
+  );
+  expect(initialBuyFromWethBalance(balance, fee, 50)).toBe(
+    450_000_000_000_000_000n,
+  );
+  expect(initialBuyFromWethBalance(balance, fee, 100)).toBe(
+    900_000_000_000_000_000n,
+  );
   expect(initialBuyFromWethBalance(50n, 100n, 100)).toBe(0n);
   expect(initialBuyFromWethBalance(3n, 0n, 25)).toBe(0n);
 });
@@ -53,15 +57,6 @@ test("every launch needs published metadata, because the launchpad rejects an em
   expect(
     canSubmitLaunch({ ...ready, artworkUri: "https://example.com/meta.json" }),
   ).toBe(false);
-});
-
-test("the reserve is capped at the launchpad's MAX_RESERVE_BPS", () => {
-  expect(canSubmitLaunch({ ...ready, reservePercent: "0" })).toBe(true);
-  expect(canSubmitLaunch({ ...ready, reservePercent: "4.00" })).toBe(true);
-  expect(canSubmitLaunch({ ...ready, reservePercent: "4.01" })).toBe(false);
-  expect(canSubmitLaunch({ ...ready, reservePercent: "5" })).toBe(false);
-  expect(canSubmitLaunch({ ...ready, reservePercent: "" })).toBe(false);
-  expect(canSubmitLaunch({ ...ready, maxReserveBps: undefined })).toBe(false);
 });
 
 test("the creator tax is capped by the launchpad", () => {

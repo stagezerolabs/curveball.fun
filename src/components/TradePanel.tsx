@@ -4,9 +4,18 @@ import type { ReactNode } from "react";
 import { formatEther, parseAbi, parseEther } from "viem";
 import { useBalance, useReadContract } from "wagmi";
 import { curveLaunchpadAbi, erc20Abi } from "../sdk/contracts";
-import { activeChainId, activeSwapAdapterAddress, launchpadAddress } from "../lib/web3";
+import {
+  activeChainId,
+  activeSwapAdapterAddress,
+  launchpadAddress,
+} from "../lib/web3";
 import { factoryForToken } from "../lib/marketFactories";
-import { poolTradeAvailability, selectTradeState, tradeQuoteKey, tradeVenueForMarket } from "../lib/marketState";
+import {
+  poolTradeAvailability,
+  selectTradeState,
+  tradeQuoteKey,
+  tradeVenueForMarket,
+} from "../lib/marketState";
 import { useStore } from "../app/useStore.js";
 import { formatEthAmount, formatPercent } from "../lib/format.js";
 import { getBuyFundingState, TradeFundingStatus } from "./TradeFundingStatus";
@@ -67,6 +76,28 @@ export function TradePanel({
   const venue = tradeVenueForMarket(token);
   const poolMode = venue === "pool";
   const graduatedVenue = venue !== "curve";
+  const { data: antiSnipeBps } = useReadContract({
+    address: marketFactory,
+    abi: curveLaunchpadAbi,
+    functionName: "antiSnipeTaxBps",
+    args: [token.address],
+    chainId: activeChainId,
+    query: {
+      enabled: venue === "curve" && Boolean(marketFactory),
+      refetchInterval: 1_000,
+    },
+  });
+  const { data: walletCapBps } = useReadContract({
+    address: marketFactory, abi: curveLaunchpadAbi, functionName: "walletCapBps",
+    chainId: activeChainId, query: { enabled: venue === "curve" && Boolean(marketFactory) },
+  });
+  const { data: walletCapacity } = useReadContract({
+    address: marketFactory, abi: curveLaunchpadAbi,
+    functionName: "remainingWalletCapacity",
+    args: address ? [token.address, address] : undefined,
+    chainId: activeChainId,
+    query: { enabled: venue === "curve" && Boolean(marketFactory && address), refetchInterval: 10_000 },
+  });
   const { data: paused } = useReadContract({
     address: marketFactory,
     abi: curveLaunchpadAbi,
@@ -93,7 +124,10 @@ export function TradePanel({
     abi: icarusFactoryAbi,
     functionName: "isPaused",
     chainId: activeChainId,
-    query: { enabled: poolMode && Boolean(icarusFactory), refetchInterval: 15_000 },
+    query: {
+      enabled: poolMode && Boolean(icarusFactory),
+      refetchInterval: 15_000,
+    },
   });
   const { data: poolFeeBps } = useReadContract({
     address: icarusFactory,
@@ -101,7 +135,10 @@ export function TradePanel({
     functionName: "getFee",
     args: token.pool ? [token.pool, false] : undefined,
     chainId: activeChainId,
-    query: { enabled: poolMode && Boolean(icarusFactory && token.pool), refetchInterval: 30_000 },
+    query: {
+      enabled: poolMode && Boolean(icarusFactory && token.pool),
+      refetchInterval: 30_000,
+    },
   });
   const { state, canBuy, canSell, sellAborts } = selectTradeState({
     ...token,
@@ -118,8 +155,12 @@ export function TradePanel({
     quotePreview !== null &&
     !quoting &&
     quoteContext === tradeQuoteKey(token, side, amount);
-  const canBuyNow = graduatedVenue ? poolAvailability === "open" && poolQuoteReady : canBuy;
-  const canSellNow = graduatedVenue ? poolAvailability === "open" && poolQuoteReady : canSell;
+  const canBuyNow = graduatedVenue
+    ? poolAvailability === "open" && poolQuoteReady
+    : canBuy && walletCapacity !== 0n;
+  const canSellNow = graduatedVenue
+    ? poolAvailability === "open" && poolQuoteReady
+    : canSell;
 
   const quoteSymbol = token.quoteSymbol ?? "WETH";
   const payingWith =
@@ -145,13 +186,18 @@ export function TradePanel({
     const timeout = setTimeout(() => fetchQuote(token), 300);
     const refresh = poolMode
       ? setInterval(() => fetchQuote(token), 15_000)
-      : undefined;
+      : venue === "curve" &&
+          side === "buy" &&
+          antiSnipeBps !== undefined &&
+          antiSnipeBps > 0n
+        ? setInterval(() => fetchQuote(token), 1_000)
+        : undefined;
     return () => {
       clearTimeout(timeout);
       if (refresh !== undefined) clearInterval(refresh);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [amount, side, token.address, token.pool, venue]);
+  }, [amount, side, token.address, token.pool, venue, antiSnipeBps]);
 
   const visibleQuote = graduatedVenue && !poolQuoteReady ? null : quotePreview;
   const received =
@@ -218,22 +264,27 @@ export function TradePanel({
 
       {poolAvailability === "pool-pending" && (
         <p className="notice" role="status">
-          Graduation is complete. Waiting for the Icarus pool address before trading opens.
+          Graduation is complete. Waiting for the Icarus pool address before
+          trading opens.
         </p>
       )}
       {poolAvailability === "adapter-unavailable" && (
         <p className="notice" role="status">
-          Icarus trading is not configured here yet. The pool can be viewed in Icarus.
+          Icarus trading is not configured here yet. The pool can be viewed in
+          Icarus.
         </p>
       )}
       {poolAvailability === "paused" && (
         <p className="notice" role="status">
-          Icarus has paused basic-pool swaps. Trading will resume when the pool is unpaused.
+          Icarus has paused basic-pool swaps. Trading will resume when the pool
+          is unpaused.
         </p>
       )}
       {poolAvailability === "checking" && (
         <p className="notice" role="status">
-          {poolPauseError ? "Could not verify Icarus swap availability." : "Checking Icarus swap availability…"}
+          {poolPauseError
+            ? "Could not verify Icarus swap availability."
+            : "Checking Icarus swap availability…"}
         </p>
       )}
       {state === "ready" && (
@@ -254,9 +305,21 @@ export function TradePanel({
           market graduates on its next sellout.
         </p>
       )}
-      {venue === "curve" && paused === true && side === "buy" && state !== "ready" && (
+      {venue === "curve" &&
+        paused === true &&
+        side === "buy" &&
+        state !== "ready" && (
+          <p className="notice" role="status">
+            Buying is paused by the guardian. Selling stays open.
+          </p>
+        )}
+
+      {venue === "curve" && side === "buy" && walletCapBps !== undefined && walletCapBps < 10_000 && (
         <p className="notice" role="status">
-          Buying is paused by the guardian. Selling stays open.
+          Each wallet may hold up to {Number(walletCapBps) / 100}% of this curve while it trades.
+          {address && walletCapacity !== undefined
+            ? ` You can still buy ${Number(formatEther(walletCapacity)).toLocaleString("en-US", { maximumFractionDigits: 2 })} tokens. Selling frees capacity.`
+            : " Connect a wallet to see your remaining capacity."}
         </p>
       )}
 
@@ -286,7 +349,14 @@ export function TradePanel({
             inputMode="decimal"
             autoComplete="off"
             value={amount}
-            style={{ fontSize: amount.length > 18 ? "20px" : amount.length > 12 ? "24px" : undefined }}
+            style={{
+              fontSize:
+                amount.length > 18
+                  ? "20px"
+                  : amount.length > 12
+                    ? "24px"
+                    : undefined,
+            }}
             onChange={(event) => setAmount(event.target.value)}
           />
           <span className="amount-unit">{payingWith}</span>

@@ -1,5 +1,5 @@
 import type { PrivyClientConfig } from "@privy-io/react-auth";
-import { riseTestnet } from "./web3";
+import { activeChain } from "./web3";
 
 export const privyConfig = {
   loginMethods: ["wallet"],
@@ -11,8 +11,8 @@ export const privyConfig = {
       "Connect and sign with your wallet to create your Curveball trader profile.",
     walletChainType: "ethereum-only",
   },
-  defaultChain: riseTestnet,
-  supportedChains: [riseTestnet],
+  defaultChain: activeChain,
+  supportedChains: [activeChain],
   embeddedWallets: {
     ethereum: { createOnLogin: "users-without-wallets" },
   },

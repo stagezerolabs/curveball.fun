@@ -59,7 +59,6 @@ type MarketRow = {
   policy: {
     totalSupply: string | null;
     curveSupply: string | null;
-    reserveAmount: string | null;
     initialVirtualQuote: string | null;
     graduationTargetQuote: string | null;
     feeBps: number | null;
@@ -131,7 +130,6 @@ async function marketRowToToken(row: MarketRow): Promise<Token> {
     lifecycle: row.state,
     pending: row.state === "ready",
     readyAt: row.readyAt ? Math.floor(Date.parse(row.readyAt) / 1_000) : null,
-    reserveTokens: row.policy.reserveAmount,
     feeBps: row.policy.feeBps,
     creatorTaxBps: row.policy.creatorTaxBps,
     creatorShareBps: row.policy.creatorFeeShareBps,
@@ -325,7 +323,10 @@ export type MarketTapeStats = {
   asOf: string;
 };
 
-export function fetchMarketTapeStats(tokenAddress: Address, signal?: AbortSignal) {
+export function fetchMarketTapeStats(
+  tokenAddress: Address,
+  signal?: AbortSignal,
+) {
   return request<MarketTapeStats>(`/v1/markets/${tokenAddress}/tape`, signal);
 }
 

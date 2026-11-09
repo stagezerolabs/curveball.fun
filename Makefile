@@ -1,72 +1,32 @@
-ENV_FILE := $(shell dirname "$$(git rev-parse --path-format=absolute --git-common-dir)")/.env
+ENV_FILE := $(shell git rev-parse --show-toplevel)/.env
 -include $(ENV_FILE)
 
 export RISE_MAINNET_RPC_URL RISE_TESTNET_RPC_URL VITE_RPC_URL
 
 COMPOSE ?= docker compose
+MAINNET_LOCAL_COMPOSE := docker compose -p curveball-mainnet -f compose.yaml
+SERVICES ?=
 TAIL ?= 100
-SERVICE ?=
 
 .DEFAULT_GOAL := help
 
-.PHONY: help dev build build-testnet test typecheck contracts-test testnet-preflight deploy-testnet set-testnet-graduation-target deploy-icarus-swap-testnet record-icarus-swap-testnet activate-icarus-swap-testnet record-testnet configure-testnet reset-testnet-projections activate-testnet production-preflight deploy-production record-production configure-production \
-	docker-up docker-up-build docker-build docker-build-no-cache docker-down docker-stop docker-start docker-restart docker-recreate docker-rebuild \
-	docker-frontend docker-social docker-keeper docker-migrate docker-status docker-images docker-top docker-config docker-logs docker-logs-api docker-logs-frontend docker-logs-social docker-logs-keeper \
-	docker-shell-api docker-shell-frontend docker-db-shell docker-build-service docker-recreate-service docker-logs-service docker-clean docker-fresh-testnet
+.PHONY: help dev build build-testnet test typecheck js-tests contracts-test testnet-preflight deploy-testnet post-deploy-testnet set-testnet-graduation-target deploy-icarus-swap-testnet record-icarus-swap-testnet activate-icarus-swap-testnet deploy-icarus-swap-mainnet record-icarus-swap-mainnet activate-icarus-swap-mainnet record-testnet configure-testnet reset-testnet-projections activate-testnet production-preflight deploy-production record-production configure-production \
+	docker-setup docker-up docker-down docker-rebuild docker-status docker-config docker-logs docker-clean-old-images docker-fresh-testnet \
+	docker-mainnet-up docker-mainnet-rebuild docker-mainnet-status docker-mainnet-logs docker-mainnet-down
 
 help:
-	@echo "make dev                 Run the static frontend"
-	@echo "make build               Build the static frontend"
-	@echo "make build-testnet       Build the frontend against the recorded testnet deployment"
-	@echo "make test                Run typecheck and contract tests"
-	@echo "make contracts-test      Run Foundry contract tests"
-	@echo "make testnet-preflight        Run the real RISE Testnet lifecycle and deployment simulation"
-	@echo "make deploy-testnet           Broadcast and source-verify the current testnet deployment"
-	@echo "make set-testnet-graduation-target  Set the recorded live testnet launchpad target to 4 WETH"
-	@echo "make deploy-icarus-swap-testnet   Deploy and verify atomic Icarus swaps for graduated markets"
-	@echo "make record-icarus-swap-testnet   Record the verified testnet swap adapter and its code hash"
-	@echo "make activate-icarus-swap-testnet Configure the UI and rebuild Docker after recording"
-	@echo "make record-testnet           Validate and record the confirmed testnet deployment"
-	@echo "make configure-testnet        Point the local UI at the recorded testnet deployment"
-	@echo "make reset-testnet-projections  Clear old local testnet markets and indexer cursors"
-	@echo "make activate-testnet         Record, configure, and rebuild the full local stack"
-	@echo "make production-preflight     Run contract, fork, dependency, and deployment simulation gates"
-	@echo "make deploy-production        Broadcast and source-verify the reviewed RISE mainnet deployment"
-	@echo "make record-production        Validate wiring/sources and record the confirmed deployment"
-	@echo "make configure-production     Point the production frontend at the recorded deployment"
-	@echo ""
-	@echo "Docker Compose"
-	@echo "make docker-up                 Start the stack"
-	@echo "make docker-up-build           Build changed images and start the stack"
-	@echo "make docker-build              Build every image"
-	@echo "make docker-build-no-cache     Rebuild every image without cache"
-	@echo "make docker-down               Stop and remove stack containers and networks"
-	@echo "make docker-stop               Stop containers without removing them"
-	@echo "make docker-start              Start previously stopped containers"
-	@echo "make docker-restart            Restart containers without reloading env files"
-	@echo "make docker-recreate           Recreate containers and reload env files"
-	@echo "make docker-rebuild            Rebuild and recreate the complete stack"
-	@echo "make docker-frontend           Rebuild and recreate only the frontend"
-	@echo "make docker-social             Migrate, rebuild, and recreate social services"
-	@echo "make docker-keeper             Rebuild and recreate only the keeper"
-	@echo "make docker-migrate            Run database migrations once"
-	@echo "make docker-status             Show container status"
-	@echo "make docker-images             Show Compose images"
-	@echo "make docker-top                Show processes running in containers"
-	@echo "make docker-config             Validate and render the Compose configuration"
-	@echo "make docker-logs               Follow all logs (TAIL=100 by default)"
-	@echo "make docker-logs-api           Follow API logs"
-	@echo "make docker-logs-frontend      Follow frontend logs"
-	@echo "make docker-logs-social        Follow API, indexer, and worker logs"
-	@echo "make docker-logs-keeper        Follow keeper logs"
-	@echo "make docker-shell-api          Open a shell in the API container"
-	@echo "make docker-shell-frontend     Open a shell in the frontend container"
-	@echo "make docker-db-shell           Open psql in the local Postgres container"
-	@echo "make docker-build-service SERVICE=api"
-	@echo "make docker-recreate-service SERVICE=api"
-	@echo "make docker-logs-service SERVICE=api"
-	@echo "make docker-clean              Remove stopped stack resources and orphans"
-	@echo "make docker-fresh-testnet      Delete the local database volume and rebuild the full stack"
+	@echo "Build:    dev, build (mainnet), build-testnet, test"
+	@echo "Testnet:  testnet-preflight, deploy-testnet, post-deploy-testnet, activate-testnet"
+	@echo "          record-testnet, configure-testnet"
+	@echo "          deploy-icarus-swap-testnet, record-icarus-swap-testnet, activate-icarus-swap-testnet"
+	@echo "          set-testnet-graduation-target, reset-testnet-projections"
+	@echo "Mainnet:  production-preflight, deploy-production, record-production, configure-production"
+	@echo "          deploy-icarus-swap-mainnet, record-icarus-swap-mainnet, activate-icarus-swap-mainnet"
+	@echo "Docker:   docker-setup, docker-up, docker-down, docker-rebuild, docker-status"
+	@echo "          docker-config, docker-logs, docker-clean-old-images"
+	@echo "Local mainnet: docker-mainnet-up, docker-mainnet-rebuild, docker-mainnet-status"
+	@echo "               docker-mainnet-logs, docker-mainnet-down (keeper stays stopped)"
+	@echo "          docker-fresh-testnet (deletes the local database volume)"
 
 dev:
 	bun run dev
@@ -77,10 +37,13 @@ build:
 build-testnet:
 	bun run build:testnet
 
-test: typecheck contracts-test
+test: typecheck js-tests contracts-test
 
 typecheck:
 	bun run typecheck
+
+js-tests:
+	bun test
 
 contracts-test:
 	$(MAKE) -C contracts test
@@ -112,17 +75,32 @@ configure-testnet:
 	DEPLOYMENT_NETWORK=testnet bun contracts/scripts/sync-production-config.ts
 
 reset-testnet-projections:
-	$(COMPOSE) stop api indexer worker keeper frontend
-	$(COMPOSE) up -d postgres
-	@new_launchpad="$$(jq -r .launchpad deployments/11155931/curveball.json)"; \
-		test "$$new_launchpad" != "null" || exit 2; \
+	@set -eu; \
+		new_launchpad="$$(jq -er 'select(.chainId == 11155931) | .launchpad | select(type == "string" and test("^0x[0-9a-fA-F]{40}$$"))' deployments/11155931/curveball.json)" || { echo "A valid testnet launchpad record is required before stopping services." >&2; exit 2; }; \
+		$(COMPOSE) config --quiet; \
+		was_running="$$( $(COMPOSE) ps --services --status running )"; \
+		restore() { \
+			result="$$1"; trap - EXIT; \
+			if { test "$$result" -ne 0 || test "$(RESET_LEAVE_STOPPED)" != "1"; } && test -n "$$was_running"; then \
+				$(COMPOSE) up -d $$was_running || { echo "Failed to restore previously running services." >&2; exit 1; }; \
+			fi; \
+			exit "$$result"; \
+		}; \
+		trap 'restore "$$?"' EXIT; \
+		$(COMPOSE) stop api keeper; \
+		$(COMPOSE) up -d postgres; \
 		$(COMPOSE) exec -T postgres psql -U curveball -d curveball -v ON_ERROR_STOP=1 -v new_launchpad="$$new_launchpad" -f /dev/stdin < deploy/reset-local-testnet-projections.sql
 
 activate-testnet:
 	$(MAKE) record-testnet
 	$(MAKE) configure-testnet
-	$(MAKE) reset-testnet-projections
+	$(MAKE) reset-testnet-projections RESET_LEAVE_STOPPED=1
 	$(MAKE) docker-rebuild
+
+# Run after deploy-testnet: activate the recorded release, then broadcast a small smoke launch/buy.
+post-deploy-testnet:
+	$(MAKE) activate-testnet
+	$(MAKE) -C contracts smoke-testnet
 
 production-preflight:
 	$(MAKE) -C contracts production-preflight
@@ -136,131 +114,75 @@ record-production:
 configure-production:
 	bun contracts/scripts/sync-production-config.ts
 
-# Start all existing Compose containers in the background without rebuilding images.
+deploy-icarus-swap-mainnet:
+	$(MAKE) -C contracts deploy-icarus-swap-mainnet
+
+record-icarus-swap-mainnet:
+	$(MAKE) -C contracts require-mainnet-rpc build-icarus-swap-adapter
+	@DEPLOYMENT_NETWORK=mainnet bun contracts/scripts/record-icarus-swap.ts
+
+activate-icarus-swap-mainnet:
+	@test -f deployments/4153/icarus-swap-adapter.json || { echo "Record the mainnet swap adapter first."; exit 2; }
+	$(MAKE) configure-production
+	bun deploy/prepare-production-env.mjs --network mainnet
+	docker compose --env-file deploy/production.env -f compose.production.yaml -f deploy/compose.mainnet.yaml config --quiet
+	docker compose --env-file deploy/production.env -f compose.production.yaml -f deploy/compose.mainnet.yaml build
+
+docker-setup:
+	@test -f .env || { echo "Copy .env.example to .env and fill in the required values first." >&2; exit 2; }
+	$(COMPOSE) config --quiet
+	$(COMPOSE) up -d --build --remove-orphans $(SERVICES)
+
 docker-up:
-	$(COMPOSE) up -d
+	$(COMPOSE) up -d --remove-orphans $(SERVICES)
 
-# Build images whose inputs changed, then start the complete stack in the background.
-docker-up-build:
-	$(COMPOSE) up -d --build
-
-# Build every image defined by compose.yaml without starting containers.
-docker-build:
-	$(COMPOSE) build
-
-# Rebuild every image from scratch, ignoring Docker's layer cache.
-docker-build-no-cache:
-	$(COMPOSE) build --no-cache
-
-# Stop and remove this stack's containers and networks. Persistent volumes are preserved.
 docker-down:
 	$(COMPOSE) down --remove-orphans
 
-# Stop running containers without removing them, so docker-start can resume them.
-docker-stop:
-	$(COMPOSE) stop
-
-# Start containers previously stopped with docker-stop.
-docker-start:
-	$(COMPOSE) start
-
-# Restart existing containers. This does not rebuild images or reload changed env files.
-docker-restart:
-	$(COMPOSE) restart
-
-# Recreate every container so changed env files are loaded, without rebuilding images.
-docker-recreate:
-	$(COMPOSE) up -d --force-recreate
-
-# Rebuild images and recreate the complete stack. Use this after broad code changes.
 docker-rebuild:
-	$(COMPOSE) up -d --build --force-recreate
+	$(COMPOSE) up -d --build --force-recreate --remove-orphans $(SERVICES)
 
-# Rebuild and recreate only the frontend. Use this after frontend-only code changes.
-docker-frontend:
-	$(COMPOSE) up -d --build --force-recreate --no-deps frontend
-
-# Apply migrations, then rebuild and recreate the API, indexer, and worker.
-docker-social:
-	$(COMPOSE) up -d --build --force-recreate migrate api indexer worker
-
-# Rebuild and recreate only the keeper. Use after keeper-only code changes.
-docker-keeper:
-	$(COMPOSE) up -d --build --force-recreate --no-deps keeper
-
-# Run the one-shot database migration service and remove its temporary container afterward.
-docker-migrate:
-	$(COMPOSE) run --rm migrate
-
-# Show the current state and published ports of all Compose services.
 docker-status:
 	$(COMPOSE) ps
 
-# Show the images currently used by the Compose services.
-docker-images:
-	$(COMPOSE) images
-
-# Show processes running inside active Compose containers.
-docker-top:
-	$(COMPOSE) top
-
-# Render and validate the fully resolved Compose configuration.
 docker-config:
-	$(COMPOSE) config
+	$(COMPOSE) config --quiet
 
-# Follow logs from the complete stack. Override history with TAIL=<lines>.
 docker-logs:
 	$(COMPOSE) logs --follow --tail=$(TAIL)
 
-# Follow only social API logs. Override history with TAIL=<lines>.
-docker-logs-api:
-	$(COMPOSE) logs --follow --tail=$(TAIL) api
+docker-mainnet-up:
+	@test "$(VITE_CHAIN_ID)" = "4153" && test "$(SOCIAL_CHAIN_ID)" = "4153" || { echo "Root .env must target RISE mainnet (4153)." >&2; exit 2; }
+	$(MAKE) docker-up COMPOSE='$(MAINNET_LOCAL_COMPOSE)' SERVICES='postgres api'
 
-# Follow only frontend logs. Override history with TAIL=<lines>.
-docker-logs-frontend:
-	$(COMPOSE) logs --follow --tail=$(TAIL) frontend
+docker-mainnet-rebuild:
+	@test "$(VITE_CHAIN_ID)" = "4153" && test "$(SOCIAL_CHAIN_ID)" = "4153" || { echo "Root .env must target RISE mainnet (4153)." >&2; exit 2; }
+	$(MAKE) docker-rebuild COMPOSE='$(MAINNET_LOCAL_COMPOSE)' SERVICES='postgres api'
 
-# Follow API, indexer, and worker logs together. Override history with TAIL=<lines>.
-docker-logs-social:
-	$(COMPOSE) logs --follow --tail=$(TAIL) api indexer worker
+docker-mainnet-status:
+	$(MAKE) docker-status COMPOSE='$(MAINNET_LOCAL_COMPOSE)'
 
-# Follow only keeper logs. Override history with TAIL=<lines>.
-docker-logs-keeper:
-	$(COMPOSE) logs --follow --tail=$(TAIL) keeper
+docker-mainnet-logs:
+	$(MAKE) docker-logs COMPOSE='$(MAINNET_LOCAL_COMPOSE)' TAIL=$(TAIL)
 
-# Open an interactive Alpine shell inside the running API container.
-docker-shell-api:
-	$(COMPOSE) exec api sh
+docker-mainnet-down:
+	$(MAKE) docker-down COMPOSE='$(MAINNET_LOCAL_COMPOSE)'
 
-# Open an interactive Alpine shell inside the running frontend container.
-docker-shell-frontend:
-	$(COMPOSE) exec frontend sh
+# Remove only legacy image tags that no container uses. Run after the new stack is healthy.
+docker-clean-old-images:
+	@set -eu; \
+		used_images="$$(docker ps -a --format '{{.Image}}')"; \
+		docker image ls --format '{{.Repository}}:{{.Tag}}' \
+		| rg '^curveball-(social|web|frontend):' \
+		| while IFS= read -r image; do \
+			if printf '%s\n' "$$used_images" | rg -Fxq "$$image"; then \
+				echo "Keeping $$image: a container still uses it"; \
+			else \
+				docker image rm "$$image"; \
+			fi; \
+		done
 
-# Open psql in the local Postgres container.
-docker-db-shell:
-	$(COMPOSE) exec postgres psql -U curveball -d curveball
-
-# Build one service image, for example: make docker-build-service SERVICE=api.
-docker-build-service:
-	@test -n "$(SERVICE)" || (echo "SERVICE is required, for example: make docker-build-service SERVICE=api" && exit 2)
-	$(COMPOSE) build $(SERVICE)
-
-# Recreate one service to reload its environment, for example SERVICE=api.
-docker-recreate-service:
-	@test -n "$(SERVICE)" || (echo "SERVICE is required, for example: make docker-recreate-service SERVICE=api" && exit 2)
-	$(COMPOSE) up -d --force-recreate $(SERVICE)
-
-# Follow one service's logs, for example SERVICE=worker TAIL=200.
-docker-logs-service:
-	@test -n "$(SERVICE)" || (echo "SERVICE is required, for example: make docker-logs-service SERVICE=api" && exit 2)
-	$(COMPOSE) logs --follow --tail=$(TAIL) $(SERVICE)
-
-# Stop the stack and remove its containers, networks, and orphaned services; preserve volumes.
-docker-clean:
-	$(COMPOSE) down --remove-orphans
-
-# Start a new local testnet release with no prior market or social data.
-# This affects only compose.yaml's preview_postgres volume, not the VPS stack.
+# Pin the project and file so an overridden COMPOSE cannot delete a hosted stack's volumes.
 docker-fresh-testnet:
-	$(COMPOSE) down --volumes --remove-orphans
-	$(COMPOSE) up -d --build
+	docker compose -p curveball -f compose.yaml down --volumes --remove-orphans
+	docker compose -p curveball -f compose.yaml up -d --build

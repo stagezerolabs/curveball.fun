@@ -1,0 +1,63 @@
+# Merge after compose.production.yaml for an isolated RISE mainnet stack.
+name: curveball-mainnet
+
+services:
+  api:
+    container_name: curveball-mainnet-api
+    # Only the uniquely named API edge joins the shared proxy network.
+    networks: !override
+      app:
+
+  # Disable the base testnet-named edge when this overlay is active.
+  web-edge:
+    profiles: [testnet-only]
+
+  mainnet-web-edge:
+    image: nginx:1.27-alpine
+    container_name: curveball-mainnet-web-edge
+    restart: unless-stopped
+    environment:
+      CURVEBALL_TRUSTED_PROXY_CIDR: ${CURVEBALL_TRUSTED_PROXY_CIDR:?set CURVEBALL_TRUSTED_PROXY_CIDR}
+      NGINX_ENVSUBST_FILTER: CURVEBALL_TRUSTED_PROXY_CIDR
+    volumes:
+      - ./deploy/nginx-web.mainnet.conf:/etc/nginx/templates/default.conf.template:ro
+    networks:
+      app:
+      proxy:
+        aliases: [curveball-mainnet-web-edge]
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8081/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  mainnet-api-edge:
+    image: nginx:1.27-alpine
+    container_name: curveball-mainnet-api-edge
+    restart: unless-stopped
+    environment:
+      CURVEBALL_TRUSTED_PROXY_CIDR: ${CURVEBALL_TRUSTED_PROXY_CIDR:?set CURVEBALL_TRUSTED_PROXY_CIDR}
+      NGINX_ENVSUBST_FILTER: CURVEBALL_TRUSTED_PROXY_CIDR
+    volumes:
+      - ./deploy/nginx-api.mainnet.conf:/etc/nginx/templates/default.conf.template:ro
+    networks:
+      app:
+      proxy:
+        aliases: [curveball-mainnet-api-edge]
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8788/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+    name: curveball-mainnet-postgres-data
+  postgres_backups:
+    name: curveball-mainnet-postgres-backups
