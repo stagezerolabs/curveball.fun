@@ -1,0 +1,98 @@
+{
+  "version": "lean-v2",
+  "release": "mainnet",
+  "chainId": 4153,
+  "sourceCommit": "192325c87ff06713cd49e878aa17b359f900f986",
+  "sourceTreeSha256": "0xe936a3e1d34234ff97b5860975eaf050a095baacdcd7917b0f5846e2abb1a4fd",
+  "sourceWorkingTreeDirty": false,
+  "launchpad": "0xCD07f89C29E1FAE77EC1a342b5D47D9008E9a72d",
+  "deploymentBlock": "26659759",
+  "quote": "0x4200000000000000000000000000000000000006",
+  "icarusFactory": "0xEe10C6a0f158bFEeef3d48Dc0D26130Cf6115615",
+  "owner": "0xD876c75Da3F84ADEAe574F4dF3D724a8b3c1d837",
+  "guardian": "0xeEb364Ba1a9A4B6a75C41A39c4B91144a4aF156A",
+  "treasury": "0x7e6B1bEfC7dd622c20961140779eF61cd9C62Ce4",
+  "launchFee": "450000000000000",
+  "graduationTarget": "4000000000000000000",
+  "feeDefaults": {
+    "feeBps": 75,
+    "creatorShareBps": 5000,
+    "buybackShareBps": 2500,
+    "taxCapBps": 50
+  },
+  "supply": "1000000000000000000000000000",
+  "curveSupply": "800000000000000000000000000",
+  "walletCapBps": 500,
+  "singletons": {
+    "escrow": "0x6c3ACA3507579B68e764784953152F8170314feE",
+    "locker": "0x98ef1D0Bb37F62b5e45EaBd8E5A565B0eFBF3458",
+    "buybackTreasury": "0x11401B146CE0B76A514e04CA35b044FDf93884Bd",
+    "tokenImplementation": "0x664b204696BfB99797fdCac1ed996515dE63fA03"
+  },
+  "codeHashes": {
+    "TimelockController": "0xde3ad72519c38859ec8dc65fac1a0cb984d5dad30f444a60984e0942e38be573",
+    "CurveFeeEscrow": "0x1948b63dece36e70f1b700bfc3d4a6e66a14f1ac9246bd0d1d70bd15da592dee",
+    "CurveBuybackTreasury": "0xff8b7bc884c5704aa29125275ddebf0ef62ba2bb582bdcba0b018b50b01b820a",
+    "CurveLpLocker": "0xb021b308107b624403681ab51b8bcc26f914d97cdb819a5337c04916b8198a89",
+    "CurveLaunchpad": "0x9019f1d528c3431b61d6e55927237fa9b3dd230f0182a692cbb886855d1fa468",
+    "CurveToken": "0x01921b5c75cef9fee4f01d98d6932ac5acb8f89a7a69c713d65264c57c167978"
+  },
+  "sourceVerification": {
+    "TimelockController": {
+      "name": "TimelockController",
+      "url": "https://explorer.risechain.com/address/0xD876c75Da3F84ADEAe574F4dF3D724a8b3c1d837?tab=contract"
+    },
+    "CurveFeeEscrow": {
+      "name": "CurveFeeEscrow",
+      "url": "https://explorer.risechain.com/address/0x6c3ACA3507579B68e764784953152F8170314feE?tab=contract"
+    },
+    "CurveBuybackTreasury": {
+      "name": "CurveBuybackTreasury",
+      "url": "https://explorer.risechain.com/address/0x11401B146CE0B76A514e04CA35b044FDf93884Bd?tab=contract"
+    },
+    "CurveLpLocker": {
+      "name": "CurveLpLocker",
+      "url": "https://explorer.risechain.com/address/0x98ef1D0Bb37F62b5e45EaBd8E5A565B0eFBF3458?tab=contract"
+    },
+    "CurveLaunchpad": {
+      "name": "CurveLaunchpad",
+      "url": "https://explorer.risechain.com/address/0xCD07f89C29E1FAE77EC1a342b5D47D9008E9a72d?tab=contract"
+    },
+    "CurveToken": {
+      "name": "CurveToken",
+      "url": "https://explorer.risechain.com/address/0x664b204696BfB99797fdCac1ed996515dE63fA03?tab=contract"
+    }
+  },
+  "transactions": [
+    {
+      "name": "TimelockController",
+      "address": "0xD876c75Da3F84ADEAe574F4dF3D724a8b3c1d837",
+      "hash": "0x9b84086b410e5c26138a9f979e04380fc37877f046fc3e0c0ca596a42e7e39c0",
+      "blockNumber": "26659748"
+    },
+    {
+      "name": "CurveFeeEscrow",
+      "address": "0x6c3ACA3507579B68e764784953152F8170314feE",
+      "hash": "0x63a8747fec5100bec49cd198febd2078d124b997f347358fbfef47d872b25102",
+      "blockNumber": "26659750"
+    },
+    {
+      "name": "CurveBuybackTreasury",
+      "address": "0x11401B146CE0B76A514e04CA35b044FDf93884Bd",
+      "hash": "0xc17724218869b388f886d44316563115f5948261f3b4c3094302b7e096881b9b",
+      "blockNumber": "26659752"
+    },
+    {
+      "name": "CurveLpLocker",
+      "address": "0x98ef1D0Bb37F62b5e45EaBd8E5A565B0eFBF3458",
+      "hash": "0x801a4c7029703e5e20b2c8f34f86ccce48ca3c5839a0c86e8b30c825d984ef26",
+      "blockNumber": "26659755"
+    },
+    {
+      "name": "CurveLaunchpad",
+      "address": "0xCD07f89C29E1FAE77EC1a342b5D47D9008E9a72d",
+      "hash": "0x4c09dc55614a2e38465a1cf28e549356a2b08ae867749e9515a1b6bb2dcc2d13",
+      "blockNumber": "26659759"
+    }
+  ]
+}
