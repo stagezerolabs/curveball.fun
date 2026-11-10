@@ -613,6 +613,62 @@ test("a launch wraps and approves the fee plus the first buy, then calls launch 
   expect(result.minimumOutput).toBe(expectedMinOut);
 });
 
+test("a launch retry reuses WETH after wrapping when approval was rejected", async () => {
+  const fee = parseEther("0.001");
+  const initialBuy = parseEther("0.003");
+  const total = fee + initialBuy;
+  let wethBalance = parseEther("0.002");
+  let approvalAttempts = 0;
+  let approved = false;
+  const simulations: Array<{ functionName: string; value?: bigint }> = [];
+  const actions = {
+    getAccount: () => ({ address: wallet, chainId: RISE_TESTNET_CHAIN_ID }),
+    getBalance: async () => ({ value: parseEther("0.01") }),
+    readContract: reads({
+      launchFee: fee,
+      balanceOf: () => wethBalance,
+      allowance: () => (approved ? total : 0n),
+    }),
+    simulateContract: async (
+      _config: unknown,
+      request: { functionName: string; value?: bigint },
+    ) => {
+      simulations.push(request);
+      return { request };
+    },
+    writeContract: async (
+      _config: unknown,
+      request: { functionName: string; value?: bigint },
+    ) => {
+      if (request.functionName === "deposit") wethBalance += request.value ?? 0n;
+      if (request.functionName === "approve") {
+        approvalAttempts++;
+        if (approvalAttempts === 1) throw new Error("User rejected approval");
+        approved = true;
+      }
+      return hash;
+    },
+    waitForTransactionReceipt: async () => ({
+      status: "success",
+      logs: [launchLog()],
+    }),
+  } as unknown as WagmiActions;
+  const sdk = createCurveballSdk({} as Config, deployment, actions);
+
+  await expect(
+    sdk.launchAndBuy({ name: "Test", symbol: "TST", uri }, initialBuy),
+  ).rejects.toThrow("User rejected approval");
+  expect(wethBalance).toBe(total);
+  await sdk.launchAndBuy({ name: "Test", symbol: "TST", uri }, initialBuy);
+  expect(simulations.map(({ functionName }) => functionName)).toEqual([
+    "deposit",
+    "approve",
+    "approve",
+    "launch",
+  ]);
+  expect(simulations[0].value).toBe(total - parseEther("0.002"));
+});
+
 test("launch limits come from the launchpad: tax cap and a required metadata URI", async () => {
   const actions = {
     getAccount: () => ({ address: wallet, chainId: RISE_TESTNET_CHAIN_ID }),

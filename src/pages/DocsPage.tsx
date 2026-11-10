@@ -17,7 +17,7 @@ const chapters = [
     label: "Launching",
     title: "Launch a token.",
     description: "Create a market and review its first transaction.",
-    lead: "Choose the token details, review the WETH cost, and confirm the launch in your wallet. The market is live as soon as the transaction succeeds.",
+    lead: "Choose the token details, review ETH and WETH funding, and confirm the wallet steps. The market is live when the launch transaction succeeds.",
   },
   {
     slug: "trading",
@@ -155,12 +155,12 @@ function DocsContent({ slug, navigate }: { slug: Chapter["slug"]; navigate: Navi
             <h2>What you choose.</h2>
             <p>Enter a token name and ticker, add artwork, and choose an optional initial buy. The form also shows the creator tax allowed by the current launchpad and the launch fee before confirmation.</p>
             <ol className="docs-numbered">
-              <li><strong>Connect a wallet on RISE.</strong><span>Keep ETH for network gas. The app can wrap ETH into WETH when a paid launch needs it.</span></li>
-              <li><strong>Complete the token form.</strong><span>Review the artwork, ticker, creator tax, and optional first buy.</span></li>
-              <li><strong>Review and sign.</strong><span>The cost dialog shows an approximate USD value and the exact WETH amounts your wallet will spend.</span></li>
+              <li><strong>Connect a wallet on RISE.</strong><span>Keep ETH for network gas. The app can wrap ETH into WETH for the fee and an optional first buy.</span></li>
+              <li><strong>Complete the token form.</strong><span>Review the artwork, ticker, creator tax, and optional first buy. The presets use available ETH and WETH after reserving gas and the fee.</span></li>
+              <li><strong>Review and sign.</strong><span>The cost dialog shows an approximate USD value, the WETH spending limit, and how much ETH will be wrapped. Wrapping, approval, and launch can require separate wallet transactions.</span></li>
             </ol>
           </section>
-          <aside className="docs-note"><strong>One transaction starts the market.</strong><p>A successful launch creates the token and its bonding curve. An optional initial buy is included in the launch transaction.</p></aside>
+          <aside className="docs-note"><strong>The launch transaction starts the market.</strong><p>An optional first buy is included in the launch transaction. If you stop after wrapping or approval, WETH stays in your wallet and a retry can reuse it.</p></aside>
           <section className="docs-section docs-split"><div><h2>Ready to create?</h2></div><p>The launch form reads current contract settings. Use its displayed fee and limits rather than assuming a fixed amount from a guide. <AppLink route="launch" navigate={navigate}>Open the launch form ↗</AppLink></p></section>
         </>
       );

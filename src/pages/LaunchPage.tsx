@@ -6,8 +6,8 @@ import { LaunchPreview } from "../components/LaunchPreview";
 import { UsdAmount } from "../components/UsdAmount";
 import RubberSegment from "../components/RubberSegment";
 import { useStore } from "../app/useStore.js";
-import { useAccount, useReadContract } from "wagmi";
-import { formatEther } from "viem";
+import { useAccount, useBalance, useReadContract } from "wagmi";
+import { formatEther, parseEther } from "viem";
 import { curveLaunchpadAbi, erc20Abi } from "../sdk/contracts";
 import {
   activeChainId,
@@ -16,7 +16,10 @@ import {
 } from "../lib/web3";
 import {
   canSubmitLaunch,
-  initialBuyFromWethBalance,
+  firstBuySpendCap,
+  initialBuyFromAvailableBalance,
+  launchFundingState,
+  LAUNCH_GAS_RESERVE,
   percentToBps,
   type InitialBuyPercent,
 } from "../lib/launchForm";
@@ -110,13 +113,15 @@ function displayWeth(amount: bigint): string {
 export function LaunchPage({ navigate }: { navigate: Navigate }) {
   const dialogHeading = useRef<HTMLHeadingElement>(null);
   const imageInput = useRef<HTMLInputElement>(null);
+  const firstBuyInput = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const feeReviewConfirmed = useRef(false);
   const [draftName, setDraftName] = useState("");
   const [draftSymbol, setDraftSymbol] = useState("");
   const [draftTaxPercent, setDraftTaxPercent] = useState("0");
   const [selectedBuyPercent, setSelectedBuyPercent] =
-    useState<InitialBuyPercent>(0);
+    useState<InitialBuyPercent | "custom">(0);
+  const [draftInitialBuy, setDraftInitialBuy] = useState("0");
   const [feeReviewOpen, setFeeReviewOpen] = useState(false);
   const [draftImageUrl, setDraftImageUrl] = useState<string>();
   const [artworkFile, setArtworkFile] = useState<File | null>(null);
@@ -159,6 +164,10 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
     ...launchpadRead,
     functionName: "launchFee",
   });
+  const { data: graduationTarget } = useReadContract({
+    ...launchpadRead,
+    functionName: "graduationTarget",
+  });
   const { data: quoteToken } = useReadContract({
     ...launchpadRead,
     functionName: "quoteToken",
@@ -173,6 +182,11 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
       enabled: Boolean(quoteToken && address),
       refetchInterval: 15_000,
     },
+  });
+  const { data: nativeBalance, isError: nativeBalanceError } = useBalance({
+    address,
+    chainId: activeChainId,
+    query: { enabled: Boolean(address), refetchInterval: 15_000 },
   });
   const launchFee = onchainLaunchFee;
   const buybackShareBps = feeDefaults?.[2];
@@ -327,6 +341,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
   useEffect(() => {
     if (launchProgress?.phase !== "success") return;
     setSelectedBuyPercent(0);
+    setDraftInitialBuy("0");
     setArtworkFile(null);
     setImageUpload(null);
     setMetadataUpload(null);
@@ -340,30 +355,53 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
   }, [launchProgress?.phase, navigate, clearLaunchProgress]);
 
   const phase = launchProgress?.phase;
-  const noSpendableWeth =
+  let initialBuyWei: bigint | undefined;
+  try {
+    initialBuyWei = parseEther(draftInitialBuy.trim() || "0");
+    if (initialBuyWei < 0n) initialBuyWei = undefined;
+  } catch {
+    initialBuyWei = undefined;
+  }
+  const funding =
     wethBalance !== undefined &&
+    nativeBalance !== undefined &&
     launchFee !== undefined &&
-    wethBalance <= launchFee;
-  const initialBuyWei =
-    selectedBuyPercent === 0
-      ? 0n
-      : wethBalance === undefined || launchFee === undefined
-        ? undefined
-        : initialBuyFromWethBalance(wethBalance, launchFee, selectedBuyPercent);
-  const draftInitialBuy =
-    selectedBuyPercent === 0 || initialBuyWei === undefined
-      ? ""
-      : formatEther(initialBuyWei);
+    initialBuyWei !== undefined
+      ? launchFundingState(
+          wethBalance,
+          nativeBalance.value,
+          launchFee,
+          initialBuyWei,
+        )
+      : null;
   const draftTaxBps = percentToBps(draftTaxPercent || "0") ?? 0;
   const taxCap = creatorTaxCapBps;
   const taxInvalid =
     draftTaxPercent.trim() !== "" &&
     (percentToBps(draftTaxPercent) === null ||
       (taxCap !== undefined && draftTaxBps > taxCap));
+  const firstBuyLimitWei =
+    graduationTarget !== undefined &&
+    tokenSupply !== undefined &&
+    curveSupply !== undefined &&
+    walletCapBps !== undefined &&
+    feeDefaults !== undefined &&
+    !taxInvalid
+      ? firstBuySpendCap({
+          graduationTarget,
+          tokenSupply,
+          curveSupply,
+          walletCapBps: Number(walletCapBps),
+          feeBps: Number(feeDefaults[0]),
+          creatorTaxBps: draftTaxBps,
+        })
+      : undefined;
   const formReady =
     !imageError &&
-    (selectedBuyPercent === 0 ||
-      (initialBuyWei !== undefined && initialBuyWei > 0n)) &&
+    funding?.canFund === true &&
+    (initialBuyWei === 0n ||
+      (firstBuyLimitWei !== undefined && initialBuyWei !== undefined &&
+        initialBuyWei <= firstBuyLimitWei)) &&
     canSubmitLaunch({
       name: draftName,
       symbol: draftSymbol,
@@ -380,7 +418,8 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
     }
     if (
       launchFee !== undefined &&
-      launchFee > 0n &&
+      initialBuyWei !== undefined &&
+      launchFee + initialBuyWei > 0n &&
       !feeReviewConfirmed.current
     ) {
       event.preventDefault();
@@ -551,12 +590,8 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                     Initial buy <small>Optional</small>
                   </span>
                   <strong>
-                    {selectedBuyPercent === 0
-                      ? "0"
-                      : initialBuyWei === undefined
-                        ? "…"
-                        : displayWeth(initialBuyWei)}{" "}
-                    WETH
+                    {initialBuyWei === undefined ? "—" : displayWeth(initialBuyWei)}{" "}
+                    ETH equivalent
                     {initialBuyWei !== undefined && (
                       <small className="launch-buy-usd">
                         ≈ <UsdAmount weth={Number(formatEther(initialBuyWei))} />
@@ -564,31 +599,80 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                     )}
                   </strong>
                 </div>
+                <label className="launch-buy-amount">
+                  <span>First buy spending limit</span>
+                  <span className="launch-buy-input-wrap">
+                    <input
+                      ref={firstBuyInput}
+                      name="initialBuy"
+                      type="text"
+                      inputMode="decimal"
+                      autoComplete="off"
+                      placeholder="0.0"
+                      value={draftInitialBuy}
+                      aria-invalid={initialBuyWei === undefined}
+                      onChange={(event) => {
+                        setSelectedBuyPercent("custom");
+                        setDraftInitialBuy(event.target.value);
+                      }}
+                    />
+                    <span>ETH</span>
+                  </span>
+                </label>
                 <RubberSegment
                   className="launch-buy-options"
-                  aria-label="Initial buy using available WETH"
-                  items={([0, 25, 50, 100] as const).map((percent) => ({
-                    value: String(percent),
-                    label:
-                      percent === 0
-                        ? "None"
-                        : percent === 100
-                          ? "Max"
-                          : `${percent}%`,
-                    disabled:
-                      percent !== 0 &&
-                      (wethBalance === undefined ||
-                        launchFee === undefined ||
-                        initialBuyFromWethBalance(
-                          wethBalance,
-                          launchFee,
-                          percent,
-                        ) === 0n),
-                  }))}
+                  aria-label="Initial buy using available ETH and WETH"
+                  items={[
+                    ...([0, 25, 50, 100] as const).map((percent) => ({
+                      value: String(percent),
+                      label:
+                        percent === 0
+                          ? "None"
+                          : percent === 100
+                            ? "Max"
+                            : `${percent}%`,
+                      disabled:
+                        percent !== 0 &&
+                        (wethBalance === undefined ||
+                          nativeBalance === undefined ||
+                          nativeBalance.value < LAUNCH_GAS_RESERVE ||
+                          launchFee === undefined ||
+                          firstBuyLimitWei === undefined ||
+                          initialBuyFromAvailableBalance(
+                            wethBalance,
+                            nativeBalance.value,
+                            launchFee,
+                            percent,
+                            firstBuyLimitWei,
+                          ) === 0n),
+                    })),
+                    { value: "custom", label: "Custom" },
+                  ]}
                   value={String(selectedBuyPercent)}
-                  onChange={(next) =>
-                    setSelectedBuyPercent(Number(next) as InitialBuyPercent)
-                  }
+                  onChange={(next) => {
+                    if (next === "custom") {
+                      setSelectedBuyPercent("custom");
+                      firstBuyInput.current?.focus();
+                      return;
+                    }
+                    const percent = Number(next) as InitialBuyPercent;
+                    const amount =
+                      percent === 0 ||
+                      wethBalance === undefined ||
+                      nativeBalance === undefined ||
+                      launchFee === undefined ||
+                      firstBuyLimitWei === undefined
+                        ? 0n
+                        : initialBuyFromAvailableBalance(
+                            wethBalance,
+                            nativeBalance.value,
+                            launchFee,
+                            percent,
+                            firstBuyLimitWei,
+                          );
+                    setSelectedBuyPercent(percent);
+                    setDraftInitialBuy(formatEther(amount));
+                  }}
                   trackColor="var(--surface)"
                   thumbColor="var(--lime)"
                   textColor="var(--muted)"
@@ -603,23 +687,29 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                   glide={75}
                   draggable
                 />
-                <input
-                  type="hidden"
-                  name="initialBuy"
-                  value={draftInitialBuy}
-                />
-                {address &&
-                  (wethBalanceError ||
-                    noSpendableWeth ||
-                    wethBalance === undefined) && (
-                    <small className="launch-buy-help" role="status">
-                      {wethBalanceError
-                        ? "Could not read your WETH balance."
-                        : noSpendableWeth
-                          ? "No WETH available for an initial buy."
-                          : "Checking WETH balance…"}
-                    </small>
-                  )}
+                {address && (
+                  <small className="launch-buy-help" role="status">
+                    {wethBalanceError || nativeBalanceError || launchFeeError
+                      ? "Could not read your launch funding. Try again."
+                      : initialBuyWei === undefined
+                        ? "Enter a valid first buy amount (up to 18 decimals)."
+                        : funding === null
+                          ? "Checking ETH, WETH, and the launch fee…"
+                          : initialBuyWei > 0n && firstBuyLimitWei === undefined
+                            ? "Checking the first-buy wallet limit…"
+                            : initialBuyWei > 0n && firstBuyLimitWei !== undefined &&
+                                initialBuyWei > firstBuyLimitWei
+                              ? `First buy exceeds this wallet's opening limit of ${displayWeth(firstBuyLimitWei)} ETH equivalent.`
+                          : nativeBalance !== undefined &&
+                              nativeBalance.value < LAUNCH_GAS_RESERVE
+                            ? `Keep at least ${formatEther(LAUNCH_GAS_RESERVE)} ETH for network gas.`
+                            : !funding.canFund
+                              ? "Not enough ETH and WETH for the launch fee and first buy."
+                              : funding.ethToWrap > 0n
+                                ? `Curveball will wrap ${displayWeth(funding.ethToWrap)} ETH before launch. Your wallet may ask for separate wrap, approval, and launch confirmations.`
+                                : "Your WETH covers this launch. Keep ETH for network gas."}
+                  </small>
+                )}
               </div>
             </div>
 
@@ -698,6 +788,8 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                             ? "Launches paused"
                             : !canCreate
                               ? "Checking launch status…"
+                            : funding !== null && !funding.canFund
+                              ? "Add ETH or WETH to launch"
                               : !formReady
                                 ? "Complete form to launch"
                                 : "Launch token"}{" "}
@@ -719,8 +811,15 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
             </Dialog.Close>
             <Dialog.Title>Review launch cost</Dialog.Title>
             <Dialog.Description>
-              Launching a token includes an anti-spam fee paid in WETH.
+              The launch fee and first buy settle in WETH. Curveball wraps any
+              missing ETH, requests approval if needed, then asks you to confirm
+              the launch. These may be separate wallet transactions.
             </Dialog.Description>
+            <ol className="launch-wallet-steps">
+              {funding && funding.ethToWrap > 0n && <li>Wrap ETH into WETH</li>}
+              <li>Approve WETH if your wallet asks</li>
+              <li>Confirm the market launch</li>
+            </ol>
             <dl className="launch-fee-review-amounts">
               <div>
                 <dt>Anti-spam fee</dt>
@@ -731,7 +830,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
               </div>
               {initialBuyWei !== undefined && initialBuyWei > 0n && (
                 <div>
-                  <dt>Initial buy</dt>
+                  <dt>First buy limit</dt>
                   <dd title={`${formatEther(initialBuyWei)} WETH`}>
                     <UsdAmount weth={Number(formatEther(initialBuyWei))} />
                     <small>{displayWeth(initialBuyWei)} WETH</small>
@@ -739,7 +838,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                 </div>
               )}
               <div className="launch-fee-review-total">
-                <dt>Total</dt>
+                <dt>Maximum WETH spend</dt>
                 <dd
                   title={`${formatEther((launchFee ?? 0n) + (initialBuyWei ?? 0n))} WETH`}
                 >
@@ -751,7 +850,29 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                   </small>
                 </dd>
               </div>
+              {funding && (
+                <>
+                  <div className="launch-funding-breakdown">
+                    <dt>From your WETH</dt>
+                    <dd>{displayWeth(funding.wethUsed)} WETH</dd>
+                  </div>
+                  {funding.ethToWrap > 0n && (
+                    <div>
+                      <dt>ETH to wrap</dt>
+                      <dd>{displayWeth(funding.ethToWrap)} ETH</dd>
+                    </div>
+                  )}
+                  <div>
+                    <dt>Kept for gas</dt>
+                    <dd>At least {formatEther(LAUNCH_GAS_RESERVE)} ETH</dd>
+                  </div>
+                </>
+              )}
             </dl>
+            <p className="launch-fee-review-note">
+              The curve may spend less than this limit. Any WETH left after
+              launch stays in your wallet.
+            </p>
             <div className="launch-fee-review-actions">
               <Dialog.Close className="launch-fee-review-cancel">
                 Cancel
@@ -822,6 +943,12 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                 ? launchProgress?.error
                 : phaseCopy[phase!]?.detail}
             </Dialog.Description>
+            {phase === "error" && (
+              <p className="launch-retry-note">
+                If you already confirmed a wrap or approval, it remains onchain.
+                Retrying uses your current WETH balance.
+              </p>
+            )}
             {launchProgress?.hash && (
               <a
                 className="launch-tx-link"

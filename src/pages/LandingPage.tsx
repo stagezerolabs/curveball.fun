@@ -245,9 +245,10 @@ export function LandingPage({ navigate }: { navigate: Navigate }) {
           <details>
             <summary>Do I need WETH to buy or launch?</summary>
             <p>
-              Curve markets use WETH. The app can wrap ETH for a buy or a paid
-              launch and will ask for wallet approval when required. Keep some
-              ETH for network gas.
+              Curve markets settle in WETH. The app can wrap ETH for a buy,
+              launch fee, or optional first buy, then request WETH approval if
+              needed. These can be separate wallet confirmations. Keep ETH for
+              network gas.
             </p>
           </details>
         </div>
