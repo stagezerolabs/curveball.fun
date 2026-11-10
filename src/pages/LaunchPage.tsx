@@ -586,21 +586,15 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
             <div className="launch-form-group launch-buy-group">
               <div className="launch-buy-field">
                 <div className="launch-buy-heading">
-                  <span>
-                    Initial buy <small>Optional</small>
-                  </span>
+                  <span>Initial buy</span>
                   <strong>
-                    {initialBuyWei === undefined ? "—" : displayWeth(initialBuyWei)}{" "}
-                    ETH equivalent
-                    {initialBuyWei !== undefined && (
-                      <small className="launch-buy-usd">
-                        ≈ <UsdAmount weth={Number(formatEther(initialBuyWei))} />
-                      </small>
+                    {initialBuyWei === undefined ? "—" : (
+                      <UsdAmount weth={Number(formatEther(initialBuyWei))} />
                     )}
                   </strong>
                 </div>
                 <label className="launch-buy-amount">
-                  <span>First buy spending limit</span>
+                  <span>Amount</span>
                   <span className="launch-buy-input-wrap">
                     <input
                       ref={firstBuyInput}
@@ -830,7 +824,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
               </div>
               {initialBuyWei !== undefined && initialBuyWei > 0n && (
                 <div>
-                  <dt>First buy limit</dt>
+                  <dt>Initial buy</dt>
                   <dd title={`${formatEther(initialBuyWei)} WETH`}>
                     <UsdAmount weth={Number(formatEther(initialBuyWei))} />
                     <small>{displayWeth(initialBuyWei)} WETH</small>
