@@ -23,6 +23,7 @@ import { NATIVE_GAS_RESERVE } from "../sdk/sdk";
 import type { Address } from "viem";
 import type { Token } from "../types";
 import { tradeButtonLabel } from "../lib/tradeProgress";
+import { UsdAmount } from "./UsdAmount";
 
 const SLIPPAGE_BPS = 300; // useStore sends minOut at 97% of the quote.
 const PRESETS = [25, 50, 100];
@@ -361,6 +362,11 @@ export function TradePanel({
           />
           <span className="amount-unit">{payingWith}</span>
         </div>
+        {side === "buy" && Number.isFinite(input) && input > 0 && (
+          <small className="trade-entry-usd">
+            ≈ <UsdAmount weth={input} /> at the current ETH/USD rate
+          </small>
+        )}
       </div>
 
       {side === "buy" && (
@@ -378,13 +384,19 @@ export function TradePanel({
               ? "…"
               : received === null
                 ? "—"
-                : `${formatEthAmount(received)} ${receiving}`
+                : <>
+                    {formatEthAmount(received)} {receiving}
+                    {side === "sell" ? <> (≈ <UsdAmount weth={received} />)</> : null}
+                  </>
           }
         />
         <Row
           label="At least"
           value={
-            atLeast === null ? "—" : `${formatEthAmount(atLeast)} ${receiving}`
+            atLeast === null ? "—" : <>
+              {formatEthAmount(atLeast)} {receiving}
+              {side === "sell" ? <> (≈ <UsdAmount weth={atLeast} />)</> : null}
+            </>
           }
         />
         <Row label="Slippage limit" value={`${SLIPPAGE_BPS / 100}%`} />

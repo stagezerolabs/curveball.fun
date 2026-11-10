@@ -18,10 +18,7 @@ function formatMarketCap(value: number, usdPerEth?: number | null) {
       maximumFractionDigits: Math.abs(usd) >= 1 ? 2 : 4,
     }).format(usd);
   }
-  return `${value.toLocaleString("en-US", {
-    notation: Math.abs(value) >= 1_000 ? "compact" : "standard",
-    maximumFractionDigits: Math.abs(value) >= 1 ? 2 : 4,
-  })} WETH`;
+  return "—";
 }
 
 export function buildMarketChartOptions(

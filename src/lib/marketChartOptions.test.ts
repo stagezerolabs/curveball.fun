@@ -50,4 +50,14 @@ describe("market chart options", () => {
     expect(options.yAxis[0].axisLabel.formatter?.(2)).toBe("$4K");
     expect(options.series[0].markLine?.label.formatter).toBe("$4K");
   });
+
+  test("does not label ETH values as prices before the USD rate loads", () => {
+    const options = buildMarketChartOptions(
+      [{ time: 60, open: 2, high: 3, low: 1, close: 2, volume: 1 }],
+      colors,
+    );
+
+    expect(options.yAxis[0].axisLabel.formatter?.(2)).toBe("—");
+    expect(options.series[0].markLine?.label.formatter).toBe("—");
+  });
 });

@@ -143,7 +143,8 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       outDir: "dist",
-      sourcemap: true,
+      // Local Docker previews discard maps in the image, so skip generating them.
+      sourcemap: process.env.CURVEBALL_LOCAL_PREVIEW !== "1",
     },
   };
 });

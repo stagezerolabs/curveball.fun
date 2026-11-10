@@ -5,6 +5,7 @@ import { formatMarketAge } from "../lib/marketDisplay";
 import { type TradeActivity } from "../lib/marketChart";
 import { activeExplorerUrl } from "../lib/web3";
 import { TraderName } from "../social/TraderIdentity";
+import { formatUsd, useEthUsdRate } from "./UsdAmount";
 import type { Navigate, Token } from "../types";
 
 const PAGE_SIZE = 10;
@@ -16,25 +17,33 @@ function tokenAmount(value: bigint) {
   return number.toLocaleString("en-US", { maximumFractionDigits: 6 });
 }
 
-function averagePrice(quoteAmount: bigint, tokenAmountValue: bigint) {
-  if (tokenAmountValue === 0n) return "—";
+export function averageUsdPrice(
+  quoteAmount: bigint,
+  tokenAmountValue: bigint,
+  usdPerEth: number | null,
+) {
+  if (tokenAmountValue === 0n || usdPerEth === null) return "—";
   const price =
-    Number(formatEther(quoteAmount)) / Number(formatEther(tokenAmountValue));
+    (Number(formatEther(quoteAmount)) * usdPerEth) /
+    Number(formatEther(tokenAmountValue));
   if (!Number.isFinite(price)) return "—";
-  if (price === 0) return "0";
-  if (price < 0.000000000001) return "<0.000000000001";
-  return price.toLocaleString("en-US", {
-    maximumFractionDigits: price < 0.000001 ? 12 : price < 0.01 ? 8 : 6,
-  });
+  if (price > 0 && price < 0.000000000001) return "<$0.000000000001";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits:
+      price >= 1 ? 2 : price >= 0.01 ? 4 : price >= 0.0001 ? 6 : 12,
+  }).format(price);
 }
 
 function TradeRow({
   trade,
-  quoteSymbol,
+  usdPerEth,
   navigate,
 }: {
   trade: TradeActivity;
-  quoteSymbol: string;
+  usdPerEth: number | null;
   navigate: Navigate;
 }) {
   const date = new Date(trade.timestamp * 1000);
@@ -51,14 +60,20 @@ function TradeRow({
         </span>
       </td>
       <td className="market-activity-number">
-        <strong>{tokenAmount(trade.quoteAmount)}</strong>
+        <strong>
+          {usdPerEth === null
+            ? "—"
+            : formatUsd(Number(formatEther(trade.quoteAmount)) * usdPerEth)}
+        </strong>
       </td>
       <td className="market-activity-number">
         <strong>{tokenAmount(trade.tokenAmount)}</strong>
       </td>
       <td className="market-activity-number market-activity-price">
-        <strong>{averagePrice(trade.quoteAmount, trade.tokenAmount)}</strong>
-        <small>{quoteSymbol} per token</small>
+        <strong>
+          {averageUsdPrice(trade.quoteAmount, trade.tokenAmount, usdPerEth)}
+        </strong>
+        <small>USD per token</small>
       </td>
       <td className="market-activity-wallet">
         <TraderName address={trade.trader} navigate={navigate} />
@@ -121,6 +136,7 @@ export function MarketActivity({
   followingTraderCount?: number;
 }) {
   const [page, setPage] = useState(0);
+  const usdPerEth = useEthUsdRate();
   const pageCount = Math.max(1, Math.ceil(trades.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount - 1);
   const firstTrade = currentPage * PAGE_SIZE;
@@ -168,9 +184,19 @@ export function MarketActivity({
             <thead>
               <tr>
                 <th scope="col">Side</th>
-                <th scope="col">Total ({token.quoteSymbol ?? "WETH"})</th>
+                <th
+                  scope="col"
+                  title="Approximate USD at the current ETH/USD rate"
+                >
+                  Total (USD)
+                </th>
                 <th scope="col">Amount ({token.symbol})</th>
-                <th scope="col">Avg. price</th>
+                <th
+                  scope="col"
+                  title="Approximate USD per token at the current ETH/USD rate"
+                >
+                  Avg. price
+                </th>
                 <th scope="col">Wallet</th>
                 <th scope="col">Time</th>
                 <th scope="col">Transaction</th>
@@ -181,7 +207,7 @@ export function MarketActivity({
                 <TradeRow
                   key={`${trade.transactionHash}-${trade.logIndex}`}
                   trade={trade}
-                  quoteSymbol={token.quoteSymbol ?? "WETH"}
+                  usdPerEth={usdPerEth}
                   navigate={navigate}
                 />
               ))}

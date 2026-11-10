@@ -1,7 +1,8 @@
 import { formatUnits } from "viem";
 import { AppLink } from "../components/Navigation";
 import { useProtocolStats } from "../components/LandingProtocolStats";
-import { formatAddress, formatEthAmount } from "../lib/format.js";
+import { UsdAmount } from "../components/UsdAmount";
+import { formatAddress } from "../lib/format.js";
 import { activeExplorerUrl, launchpadAddress } from "../lib/web3";
 import type { Navigate } from "../types";
 
@@ -26,7 +27,7 @@ export function StatsPage({ navigate }: { navigate: Navigate }) {
   const live = total - graduated;
   const graduationRate = total ? (graduated / total) * 100 : 0;
   const claimed = payout
-    ? formatEthAmount(Number(formatUnits(payout.amount, payout.decimals)))
+    ? Number(formatUnits(payout.amount, payout.decimals))
     : null;
   const loading = statsEnabled && isPending && !data;
   const claimLoading = payoutEnabled && payoutPending && !payout;
@@ -100,10 +101,7 @@ export function StatsPage({ navigate }: { navigate: Navigate }) {
           <div>
             <dt>Fees earned by creators</dt>
             <dd>
-              {claimLoading ? "…" : (claimed ?? "—")}
-              <span className="protocol-stats-unit">
-                {claimed !== null ? " WETH" : ""}
-              </span>
+              {claimLoading ? "…" : <UsdAmount weth={claimed} compact />}
             </dd>
             <small>Credited in the fee escrow</small>
           </div>

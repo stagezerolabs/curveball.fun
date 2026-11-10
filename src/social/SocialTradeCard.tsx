@@ -1,6 +1,7 @@
 import { formatEther } from "viem";
 import { AppLink } from "../components/Navigation";
 import { TokenAvatar } from "../components/TokenAvatar";
+import { UsdAmount } from "../components/UsdAmount";
 import { formatEthAmount, formatRelativeTime } from "../lib/format.js";
 import { activeExplorerUrl } from "../lib/web3";
 import type { Navigate, Token } from "../types";
@@ -60,7 +61,7 @@ export function SocialTradeCard({
           <strong>
             {formatEthAmount(tokenAmount)} {trade.tokenSymbol}
           </strong>
-          <span>for {formatEthAmount(quote)} WETH</span>
+          <span>for <UsdAmount weth={quote} compact /></span>
         </div>
       </div>
       <footer>

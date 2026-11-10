@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { TradeActivity } from "../lib/marketChart";
 import type { Token } from "../types";
-import { MarketActivity } from "./MarketActivity";
+import { averageUsdPrice, MarketActivity } from "./MarketActivity";
 
 const token: Token = {
   address: "0x1111111111111111111111111111111111111111",
@@ -49,14 +49,20 @@ test("trade history includes execution, wallet, time, and transaction details", 
     </QueryClientProvider>,
   );
 
-  expect(html).toContain("Total (WETH)");
+  expect(html).toContain("Total (USD)");
   expect(html).toContain("Amount (BALL)");
   expect(html).toContain("Avg. price");
-  expect(html).toContain("0.5");
+  expect(html).toContain("USD per token");
   expect(html).toContain("trader.rise");
   expect(html).toContain(`/profile/${trade.trader}`);
   expect(html).toContain("Following");
   expect(html).not.toContain("Venue");
   expect(html).toContain("Block 12,345");
   expect(html).toContain("0x5555…5555");
+});
+
+test("trade execution price uses the current USD exchange rate", () => {
+  expect(averageUsdPrice(trade.quoteAmount, trade.tokenAmount, 2_000)).toBe("$1,000.00");
+  expect(averageUsdPrice(trade.quoteAmount, trade.tokenAmount, null)).toBe("—");
+  expect(averageUsdPrice(1_000_000n, 1_000_000_000_000_000_000n, 2_000)).toBe("$0.000000002");
 });

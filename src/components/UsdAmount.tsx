@@ -76,7 +76,7 @@ export function formatUsd(value: number) {
   }).format(value);
 }
 
-function formatCompactUsd(value: number) {
+export function formatCompactUsd(value: number) {
   if (Math.abs(value) < 1000) return formatUsd(value);
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -90,10 +90,12 @@ export function UsdAmount({
   weth,
   suffix = "",
   compact = false,
+  showPlus = false,
 }: {
   weth?: number | null;
   suffix?: string;
   compact?: boolean;
+  showPlus?: boolean;
 }) {
   const usdPerEth = useEthUsdRate();
   if (weth === 0)
@@ -105,15 +107,18 @@ export function UsdAmount({
     );
   if (weth == null || usdPerEth == null) return <>—</>;
   const full = formatUsd(weth * usdPerEth);
+  const sign = showPlus && weth > 0 ? "+" : "";
   if (compact)
     return (
-      <span title={`${full}${suffix}`} aria-label={`${full}${suffix}`}>
+      <span title={`${sign}${full}${suffix}`} aria-label={`${sign}${full}${suffix}`}>
+        {sign}
         {formatCompactUsd(weth * usdPerEth)}
         {suffix}
       </span>
     );
   return (
     <>
+      {sign}
       {full}
       {suffix}
     </>

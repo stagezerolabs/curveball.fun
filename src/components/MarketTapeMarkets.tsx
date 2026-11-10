@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import { usePublicClient } from "wagmi";
 import { useStore } from "../app/useStore.js";
 import type { CreatorTokenClient } from "../creatorTokens";
-import { formatEthAmount } from "../lib/format.js";
 import { useCurveTapeStats } from "../lib/useCurveTapeStats";
 import type { MarketPreviewStatsClient } from "../lib/marketPreviewStats";
 import { useMarketPreviewStats } from "../lib/useMarketPreviewStats";
@@ -10,6 +9,7 @@ import { activeChainId } from "../lib/web3";
 import type { Navigate, Token } from "../types";
 import { MarketTape } from "./MarketTape";
 import { AppLink } from "./Navigation";
+import { UsdAmount } from "./UsdAmount";
 
 const SNAPSHOT_SIZE = 4;
 
@@ -75,7 +75,7 @@ export function MarketTapeMarkets({ navigate }: { navigate: Navigate }) {
                     ${token.symbol}
                   </span>
                   <strong className="market-snapshot-volume">
-                    {formatEthAmount(preview.volume24h)} <small>WETH</small>
+                    <UsdAmount weth={preview.volume24h} compact />
                   </strong>
                   <span
                     className={

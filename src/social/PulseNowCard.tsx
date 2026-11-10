@@ -2,13 +2,10 @@ import { formatEther } from "viem";
 import { AppLink } from "../components/Navigation";
 import { TokenAvatar } from "../components/TokenAvatar";
 import { UsdAmount } from "../components/UsdAmount";
-import { formatEthAmount } from "../lib/format.js";
 import type { Navigate, Token } from "../types";
 import type { PulseMoment } from "./types";
 
-function quote(wei: bigint) {
-  return formatEthAmount(Number(formatEther(wei)));
-}
+const quote = (wei: bigint) => Number(formatEther(wei));
 
 /** One market being bought into: who it is, how the buy/sell value splits, and what flowed in. */
 export function PulseNowCard({
@@ -76,13 +73,13 @@ export function PulseNowCard({
           <span className="sell" />
         </div>
         <p>
-          <span className="buy">{quote(buy)} bought</span>
-          <span className="sell">{quote(sell)} sold</span>
+          <span className="buy"><UsdAmount weth={quote(buy)} compact /> bought</span>
+          <span className="sell"><UsdAmount weth={quote(sell)} compact /> sold</span>
         </p>
       </div>
       <div className="pulse-now-net">
         <strong>
-          +{quote(buy - sell)} <small>WETH</small>
+          <UsdAmount weth={quote(buy - sell)} showPlus compact />
         </strong>
         <span>net inflow</span>
       </div>

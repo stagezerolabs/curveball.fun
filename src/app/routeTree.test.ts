@@ -18,6 +18,13 @@ test("protocol stats has a direct route", () => {
   expect(routeHref("stats")).toBe("/stats");
 });
 
+test("documentation pages have shareable routes", () => {
+  expect(routeHref("docs")).toBe("/docs");
+  expect(routeHref("docsPage", { slug: "trading" })).toBe("/docs/trading");
+  expect(resolveRoute("/docs").id).toBe("docs");
+  expect(resolveRoute("/docs/trading").params.slug).toBe("trading");
+});
+
 test("trader profile route resolves a wallet address", () => {
   expect(
     resolveRoute("/profile/0x5cc42e772f67089b4670eec4dcd904be2f2d511c").id,

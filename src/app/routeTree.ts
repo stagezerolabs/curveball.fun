@@ -18,6 +18,8 @@ const routes: Route[] = [
     title: "Notifications — Curveball",
   },
   { id: "stats", path: "/stats", title: "Protocol stats — Curveball" },
+  { id: "docs", path: "/docs", title: "Docs — Curveball" },
+  { id: "docsPage", path: "/docs/:slug", title: "Docs — Curveball" },
   { id: "market", path: "/markets/:address", title: "Market — Curveball" },
   { id: "launch", path: "/launch", title: "Launch — Curveball" },
   { id: "profile", path: "/profile", title: "Profile — Curveball" },

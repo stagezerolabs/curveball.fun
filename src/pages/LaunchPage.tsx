@@ -3,6 +3,7 @@ import { Dialog } from "@base-ui/react/dialog";
 import { usePrivy } from "@privy-io/react-auth";
 import { ArrowIcon } from "../components/ArrowIcon";
 import { LaunchPreview } from "../components/LaunchPreview";
+import { UsdAmount } from "../components/UsdAmount";
 import RubberSegment from "../components/RubberSegment";
 import { useStore } from "../app/useStore.js";
 import { useAccount, useReadContract } from "wagmi";
@@ -556,6 +557,11 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                         ? "…"
                         : displayWeth(initialBuyWei)}{" "}
                     WETH
+                    {initialBuyWei !== undefined && (
+                      <small className="launch-buy-usd">
+                        ≈ <UsdAmount weth={Number(formatEther(initialBuyWei))} />
+                      </small>
+                    )}
                   </strong>
                 </div>
                 <RubberSegment
@@ -719,14 +725,16 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
               <div>
                 <dt>Anti-spam fee</dt>
                 <dd title={`${formatEther(launchFee ?? 0n)} WETH`}>
-                  {displayWeth(launchFee ?? 0n)} WETH
+                  <UsdAmount weth={Number(formatEther(launchFee ?? 0n))} />
+                  <small>{displayWeth(launchFee ?? 0n)} WETH</small>
                 </dd>
               </div>
               {initialBuyWei !== undefined && initialBuyWei > 0n && (
                 <div>
                   <dt>Initial buy</dt>
                   <dd title={`${formatEther(initialBuyWei)} WETH`}>
-                    {displayWeth(initialBuyWei)} WETH
+                    <UsdAmount weth={Number(formatEther(initialBuyWei))} />
+                    <small>{displayWeth(initialBuyWei)} WETH</small>
                   </dd>
                 </div>
               )}
@@ -735,7 +743,12 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                 <dd
                   title={`${formatEther((launchFee ?? 0n) + (initialBuyWei ?? 0n))} WETH`}
                 >
-                  {displayWeth((launchFee ?? 0n) + (initialBuyWei ?? 0n))} WETH
+                  <UsdAmount
+                    weth={Number(formatEther((launchFee ?? 0n) + (initialBuyWei ?? 0n)))}
+                  />
+                  <small>
+                    {displayWeth((launchFee ?? 0n) + (initialBuyWei ?? 0n))} WETH
+                  </small>
                 </dd>
               </div>
             </dl>

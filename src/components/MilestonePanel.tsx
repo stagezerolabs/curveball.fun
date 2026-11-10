@@ -118,9 +118,9 @@ export function MilestonePanel({
       >
         {token.graduationTargetWeth && (
           <div>
-            <dt>Graduation WETH</dt>
-            <dd>
-              {token.graduationTargetWeth} <small>WETH</small>
+            <dt>Graduation target</dt>
+            <dd title={`${token.graduationTargetWeth} WETH`}>
+              <UsdAmount weth={Number(token.graduationTargetWeth)} compact />
             </dd>
           </div>
         )}
@@ -266,7 +266,7 @@ export function MilestonePanel({
           <div className="claim-block">
             <h3 className="panel-subhead">Buyback</h3>
             <p className="panel-note">
-              {formatEther(buybackBalance)} WETH in the shared treasury funds CURVE buybacks.
+              <UsdAmount weth={Number(formatEther(buybackBalance))} /> ({formatEther(buybackBalance)} WETH) in the shared treasury funds CURVE buybacks.
               {curveTarget ? ` Target: ${curveTarget}.` : " The target will be set after CURVE graduates."}
             </p>
             <button

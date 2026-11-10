@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatEther, getAddress, isAddress, type Address } from "viem";
 import { useAccount } from "wagmi";
 import { AppLink } from "../components/Navigation";
+import { UsdAmount } from "../components/UsdAmount";
 import {
   formatAddress,
   formatEthAmount,
@@ -23,11 +24,6 @@ export type ProfileTab = "holdings" | "activity" | "launches";
 
 function wethAmount(wei: string) {
   return Number(formatEther(BigInt(wei || "0")));
-}
-
-function signedWeth(value: string) {
-  const amount = wethAmount(value);
-  return `${amount >= 0 ? "+" : ""}${formatEthAmount(amount)} WETH`;
 }
 
 function EmptyState({
@@ -73,7 +69,7 @@ function CreatorMarketList({
               </small>
             </span>
             <span className="profile-row-value">
-              <strong>{formatEthAmount(token.marketCap ?? 0)} WETH</strong>
+              <strong><UsdAmount weth={token.marketCap} compact /></strong>
               <small>
                 {token.graduated
                   ? "Graduated"
@@ -334,17 +330,17 @@ export function TraderProfilePage({
           <div className="profile-summary-value">
             <small>Portfolio value</small>
             <strong>
-              {formatEthAmount(portfolioValue)} <span>WETH</span>
+              <UsdAmount weth={portfolioValue} />
             </strong>
             <p className={realizedNegative ? "negative" : "positive"}>
-              {signedWeth(data.stats.realizedPnlWei)} realized
+              <UsdAmount weth={wethAmount(data.stats.realizedPnlWei)} showPlus /> realized
               {realizedReturn ? <> · {realizedReturn}</> : null}
             </p>
           </div>
           <dl className="profile-summary-stats">
             <div>
               <dt>Volume</dt>
-              <dd>{formatEthAmount(wethAmount(data.stats.volumeWei))} WETH</dd>
+              <dd><UsdAmount weth={wethAmount(data.stats.volumeWei)} compact /></dd>
             </div>
             <div>
               <dt>Trades</dt>
@@ -469,7 +465,7 @@ export function TraderProfilePage({
                       </small>
                     </span>
                     <span className="profile-row-value">
-                      <strong>{formatEthAmount(value)} WETH</strong>
+                      <strong><UsdAmount weth={value} compact /></strong>
                       {unknownBasis ? (
                         <small>Includes transfers in</small>
                       ) : null}
@@ -543,7 +539,7 @@ export function TraderProfilePage({
                     </span>
                     <span className="profile-row-value">
                       <strong>
-                        {formatEthAmount(wethAmount(trade.quoteAmountWei))} WETH
+                        <UsdAmount weth={wethAmount(trade.quoteAmountWei)} compact />
                       </strong>
                       {trade.reactionCount ? (
                         <small>

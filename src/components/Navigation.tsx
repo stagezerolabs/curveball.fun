@@ -571,7 +571,9 @@ export function LandingFooter({
           <AppLink route="launch" navigate={navigate}>
             Launch
           </AppLink>
-          <a href="#landing-faq-title">Docs</a>
+          <AppLink route="docs" navigate={navigate}>
+            Docs
+          </AppLink>
         </nav>
 
         <nav className="landing-footer-column" aria-label="Network">

@@ -72,6 +72,11 @@ const TraderProfilePage = lazy(() =>
     default: module.TraderProfilePage,
   })),
 );
+const DocsPage = lazy(() =>
+  import("../pages/DocsPage").then((module) => ({
+    default: module.DocsPage,
+  })),
+);
 
 function SocialPageFallback() {
   return (
@@ -124,6 +129,17 @@ export function App() {
       page = (
         <Suspense fallback={<PageFallback />}>
           <StatsPage navigate={navigate} />
+        </Suspense>
+      );
+      break;
+    case "docs":
+    case "docsPage":
+      page = (
+        <Suspense fallback={<PageFallback />}>
+          <DocsPage
+            navigate={navigate}
+            slug={route.id === "docsPage" ? route.params.slug : undefined}
+          />
         </Suspense>
       );
       break;
@@ -197,6 +213,7 @@ export function App() {
   const toggleTheme = () =>
     setTheme((current) => (current === "light" ? "dark" : "light"));
   const isLanding = route.id === "landing";
+  const isDocs = route.id === "docs" || route.id === "docsPage";
 
   return (
     <div className="site-shell curveball-theme">
@@ -218,7 +235,7 @@ export function App() {
           onThemeToggle={toggleTheme}
         />
       )}
-      {isLanding ? (
+      {isDocs ? null : isLanding ? (
         <Suspense fallback={<MarketTape />}>
           <MarketTapeCurve />
         </Suspense>
@@ -228,7 +245,9 @@ export function App() {
         </Suspense>
       )}
       {page}
-      {isLanding && <LandingFooter navigate={navigate} theme={theme} />}
+      {(isLanding || isDocs) && (
+        <LandingFooter navigate={navigate} theme={theme} />
+      )}
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { useReadContract } from "wagmi";
 import { curveLaunchpadAbi, curveFeeEscrowAbi, curveBuybackTreasuryAbi } from "../sdk/contracts";
 import { launchpadAddress } from "./web3";
 import type { CurveTapeDisplay } from "../components/MarketTape";
-import { formatEthAmount } from "./format.js";
+import { formatCompactUsd, useEthUsdRate } from "../components/UsdAmount";
 import { activeChainId } from "./web3";
 import { fetchMarketTapeStats, type MarketTapeStats } from "../markets/api";
 import { socialApiBaseUrl } from "../social/api";
@@ -18,15 +18,24 @@ function formatTokenAmount(wei: string) {
   }).format(amount);
 }
 
-function displayStats(stats: MarketTapeStats): CurveTapeDisplay {
+function displayStats(
+  stats: MarketTapeStats,
+  usdPerEth: number | null,
+): CurveTapeDisplay {
   return {
-    volume24h: `${formatEthAmount(Number(formatEther(BigInt(stats.volume24hWei))))} WETH`,
+    volume24h:
+      usdPerEth === null
+        ? "—"
+        : formatCompactUsd(
+            Number(formatEther(BigInt(stats.volume24hWei))) * usdPerEth,
+          ),
     bought24h: formatTokenAmount(stats.bought24hWei),
     burnedTotal: formatTokenAmount(stats.burnedTotalWei),
   };
 }
 
 export function useCurveTapeStats() {
+  const usdPerEth = useEthUsdRate();
   const { data: escrow } = useReadContract({
     address: launchpadAddress ?? undefined, abi: curveLaunchpadAbi, functionName: "escrow",
     chainId: activeChainId, query: { enabled: Boolean(launchpadAddress) },
@@ -47,5 +56,5 @@ export function useCurveTapeStats() {
     refetchInterval: false,
     retry: 1,
   });
-  return query.data ? displayStats(query.data) : undefined;
+  return query.data ? displayStats(query.data, usdPerEth) : undefined;
 }

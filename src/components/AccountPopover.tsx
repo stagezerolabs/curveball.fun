@@ -5,6 +5,7 @@ import { formatEther, type Address } from "viem";
 import { useBalance } from "wagmi";
 import { formatEthAmount } from "../lib/format.js";
 import { activeChainId } from "../lib/web3";
+import { UsdAmount } from "./UsdAmount";
 import type { Navigate } from "../types";
 
 function ProfileGlyph() {
@@ -66,6 +67,7 @@ export function AccountPopover({
             <div className="account-balance">
               <small>Balance</small>
               <strong aria-live="polite">{balanceLabel}</strong>
+              {balance.data && <small>≈ <UsdAmount weth={Number(formatEther(balance.data.value))} /></small>}
             </div>
 
             <nav className="account-popover-links" aria-label="Account">

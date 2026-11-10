@@ -2,7 +2,7 @@ import { formatEther } from "viem";
 import { AppLink } from "../components/Navigation";
 import { TokenAvatar } from "../components/TokenAvatar";
 import { UsdAmount } from "../components/UsdAmount";
-import { formatEthAmount, formatRelativeTime } from "../lib/format.js";
+import { formatRelativeTime } from "../lib/format.js";
 import { TraderAvatar } from "./TraderAvatar";
 import { TraderName } from "./TraderIdentity";
 import type { Navigate, Token } from "../types";
@@ -49,10 +49,7 @@ export function PulseFollowingCard({
       : wallets === 1
         ? "wallet"
         : "wallets";
-  const summary =
-    launched && !buys.length && !sells.length
-      ? "just created"
-      : `${formatEthAmount(weth(activity.boughtQuoteWei))} WETH in · ${wallets} ${noun} active`;
+  const launchOnly = launched && !buys.length && !sells.length;
 
   return (
     <article className="pulse-now-card pulse-following-card">
@@ -117,14 +114,21 @@ export function PulseFollowingCard({
             ) : null}
           </strong>
           <small>
-            {summary} · {formatRelativeTime(activity.latestAt)}
+            {launchOnly ? (
+              "just created"
+            ) : (
+              <>
+                <UsdAmount weth={weth(activity.boughtQuoteWei)} compact /> in · {wallets} {noun} active
+              </>
+            )}
+            {" · "}
+            {formatRelativeTime(activity.latestAt)}
           </small>
         </span>
       </div>
       <div className="pulse-now-net">
         <strong>
-          {formatEthAmount(Math.abs(Number(formatEther(netWei))))}{" "}
-          <small>WETH</small>
+          <UsdAmount weth={Math.abs(Number(formatEther(netWei)))} compact />
         </strong>
         <span>
           {netWei < 0n ? "net sold" : "net bought"} by{" "}
