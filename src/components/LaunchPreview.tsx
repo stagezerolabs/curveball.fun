@@ -153,6 +153,19 @@ export function LaunchPreview({
                     </dd>
                   </div>
                 </dl>
+                <div className="launch-preview-identity">
+                  <div className="launch-preview-identity-art" aria-hidden="true">
+                    {imageUrl ? (
+                      <img src={imageUrl} alt="" />
+                    ) : (
+                      <span>{displaySymbol.slice(0, 1)}</span>
+                    )}
+                  </div>
+                  <div className="launch-preview-identity-copy">
+                    <strong>{displayName}</strong>
+                    <span>${displaySymbol}</span>
+                  </div>
+                </div>
               </div>
             </div>
           }

@@ -6054,6 +6054,9 @@ select:focus-visible {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   min-height: 100%;
   overflow: hidden;
 }
@@ -6387,6 +6390,7 @@ select:focus-visible {
 .launch-preview-body {
   display: flex;
   flex-direction: column;
+  flex: 1;
   min-height: 0;
   padding: 18px;
 }
@@ -6464,6 +6468,54 @@ select:focus-visible {
   color: var(--muted);
   font-size: 10px;
   font-weight: 400;
+}
+.launch-preview-identity {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex: 1;
+  gap: 12px;
+  margin-top: 16px;
+  min-height: 72px;
+  padding-top: 12px;
+}
+.launch-preview-identity-art {
+  align-items: center;
+  background: var(--raise);
+  border-radius: 10px;
+  display: flex;
+  flex: 0 0 56px;
+  height: 56px;
+  justify-content: center;
+  overflow: hidden;
+}
+.launch-preview-identity-art img {
+  height: 100%;
+  object-fit: contain;
+  width: 100%;
+}
+.launch-preview-identity-art span {
+  color: var(--lime);
+  font-size: 23px;
+  font-weight: 800;
+}
+.launch-preview-identity-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.launch-preview-identity-copy strong,
+.launch-preview-identity-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.launch-preview-identity-copy strong {
+  font-size: 16px;
+}
+.launch-preview-identity-copy span {
+  color: var(--muted);
+  font-size: 12px;
 }
 .launch-form-section {
   gap: 32px;
