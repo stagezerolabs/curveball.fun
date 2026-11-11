@@ -261,7 +261,7 @@ export function MilestonePanel({
         </div>
       )}
 
-      {buybackBalance !== undefined &&
+      {isCreator && buybackBalance !== undefined &&
         buybackBalance > 0n && (
           <div className="claim-block">
             <h3 className="panel-subhead">Buyback</h3>

@@ -88,10 +88,6 @@ export function TradePanel({
       refetchInterval: 1_000,
     },
   });
-  const { data: walletCapBps } = useReadContract({
-    address: marketFactory, abi: curveLaunchpadAbi, functionName: "walletCapBps",
-    chainId: activeChainId, query: { enabled: venue === "curve" && Boolean(marketFactory) },
-  });
   const { data: walletCapacity } = useReadContract({
     address: marketFactory, abi: curveLaunchpadAbi,
     functionName: "remainingWalletCapacity",
@@ -314,15 +310,6 @@ export function TradePanel({
             Buying is paused by the guardian. Selling stays open.
           </p>
         )}
-
-      {venue === "curve" && side === "buy" && walletCapBps !== undefined && walletCapBps < 10_000 && (
-        <p className="notice" role="status">
-          Each wallet may hold up to {Number(walletCapBps) / 100}% of this curve while it trades.
-          {address && walletCapacity !== undefined
-            ? ` You can still buy ${Number(formatEther(walletCapacity)).toLocaleString("en-US", { maximumFractionDigits: 2 })} tokens. Selling frees capacity.`
-            : " Connect a wallet to see your remaining capacity."}
-        </p>
-      )}
 
       <div className="trade-entry">
         <div className="amount-head">
