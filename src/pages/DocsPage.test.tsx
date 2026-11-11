@@ -5,9 +5,6 @@ import { DocsPage } from "./DocsPage";
 import { documentedNetworks } from "./docsContracts";
 import mainnet from "../../deployments/4153/curveball.json";
 import mainnetAdapter from "../../deployments/4153/icarus-swap-adapter.json";
-import testnet from "../../deployments/11155931/curveball.json";
-import testnetAdapter from "../../deployments/11155931/icarus-swap-adapter.json";
-import testnetSmoke from "../../deployments/11155931/smoke.json";
 
 const navigate = () => undefined;
 
@@ -25,32 +22,28 @@ test("docs topics have direct links and the selected chapter has navigation", ()
     <DocsPage navigate={navigate} slug="trading" />,
   );
 
+  expect(home).not.toContain('href="/docs/launching"');
   expect(home).toContain('href="/docs/trading"');
   expect(home).toContain("Explore the documentation.");
-  expect(trading).toContain("Trade through the curve and beyond.");
+  expect(trading).toContain("Check the venue.");
   expect(trading).toContain('aria-current="page"');
   expect(trading).toContain('href="/docs/graduation"');
   expect(home).toContain('href="/docs/contracts"');
 });
 
-test("contracts docs list every recorded Curveball deployment on both networks", () => {
+test("contracts docs list only the recorded RISE Mainnet deployment", () => {
   const html = renderToStaticMarkup(<DocsPage navigate={navigate} slug="contracts" />);
-  for (const [index, record, adapter] of [
-    [0, mainnet, mainnetAdapter],
-    [1, testnet, testnetAdapter],
-  ] as const) {
-    const documented = documentedNetworks[index];
-    const expected = new Set([
-      record.launchpad,
-      ...Object.values(record.singletons),
-      adapter.adapter,
-      ...(record.chainId === 4153 ? [record.owner] : []),
-    ]);
-    expect(new Set(documented.protocol.map(({ address }) => address))).toEqual(expected);
-    for (const address of expected) expect(html).toContain(`${documented.explorer}/address/${address}`);
-  }
+  const documented = documentedNetworks[0];
+  const expected = new Set([
+    mainnet.launchpad,
+    ...Object.values(mainnet.singletons),
+    mainnetAdapter.adapter,
+    mainnet.owner,
+  ]);
+  expect(documentedNetworks).toHaveLength(1);
+  expect(new Set(documented.protocol.map(({ address }) => address))).toEqual(expected);
+  for (const address of expected) expect(html).toContain(`${documented.explorer}/address/${address}`);
   expect(html).toContain("External contracts used by Curveball");
-  expect(html).toContain("Market contracts have their own addresses.");
-  expect(html).toContain(testnetSmoke.token);
-  expect(html).toContain(testnetSmoke.pool);
+  expect(html).not.toContain("RISE Testnet");
+  expect(html).not.toContain("11155931");
 });

@@ -10,14 +10,12 @@ import { useAccount, useSwitchChain } from "wagmi";
 import type { AnchorHTMLAttributes, MouseEvent, ReactNode } from "react";
 import type { Address } from "viem";
 import { routeHref } from "../app/routeTree";
-import { formatAddress } from "../lib/format.js";
 import type { Navigate } from "../types";
-import { activeExplorerUrl, launchpadAddress } from "../lib/web3";
 import { socialApiConfigured } from "../social/api";
 import { useNotifications } from "../social/useNotifications";
 import { useTraderName } from "../social/useTraderName";
 import type { Theme } from "../lib/theme";
-import { activeChain, activeChainId } from "../lib/web3";
+import { activeChainId } from "../lib/web3";
 import { AccountPopover } from "./AccountPopover";
 
 const RISK_NOTICE_DISMISSED_KEY = "curveball:risk-notice-dismissed";
@@ -562,59 +560,28 @@ export function LandingFooter({
 
         <nav className="landing-footer-column" aria-label="Product">
           <h2>Product</h2>
-          <AppLink route="markets" navigate={navigate}>
-            Markets
-          </AppLink>
           <AppLink route="stats" navigate={navigate}>
             Stats
-          </AppLink>
-          <AppLink route="launch" navigate={navigate}>
-            Launch
           </AppLink>
           <AppLink route="docs" navigate={navigate}>
             Docs
           </AppLink>
         </nav>
 
-        <nav className="landing-footer-column" aria-label="Network">
-          <h2>Network</h2>
-          <span>{activeChain.name}</span>
-          <a href={activeExplorerUrl} target="_blank" rel="noreferrer">
-            Explorer ↗
-          </a>
-        </nav>
       </div>
 
-      <div className="landing-footer-details">
-        {launchpadAddress && (
-          <div className="landing-footer-contracts">
-            <h2>Contract</h2>
-            <a
-              href={`${activeExplorerUrl}/address/${launchpadAddress}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <span>Launchpad</span>
-              <svg
-                className="landing-contract-check"
-                viewBox="0 0 20 20"
-                role="img"
-                aria-label="Official Curveball contract"
-              >
-                <circle cx="10" cy="10" r="9" fill="currentColor" />
-                <path
-                  d="m6 10 2.5 2.5L14 7"
-                  fill="none"
-                  stroke="var(--on-solid)"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <code>{formatAddress(launchpadAddress)}</code>
-            </a>
-          </div>
-        )}
+      <div className="landing-footer-bottom">
+        <span className="landing-footer-credit">
+          © {new Date().getFullYear()} Curveball · Built on
+          <a
+            href="https://risechain.com/"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="RISE"
+          >
+            <RiseLogo />
+          </a>
+        </span>
         <a
           className="landing-footer-audit"
           href="https://portfolio.0xguard.com/784"
@@ -630,20 +597,6 @@ export function LandingFooter({
             decoding="async"
           />
         </a>
-      </div>
-
-      <div className="landing-footer-bottom">
-        <span className="landing-footer-credit">
-          © {new Date().getFullYear()} Curveball · Built on
-          <a
-            href="https://risechain.com/"
-            target="_blank"
-            rel="noreferrer"
-            aria-label="RISE"
-          >
-            <RiseLogo />
-          </a>
-        </span>
       </div>
     </footer>
   );
