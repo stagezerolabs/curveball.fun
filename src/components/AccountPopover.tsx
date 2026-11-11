@@ -66,8 +66,16 @@ export function AccountPopover({
           <Popover.Popup className="account-popover" aria-label="Account">
             <div className="account-balance">
               <small>Balance</small>
-              <strong aria-live="polite">{balanceLabel}</strong>
-              {balance.data && <small>≈ <UsdAmount weth={Number(formatEther(balance.data.value))} /></small>}
+              <strong aria-live="polite">
+                {balance.data ? (
+                  <UsdAmount weth={Number(formatEther(balance.data.value))} />
+                ) : balance.isLoading ? (
+                  "…"
+                ) : (
+                  "—"
+                )}
+              </strong>
+              <small className="account-balance-native">{balanceLabel}</small>
             </div>
 
             <nav className="account-popover-links" aria-label="Account">
