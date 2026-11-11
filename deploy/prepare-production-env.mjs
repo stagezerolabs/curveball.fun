@@ -93,6 +93,11 @@ export function prepareProductionEnv({
     : parseEnv(resolve(root, source.frontend));
   const social = parseEnv(resolve(root, source.social));
   const keeper = parseEnv(resolve(root, source.keeper));
+  if (isMainnet && keeper.KEEPER_PRIVATE_KEY) {
+    throw new Error(
+      "Mainnet keeper private key belongs in the host secret file, not keeper/.env.mainnet.local.",
+    );
+  }
   const recordPath = resolve(root, `deployments/${chainId}/curveball.json`);
   if (!existsSync(recordPath))
     throw new Error(`Missing RISE ${network} deployment record: ${recordPath}`);
@@ -303,7 +308,13 @@ export function prepareProductionEnv({
         ["KEEPER_DEPLOYMENT_BLOCK", deploymentBlock],
         [
           "KEEPER_PRIVATE_KEY",
-          requireValue(keeper, "KEEPER_PRIVATE_KEY", source.keeper),
+          isMainnet
+            ? undefined
+            : requireValue(keeper, "KEEPER_PRIVATE_KEY", source.keeper),
+        ],
+        [
+          "KEEPER_PRIVATE_KEY_FILE",
+          isMainnet ? "/run/secrets/keeper_private_key" : undefined,
         ],
         ["KEEPER_POLL_INTERVAL_MS", keeper.KEEPER_POLL_INTERVAL_MS || "10000"],
         [

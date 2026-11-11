@@ -2,6 +2,13 @@
 name: curveball-mainnet
 
 services:
+  keeper:
+    user: "2001:2001"
+    environment:
+      KEEPER_PRIVATE_KEY_FILE: /run/secrets/keeper_private_key
+    secrets:
+      - keeper_private_key
+
   api:
     container_name: curveball-mainnet-api
     # Only the uniquely named API edge joins the shared proxy network.
@@ -61,3 +68,7 @@ volumes:
     name: curveball-mainnet-postgres-data
   postgres_backups:
     name: curveball-mainnet-postgres-backups
+
+secrets:
+  keeper_private_key:
+    file: /opt/curveball-mainnet-secrets/keeper.key

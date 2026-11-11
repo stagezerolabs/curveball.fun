@@ -8,6 +8,7 @@ dist
 agent_wallet
 agent_wallet.json
 deploy/*.env
+**/keeper.key
 contracts/out
 contracts/cache
 contracts/lib

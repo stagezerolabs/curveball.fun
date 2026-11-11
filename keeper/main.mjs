@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { readFileSync } from "node:fs";
 import {
   createPublicClient,
   createWalletClient,
@@ -149,10 +150,27 @@ function required(name) {
   return value;
 }
 
+export function readKeeperPrivateKey({
+  env = process.env,
+  readFile = readFileSync,
+} = {}) {
+  const inline = env.KEEPER_PRIVATE_KEY?.trim();
+  const path = env.KEEPER_PRIVATE_KEY_FILE?.trim();
+  if (inline && path)
+    throw new Error("Configure only one keeper private key source.");
+  if (path) {
+    const key = readFile(path, "utf8").trim();
+    if (!key) throw new Error("Keeper private key file is empty.");
+    return key;
+  }
+  if (!inline) throw new Error("KEEPER_PRIVATE_KEY_FILE is required.");
+  return inline;
+}
+
 export async function main() {
   const rpcUrl = required("KEEPER_RPC_URL");
   const launchpad = required("KEEPER_LAUNCHPAD_ADDRESS");
-  const privateKey = required("KEEPER_PRIVATE_KEY");
+  const privateKey = readKeeperPrivateKey();
   const chainId = Number(required("KEEPER_CHAIN_ID"));
   const deploymentBlock = BigInt(required("KEEPER_DEPLOYMENT_BLOCK"));
   const intervalMs = Number(process.env.KEEPER_POLL_INTERVAL_MS || 10_000);

@@ -41,7 +41,7 @@ function fixture(network) {
   const front = `VITE_CHAIN_ID=${chain}\nVITE_RPC_URL=https://rpc.example\nVITE_LAUNCHPAD_ADDRESS=${launchpad}\nVITE_DEPLOYMENT_BLOCK=100\nVITE_ICARUS_SWAP_ADAPTER=${adapter}\nVITE_ICARUS_SWAP_ADAPTER_CODE_HASH=${hash}\nVITE_PRIVY_APP_ID=test-privy-app\n`;
   const secrets = `VITE_ADMIN_ADDRESS=${admin}\nPINATA_JWT=pinata-secret\nCURVEBALL_TRUSTED_PROXY_CIDR=172.28.0.0/16\n`;
   const social = `SOCIAL_CHAIN_ID=${chain}\nSOCIAL_RPC_URL=https://rpc.example\nSOCIAL_LAUNCHPAD_ADDRESS=${launchpad}\nSOCIAL_DEPLOYMENT_BLOCK=100\nSOCIAL_ADMIN_ADDRESS=${admin}\nPRIVY_APP_ID=test-privy-app\nPRIVY_APP_SECRET=test-privy-secret\n`;
-  const keeper = `KEEPER_CHAIN_ID=${chain}\nKEEPER_RPC_URL=https://rpc.example\nKEEPER_LAUNCHPAD_ADDRESS=${launchpad}\nKEEPER_DEPLOYMENT_BLOCK=100\nKEEPER_PRIVATE_KEY=${keeperKey}\n`;
+  const keeper = `KEEPER_CHAIN_ID=${chain}\nKEEPER_RPC_URL=https://rpc.example\nKEEPER_LAUNCHPAD_ADDRESS=${launchpad}\nKEEPER_DEPLOYMENT_BLOCK=100\n${network === "testnet" ? `KEEPER_PRIVATE_KEY=${keeperKey}\n` : ""}`;
   if (network === "mainnet") {
     write(".env.production", front);
     write(".env.mainnet.local", secrets);
@@ -93,10 +93,22 @@ test("mainnet creates matching chain env files and explicit admin", () =>
     assert.match(social, /SOCIAL_CHAIN_ID=4153/);
     assert.match(social, /SOCIAL_TRUST_PROXY_CLIENT_IP=1/);
     assert.match(keeper, /KEEPER_CHAIN_ID=4153/);
+    assert.match(keeper, /KEEPER_PRIVATE_KEY_FILE=\/run\/secrets\/keeper_private_key/);
+    assert.doesNotMatch(keeper, /KEEPER_PRIVATE_KEY=/);
     assert.match(
       readFileSync(join(root, "deploy/web.env"), "utf8"),
       /PINATA_JWT=pinata-secret/,
     );
+  }));
+
+test("mainnet refuses an inline keeper key", () =>
+  withFixture("mainnet", ({ root, write }) => {
+    write(
+      "keeper/.env.mainnet.local",
+      `KEEPER_CHAIN_ID=4153\nKEEPER_RPC_URL=https://rpc.example\nKEEPER_LAUNCHPAD_ADDRESS=${launchpad}\nKEEPER_DEPLOYMENT_BLOCK=100\nKEEPER_PRIVATE_KEY=${keeperKey}\n`,
+    );
+    assert.throws(() => prepare(root, "mainnet"), /host secret file/);
+    assert.equal(existsSync(join(root, "deploy/keeper.env")), false);
   }));
 
 test("mainnet refuses missing Icarus adapter before writing files", () =>

@@ -7,14 +7,23 @@ This stack runs one Bun/Fastify backend for the frontend, social API, indexer, m
 1. Set `MAINNET_ACCOUNT=curveball` and a private `RISE_MAINNET_RPC_URL` in the ignored root `.env`. The mainnet script pins the deployer, guardian, treasury, and 4 WETH target, and deploys a self-administered two-day timelock whose proposer and executor are `curveball`. Commit the `contracts/` tree, then run `make production-preflight`. It runs local and mainnet fork tests, the pinned Icarus/WETH code-hash gate, and a nonbroadcasting deployment simulation. Run `make deploy-production CONFIRM_DEPLOY=DEPLOY_CURVEBALL_RISE_MAINNET_4153` to repeat those gates and broadcast. After Blockscout verifies the sources, run `CONFIRM_RECORD_PRODUCTION=RECORD_CURVEBALL_RISE_MAINNET_4153 make record-production`. This checks the timelock, live four-singleton deployment, and compiled runtime before writing `deployments/4153/curveball.json`. Run `make configure-production` to copy the record's public values into `.env.production`.
 2. Run `make deploy-icarus-swap-mainnet CONFIRM_ICARUS_SWAP_DEPLOY=DEPLOY_ICARUS_SWAP_RISE_MAINNET_4153` after the launchpad record exists. This target checks the adapter against a live Icarus pool and simulates deployment before broadcasting. Then run `make record-icarus-swap-mainnet`; it checks the deployment transaction, compiled creation code, wiring, receipt, and Blockscout source before writing `deployments/4153/icarus-swap-adapter.json`. Run `make configure-production` again to copy its address and code hash into `.env.production`. The env generator refuses mainnet without a matching adapter record.
 3. Create ignored `.env.mainnet.local` with `VITE_ADMIN_ADDRESS`, `VITE_PRIVY_APP_ID`, optional `VITE_PRIVY_CLIENT_ID`, `PINATA_JWT`, and `CURVEBALL_TRUSTED_PROXY_CIDR`. Set the CIDR to the actual Docker `proxy` network subnet from `docker network inspect proxy`; only that network is trusted to supply client IP headers. `.env.production` supplies `VITE_CHAIN_ID`, `VITE_RPC_URL`, `VITE_LAUNCHPAD_ADDRESS`, `VITE_DEPLOYMENT_BLOCK`, and the Icarus adapter address and code hash. If the local file also defines any of those chain fields, their values must agree.
-4. Create ignored `services/backend/.env.mainnet.local` and `keeper/.env.mainnet.local` from their respective `.env.example` files. Set chain `4153`, the exact recorded launchpad and deployment block, mainnet RPC URLs, `PRIVY_APP_ID` and the server-only `PRIVY_APP_SECRET`, the moderator address, and the dedicated funded keeper key. `SOCIAL_ADMIN_ADDRESS` must equal `VITE_ADMIN_ADDRESS`. Use a public browser-safe RPC in the Vite build and private provider endpoints for the backend and keeper.
-5. Generate the four ignored Compose env files:
+4. Create ignored `services/backend/.env.mainnet.local` and `keeper/.env.mainnet.local` from their respective `.env.example` files. Set chain `4153`, the exact recorded launchpad and deployment block, mainnet RPC URLs, `PRIVY_APP_ID` and the server-only `PRIVY_APP_SECRET`, and the moderator address. Do not put the mainnet keeper key in an env file. `SOCIAL_ADMIN_ADDRESS` must equal `VITE_ADMIN_ADDRESS`. Use a public browser-safe RPC in the Vite build and private provider endpoints for the backend and keeper.
+5. On the VPS, provision the keeper key as a host file outside the checkout. The Compose overlay runs the keeper as UID/GID `2001` and mounts only this file at `/run/secrets/keeper_private_key`:
+
+```sh
+sudo install -d -o root -g root -m 0711 /opt/curveball-mainnet-secrets
+sudo install -o 2001 -g 2001 -m 0400 /secure/source/keeper.key /opt/curveball-mainnet-secrets/keeper.key
+```
+
+The source file must contain only the `0x`-prefixed private key and an optional trailing newline. Keep the source in a secure backup, never in a command argument or shell history. Docker Compose uses a file-backed secret: it removes the key from container environment inspection, but the host file remains plaintext and anyone with root or Docker daemon access can still read it. Limit Docker access to trusted operators.
+
+6. Generate the four ignored Compose env files:
 
 ```sh
 bun deploy/prepare-production-env.mjs --network mainnet
 ```
 
-The generator writes `deploy/production.env`, `deploy/social.env`, `deploy/keeper.env`, and `deploy/web.env` with mode `0600`. Existing files are never overwritten. Use a separate checkout or Git worktree for concurrent testnet and mainnet releases because these generated env file paths are shared within a checkout. Each Makefile reads `.env` from its own checkout. The mainnet Compose overlay gives each release separate containers, networks, and Postgres volumes.
+The generator writes `deploy/production.env`, `deploy/social.env`, `deploy/keeper.env`, and `deploy/web.env` with mode `0600`. The mainnet `deploy/keeper.env` contains only the secret file path, never the key. Existing files are never overwritten. Use a separate checkout or Git worktree for concurrent testnet and mainnet releases because these generated env file paths are shared within a checkout. Each Makefile reads `.env` from its own checkout. The mainnet Compose overlay gives each release separate containers, networks, and Postgres volumes.
 
 For a testnet release, the root `.env` contains the frontend, social, and keeper settings:
 

@@ -24,6 +24,7 @@ deployments.local-backup/
 .env*
 !keeper/.env.example
 deploy/*.env
+**/keeper.key
 
 # Playwright output
 test-results/
