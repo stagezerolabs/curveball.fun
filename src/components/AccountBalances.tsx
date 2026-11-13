@@ -2,6 +2,23 @@ import { formatEther } from "viem";
 import { formatEthAmount } from "../lib/format.js";
 import { UsdAmount } from "./UsdAmount";
 
+export function combinedBalance(
+  nativeBalance?: bigint,
+  wethBalance?: bigint,
+) {
+  return nativeBalance === undefined || wethBalance === undefined
+    ? undefined
+    : nativeBalance + wethBalance;
+}
+
+function balanceLabel(balance: bigint | undefined, symbol: string, loading: boolean) {
+  return balance !== undefined
+    ? `${formatEthAmount(Number(formatEther(balance)))} ${symbol}`
+    : loading
+      ? `… ${symbol}`
+      : `— ${symbol}`;
+}
+
 export function AccountBalances({
   nativeBalance,
   nativeSymbol = "ETH",
@@ -15,36 +32,24 @@ export function AccountBalances({
   nativeLoading?: boolean;
   wethLoading?: boolean;
 }) {
-  const balances = [
-    { symbol: nativeSymbol, balance: nativeBalance, loading: nativeLoading },
-    { symbol: "WETH", balance: wethBalance, loading: wethLoading },
-  ];
+  const totalBalance = combinedBalance(nativeBalance, wethBalance);
 
   return (
     <div className="account-balance">
-      {balances.map(({ symbol, balance, loading }) => (
-        <div className="account-asset-balance" key={symbol}>
-          <small>{symbol} balance</small>
-          <strong aria-live="polite">
-            {balance !== undefined ? (
-              <UsdAmount weth={Number(formatEther(balance))} />
-            ) : loading ? (
-              "…"
-            ) : (
-              "—"
-            )}
-          </strong>
-          <small className="account-balance-native">
-            {balance !== undefined
-              ? `${formatEthAmount(Number(formatEther(balance)))} ${symbol}`
-              : loading
-                ? "…"
-                : `— ${symbol}`}
-          </small>
-        </div>
-      ))}
-      <small className="account-balance-hint">
-        Max buys use WETH first, then ETH, with some ETH left for gas.
+      <small>Balance</small>
+      <strong aria-live="polite">
+        {totalBalance !== undefined ? (
+          <UsdAmount weth={Number(formatEther(totalBalance))} />
+        ) : nativeLoading || wethLoading ? (
+          "…"
+        ) : (
+          "—"
+        )}
+      </strong>
+      <small className="account-balance-native">
+        {balanceLabel(nativeBalance, nativeSymbol, nativeLoading)}
+        {" · "}
+        {balanceLabel(wethBalance, "WETH", wethLoading)}
       </small>
     </div>
   );
