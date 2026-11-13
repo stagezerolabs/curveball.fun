@@ -7,6 +7,7 @@ import { useStore } from "../app/useStore.js";
 import { AppLink } from "../components/Navigation";
 import { CreatorTokenInsights } from "../components/CreatorTokenInsights";
 import { TokenAvatar } from "../components/TokenAvatar";
+import { TraderProfileSkeleton } from "../components/TraderProfileSkeleton";
 import { UsdAmount } from "../components/UsdAmount";
 import type { CreatorTokenClient } from "../creatorTokens";
 import { formatRelativeTime } from "../lib/format.js";
@@ -373,15 +374,7 @@ export function ProfilePage({
 
   return (
     <Suspense
-      fallback={
-        <main
-          className="trader-profile-page wrap"
-          aria-busy="true"
-          aria-label="Loading profile"
-        >
-          <div className="trader-profile-skeleton skeleton" />
-        </main>
-      }
+      fallback={<TraderProfileSkeleton />}
     >
       <TraderProfilePage
         address={address}

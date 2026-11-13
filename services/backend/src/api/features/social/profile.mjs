@@ -58,7 +58,7 @@ function shapeStats(row) {
 }
 
 export async function profile(address, viewer) {
-  const [profileResult, statsResult, countsResult, positionsResult] =
+  const [profileResult, statsResult, countsResult, positionsResult, tradesResult] =
     await Promise.all([
       pool.query(
         "SELECT claimed_at, updated_at FROM profiles WHERE chain_id = $1 AND address = $2",
@@ -97,6 +97,24 @@ export async function profile(address, viewer) {
       ORDER BY COALESCE(cp.total_invested_quote,0) DESC LIMIT 20`,
         [config.chainId, address],
       ),
+      pool.query(
+        `WITH priced_trades AS (
+          SELECT t.is_buy,t.net_trader_quote,
+            CASE WHEN m.total_supply>0 AND t.virtual_quote_after>0 AND t.virtual_token_after>0
+              THEN floor(t.virtual_quote_after*m.total_supply/t.virtual_token_after)
+            END AS market_cap_wei
+          FROM trades t JOIN markets m ON m.chain_id=t.chain_id AND m.token_address=t.token_address
+          WHERE t.chain_id=$1 AND t.trader_address=$2 AND t.orphaned=false
+        ) SELECT COALESCE(SUM(net_trader_quote) FILTER (WHERE is_buy),0)::text AS invested_wei,
+          floor(SUM(market_cap_wei*net_trader_quote) FILTER (WHERE is_buy)
+            / NULLIF(SUM(net_trader_quote) FILTER (WHERE is_buy AND market_cap_wei IS NOT NULL),0))::text
+            AS average_entry_market_cap_wei,
+          floor(SUM(market_cap_wei*net_trader_quote) FILTER (WHERE NOT is_buy)
+            / NULLIF(SUM(net_trader_quote) FILTER (WHERE NOT is_buy AND market_cap_wei IS NOT NULL),0))::text
+            AS average_exit_market_cap_wei
+        FROM priced_trades`,
+        [config.chainId, address],
+      ),
     ]);
   const claimed = profileResult.rows[0] || null;
   return {
@@ -104,6 +122,11 @@ export async function profile(address, viewer) {
     claimed: Boolean(claimed),
     claimedAt: claimed?.claimed_at || null,
     stats: shapeStats(statsResult.rows[0]),
+    performance: {
+      investedWei: tradesResult.rows[0].invested_wei,
+      averageEntryMarketCapWei: tradesResult.rows[0].average_entry_market_cap_wei,
+      averageExitMarketCapWei: tradesResult.rows[0].average_exit_market_cap_wei,
+    },
     followers: Number(countsResult.rows[0]?.followers || 0),
     following: Number(countsResult.rows[0]?.following || 0),
     isFollowed: Boolean(countsResult.rows[0]?.is_followed),

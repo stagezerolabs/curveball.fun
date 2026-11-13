@@ -140,6 +140,11 @@ export type TraderProfile = {
   claimed: boolean;
   claimedAt: string | null;
   stats: TraderStats;
+  performance: {
+    investedWei: string;
+    averageEntryMarketCapWei: string | null;
+    averageExitMarketCapWei: string | null;
+  };
   followers: number;
   following: number;
   isFollowed: boolean;

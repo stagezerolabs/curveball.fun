@@ -6,6 +6,7 @@ import { formatEther, getAddress, isAddress, type Address } from "viem";
 import { useAccount } from "wagmi";
 import { AppLink } from "../components/Navigation";
 import { UsdAmount } from "../components/UsdAmount";
+import { TraderProfileSkeleton } from "../components/TraderProfileSkeleton";
 import {
   formatAddress,
   formatEthAmount,
@@ -200,11 +201,8 @@ export function TraderProfilePage({
     (total, item) => total + item.value,
     0,
   );
-  const realizedNegative = BigInt(data.stats.realizedPnlWei) < 0n;
-  const realizedReturn =
-    data.stats.realizedReturnPct === null
-      ? null
-      : `${data.stats.realizedReturnPct >= 0 ? "+" : ""}${data.stats.realizedReturnPct.toFixed(1)}%`;
+  const realizedPnl = wethAmount(data.stats.realizedPnlWei);
+  const realizedReturn = data.stats.realizedReturnPct;
 
   async function reportProfile() {
     try {
@@ -332,27 +330,29 @@ export function TraderProfilePage({
             <strong>
               <UsdAmount weth={portfolioValue} />
             </strong>
-            <p className={realizedNegative ? "negative" : "positive"}>
-              <UsdAmount weth={wethAmount(data.stats.realizedPnlWei)} showPlus /> realized
-              {realizedReturn ? <> · {realizedReturn}</> : null}
+            <p className={realizedPnl < 0 ? "negative" : "positive"}>
+              <UsdAmount weth={realizedPnl} showPlus /> realized
+              {realizedReturn !== null
+                ? ` · ${realizedReturn >= 0 ? "+" : ""}${realizedReturn.toFixed(1)}%`
+                : null}
             </p>
           </div>
           <dl className="profile-summary-stats">
             <div>
-              <dt>Volume</dt>
-              <dd><UsdAmount weth={wethAmount(data.stats.volumeWei)} compact /></dd>
+              <dt>Amount invested</dt>
+              <dd><UsdAmount weth={wethAmount(data.performance.investedWei)} compact /></dd>
             </div>
             <div>
-              <dt>Trades</dt>
-              <dd>{data.stats.tradeCount.toLocaleString("en-US")}</dd>
+              <dt title="Average market cap at buys, weighted by trade size">Avg. buy in</dt>
+              <dd>{data.performance.averageEntryMarketCapWei
+                ? <UsdAmount weth={wethAmount(data.performance.averageEntryMarketCapWei)} compact />
+                : "—"}</dd>
             </div>
             <div>
-              <dt>First trade</dt>
-              <dd>
-                {data.stats.firstTrade
-                  ? formatRelativeTime(data.stats.firstTrade)
-                  : "—"}
-              </dd>
+              <dt title="Average market cap at sells, weighted by trade size">Avg. sell out</dt>
+              <dd>{data.performance.averageExitMarketCapWei
+                ? <UsdAmount weth={wethAmount(data.performance.averageExitMarketCapWei)} compact />
+                : "—"}</dd>
             </div>
           </dl>
         </section>
@@ -571,25 +571,6 @@ export function TraderProfilePage({
           </Tabs.Panel>
         ) : null}
       </Tabs.Root>
-    </main>
-  );
-}
-
-export function TraderProfileSkeleton() {
-  return (
-    <main
-      className="trader-profile-page wrap"
-      aria-busy="true"
-      aria-label="Loading profile"
-    >
-      <div className="profile-hero">
-        <span className="profile-hero-avatar skeleton" />
-        <div className="profile-hero-copy">
-          <span className="skeleton skeleton-line" />
-          <span className="skeleton skeleton-line" />
-        </div>
-      </div>
-      <div className="profile-summary skeleton trader-profile-skeleton" />
     </main>
   );
 }

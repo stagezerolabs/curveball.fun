@@ -8040,10 +8040,6 @@ button.notifications-read-dot {
 .profile-editor-actions .primary-button {
   min-height: 40px;
 }
-.trader-profile-skeleton {
-  min-height: 220px;
-}
-
 /* Profile: identity, summary, then one tabbed section at a time */
 .trader-profile-page > .notice {
   margin-bottom: 16px;
@@ -8238,13 +8234,16 @@ img.profile-hero-avatar {
   letter-spacing: 0;
 }
 .profile-summary-value p {
-  font-size: 13px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   font-weight: 650;
   margin: 0;
 }
 .profile-summary-value p.positive {
   color: var(--market-up);
+}
+.profile-summary-value p.negative {
+  color: var(--market-down);
 }
 .profile-summary-stats {
   display: grid;
@@ -8268,6 +8267,40 @@ img.profile-hero-avatar {
   margin: 0;
   overflow-wrap: anywhere;
 }
+
+.profile-loading-line {
+  border-radius: 6px;
+  display: block;
+  height: 14px;
+  width: 120px;
+}
+.profile-loading-line.wide {
+  height: 25px;
+  width: min(220px, 90%);
+}
+.profile-loading-line.medium { width: 160px; }
+.profile-loading-line.short { width: 85px; }
+.profile-loading-summary { min-height: 190px; }
+.profile-loading-stats {
+  display: grid;
+  gap: 15px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 16px;
+}
+.profile-loading-stats .skeleton { height: 35px; }
+
+.profile-loading-tabs {
+  display: flex;
+  gap: 16px;
+  margin-top: 30px;
+}
+.profile-loading-tabs .skeleton { height: 20px; width: 90px; }
+.profile-loading-rows {
+  display: grid;
+  gap: 10px;
+  margin-top: 22px;
+}
+.profile-loading-rows .skeleton { height: 66px; width: 100%; }
 
 .profile-tabs {
   margin-top: 28px;
