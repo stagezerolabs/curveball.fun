@@ -568,6 +568,22 @@ export function LandingFooter({
           </AppLink>
         </nav>
 
+        <nav className="landing-footer-column" aria-label="Socials">
+          <h2>Socials</h2>
+          <a
+            className="landing-footer-social-link"
+            href="https://x.com/curveballdotfun"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Curveball on X (opens in a new tab)"
+          >
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M4 4l12 12M16 4L4 16" />
+            </svg>
+            X
+          </a>
+        </nav>
+
       </div>
 
       <div className="landing-footer-bottom">

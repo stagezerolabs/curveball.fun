@@ -5277,7 +5277,7 @@ select:focus-visible {
 .landing-footer-grid {
   display: grid;
   gap: 48px;
-  grid-template-columns: minmax(280px, 2fr) minmax(130px, 1fr);
+  grid-template-columns: minmax(280px, 2fr) repeat(2, minmax(130px, 1fr));
   padding-bottom: 56px;
 }
 .landing-footer-brand {
@@ -5334,6 +5334,19 @@ select:focus-visible {
 }
 .landing-footer-column a:hover {
   color: var(--ink);
+}
+.landing-footer-social-link {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+}
+.landing-footer-social-link svg {
+  fill: none;
+  height: 16px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 1.8;
+  width: 16px;
 }
 .landing-footer-audit {
   border-radius: 12px;
