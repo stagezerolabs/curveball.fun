@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { Popover } from "@base-ui/react/popover";
 import { useLogout } from "@privy-io/react-auth";
-import { formatEther, type Address } from "viem";
-import { useBalance } from "wagmi";
-import { formatEthAmount } from "../lib/format.js";
-import { activeChainId } from "../lib/web3";
-import { UsdAmount } from "./UsdAmount";
+import type { Address } from "viem";
+import { useBalance, useReadContract } from "wagmi";
+import { curveLaunchpadAbi, erc20Abi } from "../sdk/contracts";
+import { activeChainId, launchpadAddress } from "../lib/web3";
+import { AccountBalances } from "./AccountBalances";
 import type { Navigate } from "../types";
 
 function ProfileGlyph() {
@@ -37,14 +37,27 @@ export function AccountPopover({
   profileActive?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const balance = useBalance({ address, chainId: activeChainId });
+  const balance = useBalance({
+    address,
+    chainId: activeChainId,
+    query: { enabled: open, refetchInterval: 15_000 },
+  });
+  const quote = useReadContract({
+    address: launchpadAddress ?? undefined,
+    abi: curveLaunchpadAbi,
+    functionName: "quoteToken",
+    chainId: activeChainId,
+    query: { enabled: Boolean(launchpadAddress && open), staleTime: 60_000 },
+  });
+  const weth = useReadContract({
+    address: quote.data ?? undefined,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: [address],
+    chainId: activeChainId,
+    query: { enabled: Boolean(quote.data && open), refetchInterval: 15_000 },
+  });
   const { logout } = useLogout();
-
-  const balanceLabel = balance.data
-    ? `${formatEthAmount(Number(formatEther(balance.data.value)))} ${balance.data.symbol}`
-    : balance.isLoading
-      ? "…"
-      : "— ETH";
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
@@ -64,19 +77,13 @@ export function AccountPopover({
           collisionPadding={12}
         >
           <Popover.Popup className="account-popover" aria-label="Account">
-            <div className="account-balance">
-              <small>Balance</small>
-              <strong aria-live="polite">
-                {balance.data ? (
-                  <UsdAmount weth={Number(formatEther(balance.data.value))} />
-                ) : balance.isLoading ? (
-                  "…"
-                ) : (
-                  "—"
-                )}
-              </strong>
-              <small className="account-balance-native">{balanceLabel}</small>
-            </div>
+            <AccountBalances
+              nativeBalance={balance.data?.value}
+              nativeSymbol={balance.data?.symbol}
+              wethBalance={weth.data}
+              nativeLoading={balance.isLoading}
+              wethLoading={quote.isLoading || weth.isLoading}
+            />
 
             <nav className="account-popover-links" aria-label="Account">
               <button

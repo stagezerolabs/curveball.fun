@@ -160,12 +160,7 @@ export function TradePanel({
     : canSell;
 
   const quoteSymbol = token.quoteSymbol ?? "WETH";
-  const payingWith =
-    side === "buy"
-      ? quoteSymbol === "WETH"
-        ? "ETH"
-        : quoteSymbol
-      : token.symbol;
+  const payingWith = side === "buy" ? quoteSymbol : token.symbol;
   const receiving = side === "buy" ? token.symbol : quoteSymbol;
 
   // Buying spends the quote token, selling spends the token itself.
@@ -349,11 +344,6 @@ export function TradePanel({
           />
           <span className="amount-unit">{payingWith}</span>
         </div>
-        {side === "buy" && Number.isFinite(input) && input > 0 && (
-          <small className="trade-entry-usd">
-            ≈ <UsdAmount weth={input} /> at the current ETH/USD rate
-          </small>
-        )}
       </div>
 
       {side === "buy" && (
