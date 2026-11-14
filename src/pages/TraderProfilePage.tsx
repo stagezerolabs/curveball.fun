@@ -344,7 +344,6 @@ export function TraderProfilePage({
                 {displayedChange24h === null
                   ? "—"
                   : `${displayedChange24h > 0 ? "+" : ""}${displayedChange24h.toFixed(1)}%`}
-                <small>24h</small>
               </span>
             </div>
           </div>
