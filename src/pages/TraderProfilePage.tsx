@@ -20,6 +20,7 @@ import { useTraderName } from "../social/useTraderName";
 import { fetchCreatorMarkets } from "../markets/api";
 import { socialApi, socialApiConfigured } from "../social/api";
 import { useSocialAuth } from "../social/useSocialAuth";
+import { calculateHoldingsChange24h } from "../social/portfolioChange";
 
 export type ProfileTab = "holdings" | "activity" | "launches";
 
@@ -201,8 +202,15 @@ export function TraderProfilePage({
     (total, item) => total + item.value,
     0,
   );
-  const realizedPnl = wethAmount(data.stats.realizedPnlWei);
-  const realizedReturn = data.stats.realizedReturnPct;
+  const holdingsChange24h = calculateHoldingsChange24h(
+    positions.map(({ position, value }) => ({
+      valueWeth: value,
+      change24hBps: position.change_24h_bps,
+    })),
+  );
+  const displayedChange24h = holdingsChange24h === null
+    ? null
+    : Number(holdingsChange24h.toFixed(1));
 
   async function reportProfile() {
     try {
@@ -327,15 +335,18 @@ export function TraderProfilePage({
         <section className="profile-summary" aria-label="Trading summary">
           <div className="profile-summary-value">
             <small>Portfolio value</small>
-            <strong>
-              <UsdAmount weth={portfolioValue} />
-            </strong>
-            <p className={realizedPnl < 0 ? "negative" : "positive"}>
-              <UsdAmount weth={realizedPnl} showPlus /> realized
-              {realizedReturn !== null
-                ? ` · ${realizedReturn >= 0 ? "+" : ""}${realizedReturn.toFixed(1)}%`
-                : null}
-            </p>
+            <div className="profile-summary-amount">
+              <strong><UsdAmount weth={portfolioValue} /></strong>
+              <span
+                className={`profile-summary-change ${displayedChange24h === null || displayedChange24h === 0 ? "muted" : displayedChange24h < 0 ? "negative" : "positive"}`}
+                title="24h token price change in WETH, weighted by current holdings. Excludes buys, sells, transfers, and ETH/USD movement."
+              >
+                {displayedChange24h === null
+                  ? "—"
+                  : `${displayedChange24h > 0 ? "+" : ""}${displayedChange24h.toFixed(1)}%`}
+                <small>24h</small>
+              </span>
+            </div>
           </div>
         </section>
       </div>

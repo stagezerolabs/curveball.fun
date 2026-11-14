@@ -16,8 +16,10 @@ export function TraderProfileSkeleton() {
         </div>
         <div className="profile-summary profile-loading-summary">
           <span className="skeleton profile-loading-line short" />
-          <span className="skeleton profile-loading-line wide" />
-          <span className="skeleton profile-loading-line medium" />
+          <span className="profile-summary-amount">
+            <span className="skeleton profile-loading-line wide" />
+            <span className="skeleton profile-loading-line short" />
+          </span>
         </div>
       </div>
       <div className="profile-loading-tabs">

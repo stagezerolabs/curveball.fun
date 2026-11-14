@@ -135,6 +135,7 @@ export type TraderPosition = {
   average_exit_market_cap_wei: string | null;
   virtual_quote_after: string;
   virtual_token_after: string;
+  change_24h_bps: string | null;
 };
 
 export type TraderProfile = {

@@ -105,7 +105,8 @@ export async function profile(address, viewer) {
         (tb.token_address IS NOT NULL) AS exact_balance_indexed,
         COALESCE(cp.total_invested_quote,0) AS invested_wei,COALESCE(cp.total_proceeds_quote,0) AS proceeds_wei,
         ta.average_entry_market_cap_wei,ta.average_exit_market_cap_wei,
-        ms.virtual_quote AS virtual_quote_after,ms.virtual_token AS virtual_token_after
+        ms.virtual_quote AS virtual_quote_after,ms.virtual_token AS virtual_token_after,
+        ms.change_24h_bps
       FROM position_tokens pt JOIN markets m ON m.chain_id=$1 AND m.token_address=pt.token_address
       LEFT JOIN transfer_balances tb ON tb.token_address=pt.token_address
       LEFT JOIN curve_positions cp ON cp.chain_id=$1 AND cp.trader_address=$2 AND cp.token_address=pt.token_address
