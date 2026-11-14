@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { TradeActivity } from "../lib/marketChart";
 import type { Token } from "../types";
 import { averageUsdPrice, MarketActivity } from "./MarketActivity";
+import { holderPercentage } from "./MarketHolders";
 
 const token: Token = {
   address: "0x1111111111111111111111111111111111111111",
@@ -59,10 +60,19 @@ test("trade history includes execution, wallet, time, and transaction details", 
   expect(html).not.toContain("Venue");
   expect(html).toContain("Block 12,345");
   expect(html).toContain("0x5555…5555");
+  expect(html).toContain('role="tab" aria-selected="true" aria-controls="market-trades-panel"');
+  expect(html).toContain('role="tab" aria-selected="false" aria-controls="market-holders-panel"');
+  expect(html).toContain("Top 50 holders");
 });
 
 test("trade execution price uses the current USD exchange rate", () => {
   expect(averageUsdPrice(trade.quoteAmount, trade.tokenAmount, 2_000)).toBe("$1,000.00");
   expect(averageUsdPrice(trade.quoteAmount, trade.tokenAmount, null)).toBe("—");
   expect(averageUsdPrice(1_000_000n, 1_000_000_000_000_000_000n, 2_000)).toBe("$0.000000002");
+});
+
+test("holder percentages use eligible wallet supply and handle empty supply", () => {
+  expect(holderPercentage(1n, 3n)).toBe(33.3333);
+  expect(holderPercentage(9n, 10n)).toBe(90);
+  expect(holderPercentage(1n, 0n)).toBe(0);
 });
