@@ -3787,13 +3787,6 @@ select:focus-visible {
   padding: 2px 7px;
   text-transform: uppercase;
 }
-.market-holder-summary {
-  align-items: center;
-  border-top: 1px solid var(--line);
-  display: flex;
-  justify-content: flex-end;
-  padding: 4px 16px;
-}
 .market-activity .market-holders-table {
   min-width: 700px;
 }
@@ -4716,9 +4709,6 @@ select:focus-visible {
   }
   .market-activity-follows {
     padding-bottom: 12px;
-  }
-  .market-holder-summary {
-    padding-inline: 16px;
   }
   .market-activity-footer {
     align-items: flex-start;

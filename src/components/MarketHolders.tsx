@@ -139,30 +139,6 @@ export function MarketHolders({
 
   return (
     <div className="market-holders" aria-busy={active.isPending && !unavailable}>
-      <div className="market-holder-summary">
-        <button
-          type="button"
-          className="market-refresh"
-          onClick={() => void active.refetch()}
-          disabled={active.isFetching || unavailable}
-          aria-label={active.isFetching ? "Refreshing holders" : "Refresh holders"}
-          aria-busy={active.isFetching}
-          title="Refresh holders"
-        >
-          <svg
-            viewBox="0 0 20 20"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M16.8 8A7 7 0 1 0 17 11" />
-            <path d="M17 3.5V8h-4.5" />
-          </svg>
-        </button>
-      </div>
       {unavailable ? (
         <p className="market-activity-status" role="alert">
           Holder balances are unavailable right now.
