@@ -58,7 +58,7 @@ function shapeStats(row) {
 }
 
 export async function profile(address, viewer) {
-  const [profileResult, statsResult, countsResult, positionsResult, tradesResult] =
+  const [profileResult, statsResult, countsResult, positionsResult] =
     await Promise.all([
       pool.query(
         "SELECT claimed_at, updated_at FROM profiles WHERE chain_id = $1 AND address = $2",
@@ -83,36 +83,36 @@ export async function profile(address, viewer) {
       ), position_tokens AS (
         SELECT token_address FROM curve_positions WHERE chain_id=$1 AND trader_address=$2
         UNION SELECT token_address FROM transfer_balances WHERE balance>0
-      ) SELECT pt.token_address,m.name AS token_name,m.symbol AS token_symbol,
-        COALESCE(tb.balance,cp.known_basis_token_balance,0) AS balance_wei,
-        COALESCE(cp.known_basis_token_balance,0) AS known_basis_balance_wei,
-        (tb.token_address IS NOT NULL) AS exact_balance_indexed,
-        COALESCE(cp.total_invested_quote,0) AS invested_wei,COALESCE(cp.total_proceeds_quote,0) AS proceeds_wei,
-        ms.virtual_quote AS virtual_quote_after,ms.virtual_token AS virtual_token_after
-      FROM position_tokens pt JOIN markets m ON m.chain_id=$1 AND m.token_address=pt.token_address
-      LEFT JOIN transfer_balances tb ON tb.token_address=pt.token_address
-      LEFT JOIN curve_positions cp ON cp.chain_id=$1 AND cp.trader_address=$2 AND cp.token_address=pt.token_address
-      JOIN market_stats ms ON ms.chain_id=$1 AND ms.token_address=pt.token_address
-      WHERE COALESCE(tb.balance,cp.known_basis_token_balance,0)>0
-      ORDER BY COALESCE(cp.total_invested_quote,0) DESC LIMIT 20`,
-        [config.chainId, address],
-      ),
-      pool.query(
-        `WITH priced_trades AS (
-          SELECT t.is_buy,t.net_trader_quote,
-            CASE WHEN m.total_supply>0 AND t.virtual_quote_after>0 AND t.virtual_token_after>0
-              THEN floor(t.virtual_quote_after*m.total_supply/t.virtual_token_after)
-            END AS market_cap_wei
-          FROM trades t JOIN markets m ON m.chain_id=t.chain_id AND m.token_address=t.token_address
-          WHERE t.chain_id=$1 AND t.trader_address=$2 AND t.orphaned=false
-        ) SELECT COALESCE(SUM(net_trader_quote) FILTER (WHERE is_buy),0)::text AS invested_wei,
+      ), priced_trades AS (
+        SELECT t.token_address,t.is_buy,t.net_trader_quote,
+          CASE WHEN m.total_supply>0 AND t.virtual_quote_after>0 AND t.virtual_token_after>0
+            THEN floor(t.virtual_quote_after*m.total_supply/t.virtual_token_after)
+          END AS market_cap_wei
+        FROM trades t JOIN markets m ON m.chain_id=t.chain_id AND m.token_address=t.token_address
+        WHERE t.chain_id=$1 AND t.trader_address=$2 AND t.orphaned=false
+      ), trade_averages AS (
+        SELECT token_address,
           floor(SUM(market_cap_wei*net_trader_quote) FILTER (WHERE is_buy)
             / NULLIF(SUM(net_trader_quote) FILTER (WHERE is_buy AND market_cap_wei IS NOT NULL),0))::text
             AS average_entry_market_cap_wei,
           floor(SUM(market_cap_wei*net_trader_quote) FILTER (WHERE NOT is_buy)
             / NULLIF(SUM(net_trader_quote) FILTER (WHERE NOT is_buy AND market_cap_wei IS NOT NULL),0))::text
             AS average_exit_market_cap_wei
-        FROM priced_trades`,
+        FROM priced_trades GROUP BY token_address
+      ) SELECT pt.token_address,m.name AS token_name,m.symbol AS token_symbol,
+        COALESCE(tb.balance,cp.known_basis_token_balance,0) AS balance_wei,
+        COALESCE(cp.known_basis_token_balance,0) AS known_basis_balance_wei,
+        (tb.token_address IS NOT NULL) AS exact_balance_indexed,
+        COALESCE(cp.total_invested_quote,0) AS invested_wei,COALESCE(cp.total_proceeds_quote,0) AS proceeds_wei,
+        ta.average_entry_market_cap_wei,ta.average_exit_market_cap_wei,
+        ms.virtual_quote AS virtual_quote_after,ms.virtual_token AS virtual_token_after
+      FROM position_tokens pt JOIN markets m ON m.chain_id=$1 AND m.token_address=pt.token_address
+      LEFT JOIN transfer_balances tb ON tb.token_address=pt.token_address
+      LEFT JOIN curve_positions cp ON cp.chain_id=$1 AND cp.trader_address=$2 AND cp.token_address=pt.token_address
+      LEFT JOIN trade_averages ta ON ta.token_address=pt.token_address
+      JOIN market_stats ms ON ms.chain_id=$1 AND ms.token_address=pt.token_address
+      WHERE COALESCE(tb.balance,cp.known_basis_token_balance,0)>0
+      ORDER BY COALESCE(cp.total_invested_quote,0) DESC`,
         [config.chainId, address],
       ),
     ]);
@@ -122,11 +122,6 @@ export async function profile(address, viewer) {
     claimed: Boolean(claimed),
     claimedAt: claimed?.claimed_at || null,
     stats: shapeStats(statsResult.rows[0]),
-    performance: {
-      investedWei: tradesResult.rows[0].invested_wei,
-      averageEntryMarketCapWei: tradesResult.rows[0].average_entry_market_cap_wei,
-      averageExitMarketCapWei: tradesResult.rows[0].average_exit_market_cap_wei,
-    },
     followers: Number(countsResult.rows[0]?.followers || 0),
     following: Number(countsResult.rows[0]?.following || 0),
     isFollowed: Boolean(countsResult.rows[0]?.is_followed),

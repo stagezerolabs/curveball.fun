@@ -18,11 +18,6 @@ export function TraderProfileSkeleton() {
           <span className="skeleton profile-loading-line short" />
           <span className="skeleton profile-loading-line wide" />
           <span className="skeleton profile-loading-line medium" />
-          <div className="profile-loading-stats">
-            <span className="skeleton" />
-            <span className="skeleton" />
-            <span className="skeleton" />
-          </div>
         </div>
       </div>
       <div className="profile-loading-tabs">

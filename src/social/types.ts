@@ -131,6 +131,8 @@ export type TraderPosition = {
   exact_balance_indexed: boolean;
   invested_wei: string;
   proceeds_wei: string;
+  average_entry_market_cap_wei: string | null;
+  average_exit_market_cap_wei: string | null;
   virtual_quote_after: string;
   virtual_token_after: string;
 };
@@ -140,11 +142,6 @@ export type TraderProfile = {
   claimed: boolean;
   claimedAt: string | null;
   stats: TraderStats;
-  performance: {
-    investedWei: string;
-    averageEntryMarketCapWei: string | null;
-    averageExitMarketCapWei: string | null;
-  };
   followers: number;
   following: number;
   isFollowed: boolean;

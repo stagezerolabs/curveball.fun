@@ -337,24 +337,6 @@ export function TraderProfilePage({
                 : null}
             </p>
           </div>
-          <dl className="profile-summary-stats">
-            <div>
-              <dt>Amount invested</dt>
-              <dd><UsdAmount weth={wethAmount(data.performance.investedWei)} compact /></dd>
-            </div>
-            <div>
-              <dt title="Average market cap at buys, weighted by trade size">Avg. buy in</dt>
-              <dd>{data.performance.averageEntryMarketCapWei
-                ? <UsdAmount weth={wethAmount(data.performance.averageEntryMarketCapWei)} compact />
-                : "—"}</dd>
-            </div>
-            <div>
-              <dt title="Average market cap at sells, weighted by trade size">Avg. sell out</dt>
-              <dd>{data.performance.averageExitMarketCapWei
-                ? <UsdAmount weth={wethAmount(data.performance.averageExitMarketCapWei)} compact />
-                : "—"}</dd>
-            </div>
-          </dl>
         </section>
       </div>
 
@@ -449,29 +431,51 @@ export function TraderProfilePage({
                 : "This trader holds no curve tokens right now."}
             </EmptyState>
           ) : (
-            <ul className="profile-list">
+            <ul className="profile-list profile-holdings-list">
               {positions.map(({ position, balance, value, unknownBasis }) => (
                 <li key={position.token_address}>
                   <AppLink
-                    className="profile-row"
+                    className="profile-row profile-holding-row"
                     route="market"
                     params={{ address: position.token_address }}
                     navigate={navigate}
                   >
-                    <span className="profile-row-main">
-                      <strong>{position.token_name}</strong>
-                      <small>
-                        {formatEthAmount(balance)} ${position.token_symbol}
-                      </small>
+                    <span className="profile-holding-head">
+                      <span className="profile-row-main">
+                        <strong>{position.token_name}</strong>
+                        <small>
+                          {formatEthAmount(balance)} ${position.token_symbol}
+                        </small>
+                      </span>
+                      <span className="profile-row-value">
+                        <strong><UsdAmount weth={value} compact /></strong>
+                        {unknownBasis ? (
+                          <small>Includes transfers in</small>
+                        ) : null}
+                      </span>
+                      <span className="profile-row-chevron" aria-hidden="true">
+                        ›
+                      </span>
                     </span>
-                    <span className="profile-row-value">
-                      <strong><UsdAmount weth={value} compact /></strong>
-                      {unknownBasis ? (
-                        <small>Includes transfers in</small>
-                      ) : null}
-                    </span>
-                    <span className="profile-row-chevron" aria-hidden="true">
-                      ›
+                    <span className="profile-holding-metrics">
+                      <span className="profile-holding-metric">
+                        <small>Amount invested</small>
+                        <strong>{BigInt(position.invested_wei) > 0n
+                          ? <UsdAmount weth={wethAmount(position.invested_wei)} compact />
+                          : "—"}</strong>
+                      </span>
+                      <span className="profile-holding-metric">
+                        <small title="Average market cap at buys, weighted by trade size">Avg. buy in</small>
+                        <strong>{position.average_entry_market_cap_wei
+                          ? <UsdAmount weth={wethAmount(position.average_entry_market_cap_wei)} compact />
+                          : "—"}</strong>
+                      </span>
+                      <span className="profile-holding-metric">
+                        <small title="Average market cap at sells, weighted by trade size">Avg. sell out</small>
+                        <strong>{position.average_exit_market_cap_wei
+                          ? <UsdAmount weth={wethAmount(position.average_exit_market_cap_wei)} compact />
+                          : "—"}</strong>
+                      </span>
                     </span>
                   </AppLink>
                 </li>
