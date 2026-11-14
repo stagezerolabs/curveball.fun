@@ -113,7 +113,7 @@ function TradeRow({
           title={trade.transactionHash}
           aria-label={`View transaction ${trade.transactionHash} on explorer`}
         >
-          {formatAddress(trade.transactionHash)} ↗
+          {formatAddress(trade.transactionHash)}
         </a>
         <small>Block {trade.blockNumber.toLocaleString("en-US")}</small>
       </td>
