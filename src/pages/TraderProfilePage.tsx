@@ -440,22 +440,11 @@ export function TraderProfilePage({
                     params={{ address: position.token_address }}
                     navigate={navigate}
                   >
-                    <span className="profile-holding-head">
-                      <span className="profile-row-main">
-                        <strong>{position.token_name}</strong>
-                        <small>
-                          {formatEthAmount(balance)} ${position.token_symbol}
-                        </small>
-                      </span>
-                      <span className="profile-row-value">
-                        <strong><UsdAmount weth={value} compact /></strong>
-                        {unknownBasis ? (
-                          <small>Includes transfers in</small>
-                        ) : null}
-                      </span>
-                      <span className="profile-row-chevron" aria-hidden="true">
-                        ›
-                      </span>
+                    <span className="profile-row-main">
+                      <strong>{position.token_name}</strong>
+                      <small>
+                        {formatEthAmount(balance)} ${position.token_symbol}
+                      </small>
                     </span>
                     <span className="profile-holding-metrics">
                       <span className="profile-holding-metric">
@@ -476,6 +465,16 @@ export function TraderProfilePage({
                           ? <UsdAmount weth={wethAmount(position.average_exit_market_cap_wei)} compact />
                           : "—"}</strong>
                       </span>
+                    </span>
+                    <span className="profile-row-value profile-holding-value">
+                      <small>Current value</small>
+                      <strong><UsdAmount weth={value} compact /></strong>
+                      {unknownBasis ? (
+                        <small>Includes transfers in</small>
+                      ) : null}
+                    </span>
+                    <span className="profile-row-chevron" aria-hidden="true">
+                      ›
                     </span>
                   </AppLink>
                 </li>

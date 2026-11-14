@@ -8267,7 +8267,7 @@ img.profile-hero-avatar {
   gap: 10px;
   margin-top: 22px;
 }
-.profile-loading-rows .skeleton { height: 116px; width: 100%; }
+.profile-loading-rows .skeleton { height: 80px; width: 100%; }
 
 .profile-tabs {
   margin-top: 28px;
@@ -8314,8 +8314,11 @@ img.profile-hero-avatar {
   padding: 0;
 }
 .profile-holdings-list {
-  gap: 8px;
+  gap: 0;
   margin: 0;
+}
+.profile-holdings-list li + li {
+  border-top: 1px solid var(--line);
 }
 .profile-row {
   align-items: center;
@@ -8364,28 +8367,19 @@ img.profile-hero-avatar {
   line-height: 1;
 }
 .profile-holding-row {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 14px;
   display: grid;
-  gap: 14px;
-  padding: 15px 18px;
+  gap: 24px;
+  grid-template-columns: minmax(200px, 1.5fr) minmax(330px, 2fr) minmax(95px, auto) 12px;
+  min-height: 86px;
+  padding: 14px 10px;
 }
 .profile-holding-row:hover {
-  background: var(--raise);
-}
-.profile-holding-head {
-  align-items: center;
-  display: flex;
-  gap: 12px;
-  min-width: 0;
+  background: var(--panel);
 }
 .profile-holding-metrics {
-  border-top: 1px solid var(--line);
   display: grid;
-  gap: 12px;
+  gap: 18px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  padding-top: 11px;
 }
 .profile-holding-metric {
   display: grid;
@@ -8401,6 +8395,12 @@ img.profile-hero-avatar {
   font-variant-numeric: tabular-nums;
   font-weight: 700;
   overflow-wrap: anywhere;
+}
+.profile-holding-value {
+  min-width: 95px;
+}
+.profile-holding-value small:first-child {
+  font-size: 11px;
 }
 .profile-list-skeleton {
   display: grid;
@@ -8635,6 +8635,28 @@ img.profile-hero-avatar {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+@media (max-width: 760px) {
+  .profile-holding-row {
+    gap: 10px 12px;
+    grid-template-columns: minmax(0, 1fr) auto 12px;
+    padding: 15px 4px;
+  }
+  .profile-holding-metrics {
+    gap: 10px;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    padding-top: 6px;
+  }
+  .profile-holding-value {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+  }
+  .profile-holding-row > .profile-row-chevron {
+    grid-column: 3;
+    grid-row: 1;
+  }
+}
 @media (max-width: 680px) {
   .profile-hero {
     gap: 14px;
@@ -8651,12 +8673,6 @@ img.profile-hero-avatar {
   }
   .profile-summary {
     padding: 18px;
-  }
-  .profile-holding-row {
-    padding: 12px 14px;
-  }
-  .profile-holding-metrics {
-    gap: 8px;
   }
   .profile-holding-metric strong {
     font-size: 13px;
