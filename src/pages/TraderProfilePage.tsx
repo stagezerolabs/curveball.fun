@@ -189,12 +189,10 @@ export function TraderProfilePage({
           ? Number(position.virtual_quote_after) /
             Number(position.virtual_token_after)
           : 0;
-      const knownBasis = wethAmount(position.known_basis_balance_wei);
       return {
         position,
         balance,
         value: balance * rate,
-        unknownBasis: position.exact_balance_indexed && knownBasis < balance,
       };
     })
     .sort((a, b) => b.value - a.value);
@@ -442,7 +440,7 @@ export function TraderProfilePage({
             </EmptyState>
           ) : (
             <ul className="profile-list profile-holdings-list">
-              {positions.map(({ position, balance, value, unknownBasis }) => (
+              {positions.map(({ position, balance }) => (
                 <li key={position.token_address}>
                   <AppLink
                     className="profile-row profile-holding-row"
@@ -475,13 +473,6 @@ export function TraderProfilePage({
                           ? <UsdAmount weth={wethAmount(position.average_exit_market_cap_wei)} compact />
                           : "—"}</strong>
                       </span>
-                    </span>
-                    <span className="profile-row-value profile-holding-value">
-                      <small>Current value</small>
-                      <strong><UsdAmount weth={value} compact /></strong>
-                      {unknownBasis ? (
-                        <small>Includes transfers in</small>
-                      ) : null}
                     </span>
                     <span className="profile-row-chevron" aria-hidden="true">
                       ›
