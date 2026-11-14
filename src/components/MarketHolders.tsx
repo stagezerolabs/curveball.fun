@@ -1,20 +1,20 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { formatEther, type Address } from "viem";
 import { usePublicClient } from "wagmi";
 import { readHolderSnapshot } from "../lib/holderSnapshot";
 import { parseCreatedBlock } from "../lib/marketChart";
-import { formatAddress } from "../lib/format.js";
 import { activeChainId, activeDeploymentBlock } from "../lib/web3";
 import { fetchMarketHolders } from "../markets/api";
 import { socialApiBaseUrl } from "../social/api";
+import { TraderName } from "../social/TraderIdentity";
 import type { Navigate, Token } from "../types";
-import { AppLink } from "./Navigation";
 import { formatUsd, useEthUsdRate } from "./UsdAmount";
 
 const HOLDER_LIMIT = 50;
-const BURN_ADDRESS = "0x000000000000000000000000000000000000dead";
+const PAGE_SIZE = 10;
 
-type Holder = { address: Address; balance: bigint; isFollowed: boolean };
+type Holder = { address: Address; balance: bigint };
 
 function formatQuantity(balance: bigint) {
   const quantity = Number(formatEther(balance));
@@ -43,8 +43,6 @@ function HolderRow({
   navigate: Navigate;
 }) {
   const percentage = holderPercentage(holder.balance, eligibleSupply);
-  const isCreator = holder.address.toLowerCase() === token.creator.toLowerCase();
-  const isBurn = holder.address.toLowerCase() === BURN_ADDRESS;
   const value =
     token.price == null || usdPerEth == null
       ? null
@@ -54,23 +52,7 @@ function HolderRow({
     <tr>
       <td className="market-holder-rank">{rank}</td>
       <td className="market-holder-address">
-        <AppLink
-          route="trader"
-          params={{ address: holder.address }}
-          navigate={navigate}
-          title={holder.address}
-        >
-          {formatAddress(holder.address)}
-        </AppLink>
-      </td>
-      <td className="market-holder-label">
-        {isBurn
-          ? "Burn address"
-          : isCreator
-            ? "Creator"
-            : holder.isFollowed
-              ? "Following"
-              : "—"}
+        <TraderName address={holder.address} navigate={navigate} />
       </td>
       <td className="market-holder-quantity">
         {formatQuantity(holder.balance)} <small>{token.symbol}</small>
@@ -99,6 +81,7 @@ export function MarketHolders({
   token: Token;
   navigate: Navigate;
 }) {
+  const [page, setPage] = useState(0);
   const client = usePublicClient({ chainId: activeChainId });
   const usdPerEth = useEthUsdRate();
   const backendEnabled = Boolean(socialApiBaseUrl);
@@ -137,7 +120,7 @@ export function MarketHolders({
       return {
         atBlock: block.toString(),
         eligibleSupply: holders.reduce((sum, holder) => sum + holder.balance, 0n),
-        items: holders.map((holder) => ({ ...holder, isFollowed: false })),
+        items: holders,
       };
     },
     staleTime: 120_000,
@@ -147,23 +130,37 @@ export function MarketHolders({
   });
   const active = backendEnabled ? indexed : onchain;
   const holders = (active.data?.items ?? []).slice(0, HOLDER_LIMIT);
+  const pageCount = Math.max(1, Math.ceil(holders.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount - 1);
+  const firstHolder = currentPage * PAGE_SIZE;
+  const visibleHolders = holders.slice(firstHolder, firstHolder + PAGE_SIZE);
   const eligibleSupply = active.data?.eligibleSupply ?? 0n;
-  const atBlock = active.data?.atBlock;
   const unavailable = !backendEnabled && !client;
 
   return (
     <div className="market-holders" aria-busy={active.isPending && !unavailable}>
       <div className="market-holder-summary">
-        <p>
-          Top {HOLDER_LIMIT} direct holders · protocol liquidity excluded
-          {atBlock ? ` · Block ${Number(atBlock).toLocaleString("en-US")}` : ""}
-        </p>
         <button
           type="button"
+          className="market-refresh"
           onClick={() => void active.refetch()}
           disabled={active.isFetching || unavailable}
+          aria-label={active.isFetching ? "Refreshing holders" : "Refresh holders"}
+          aria-busy={active.isFetching}
+          title="Refresh holders"
         >
-          {active.isFetching ? "Refreshing…" : "Refresh"}
+          <svg
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M16.8 8A7 7 0 1 0 17 11" />
+            <path d="M17 3.5V8h-4.5" />
+          </svg>
         </button>
       </div>
       {unavailable ? (
@@ -191,7 +188,6 @@ export function MarketHolders({
               <tr>
                 <th scope="col">Rank</th>
                 <th scope="col">Address</th>
-                <th scope="col">Label</th>
                 <th scope="col">Quantity</th>
                 <th
                   scope="col"
@@ -208,11 +204,11 @@ export function MarketHolders({
               </tr>
             </thead>
             <tbody>
-              {holders.map((holder, index) => (
+              {visibleHolders.map((holder, index) => (
                 <HolderRow
                   key={holder.address}
                   holder={holder}
-                  rank={index + 1}
+                  rank={firstHolder + index + 1}
                   token={token}
                   eligibleSupply={eligibleSupply}
                   usdPerEth={usdPerEth}
@@ -222,6 +218,30 @@ export function MarketHolders({
             </tbody>
           </table>
         </div>
+      )}
+      {holders.length > PAGE_SIZE && (
+        <footer className="market-activity-footer">
+          <span>
+            {firstHolder + 1}–{firstHolder + visibleHolders.length} of {holders.length} holders
+          </span>
+          <nav className="market-activity-pages" aria-label="Top holders pages">
+            <button
+              type="button"
+              disabled={currentPage === 0}
+              onClick={() => setPage(currentPage - 1)}
+            >
+              Previous
+            </button>
+            <span>Page {currentPage + 1} of {pageCount}</span>
+            <button
+              type="button"
+              disabled={currentPage >= pageCount - 1}
+              onClick={() => setPage(currentPage + 1)}
+            >
+              Next
+            </button>
+          </nav>
+        </footer>
       )}
     </div>
   );
