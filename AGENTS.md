@@ -16,6 +16,10 @@ The local runtime is `compose.yaml`: `postgres`, one `api` container serving the
 
 `make docker-fresh-testnet` deletes the local Postgres volume. See `README.md` for deployment.
 
+## Default App Delivery
+
+For requested changes to the running app, rebuild the local Docker environment and publish the tested commit to the `curveball.fun` VPS unless the user asks for local-only work. Follow [`.codex/DEPLOYMENT.md`](.codex/DEPLOYMENT.md) for the exact local, GitHub, VPS, verification, and rollback flow. This routine path is for app and backend code changes; contract releases, database migrations, and keeper changes need their specific runbooks.
+
 ## Coding Style & Naming Conventions
 
 Use two-space indentation and double-quoted imports in TypeScript/JavaScript; use four spaces in Solidity. Name React components and contracts in PascalCase, functions and variables in camelCase. No repository-wide formatter or lint command is configured; match neighboring files.
