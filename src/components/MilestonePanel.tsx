@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useStore } from "../app/useStore.js";
-import { formatPercent } from "../lib/format.js";
+import { formatEthAmount, formatPercent } from "../lib/format.js";
 import type { Address } from "viem";
 import { formatEther } from "viem";
 import { useReadContract } from "wagmi";
@@ -27,6 +27,25 @@ function getTargetMarketCap(token: Token) {
   }
 }
 
+function InfoIcon() {
+  return (
+    <svg
+      className="fee-split-info"
+      viewBox="0 0 16 16"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      aria-hidden="true"
+    >
+      <circle cx="8" cy="8" r="6.25" />
+      <path d="M8 7.25v3.5M8 5.1v.05" />
+    </svg>
+  );
+}
+
 export function MilestonePanel({
   token,
   address,
@@ -34,7 +53,33 @@ export function MilestonePanel({
   token: Token;
   address?: Address;
 }) {
-  const [feeSplitOpen, setFeeSplitOpen] = useState(false);
+  const [openDetail, setOpenDetail] = useState<"progress" | "fees" | null>(
+    null,
+  );
+  const panelRef = useRef<HTMLElement>(null);
+  const progressOpen = openDetail === "progress";
+  const feeSplitOpen = openDetail === "fees";
+  const toggleDetail = (detail: "progress" | "fees") =>
+    setOpenDetail((open) => (open === detail ? null : detail));
+
+  useEffect(() => {
+    if (!openDetail) return;
+    const close = (event: Event) => {
+      if (event instanceof KeyboardEvent && event.key !== "Escape") return;
+      if (
+        event instanceof PointerEvent &&
+        panelRef.current?.contains(event.target as Node)
+      )
+        return;
+      setOpenDetail(null);
+    };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", close);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", close);
+    };
+  }, [openDetail]);
   const { isPending, claimPoolFees, claimEscrow, runBuyback, graduateMarket } =
     useStore() as {
       isPending: boolean;
@@ -112,48 +157,67 @@ export function MilestonePanel({
   const targetMarketCap = getTargetMarketCap(token);
 
   return (
-    <section className="milestone-panel" aria-label="Graduation and fees">
-      <dl
-        className={`milestone-figures ${token.graduationTargetWeth ? "three" : "two"}`}
-      >
-        {token.graduationTargetWeth && (
-          <div>
-            <dt>Graduation target</dt>
-            <dd title={`${token.graduationTargetWeth} WETH`}>
-              <UsdAmount weth={Number(token.graduationTargetWeth)} compact />
-            </dd>
-          </div>
-        )}
-        <div>
-          <dt>Graduation cap</dt>
-          <dd>
-            <UsdAmount weth={targetMarketCap} compact />
-          </dd>
-        </div>
-        <div>
-          <dt>Current cap</dt>
-          <dd>
-            <UsdAmount weth={token.marketCap} compact />
-          </dd>
-        </div>
-      </dl>
-
-      {!token.graduated && (
-        <div className="milestone-progress">
-          <div className="milestone-bar-row">
-            <span>Progress to graduation</span>
-            <strong>{formatPercent(progress)}</strong>
-          </div>
-          <div
-            className="milestone-bar"
-            role="progressbar"
-            aria-valuenow={Math.round(progress)}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-label="Progress to graduation"
+    <section
+      ref={panelRef}
+      className="milestone-panel"
+      aria-label="Graduation and fees"
+    >
+      {!token.graduated ? (
+        <div
+          className={`fee-split${progressOpen ? " open" : ""}`}
+        >
+          <button
+            type="button"
+            className="fee-split-trigger"
+            aria-controls="milestone-details"
+            aria-expanded={progressOpen}
+            onClick={() => toggleDetail("progress")}
           >
-            <span style={{ width: formatPercent(progress) }} />
-          </div>
+            <span className="fee-split-heading">
+              <span>Progress to graduation</span>
+              <span className="fee-split-meta">
+                <strong>{formatPercent(progress)}</strong>
+                <InfoIcon />
+              </span>
+            </span>
+            <span
+              className="milestone-bar"
+              role="progressbar"
+              aria-valuenow={Math.round(progress)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Progress to graduation"
+            >
+              <span style={{ width: formatPercent(progress) }} />
+            </span>
+          </button>
+          <dl className="fee-split-popover milestone-details" id="milestone-details">
+            <div>
+              <dt>Current cap</dt>
+              <dd>
+                <UsdAmount weth={token.marketCap} compact />
+              </dd>
+            </div>
+            {token.graduationTargetWeth && (
+              <div>
+                <dt>Graduation target</dt>
+                <dd>{formatEthAmount(Number(token.graduationTargetWeth))} ETH</dd>
+              </div>
+            )}
+            <div>
+              <dt>Market cap at graduation</dt>
+              <dd>
+                <UsdAmount weth={targetMarketCap} compact />
+              </dd>
+            </div>
+          </dl>
+        </div>
+      ) : (
+        <div className="milestone-bar-row">
+          <span>Market cap</span>
+          <strong>
+            <UsdAmount weth={token.marketCap} compact />
+          </strong>
         </div>
       )}
 
@@ -192,18 +256,20 @@ export function MilestonePanel({
         </p>
       ) : (
         <div className={`fee-split${feeSplitOpen ? " open" : ""}`}>
-          <div className="fee-split-heading">
-            <span>Where fees go</span>
-            <span aria-hidden="true">ⓘ</span>
-          </div>
           <button
             type="button"
             className="fee-split-trigger"
             aria-label={`Fee split: ${creatorShare}% creator, ${treasuryShare}% treasury, ${buybackShare}% buyback and burn`}
             aria-controls="fee-split-details"
             aria-expanded={feeSplitOpen}
-            onClick={() => setFeeSplitOpen((open) => !open)}
+            onClick={() => toggleDetail("fees")}
           >
+            <span className="fee-split-heading">
+              <span>Where fees go</span>
+              <span className="fee-split-meta">
+                <InfoIcon />
+              </span>
+            </span>
             <span className="split-bar" aria-hidden="true">
               <span
                 className="split-creator"
