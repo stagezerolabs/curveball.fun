@@ -13,14 +13,20 @@ TAIL ?= 100
 .PHONY: help dev build build-testnet test typecheck js-tests contracts-test testnet-preflight deploy-testnet post-deploy-testnet set-testnet-graduation-target deploy-icarus-swap-testnet record-icarus-swap-testnet activate-icarus-swap-testnet deploy-icarus-swap-mainnet record-icarus-swap-mainnet activate-icarus-swap-mainnet record-testnet configure-testnet reset-testnet-projections activate-testnet production-preflight deploy-production record-production configure-production \
 	docker-setup docker-up docker-down docker-rebuild docker-status docker-config docker-logs docker-clean-old-images docker-fresh-testnet \
 	docker-mainnet-up docker-mainnet-rebuild docker-mainnet-status docker-mainnet-logs docker-mainnet-down
+.PHONY: production-oracle-preflight deploy-production-oracle record-production-oracle deploy-icarus-swap-oracle-mainnet record-icarus-swap-oracle-mainnet configure-production-oracle
+.PHONY: testnet-oracle-preflight deploy-testnet-oracle record-testnet-oracle configure-testnet-oracle deploy-icarus-swap-oracle-testnet record-icarus-swap-oracle-testnet activate-testnet-oracle
 
 help:
 	@echo "Build:    dev, build (mainnet), build-testnet, test"
 	@echo "Testnet:  testnet-preflight, deploy-testnet, post-deploy-testnet, activate-testnet"
+	@echo "Oracle testnet: testnet-oracle-preflight, deploy-testnet-oracle, record-testnet-oracle"
+	@echo "                deploy-icarus-swap-oracle-testnet, record-icarus-swap-oracle-testnet, activate-testnet-oracle"
 	@echo "          record-testnet, configure-testnet"
 	@echo "          deploy-icarus-swap-testnet, record-icarus-swap-testnet, activate-icarus-swap-testnet"
 	@echo "          set-testnet-graduation-target, reset-testnet-projections"
 	@echo "Mainnet:  production-preflight, deploy-production, record-production, configure-production"
+	@echo "Oracle:   production-oracle-preflight, deploy-production-oracle, record-production-oracle"
+	@echo "          deploy-icarus-swap-oracle-mainnet, record-icarus-swap-oracle-mainnet, configure-production-oracle"
 	@echo "          deploy-icarus-swap-mainnet, record-icarus-swap-mainnet, activate-icarus-swap-mainnet"
 	@echo "Docker:   docker-setup, docker-up, docker-down, docker-rebuild, docker-status"
 	@echo "          docker-config, docker-logs, docker-clean-old-images"
@@ -69,7 +75,7 @@ activate-icarus-swap-testnet:
 	$(MAKE) docker-rebuild
 
 record-testnet:
-	DEPLOYMENT_NETWORK=testnet REPLACE_TESTNET_DEPLOYMENT=1 bun contracts/scripts/record-production.ts
+	@echo "Use record-testnet-oracle; the legacy testnet record must remain intact." >&2; exit 2
 
 configure-testnet:
 	DEPLOYMENT_NETWORK=testnet bun contracts/scripts/sync-production-config.ts
@@ -92,15 +98,34 @@ reset-testnet-projections:
 		$(COMPOSE) exec -T postgres psql -U curveball -d curveball -v ON_ERROR_STOP=1 -v new_launchpad="$$new_launchpad" -f /dev/stdin < deploy/reset-local-testnet-projections.sql
 
 activate-testnet:
-	$(MAKE) record-testnet
-	$(MAKE) configure-testnet
-	$(MAKE) reset-testnet-projections RESET_LEAVE_STOPPED=1
-	$(MAKE) docker-rebuild
+	@echo "Use activate-testnet-oracle; resetting projections would orphan legacy markets." >&2; exit 2
 
 # Run after deploy-testnet: activate the recorded release, then broadcast a small smoke launch/buy.
 post-deploy-testnet:
-	$(MAKE) activate-testnet
-	$(MAKE) -C contracts smoke-testnet
+	@echo "Use the oracle release targets; old projection reset is unsafe for this migration." >&2; exit 2
+
+testnet-oracle-preflight:
+	$(MAKE) -C contracts testnet-oracle-preflight
+
+deploy-testnet-oracle:
+	$(MAKE) -C contracts deploy-testnet-oracle
+
+record-testnet-oracle:
+	DEPLOYMENT_NETWORK=testnet DEPLOYMENT_FEE_MODE=oracle bun contracts/scripts/record-production.ts
+
+configure-testnet-oracle:
+	DEPLOYMENT_NETWORK=testnet DEPLOYMENT_FEE_MODE=oracle bun contracts/scripts/sync-production-config.ts
+
+deploy-icarus-swap-oracle-testnet:
+	$(MAKE) -C contracts deploy-icarus-swap-oracle-testnet
+
+record-icarus-swap-oracle-testnet:
+	$(MAKE) -C contracts build-icarus-swap-adapter
+	DEPLOYMENT_NETWORK=testnet DEPLOYMENT_FEE_MODE=oracle bun contracts/scripts/record-icarus-swap.ts
+
+activate-testnet-oracle:
+	$(MAKE) configure-testnet-oracle
+	$(MAKE) docker-rebuild
 
 production-preflight:
 	$(MAKE) -C contracts production-preflight
@@ -113,6 +138,25 @@ record-production:
 
 configure-production:
 	bun contracts/scripts/sync-production-config.ts
+
+production-oracle-preflight:
+	$(MAKE) -C contracts production-oracle-preflight
+
+deploy-production-oracle:
+	$(MAKE) -C contracts deploy-production-oracle
+
+record-production-oracle:
+	DEPLOYMENT_FEE_MODE=oracle bun contracts/scripts/record-production.ts
+
+configure-production-oracle:
+	DEPLOYMENT_FEE_MODE=oracle bun contracts/scripts/sync-production-config.ts
+
+deploy-icarus-swap-oracle-mainnet:
+	$(MAKE) -C contracts deploy-icarus-swap-oracle-mainnet
+
+record-icarus-swap-oracle-mainnet:
+	$(MAKE) -C contracts require-mainnet-rpc build-icarus-swap-adapter
+	DEPLOYMENT_NETWORK=mainnet DEPLOYMENT_FEE_MODE=oracle bun contracts/scripts/record-icarus-swap.ts
 
 deploy-icarus-swap-mainnet:
 	$(MAKE) -C contracts deploy-icarus-swap-mainnet

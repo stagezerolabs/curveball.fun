@@ -18,7 +18,7 @@ contract LaunchpadLaunchTest is Fixture {
         vm.expectEmit(address(launchpad));
         emit CurveLaunchpad.LaunchCreated(predicted, creator, "Curve Meme", "MEME", "ipfs://meme", 75, 5_000, 2_500, 50);
         vm.prank(creator);
-        (address token, uint256 tokensOut) = launchpad.launch(_meta(), 50, 0, 0);
+        (address token, uint256 tokensOut) = launchpad.launch(_meta(), 50, 0, 0, LAUNCH_FEE);
 
         assertEq(token, predicted);
         assertEq(tokensOut, 0);
@@ -48,28 +48,28 @@ contract LaunchpadLaunchTest is Fixture {
         _fund(creator, LAUNCH_FEE);
         vm.prank(creator);
         vm.expectRevert(CurveLaunchpad.InvalidLaunch.selector);
-        launchpad.launch(_meta(), 51, 0, 0);
+        launchpad.launch(_meta(), 51, 0, 0, LAUNCH_FEE);
     }
 
     function test_launch_enforcesMetadataBounds() public {
         _fund(creator, LAUNCH_FEE);
         vm.startPrank(creator);
         vm.expectRevert(CurveLaunchpad.InvalidLaunch.selector);
-        launchpad.launch(CurveLaunchpad.Metadata("Curve Meme", "MEME", ""), 0, 0, 0);
+        launchpad.launch(CurveLaunchpad.Metadata("Curve Meme", "MEME", ""), 0, 0, 0, LAUNCH_FEE);
         vm.expectRevert(CurveLaunchpad.InvalidLaunch.selector);
-        launchpad.launch(CurveLaunchpad.Metadata("Curve Meme", "MEME", string(new bytes(2049))), 0, 0, 0);
+        launchpad.launch(CurveLaunchpad.Metadata("Curve Meme", "MEME", string(new bytes(2049))), 0, 0, 0, LAUNCH_FEE);
         vm.expectRevert(CurveToken.InvalidMetadata.selector);
-        launchpad.launch(CurveLaunchpad.Metadata("", "MEME", "ipfs://meme"), 0, 0, 0);
+        launchpad.launch(CurveLaunchpad.Metadata("", "MEME", "ipfs://meme"), 0, 0, 0, LAUNCH_FEE);
         vm.expectRevert(CurveToken.InvalidMetadata.selector);
-        launchpad.launch(CurveLaunchpad.Metadata("Curve Meme", "THIRTEENCHARS", "ipfs://meme"), 0, 0, 0);
-        launchpad.launch(CurveLaunchpad.Metadata("Curve Meme", "MEME", string(new bytes(2048))), 0, 0, 0);
+        launchpad.launch(CurveLaunchpad.Metadata("Curve Meme", "THIRTEENCHARS", "ipfs://meme"), 0, 0, 0, LAUNCH_FEE);
+        launchpad.launch(CurveLaunchpad.Metadata("Curve Meme", "MEME", string(new bytes(2048))), 0, 0, 0, LAUNCH_FEE);
         vm.stopPrank();
     }
 
     function test_launch_requiresTheLaunchFee() public {
         vm.prank(creator);
         vm.expectRevert();
-        launchpad.launch(_meta(), 0, 0, 0);
+        launchpad.launch(_meta(), 0, 0, 0, LAUNCH_FEE);
     }
 
     function test_launch_firstBuyGoesToTheCreator() public {
@@ -85,14 +85,14 @@ contract LaunchpadLaunchTest is Fixture {
         _fund(creator, LAUNCH_FEE + 0.1 ether);
         vm.prank(creator);
         vm.expectRevert(CurveLaunchpad.Slippage.selector);
-        launchpad.launch(_meta(), 0, 0.1 ether, 1_000_000_000 ether);
+        launchpad.launch(_meta(), 0, 0.1 ether, 1_000_000_000 ether, LAUNCH_FEE);
     }
 
     function test_launch_rejectsMinOutWithoutAFirstBuy() public {
         _fund(creator, LAUNCH_FEE);
         vm.prank(creator);
         vm.expectRevert(CurveLaunchpad.InvalidLaunch.selector);
-        launchpad.launch(_meta(), 0, 0, 1);
+        launchpad.launch(_meta(), 0, 0, 1, LAUNCH_FEE);
     }
 
     function test_launch_revertsWhilePaused() public {
@@ -101,7 +101,7 @@ contract LaunchpadLaunchTest is Fixture {
         _fund(creator, LAUNCH_FEE);
         vm.prank(creator);
         vm.expectRevert(CurveLaunchpad.EnforcedPause.selector);
-        launchpad.launch(_meta(), 0, 0, 0);
+        launchpad.launch(_meta(), 0, 0, 0, LAUNCH_FEE);
     }
 
     function test_adminChangesAfterLaunch_dontReachExistingMarkets() public {

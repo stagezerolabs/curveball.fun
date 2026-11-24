@@ -26,7 +26,7 @@ contract FeeEscrowTwapPoison is Fixture {
     function _sellOutAndAccrueFees() internal returns (address t) {
         _fund(creator, LAUNCH_FEE + 0.2 ether);
         vm.prank(creator);
-        (t,) = launchpad.launch(_meta(), 50, 0.2 ether, 0);
+        (t,) = launchpad.launch(_meta(), 50, 0.2 ether, 0, LAUNCH_FEE);
         _sellOut(bob, t); // market Ready; 25% of buy fees already credited to the buyback balance
     }
 

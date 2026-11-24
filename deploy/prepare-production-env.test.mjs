@@ -101,6 +101,32 @@ test("mainnet creates matching chain env files and explicit admin", () =>
     );
   }));
 
+test("oracle release keeps the legacy launchpad and adapter in every service", () =>
+  withFixture("mainnet", ({ root, write, chain }) => {
+    const next = "0x4444444444444444444444444444444444444444";
+    const nextAdapter = "0x5555555555555555555555555555555555555555";
+    write(`deployments/${chain}/curveball-oracle-v3.json`, JSON.stringify({
+      chainId: chain, version: "oracle-v3", launchpad: next, deploymentBlock: "200",
+      storkOracle: "0xacC0a0cF13571d30B4b8637996F5D6D774d4fd62",
+      storkFeedId: "0x7965e1bfc07a34caf0c3aa8146b200264fbb7a0eb85b1d3b1fdceecffd736b02",
+      launchFeeUsd: "1000000000000000000",
+    }));
+    write(`deployments/${chain}/icarus-swap-adapter-oracle-v3.json`, JSON.stringify({
+      chainId: chain, launchpad: next, adapter: nextAdapter, codeHash: hash,
+    }));
+    write(".env.production", `VITE_CHAIN_ID=4153\nVITE_RPC_URL=https://rpc.example\nVITE_LAUNCHPAD_ADDRESS=${next}\nVITE_DEPLOYMENT_BLOCK=200\nVITE_LAUNCH_FEE_MODE=oracle\nVITE_ICARUS_SWAP_ADAPTER=${nextAdapter}\nVITE_ICARUS_SWAP_ADAPTER_CODE_HASH=${hash}\nVITE_LEGACY_LAUNCHPAD_ADDRESS=${launchpad}\nVITE_LEGACY_DEPLOYMENT_BLOCK=100\nVITE_LEGACY_ICARUS_SWAP_ADAPTER=${adapter}\nVITE_LEGACY_ICARUS_SWAP_ADAPTER_CODE_HASH=${hash}\nVITE_PRIVY_APP_ID=test-privy-app\n`);
+    write("services/backend/.env.mainnet.local", `SOCIAL_CHAIN_ID=4153\nSOCIAL_RPC_URL=https://rpc.example\nSOCIAL_LAUNCHPAD_ADDRESS=${next}\nSOCIAL_DEPLOYMENT_BLOCK=200\nSOCIAL_LAUNCH_FEE_MODE=oracle\nSOCIAL_LEGACY_LAUNCHPADS=${launchpad}:100\nSOCIAL_ADMIN_ADDRESS=${admin}\nPRIVY_APP_ID=test-privy-app\nPRIVY_APP_SECRET=test-privy-secret\n`);
+    write("keeper/.env.mainnet.local", `KEEPER_CHAIN_ID=4153\nKEEPER_RPC_URL=https://rpc.example\nKEEPER_LAUNCHPAD_ADDRESS=${next}\nKEEPER_DEPLOYMENT_BLOCK=200\nKEEPER_LEGACY_LAUNCHPADS=${launchpad}:100\n`);
+    prepare(root, "mainnet");
+    const front = readFileSync(join(root, "deploy/production.env"), "utf8");
+    const social = readFileSync(join(root, "deploy/social.env"), "utf8");
+    const keeper = readFileSync(join(root, "deploy/keeper.env"), "utf8");
+    assert.match(front, /VITE_LAUNCH_FEE_MODE=oracle/);
+    assert.match(front, new RegExp(`VITE_LEGACY_LAUNCHPAD_ADDRESS=${launchpad}`));
+    assert.match(social, new RegExp(`SOCIAL_LEGACY_LAUNCHPADS=${launchpad}:100`));
+    assert.match(keeper, new RegExp(`KEEPER_LEGACY_LAUNCHPADS=${launchpad}:100`));
+  }));
+
 test("mainnet refuses an inline keeper key", () =>
   withFixture("mainnet", ({ root, write }) => {
     write(

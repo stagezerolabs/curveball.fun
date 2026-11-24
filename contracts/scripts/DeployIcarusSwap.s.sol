@@ -20,11 +20,12 @@ contract DeployIcarusSwap is Script {
     function run() external returns (CurveIcarusSwapAdapter adapter) {
         string memory recordPath;
         address expectedFactory;
+        string memory recordName = vm.envOr("ORACLE_RELEASE", false) ? "curveball-oracle-v3.json" : "curveball.json";
         if (block.chainid == TESTNET) {
-            recordPath = string.concat(vm.projectRoot(), "/../deployments/11155931/curveball.json");
+            recordPath = string.concat(vm.projectRoot(), "/../deployments/11155931/", recordName);
             expectedFactory = TESTNET_ICARUS;
         } else if (block.chainid == MAINNET) {
-            recordPath = string.concat(vm.projectRoot(), "/../deployments/4153/curveball.json");
+            recordPath = string.concat(vm.projectRoot(), "/../deployments/4153/", recordName);
             expectedFactory = MAINNET_ICARUS;
         } else {
             revert UnsupportedChain(block.chainid);

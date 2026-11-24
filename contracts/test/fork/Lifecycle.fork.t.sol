@@ -7,6 +7,7 @@ import {CurveDeploy} from "../../scripts/CurveDeploy.sol";
 import {CurveIcarusSwapAdapter} from "../../contracts/CurveIcarusSwapAdapter.sol";
 import {CurveLaunchpad} from "../../contracts/CurveLaunchpad.sol";
 import {IIcarusFactory, IIcarusPool} from "../../contracts/interfaces/IIcarus.sol";
+import {MockStork} from "../mocks/MockStork.sol";
 
 interface IWETH {
     function deposit() external payable;
@@ -29,7 +30,8 @@ interface IIcarusGaugeFees {
 
 /// @dev The lifecycle against the real Icarus and WETH on a RISE fork. Skips without an RPC unless
 ///      CI_FORK=1, where a missing RPC or the wrong chain fails instead. Forks a pinned block for
-///      reproducible runs; FORK_BLOCK overrides it if the RPC no longer serves that state.
+///      reproducible mainnet block; testnet uses latest because its public RPC prunes historical state.
+///      FORK_BLOCK overrides either choice.
 abstract contract LifecycleFork is Test, CurveDeploy {
     address constant WETH = 0x4200000000000000000000000000000000000006;
     uint256 constant S = 1_000_000_000 ether;
@@ -56,7 +58,9 @@ abstract contract LifecycleFork is Test, CurveDeploy {
             require(vm.envOr("CI_FORK", uint256(0)) != 1, string.concat(_rpcVar(), " is required when CI_FORK=1"));
             vm.skip(true);
         }
-        vm.createSelectFork(rpc, vm.envOr("FORK_BLOCK", _forkBlock()));
+        uint256 forkBlock = vm.envOr("FORK_BLOCK", _forkBlock());
+        if (forkBlock == 0) vm.createSelectFork(rpc);
+        else vm.createSelectFork(rpc, forkBlock);
         assertEq(block.chainid, _chainId(), "RPC points at the wrong chain");
         icarus = IIcarusFactory(_icarusFactory());
         d = _deployCurve(
@@ -67,7 +71,7 @@ abstract contract LifecycleFork is Test, CurveDeploy {
                 treasury: treasury,
                 quoteToken: WETH,
                 icarusFactory: address(icarus),
-                launchFee: 0,
+                storkOracle: address(new MockStork()),
                 walletCapBps: 10_000,
                 graduationTarget: TARGET,
                 fees: CurveLaunchpad.FeeDefaults(75, 5_000, 2_500, 50)
@@ -160,10 +164,10 @@ abstract contract LifecycleFork is Test, CurveDeploy {
 
     function _launchAndSellOut() internal returns (address token) {
         uint256 maxSpend = TARGET * 102 / 100;
-        _wrap(creator, maxSpend);
+        _wrap(creator, maxSpend + 0.0005 ether);
         vm.startPrank(creator);
         IERC20(WETH).approve(address(d.launchpad), type(uint256).max);
-        (token,) = d.launchpad.launch(CurveLaunchpad.Metadata("Fork launch", "FORK", "ipfs://fork"), 0, 0, 0);
+        (token,) = d.launchpad.launch(CurveLaunchpad.Metadata("Fork launch", "FORK", "ipfs://fork"), 0, 0, 0, 0.0005 ether);
         vm.warp(block.timestamp + 5);
         d.launchpad.buy(token, maxSpend, C, block.timestamp);
         vm.stopPrank();
@@ -280,6 +284,6 @@ contract LifecycleTestnetForkTest is LifecycleFork {
     }
 
     function _forkBlock() internal pure override returns (uint256) {
-        return 57_239_173;
+        return 0;
     }
 }

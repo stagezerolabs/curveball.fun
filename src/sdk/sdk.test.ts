@@ -19,6 +19,7 @@ import {
 } from "./sdk";
 import {
   defineCurveballDeployment,
+  maximumLaunchFee,
   RISE_TESTNET_CHAIN_ID,
 } from "./curveballSdk";
 import type { WagmiActions } from "./sdk";
@@ -611,6 +612,65 @@ test("a launch wraps and approves the fee plus the first buy, then calls launch 
     expectedMinOut,
   ]);
   expect(result.minimumOutput).toBe(expectedMinOut);
+});
+
+test("oracle launch approves the reviewed cap and passes it to the contract", async () => {
+  const fee = parseEther("0.0006");
+  const cap = maximumLaunchFee(fee);
+  const initialBuy = parseEther("0.003");
+  let approved = false;
+  const requests: Array<{ functionName: string; args?: readonly unknown[]; value?: bigint }> = [];
+  const actions = {
+    getAccount: () => ({ address: wallet, chainId: RISE_TESTNET_CHAIN_ID }),
+    getBalance: async () => ({ value: 1n * 10n ** 18n }),
+    readContract: reads({
+      quoteLaunchFee: [fee, parseEther("1666"), 1_795_539_000_000_000_000n],
+      balanceOf: 0n,
+      allowance: () => approved ? cap + initialBuy : 0n,
+    }),
+    simulateContract: async (_config: unknown, request: { functionName: string; args?: readonly unknown[]; value?: bigint }) => {
+      requests.push(request);
+      return { request };
+    },
+    writeContract: async (_config: unknown, request: { functionName: string }) => {
+      if (request.functionName === "approve") approved = true;
+      return hash;
+    },
+    waitForTransactionReceipt: async () => ({ status: "success", logs: [launchLog()] }),
+  } as unknown as WagmiActions;
+  const oracleDeployment = defineCurveballDeployment({
+    chainId: RISE_TESTNET_CHAIN_ID,
+    launchpad: deployment.launchpad,
+    feeMode: "oracle",
+  });
+  await createCurveballSdk({} as Config, oracleDeployment, actions).launchAndBuy(
+    { name: "Test", symbol: "TST", uri, maxLaunchFeeWei: cap },
+    initialBuy,
+  );
+  expect(requests.map((request) => request.functionName)).toEqual(["deposit", "approve", "launch"]);
+  expect(requests[0].value).toBe(cap + initialBuy);
+  expect(requests[1].args).toEqual([deployment.launchpad, cap + initialBuy]);
+  expect(requests[2].args?.at(-1)).toBe(cap);
+});
+
+test("oracle launch rejects a quote above the reviewed cap before asking for funds", async () => {
+  const fee = parseEther("0.0007");
+  const reviewedCap = maximumLaunchFee(parseEther("0.0006"));
+  let simulated = false;
+  const actions = {
+    getAccount: () => ({ address: wallet, chainId: RISE_TESTNET_CHAIN_ID }),
+    readContract: reads({ quoteLaunchFee: [fee, parseEther("1428"), 1_795_539_000_000_000_000n] }),
+    simulateContract: async () => { simulated = true; return { request: {} }; },
+  } as unknown as WagmiActions;
+  const oracleDeployment = defineCurveballDeployment({
+    chainId: RISE_TESTNET_CHAIN_ID,
+    launchpad: deployment.launchpad,
+    feeMode: "oracle",
+  });
+  await expect(createCurveballSdk({} as Config, oracleDeployment, actions).createToken({
+    name: "Test", symbol: "TST", uri, maxLaunchFeeWei: reviewedCap,
+  })).rejects.toThrow("The launch fee changed");
+  expect(simulated).toBe(false);
 });
 
 test("a launch retry reuses WETH after wrapping when approval was rejected", async () => {

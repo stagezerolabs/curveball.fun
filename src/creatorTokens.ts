@@ -1,7 +1,7 @@
 import { formatEther, getAddress, zeroAddress, type Address } from "viem";
 import { curveLaunchpadAbi } from "./sdk/contracts";
 import { MARKET_STATES } from "./sdk/sdk";
-import { activeDeploymentBlock, launchpadAddress } from "./lib/web3";
+import { launchpadAddress, launchpadDeployments } from "./lib/web3";
 import { buildBlockRanges } from "./lib/marketChart";
 import type { Token } from "./types";
 
@@ -57,13 +57,14 @@ async function discoverTokens(
   onFactoryTokens?: (tokens: Token[]) => void,
 ): Promise<Token[]> {
   if (!launchpadAddress) return [];
-  const tokens = await discoverTokensForFactory(
-    client,
-    launchpadAddress,
-    activeDeploymentBlock,
-    args,
-  );
-  onFactoryTokens?.(tokens);
+  const tokens: Token[] = [];
+  for (const deployment of launchpadDeployments) {
+    const discovered = await discoverTokensForFactory(
+      client, deployment.address, deployment.block, args,
+    );
+    tokens.push(...discovered);
+    onFactoryTokens?.(discovered);
+  }
   return tokens.sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );

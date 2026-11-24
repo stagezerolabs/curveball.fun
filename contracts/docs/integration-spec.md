@@ -9,7 +9,7 @@ Curveball has two production integration seams: the configured quote token (RISE
 | RISE mainnet |     4153 | `0x4200000000000000000000000000000000000006` | `0xEe10C6a0f158bFEeef3d48Dc0D26130Cf6115615` | 24,722,082 |
 | RISE testnet | 11155931 | `0x4200000000000000000000000000000000000006` | `0x8221dfB70c9A2dE60253dcfC58231FD529bbF4F9` | 57,239,173 |
 
-The fork blocks are test fixtures, not deployment blocks. `deployments/11155931/curveball.json` records an older testnet release with the removed `CurveHolderReserve`, a 0.001 WETH launch fee, and a 0.01 WETH target. It does not attest the current four-singleton source or its 5% wallet cap. There is no mainnet Curveball deployment record in this checkout.
+The fork blocks are test fixtures, not deployment blocks. `deployments/11155931/curveball.json` records an older testnet release with the removed `CurveHolderReserve`, a 0.001 WETH launch fee, and a 0.01 WETH target. It does not attest the current four-singleton source or its 5% wallet cap. `deployments/4153/curveball.json` records the live fixed-fee mainnet release; the oracle v3 release uses a separate record.
 
 The Icarus [contract architecture page](https://docs.icarus.finance/protocol/contract-architecture-and-developers) lists **mainnet** addresses. Curveball uses the basic `PoolFactory` and its volatile pools, not `PoolFactoryV3`, `PoolImplementation` from the concentrated-liquidity list, or either router. On testnet, the basic factory's `implementation()` is `0x74309f2134DA3E920094A5B0d5DF5d5Dcd1942b1`. The factory clones that implementation for each pool; a historical smoke-test pool is recorded in `deployments/11155931/smoke.json`.
 
@@ -201,7 +201,7 @@ Shared parameters encoded by `Deploy`:
 | Parameter         | Value           |
 | ----------------- | --------------- |
 | Quote token       | RISE WETH above |
-| Launch fee        | 0.00045 WETH    |
+| Launch fee        | 1 USDC equivalent in WETH from Stork ETH/USDC |
 | Wallet cap        | 500 bps of 800 million curve tokens (40 million per address) |
 | Curve fee         | 75 bps          |
 | Creator fee share | 5,000 bps       |
@@ -255,7 +255,7 @@ Mainnet additionally requires:
 - guardian is a contract;
 - treasury is a contract.
 
-These are interface/state checks, not bytecode-hash attestations. `ITimelock` is duck-typed through `getMinDelay` and `hasRole`. Constructor validation independently checks immutable addresses, launch fee, economic bounds, and target arithmetic.
+These are interface/state checks, not bytecode-hash attestations. `ITimelock` is duck-typed through `getMinDelay` and `hasRole`. Constructor validation independently checks immutable addresses, Stork code, economic bounds, and target arithmetic.
 
 ## Deployment scripts and records
 
@@ -267,7 +267,7 @@ Run the deployment commands from the repository root through the root Makefile. 
 
 `record-curve-activation.ts` is read-only onchain: it checks the selected treasury token and its graduated launchpad pool, then writes `deployments/<chainId>/curve-activation.json` if absent. It requires `CURVE_CHAIN_ID` and an HTTPS `CURVE_RPC_URL`. `export-abis.ts` writes the five singleton/token ABIs to `src/sdk/abis.generated.ts` after a build; the separately deployed swap adapter ABI is maintained elsewhere in the SDK. `verify-icarus.sh` compares live mainnet Icarus factory, pool implementation, and WETH addresses and bytecode hashes to pinned evidence and runs strict mainnet forks. Its ordinary path is read-only; an explicitly acknowledged `VERIFY_REFRESH=1` path writes refreshed evidence and source/diff files.
 
-`Smoke.s.sol` is a testnet-only broadcast script for a smoke-token launch and one small first buy. It detects the recorded legacy release by the absence of `walletCapBps()` and uses its five-argument `launch` selector; a new 500 bps release uses the four-argument selector. The broadcaster wraps only the immutable launch fee plus a 0.003 WETH maximum first-buy spend, and any unspent WETH is withdrawn. It asserts that the broadcaster received tokens and the market has no pool. `make smoke-testnet` broadcasts those transactions.
+`Smoke.s.sol` is a testnet-only broadcast script for a smoke-token launch and one small first buy. `ORACLE_RELEASE=true` selects the oracle v3 record and its five-argument launch selector with a maximum WETH fee. The legacy testnet release uses its own five-argument selector. The broadcaster wraps the maximum fee plus a 0.003 WETH first-buy budget, then withdraws only the newly unspent WETH. It asserts that the broadcaster received tokens and the market has no pool. Use `make smoke-testnet-oracle` for the oracle release.
 
 `test/fork/Smoke.fork.t.sol` uses the same launch-and-first-buy function and local `vm.deal` funding to simulate the remaining lifecycle against real testnet Icarus contracts. The legacy path sells out from one actor. The new 500 bps path uses distinct buyer contracts to respect each address's cap. Both fork paths test a curve sell, full sellout, graduation, LP custody, a pool swap, creator fee claim, and buyback fee funding. No fork transaction is broadcast or paid for on testnet.
 

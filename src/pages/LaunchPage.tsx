@@ -8,10 +8,12 @@ import RubberSegment from "../components/RubberSegment";
 import { useStore } from "../app/useStore.js";
 import { useAccount, useBalance, useReadContract } from "wagmi";
 import { formatEther, parseEther } from "viem";
-import { curveLaunchpadAbi, erc20Abi } from "../sdk/contracts";
+import { curveLaunchpadAbi, erc20Abi, legacyLaunchFeeAbi } from "../sdk/contracts";
+import { maximumLaunchFee } from "../sdk/curveballSdk";
 import {
   activeChainId,
   activeExplorerUrl,
+  activeLaunchFeeMode,
   launchpadAddress,
 } from "../lib/web3";
 import {
@@ -111,11 +113,17 @@ function displayWeth(amount: bigint): string {
 }
 
 export function LaunchPage({ navigate }: { navigate: Navigate }) {
+  const [nowSeconds, setNowSeconds] = useState(() => Math.floor(Date.now() / 1_000));
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowSeconds(Math.floor(Date.now() / 1_000)), 5_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const dialogHeading = useRef<HTMLHeadingElement>(null);
   const imageInput = useRef<HTMLInputElement>(null);
   const firstBuyInput = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const feeReviewConfirmed = useRef(false);
+  const reviewedFeeCap = useRef<bigint | null>(null);
   const [draftName, setDraftName] = useState("");
   const [draftSymbol, setDraftSymbol] = useState("");
   const [draftTaxPercent, setDraftTaxPercent] = useState("0");
@@ -160,9 +168,20 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
     ...launchpadRead,
     functionName: "paused",
   });
-  const { data: onchainLaunchFee, isError: launchFeeError } = useReadContract({
-    ...launchpadRead,
+  const { data: fixedLaunchFee, isError: fixedLaunchFeeError } = useReadContract({
+    address: launchpadAddress ?? undefined,
+    abi: legacyLaunchFeeAbi,
     functionName: "launchFee",
+    chainId: activeChainId,
+    query: { enabled: Boolean(launchpadAddress) && activeLaunchFeeMode === "fixed" },
+  });
+  const { data: oracleQuote, isError: oracleQuoteError } = useReadContract({
+    ...launchpadRead,
+    functionName: "quoteLaunchFee",
+    query: {
+      enabled: Boolean(launchpadAddress) && activeLaunchFeeMode === "oracle",
+      refetchInterval: 10_000,
+    },
   });
   const { data: graduationTarget } = useReadContract({
     ...launchpadRead,
@@ -188,7 +207,14 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
     chainId: activeChainId,
     query: { enabled: Boolean(address), refetchInterval: 15_000 },
   });
-  const launchFee = onchainLaunchFee;
+  const quoteTimestamp = oracleQuote ? Number(oracleQuote[2] / 1_000_000_000n) : undefined;
+  const quoteTooOld = activeLaunchFeeMode === "oracle" && quoteTimestamp !== undefined &&
+    (quoteTimestamp > nowSeconds || nowSeconds - quoteTimestamp > 45);
+  const launchFee = quoteTooOld || oracleQuoteError ? undefined :
+    activeLaunchFeeMode === "oracle" ? oracleQuote?.[0] : fixedLaunchFee;
+  const launchFeeCap = launchFee === undefined ? undefined :
+    activeLaunchFeeMode === "oracle" ? maximumLaunchFee(launchFee) : launchFee;
+  const launchFeeError = activeLaunchFeeMode === "oracle" ? oracleQuoteError : fixedLaunchFeeError;
   const buybackShareBps = feeDefaults?.[2];
   const creatorTaxCapBps = feeDefaults?.[3];
   // The guardian's pause stops new launches (and buys); nothing else gates who may launch.
@@ -365,12 +391,12 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
   const funding =
     wethBalance !== undefined &&
     nativeBalance !== undefined &&
-    launchFee !== undefined &&
+    launchFeeCap !== undefined &&
     initialBuyWei !== undefined
       ? launchFundingState(
           wethBalance,
           nativeBalance.value,
-          launchFee,
+          launchFeeCap,
           initialBuyWei,
         )
       : null;
@@ -406,7 +432,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
       name: draftName,
       symbol: draftSymbol,
       initialBuy: draftInitialBuy,
-      launchFee,
+      launchFee: launchFeeCap,
       artworkUri: publishedUri,
       taxPercent: draftTaxPercent,
       taxCapBps: creatorTaxCapBps,
@@ -417,12 +443,13 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
       return;
     }
     if (
-      launchFee !== undefined &&
+      launchFeeCap !== undefined &&
       initialBuyWei !== undefined &&
-      launchFee + initialBuyWei > 0n &&
+      launchFeeCap + initialBuyWei > 0n &&
       !feeReviewConfirmed.current
     ) {
       event.preventDefault();
+      reviewedFeeCap.current = launchFeeCap;
       setFeeReviewOpen(true);
       return;
     }
@@ -630,12 +657,12 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                         (wethBalance === undefined ||
                           nativeBalance === undefined ||
                           nativeBalance.value < LAUNCH_GAS_RESERVE ||
-                          launchFee === undefined ||
+                          launchFeeCap === undefined ||
                           firstBuyLimitWei === undefined ||
                           initialBuyFromAvailableBalance(
                             wethBalance,
                             nativeBalance.value,
-                            launchFee,
+                            launchFeeCap,
                             percent,
                             firstBuyLimitWei,
                           ) === 0n),
@@ -654,13 +681,13 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                       percent === 0 ||
                       wethBalance === undefined ||
                       nativeBalance === undefined ||
-                      launchFee === undefined ||
+                      launchFeeCap === undefined ||
                       firstBuyLimitWei === undefined
                         ? 0n
                         : initialBuyFromAvailableBalance(
                             wethBalance,
                             nativeBalance.value,
-                            launchFee,
+                            launchFeeCap,
                             percent,
                             firstBuyLimitWei,
                           );
@@ -735,6 +762,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
             </label>
             <input type="hidden" name="creatorTaxBps" value={draftTaxBps} />
             <input type="hidden" name="uri" value={publishedUri} />
+            <input type="hidden" name="maxLaunchFeeWei" value={launchFeeCap?.toString() ?? ""} />
 
             {address && paused === true && (
               <p className="notice" role="status">
@@ -744,7 +772,12 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
             )}
             {launchFeeError && (
               <p className="notice" role="alert">
-                Could not verify the launch fee. Try again before launching.
+                Could not verify the onchain launch fee. Try again before launching.
+              </p>
+            )}
+            {quoteTooOld && (
+              <p className="notice" role="alert">
+                The oracle quote expired. Wait for a fresh price before launching.
               </p>
             )}
             {feeDefaultsError && (
@@ -808,6 +841,9 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
               The launch fee and first buy settle in WETH. Curveball wraps any
               missing ETH, requests approval if needed, then asks you to confirm
               the launch. These may be separate wallet transactions.
+              {activeLaunchFeeMode === "oracle" && (
+                <> The fee uses the latest onchain ETH/USDC price. The launch fails if the fee rises above your reviewed WETH limit.</>
+              )}
             </Dialog.Description>
             <ol className="launch-wallet-steps">
               {funding && funding.ethToWrap > 0n && <li>Wrap ETH into WETH</li>}
@@ -816,12 +852,26 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
             </ol>
             <dl className="launch-fee-review-amounts">
               <div>
-                <dt>Anti-spam fee</dt>
+                <dt>Anti-spam fee{activeLaunchFeeMode === "oracle" ? " · $1 target" : ""}</dt>
                 <dd title={`${formatEther(launchFee ?? 0n)} WETH`}>
-                  <UsdAmount weth={Number(formatEther(launchFee ?? 0n))} />
+                  {activeLaunchFeeMode === "oracle"
+                    ? "$1.00"
+                    : <UsdAmount weth={Number(formatEther(launchFee ?? 0n))} />}
                   <small>{displayWeth(launchFee ?? 0n)} WETH</small>
                 </dd>
               </div>
+              {activeLaunchFeeMode === "oracle" && quoteTimestamp !== undefined && (
+                <div>
+                  <dt>Oracle price age</dt>
+                  <dd>{Math.max(0, nowSeconds - quoteTimestamp)} seconds</dd>
+                </div>
+              )}
+              {activeLaunchFeeMode === "oracle" && (
+                <div>
+                  <dt>Maximum fee if ETH price moves</dt>
+                  <dd>{displayWeth(reviewedFeeCap.current ?? launchFeeCap ?? 0n)} WETH</dd>
+                </div>
+              )}
               {initialBuyWei !== undefined && initialBuyWei > 0n && (
                 <div>
                   <dt>Initial buy</dt>
@@ -834,13 +884,13 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
               <div className="launch-fee-review-total">
                 <dt>Maximum WETH spend</dt>
                 <dd
-                  title={`${formatEther((launchFee ?? 0n) + (initialBuyWei ?? 0n))} WETH`}
+                  title={`${formatEther((reviewedFeeCap.current ?? launchFeeCap ?? 0n) + (initialBuyWei ?? 0n))} WETH`}
                 >
                   <UsdAmount
-                    weth={Number(formatEther((launchFee ?? 0n) + (initialBuyWei ?? 0n)))}
+                    weth={Number(formatEther((reviewedFeeCap.current ?? launchFeeCap ?? 0n) + (initialBuyWei ?? 0n)))}
                   />
                   <small>
-                    {displayWeth((launchFee ?? 0n) + (initialBuyWei ?? 0n))} WETH
+                    {displayWeth((reviewedFeeCap.current ?? launchFeeCap ?? 0n) + (initialBuyWei ?? 0n))} WETH
                   </small>
                 </dd>
               </div>
@@ -864,7 +914,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
               )}
             </dl>
             <p className="launch-fee-review-note">
-              The curve may spend less than this limit. Any WETH left after
+              The launch may spend less than this limit. Any WETH left after
               launch stays in your wallet.
             </p>
             <div className="launch-fee-review-actions">
@@ -878,6 +928,9 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                 onClick={() => {
                   const form = formRef.current;
                   if (!form || !form.reportValidity()) return;
+                  const capField = form.elements.namedItem("maxLaunchFeeWei");
+                  if (capField instanceof HTMLInputElement && reviewedFeeCap.current !== null)
+                    capField.value = reviewedFeeCap.current.toString();
                   setFeeReviewOpen(false);
                   feeReviewConfirmed.current = true;
                   try {

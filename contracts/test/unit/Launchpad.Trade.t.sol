@@ -178,7 +178,7 @@ contract LaunchpadTradeTest is Fixture {
     function test_buy_creatorTaxIsCreditedToTheCreator() public {
         _fund(creator, LAUNCH_FEE);
         vm.prank(creator);
-        (address taxed,) = launchpad.launch(_meta(), 50, 0, 0);
+        (address taxed,) = launchpad.launch(_meta(), 50, 0, 0, LAUNCH_FEE);
         vm.warp(block.timestamp + 5);
         CurveMath.Buy memory preview = launchpad.previewBuy(taxed, 1 ether);
         assertEq(preview.tax, preview.curveQuote * 50 / 10_000);

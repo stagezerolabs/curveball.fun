@@ -9,11 +9,12 @@ import {CurveLaunchpad} from "../contracts/CurveLaunchpad.sol";
 import {CurveLpLocker} from "../contracts/CurveLpLocker.sol";
 import {MockIcarusFactory} from "./mocks/MockIcarus.sol";
 import {MockWETH} from "./mocks/MockWETH.sol";
+import {MockStork} from "./mocks/MockStork.sol";
 
 /// @dev The full system on mocks, deployed through the same `CurveDeploy` path as production.
 abstract contract Fixture is Test, CurveDeploy {
     uint256 constant TARGET = 4 ether;
-    uint256 constant LAUNCH_FEE = 0.00045 ether;
+    uint256 constant LAUNCH_FEE = 0.0005 ether;
 
     address owner = makeAddr("owner");
     address guardian = makeAddr("guardian");
@@ -24,6 +25,7 @@ abstract contract Fixture is Test, CurveDeploy {
 
     MockWETH weth;
     MockIcarusFactory icarus;
+    MockStork stork;
     CurveLaunchpad launchpad;
     CurveFeeEscrow escrow;
     CurveLpLocker locker;
@@ -31,6 +33,7 @@ abstract contract Fixture is Test, CurveDeploy {
     function setUp() public virtual {
         weth = new MockWETH();
         icarus = new MockIcarusFactory();
+        stork = new MockStork();
         Deployment memory d = _deployCurve(address(this), _params());
         (launchpad, escrow, locker) = (d.launchpad, d.escrow, d.locker);
     }
@@ -42,7 +45,7 @@ abstract contract Fixture is Test, CurveDeploy {
             treasury: treasury,
             quoteToken: address(weth),
             icarusFactory: address(icarus),
-            launchFee: LAUNCH_FEE,
+            storkOracle: address(stork),
             walletCapBps: 10_000,
             graduationTarget: TARGET,
             fees: CurveLaunchpad.FeeDefaults(75, 5_000, 2_500, 50)
@@ -57,7 +60,7 @@ abstract contract Fixture is Test, CurveDeploy {
     function _launch(address who, uint256 firstBuy) internal returns (address token) {
         _fund(who, LAUNCH_FEE + firstBuy);
         vm.prank(who);
-        (token,) = launchpad.launch(_meta(), 0, firstBuy, 0);
+        (token,) = launchpad.launch(_meta(), 0, firstBuy, 0, LAUNCH_FEE);
     }
 
     /// @dev Buys with exactly `spend` freshly minted WETH and returns the tokens received.

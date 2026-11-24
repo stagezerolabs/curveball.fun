@@ -7,6 +7,7 @@ import {CurveLaunchpad} from "../../contracts/CurveLaunchpad.sol";
 import {CurveToken} from "../../contracts/CurveToken.sol";
 import {CurveMath} from "../../contracts/libraries/CurveMath.sol";
 import {MockWETH} from "../mocks/MockWETH.sol";
+import {MockStork} from "../mocks/MockStork.sol";
 
 contract LaunchpadAdminTest is Test {
     address owner = makeAddr("owner");
@@ -14,6 +15,7 @@ contract LaunchpadAdminTest is Test {
     address stranger = makeAddr("stranger");
 
     MockWETH weth = new MockWETH();
+    MockStork stork = new MockStork();
     CurveLaunchpad launchpad;
 
     function _config() internal returns (CurveLaunchpad.Config memory c) {
@@ -24,7 +26,7 @@ contract LaunchpadAdminTest is Test {
         c.icarusFactory = makeAddr("icarus");
         c.escrow = makeAddr("escrow");
         c.locker = makeAddr("locker");
-        c.launchFee = 0.001 ether;
+        c.storkOracle = address(stork);
         c.walletCapBps = 10_000;
         c.graduationTarget = 4 ether;
         c.fees = CurveLaunchpad.FeeDefaults(75, 5_000, 2_500, 50);
@@ -64,7 +66,7 @@ contract LaunchpadAdminTest is Test {
         new CurveLaunchpad(c);
 
         c = _config();
-        c.launchFee = 0.01 ether + 1;
+        c.storkOracle = address(0);
         vm.expectRevert(CurveLaunchpad.InvalidConfig.selector);
         new CurveLaunchpad(c);
 

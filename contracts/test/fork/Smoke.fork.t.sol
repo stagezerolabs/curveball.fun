@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {CurveDeploy} from "../../scripts/CurveDeploy.sol";
-import {Smoke} from "../../scripts/Smoke.s.sol";
+import {Smoke, ILegacyLaunchpad} from "../../scripts/Smoke.s.sol";
 import {CurveFeeEscrow} from "../../contracts/CurveFeeEscrow.sol";
 import {CurveLaunchpad} from "../../contracts/CurveLaunchpad.sol";
 import {CurveLpLocker} from "../../contracts/CurveLpLocker.sol";
@@ -70,11 +70,12 @@ contract ForkSmokeActor is Smoke {
         require(_isLegacy(lp) == legacy, "wrong release");
         quote = lp.quoteToken();
 
-        uint256 wrap = lp.graduationTarget() * 210 / 100 + lp.launchFee() + POOL_SWAP + 0.01 ether;
+        uint256 fee = legacy ? ILegacyLaunchpad(address(lp)).launchFee() : _quotedFee(lp);
+        uint256 wrap = lp.graduationTarget() * 210 / 100 + fee + POOL_SWAP + 0.01 ether;
         IForkWETH(quote).deposit{value: wrap}();
         IERC20(quote).forceApprove(launchpad_, type(uint256).max);
         uint256 firstTokens;
-        (token, firstTokens) = _launchAndBuy(lp, address(this), legacy);
+        (token, firstTokens) = _launchAndBuy(lp, address(this), legacy, fee);
 
         IERC20(token).forceApprove(launchpad_, firstTokens / 2);
         require(lp.sell(token, firstTokens / 2, 1, block.timestamp + 1 hours) != 0, "sell");
@@ -160,7 +161,7 @@ contract SmokeTestnetForkTest is Test, CurveDeploy {
                 treasury: address(this),
                 quoteToken: TESTNET_WETH,
                 icarusFactory: TESTNET_ICARUS,
-                launchFee: 0.00045 ether,
+                storkOracle: 0xacC0a0cF13571d30B4b8637996F5D6D774d4fd62,
                 walletCapBps: 500,
                 graduationTarget: 4 ether,
                 fees: CurveLaunchpad.FeeDefaults(75, 5_000, 2_500, 50)

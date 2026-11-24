@@ -91,6 +91,7 @@ export function prepareProductionEnv({
         ...parseEnv(resolve(root, ".env.production")),
       }
     : parseEnv(resolve(root, source.frontend));
+  const oracleRelease = frontend.VITE_LAUNCH_FEE_MODE === "oracle";
   const social = parseEnv(resolve(root, source.social));
   const keeper = parseEnv(resolve(root, source.keeper));
   if (isMainnet && keeper.KEEPER_PRIVATE_KEY) {
@@ -98,7 +99,7 @@ export function prepareProductionEnv({
       "Mainnet keeper private key belongs in the host secret file, not keeper/.env.mainnet.local.",
     );
   }
-  const recordPath = resolve(root, `deployments/${chainId}/curveball.json`);
+  const recordPath = resolve(root, `deployments/${chainId}/${oracleRelease ? "curveball-oracle-v3.json" : "curveball.json"}`);
   if (!existsSync(recordPath))
     throw new Error(`Missing RISE ${network} deployment record: ${recordPath}`);
   const deployment = JSON.parse(readFileSync(recordPath, "utf8"));
@@ -111,7 +112,7 @@ export function prepareProductionEnv({
   }
   const swapRecordPath = resolve(
     root,
-    `deployments/${chainId}/icarus-swap-adapter.json`,
+    `deployments/${chainId}/${oracleRelease ? "icarus-swap-adapter-oracle-v3.json" : "icarus-swap-adapter.json"}`,
   );
   const swapRecord = existsSync(swapRecordPath)
     ? JSON.parse(readFileSync(swapRecordPath, "utf8"))
@@ -145,6 +146,30 @@ export function prepareProductionEnv({
   const expectedChain = String(chainId);
   const launchpad = deployment.launchpad;
   const deploymentBlock = String(deployment.deploymentBlock);
+  const legacy = oracleRelease
+    ? JSON.parse(readFileSync(resolve(root, `deployments/${chainId}/curveball.json`), "utf8"))
+    : null;
+  const legacySwap = oracleRelease
+    ? JSON.parse(readFileSync(resolve(root, `deployments/${chainId}/icarus-swap-adapter.json`), "utf8"))
+    : null;
+  if (oracleRelease) {
+    if (deployment.version !== "oracle-v3" ||
+        deployment.storkOracle?.toLowerCase() !== "0xacc0a0cf13571d30b4b8637996f5d6d774d4fd62" ||
+        deployment.storkFeedId?.toLowerCase() !== "0x7965e1bfc07a34caf0c3aa8146b200264fbb7a0eb85b1d3b1fdceecffd736b02" ||
+        deployment.launchFeeUsd !== "1000000000000000000" ||
+        !ADDRESS.test(legacy.launchpad) ||
+        !/^\d+$/.test(String(legacy.deploymentBlock)) ||
+        legacySwap.launchpad?.toLowerCase() !== legacy.launchpad.toLowerCase() ||
+        !ADDRESS.test(legacySwap.adapter) || !HASH.test(legacySwap.codeHash) ||
+        frontend.VITE_LEGACY_LAUNCHPAD_ADDRESS?.toLowerCase() !== legacy.launchpad.toLowerCase() ||
+        frontend.VITE_LEGACY_DEPLOYMENT_BLOCK !== String(legacy.deploymentBlock) ||
+        frontend.VITE_LEGACY_ICARUS_SWAP_ADAPTER?.toLowerCase() !== legacySwap.adapter.toLowerCase() ||
+        frontend.VITE_LEGACY_ICARUS_SWAP_ADAPTER_CODE_HASH?.toLowerCase() !== legacySwap.codeHash.toLowerCase() ||
+        social.SOCIAL_LAUNCH_FEE_MODE !== "oracle" ||
+        social.SOCIAL_LEGACY_LAUNCHPADS?.toLowerCase() !== `${legacy.launchpad}:${legacy.deploymentBlock}`.toLowerCase() ||
+        keeper.KEEPER_LEGACY_LAUNCHPADS?.toLowerCase() !== `${legacy.launchpad}:${legacy.deploymentBlock}`.toLowerCase())
+      throw new Error("Oracle release or legacy deployment configuration does not match records.");
+  }
   const parity = [
     [
       frontend.VITE_CHAIN_ID,
@@ -180,6 +205,11 @@ export function prepareProductionEnv({
       "VITE_DEPLOYMENT_BLOCK",
       "VITE_ICARUS_SWAP_ADAPTER",
       "VITE_ICARUS_SWAP_ADAPTER_CODE_HASH",
+      "VITE_LAUNCH_FEE_MODE",
+      "VITE_LEGACY_LAUNCHPAD_ADDRESS",
+      "VITE_LEGACY_DEPLOYMENT_BLOCK",
+      "VITE_LEGACY_ICARUS_SWAP_ADAPTER",
+      "VITE_LEGACY_ICARUS_SWAP_ADAPTER_CODE_HASH",
     ]) {
       if (
         local[key] &&
@@ -245,6 +275,11 @@ export function prepareProductionEnv({
         ],
         ["VITE_LAUNCHPAD_ADDRESS", launchpad],
         ["VITE_DEPLOYMENT_BLOCK", deploymentBlock],
+        ["VITE_LAUNCH_FEE_MODE", oracleRelease ? "oracle" : "fixed"],
+        ["VITE_LEGACY_LAUNCHPAD_ADDRESS", legacy?.launchpad],
+        ["VITE_LEGACY_DEPLOYMENT_BLOCK", legacy?.deploymentBlock],
+        ["VITE_LEGACY_ICARUS_SWAP_ADAPTER", legacySwap?.adapter],
+        ["VITE_LEGACY_ICARUS_SWAP_ADAPTER_CODE_HASH", legacySwap?.codeHash],
         ["VITE_ICARUS_SWAP_ADAPTER", swapRecord?.adapter],
         ["VITE_ICARUS_SWAP_ADAPTER_CODE_HASH", swapRecord?.codeHash],
         ["VITE_SOCIAL_API_URL", "https://social-api.curveball.fun"],
@@ -264,6 +299,8 @@ export function prepareProductionEnv({
         ["SOCIAL_CHAIN_NAME", isMainnet ? "RISE Mainnet" : "RISE Testnet"],
         ["SOCIAL_NATIVE_SYMBOL", social.SOCIAL_NATIVE_SYMBOL || "ETH"],
         ["SOCIAL_LAUNCHPAD_ADDRESS", launchpad],
+        ["SOCIAL_LAUNCH_FEE_MODE", oracleRelease ? "oracle" : "fixed"],
+        ["SOCIAL_LEGACY_LAUNCHPADS", legacy ? `${legacy.launchpad}:${legacy.deploymentBlock}` : undefined],
         ["SOCIAL_ADMIN_ADDRESS", adminAddress],
         ["SOCIAL_PROTOCOL_ACCOUNTS", social.SOCIAL_PROTOCOL_ACCOUNTS],
         ["SOCIAL_DEPLOYMENT_BLOCK", deploymentBlock],
@@ -305,6 +342,7 @@ export function prepareProductionEnv({
           requireValue(keeper, "KEEPER_RPC_URL", source.keeper),
         ],
         ["KEEPER_LAUNCHPAD_ADDRESS", launchpad],
+        ["KEEPER_LEGACY_LAUNCHPADS", legacy ? `${legacy.launchpad}:${legacy.deploymentBlock}` : undefined],
         ["KEEPER_DEPLOYMENT_BLOCK", deploymentBlock],
         [
           "KEEPER_PRIVATE_KEY",

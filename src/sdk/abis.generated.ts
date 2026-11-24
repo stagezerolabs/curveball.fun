@@ -45,9 +45,9 @@ export const curveLaunchpadAbi = [
             "internalType": "address"
           },
           {
-            "name": "launchFee",
-            "type": "uint256",
-            "internalType": "uint256"
+            "name": "storkOracle",
+            "type": "address",
+            "internalType": "address"
           },
           {
             "name": "walletCapBps",
@@ -106,7 +106,33 @@ export const curveLaunchpadAbi = [
   },
   {
     "type": "function",
+    "name": "ETH_USDC_FEED_ID",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "GRADUATION_TIMEOUT",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MAX_ETH_USDC_PRICE",
     "inputs": [],
     "outputs": [
       {
@@ -145,6 +171,19 @@ export const curveLaunchpadAbi = [
   },
   {
     "type": "function",
+    "name": "MAX_ORACLE_AGE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "MAX_TAX_BPS",
     "inputs": [],
     "outputs": [
@@ -171,6 +210,19 @@ export const curveLaunchpadAbi = [
   },
   {
     "type": "function",
+    "name": "MIN_ETH_USDC_PRICE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "MIN_TARGET",
     "inputs": [],
     "outputs": [
@@ -185,6 +237,19 @@ export const curveLaunchpadAbi = [
   {
     "type": "function",
     "name": "SUPPLY",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "USD_LAUNCH_FEE",
     "inputs": [],
     "outputs": [
       {
@@ -460,6 +525,11 @@ export const curveLaunchpadAbi = [
         "name": "minOut",
         "type": "uint256",
         "internalType": "uint256"
+      },
+      {
+        "name": "maxLaunchFeeWei",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [
@@ -475,19 +545,6 @@ export const curveLaunchpadAbi = [
       }
     ],
     "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "launchFee",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -856,6 +913,29 @@ export const curveLaunchpadAbi = [
   },
   {
     "type": "function",
+    "name": "quoteLaunchFee",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "fee",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "price",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "timestampNs",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "quoteToken",
     "inputs": [],
     "outputs": [
@@ -1015,6 +1095,19 @@ export const curveLaunchpadAbi = [
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "storkOracle",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -1271,6 +1364,43 @@ export const curveLaunchpadAbi = [
   },
   {
     "type": "event",
+    "name": "LaunchFeePaid",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "creator",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "wethAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "ethUsdcPrice",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "priceTimestampNs",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "OwnershipTransferStarted",
     "inputs": [
       {
@@ -1469,8 +1599,29 @@ export const curveLaunchpadAbi = [
   },
   {
     "type": "error",
+    "name": "InvalidOraclePrice",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "InvalidTarget",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "LaunchFeeTooHigh",
+    "inputs": [
+      {
+        "name": "quotedFee",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "maximumFee",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
   },
   {
     "type": "error",
@@ -1574,6 +1725,11 @@ export const curveLaunchpadAbi = [
   {
     "type": "error",
     "name": "SoldOut",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "StaleOraclePrice",
     "inputs": []
   },
   {

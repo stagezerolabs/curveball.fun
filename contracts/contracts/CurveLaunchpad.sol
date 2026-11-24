@@ -13,6 +13,7 @@ import {CurveToken} from "./CurveToken.sol";
 import {ICurveLaunchpad} from "./interfaces/ICurveLaunchpad.sol";
 import {ICurveFeeEscrow, ICurveLpLocker} from "./interfaces/ICurveSingletons.sol";
 import {IIcarusFactory, IIcarusPool} from "./interfaces/IIcarus.sol";
+import {IStork} from "./interfaces/IStork.sol";
 import {CurveMath} from "./libraries/CurveMath.sol";
 
 /// @notice Singleton launchpad: launches fixed-supply tokens on virtual-reserve curves and graduates
@@ -31,7 +32,12 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
     uint16 public immutable walletCapBps;
     uint256 public constant MAX_FEE_BPS = 200;
     uint256 public constant MAX_TAX_BPS = 50;
+    uint256 public constant USD_LAUNCH_FEE = 1 ether;
     uint256 public constant MAX_LAUNCH_FEE = 0.01 ether;
+    uint256 public constant MAX_ORACLE_AGE = 60 seconds;
+    uint256 public constant MIN_ETH_USDC_PRICE = 100 ether;
+    uint256 public constant MAX_ETH_USDC_PRICE = 100_000 ether;
+    bytes32 public constant ETH_USDC_FEED_ID = 0x7965e1bfc07a34caf0c3aa8146b200264fbb7a0eb85b1d3b1fdceecffd736b02;
     /// @dev Far above the pool's MINIMUM_LIQUIDITY at any seed the curve can produce.
     uint256 public constant MIN_TARGET = 4 ether;
     uint256 public constant GRADUATION_TIMEOUT = 7 days;
@@ -45,7 +51,7 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
         address icarusFactory;
         address escrow;
         address locker;
-        uint256 launchFee;
+        address storkOracle;
         uint16 walletCapBps;
         uint256 graduationTarget;
         FeeDefaults fees;
@@ -98,7 +104,7 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
     address public immutable escrow;
     address public immutable locker;
     address public immutable tokenImplementation;
-    uint256 public immutable launchFee;
+    address public immutable storkOracle;
 
     FeeDefaults public feeDefaults;
     uint256 public graduationTarget;
@@ -121,6 +127,9 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
         uint16 creatorShareBps,
         uint16 buybackShareBps,
         uint16 taxBps
+    );
+    event LaunchFeePaid(
+        address indexed token, address indexed creator, uint256 wethAmount, uint256 ethUsdcPrice, uint64 priceTimestampNs
     );
     /// @param quoteAmount What the trader paid on a buy (curve quote and all fees/taxes) or received on a sell.
     event Trade(
@@ -161,6 +170,9 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
     error EnforcedPause();
     error RenounceDisabled();
     error NotRescuable();
+    error InvalidOraclePrice();
+    error StaleOraclePrice();
+    error LaunchFeeTooHigh(uint256 quotedFee, uint256 maximumFee);
 
     modifier whenNotPaused() {
         if (paused) revert EnforcedPause();
@@ -170,7 +182,7 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
     constructor(Config memory config) Ownable(config.owner) {
         if (
             config.treasury == address(0) || config.quoteToken == address(0) || config.icarusFactory == address(0)
-                || config.escrow == address(0) || config.locker == address(0) || config.launchFee > MAX_LAUNCH_FEE
+                || config.escrow == address(0) || config.locker == address(0) || config.storkOracle.code.length == 0
                 || config.walletCapBps == 0 || config.walletCapBps > BPS
         ) revert InvalidConfig();
         // Curve trading math is scale-invariant, but the quote-denominated constants and defaults
@@ -182,7 +194,7 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
         icarusFactory = config.icarusFactory;
         escrow = config.escrow;
         locker = config.locker;
-        launchFee = config.launchFee;
+        storkOracle = config.storkOracle;
         walletCapBps = config.walletCapBps;
         MAX_WALLET_CURVE_TOKENS = CURVE_SUPPLY * config.walletCapBps / BPS;
         tokenImplementation = address(new CurveToken());
@@ -197,7 +209,7 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
     /// @dev The fee policy and starting virtual quote are snapshotted; later admin changes never reach
     ///      this market. `uri` is emitted, not stored. The first buy goes to the caller, like any buy.
     /// @param maxSpend Quote to spend on the first buy (curve quote, fee and tax); 0 skips it.
-    function launch(Metadata calldata meta, uint16 taxBps, uint256 maxSpend, uint256 minOut)
+    function launch(Metadata calldata meta, uint16 taxBps, uint256 maxSpend, uint256 minOut, uint256 maxLaunchFeeWei)
         external
         nonReentrant
         whenNotPaused
@@ -205,14 +217,30 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
     {
         uint256 uriLength = bytes(meta.uri).length;
         if (uriLength == 0 || uriLength > MAX_URI_LENGTH) revert InvalidLaunch();
+        (uint256 fee, uint256 price, uint64 timestampNs) = quoteLaunchFee();
+        if (fee > maxLaunchFeeWei) revert LaunchFeeTooHigh(fee, maxLaunchFeeWei);
         token = _createMarket(taxBps);
 
-        if (launchFee != 0) IERC20(quoteToken).safeTransferFrom(msg.sender, treasury, launchFee);
+        IERC20(quoteToken).safeTransferFrom(msg.sender, treasury, fee);
+        emit LaunchFeePaid(token, msg.sender, fee, price, timestampNs);
         CurveToken(token).initialize(meta.name, meta.symbol, SUPPLY);
         _emitLaunch(token, meta, taxBps);
 
         if (maxSpend != 0) tokensOut = _buy(token, maxSpend, minOut);
         else if (minOut != 0) revert InvalidLaunch();
+    }
+
+    /// @notice Current WETH charge for the immutable $1 ETH/USDC launch policy.
+    function quoteLaunchFee() public view returns (uint256 fee, uint256 price, uint64 timestampNs) {
+        IStork.TemporalNumericValue memory value = IStork(storkOracle).getTemporalNumericValueV1(ETH_USDC_FEED_ID);
+        timestampNs = value.timestampNs;
+        uint256 timestamp = uint256(timestampNs) / 1e9;
+        if (timestamp > block.timestamp || block.timestamp - timestamp > MAX_ORACLE_AGE) revert StaleOraclePrice();
+        if (value.quantizedValue < int192(int256(MIN_ETH_USDC_PRICE))
+            || value.quantizedValue > int192(int256(MAX_ETH_USDC_PRICE))) revert InvalidOraclePrice();
+        price = uint256(uint192(value.quantizedValue));
+        fee = Math.mulDiv(USD_LAUNCH_FEE, 1 ether, price, Math.Rounding.Ceil);
+        if (fee == 0 || fee > MAX_LAUNCH_FEE) revert InvalidOraclePrice();
     }
 
     // ---------------------------------------------------------------- trade

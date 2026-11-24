@@ -37,7 +37,7 @@ Deployment defaults are separate from hard bounds:
 
 | Default                                       |                                                                    Value |
 | --------------------------------------------- | -----------------------------------------------------------------------: |
-| Launch fee                                    |                                                             0.00045 WETH |
+| Launch fee                                    | Stork ETH/USDC priced WETH equivalent of 1 USDC |
 | Curve fee                                     |                                                                   75 bps |
 | Creator share of curve fee                    |                                                          5,000 bps (50%) |
 | Buyback share of curve fee                    |                                                          2,500 bps (25%) |
@@ -171,11 +171,11 @@ The creator receives all creator tax. The opening anti-snipe tax is separate and
 
 ### Construction
 
-The constructor requires nonzero treasury, quote token, Icarus factory, escrow, locker, and guardian addresses; inherited ownership construction governs the owner address. The quote token must report 18 decimals. `walletCapBps` must be in 1–10,000, and `MAX_WALLET_CURVE_TOKENS = CURVE_SUPPLY × walletCapBps / BPS` is immutable. Launch fee must not exceed 0.01 quote token. Fee defaults and graduation target must pass the bounds below.
+The constructor requires nonzero treasury, quote token, Icarus factory, escrow, locker, and guardian addresses and deployed Stork oracle code; inherited ownership construction governs the owner address. The quote token must report 18 decimals. `walletCapBps` must be in 1–10,000, and `MAX_WALLET_CURVE_TOKENS = CURVE_SUPPLY × walletCapBps / BPS` is immutable. Fee defaults and graduation target must pass the bounds below.
 
-Construction stores all dependency addresses and launch fee immutably, deploys and seals one `CurveToken` implementation, sets guardian/defaults/target, and emits their update events.
+Construction stores all dependency addresses and the Stork oracle immutably, deploys and seals one `CurveToken` implementation, sets guardian/defaults/target, and emits their update events.
 
-### `launch(meta, taxBps, maxSpend, minOut)`
+### `launch(meta, taxBps, maxSpend, minOut, maxLaunchFeeWei)`
 
 Availability: permissionless, nonreentrant, and blocked while paused.
 
@@ -185,18 +185,21 @@ Preconditions:
 - Token name and symbol later pass token initialization bounds.
 - `taxBps <= current feeDefaults.taxCapBps`.
 - If `maxSpend == 0`, `minOut` must also be zero.
-- Caller has approved the immutable launch fee and any optional first-buy WETH, including all buy taxes.
+- A fresh Stork ETH/USDC quote is available and the resulting WETH fee does not exceed `maxLaunchFeeWei`.
+- Caller has approved the WETH fee and any optional first-buy WETH, including all buy taxes.
 
 Effects:
 
 1. Uses and increments the caller's launch nonce to deploy a deterministic clone.
 2. Snapshots creator and current economic policy in a `Trading` market with `vT = S`, `vQ = initialVirtualQuote`, and zero real quote.
-3. Transfers immutable launch fee directly to treasury.
+3. Transfers the oracle priced WETH fee directly to treasury and emits `LaunchFeePaid` with its price and timestamp.
 4. Initializes the clone and mints the full supply to the launchpad.
 5. Emits `LaunchCreated`, including metadata URI.
 6. If `maxSpend != 0`, executes `_buy` for the launch caller and returns its output.
 
 All effects revert atomically if any later step fails.
+
+`quoteLaunchFee()` returns the rounded-up WETH fee, 18 decimal ETH/USDC price, and nanosecond oracle timestamp. A sample older than 60 seconds, from the future, or outside 100–100,000 USDC per ETH reverts. The resulting fee cannot exceed 0.01 WETH. ETH/USDC is an approximate USD reference and this release does not guard against a USDC depeg.
 
 ### `predictToken(creator)`
 

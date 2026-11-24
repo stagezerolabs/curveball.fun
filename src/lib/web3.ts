@@ -73,6 +73,10 @@ export const wagmiConfig = createConfig({
 });
 
 const configuredLaunchpad = env.VITE_LAUNCHPAD_ADDRESS.trim();
+const configuredFeeMode = env.VITE_LAUNCH_FEE_MODE || "fixed";
+if (configuredFeeMode !== "fixed" && configuredFeeMode !== "oracle")
+  throw new Error("VITE_LAUNCH_FEE_MODE must be fixed or oracle.");
+export const activeLaunchFeeMode = configuredFeeMode;
 export const launchpadAddress: Address | null = isAddress(configuredLaunchpad)
   ? getAddress(configuredLaunchpad)
   : null;
@@ -99,6 +103,7 @@ export const curveballSdk = launchpadAddress
       defineCurveballDeployment({
         chainId: activeChainId,
         launchpad: launchpadAddress,
+        feeMode: activeLaunchFeeMode,
         ...(activeSwapAdapterAddress
           ? {
               swapAdapter: activeSwapAdapterAddress,
@@ -110,6 +115,41 @@ export const curveballSdk = launchpadAddress
       }),
     )
   : null;
+
+const legacyAddress = String(env.VITE_LEGACY_LAUNCHPAD_ADDRESS || "").trim();
+const legacyBlock = String(env.VITE_LEGACY_DEPLOYMENT_BLOCK || "").trim();
+const legacyAdapter = String(env.VITE_LEGACY_ICARUS_SWAP_ADAPTER || "").trim();
+const legacyAdapterHash = String(env.VITE_LEGACY_ICARUS_SWAP_ADAPTER_CODE_HASH || "").trim();
+if (Boolean(legacyAddress) !== Boolean(legacyBlock) || (legacyAdapter && !legacyAddress))
+  throw new Error("Legacy launchpad address, block, and adapter must be configured together.");
+if (legacyAddress && (!isAddress(legacyAddress) || !/^\d+$/.test(legacyBlock)))
+  throw new Error("Legacy launchpad address and deployment block must be valid.");
+if (Boolean(legacyAdapter) !== Boolean(legacyAdapterHash) ||
+    (legacyAdapter && (!isAddress(legacyAdapter) || !/^0x[0-9a-fA-F]{64}$/.test(legacyAdapterHash))))
+  throw new Error("Legacy swap adapter address and code hash must be valid.");
+export const legacyLaunchpadAddress: Address | null = legacyAddress ? getAddress(legacyAddress) : null;
+if (legacyLaunchpadAddress?.toLowerCase() === launchpadAddress?.toLowerCase())
+  throw new Error("Legacy and active launchpads must be distinct.");
+export const legacyDeploymentBlock = legacyBlock ? BigInt(legacyBlock) : null;
+export const legacySwapAdapterAddress: Address | null = legacyAdapter ? getAddress(legacyAdapter) : null;
+export const legacyCurveballSdk = legacyLaunchpadAddress
+  ? createCurveballSdk(wagmiConfig, defineCurveballDeployment({
+      chainId: activeChainId,
+      launchpad: legacyLaunchpadAddress,
+      feeMode: "fixed",
+      ...(legacySwapAdapterAddress ? {
+        swapAdapter: legacySwapAdapterAddress,
+        swapAdapterCodeHash: legacyAdapterHash.toLowerCase(),
+      } : {}),
+      slippageBps: 300,
+      deadlineSeconds: 300,
+    }))
+  : null;
+export const launchpadDeployments = [
+  ...(launchpadAddress ? [{ address: launchpadAddress, block: activeDeploymentBlock }] : []),
+  ...(legacyLaunchpadAddress && legacyDeploymentBlock !== null
+    ? [{ address: legacyLaunchpadAddress, block: legacyDeploymentBlock }] : []),
+];
 
 export function requireCurveballSdk() {
   if (!curveballSdk) throw new Error("Curveball deployment is not configured.");

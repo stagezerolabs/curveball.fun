@@ -10,6 +10,7 @@ import {CurveLpLocker} from "../../contracts/CurveLpLocker.sol";
 import {CurveMath} from "../../contracts/libraries/CurveMath.sol";
 import {MockIcarusFactory, MockIcarusPool} from "../mocks/MockIcarus.sol";
 import {MockWETH} from "../mocks/MockWETH.sol";
+import {MockStork} from "../mocks/MockStork.sol";
 
 /// @dev Drives the whole system through every action a user, keeper, donor or admin can take.
 ///      The handler keeps its own ghost of each market's state machine, updated only from its own
@@ -116,16 +117,18 @@ contract Handler is Test {
 
     function launch(uint256 actorSeed, uint16 taxBps, uint256 firstBuy) public step {
         if (tokens.length >= MAX_MARKETS) return;
+        MockStork(launchpad.storkOracle()).setPrice(2_000 ether);
         address actor = _actor(actorSeed);
         CurveLaunchpad.FeeDefaults memory fees = _feeDefaults();
         taxBps = uint16(bound(taxBps, 0, fees.taxCapBps));
         firstBuy = firstBuy % 3 == 0 ? 0 : bound(firstBuy, 0.001 ether, 2 ether);
-        _fund(actor, launchpad.launchFee() + firstBuy);
+        (uint256 fee,,) = launchpad.quoteLaunchFee();
+        _fund(actor, fee + firstBuy);
         uint256 vQ0 = launchpad.graduationTarget() * (S - C) / C;
 
         bool paused = launchpad.paused();
         vm.prank(actor);
-        try launchpad.launch(_meta(), taxBps, firstBuy, 0) returns (address token, uint256) {
+        try launchpad.launch(_meta(), taxBps, firstBuy, 0, fee) returns (address token, uint256) {
             if (paused) _violate("launch while paused");
             tokens.push(token);
             ghosts[token] = Ghost(CurveLaunchpad.State.Trading, 0, fees, taxBps, vQ0);

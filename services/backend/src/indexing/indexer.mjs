@@ -79,7 +79,7 @@ const tradeTopic = toEventSelector(tradeEvent).toLowerCase();
 /** CurveLaunchpad.State in enum order, as stored in markets.state. */
 const MARKET_STATES = ["trading", "trading", "ready", "graduated", "aborted"];
 /** The launchpad's SUPPLY and CURVE_SUPPLY, read once at startup. */
-let supplies;
+const supplies = new Map();
 const poolPairAbi = parseAbi([
   "function token0() view returns (address)",
   "function token1() view returns (address)",
@@ -384,55 +384,6 @@ async function rebuildMarketCandles(db, tokenAddress) {
   }
 }
 
-// Everything below is derived from chain logs, so a new launchpad can retire the old deployment's rows by
-// orphaning them (as a reorg would) and rebuild from its own deployment block. User content (profiles,
-// follows, notes, reactions, copy intents) is untouched; it keeps referencing the orphaned trades.
-const DERIVED_TABLES_TO_ORPHAN = [
-  "markets",
-  "trades",
-  "venue_swaps",
-  "asset_transfers",
-  "protocol_flows",
-  "buyback_executions",
-  "chain_logs",
-];
-const DERIVED_TABLES_TO_CLEAR = [
-  "market_stats",
-  "market_candles",
-  "curve_positions",
-  "trader_performance_snapshots",
-  "leaderboard_snapshots",
-  "chain_cursors",
-];
-
-async function retirePreviousDeployment(db, launchpad) {
-  const active = await db.query(
-    `SELECT address FROM contract_deployments
-    WHERE chain_id=$1 AND role IN ('factory','launchpad') AND active_until IS NULL`,
-    [config.chainId],
-  );
-  if (!active.rowCount || active.rows.every((row) => row.address === launchpad))
-    return false;
-  await db.query(
-    `UPDATE contract_deployments SET active_until=now()
-    WHERE chain_id=$1 AND role IN ('factory','launchpad') AND address<>$2 AND active_until IS NULL`,
-    [config.chainId, launchpad],
-  );
-  for (const table of DERIVED_TABLES_TO_ORPHAN) {
-    await db.query(
-      `UPDATE ${table} SET orphaned=true WHERE chain_id=$1 AND orphaned=false`,
-      [config.chainId],
-    );
-  }
-  for (const table of DERIVED_TABLES_TO_CLEAR) {
-    await db.query(`DELETE FROM ${table} WHERE chain_id=$1`, [config.chainId]);
-  }
-  await db.query(`DELETE FROM protocol_accounts WHERE chain_id=$1`, [
-    config.chainId,
-  ]);
-  return true;
-}
-
 async function initializeIndexerState() {
   const connectedChainId = await client.getChainId();
   if (connectedChainId !== config.chainId) {
@@ -440,45 +391,37 @@ async function initializeIndexerState() {
       `RPC chain ${connectedChainId} does not match configured chain ${config.chainId}.`,
     );
   }
-  const launchpad = lower(config.launchpadAddress);
-  const read = (functionName) =>
-    client.readContract({
-      address: config.launchpadAddress,
-      abi: launchpadAbi,
-      functionName,
+  const accounts = [...config.protocolAccounts];
+  for (const deployment of config.launchpadDeployments) {
+    const read = (functionName) => client.readContract({
+      address: deployment.address, abi: launchpadAbi, functionName,
     });
-  const [quote, treasury, escrow, locker, supply, curveSupply] =
-    await Promise.all([
-      read("quoteToken"),
-      read("treasury"),
-      read("escrow"),
-      read("locker"),
-      read("SUPPLY"),
-      read("CURVE_SUPPLY"),
+    const [quote, treasury, escrow, locker, supply, curveSupply] = await Promise.all([
+      read("quoteToken"), read("treasury"), read("escrow"), read("locker"),
+      read("SUPPLY"), read("CURVE_SUPPLY"),
     ]);
-  supplies = { supply, curveSupply };
-  // Roles the ledger stream reads logs from; none of these addresses is a user for stats or holders.
-  let buybackTreasury = null;
-  try {
-    buybackTreasury = await client.readContract({
-      address: escrow, abi: parseAbi(["function buybackTreasury() view returns (address)"]),
-      functionName: "buybackTreasury",
-    });
-  } catch (error) {
-    if (!(error instanceof BaseError && error.walk((cause) =>
-      cause instanceof ContractFunctionRevertedError || cause instanceof ExecutionRevertedError
-    ))) throw error;
-    console.info("This deployed escrow has no buyback treasury; indexing its legacy fee flows.");
+    supplies.set(lower(deployment.address), { supply, curveSupply });
+    let buybackTreasury = null;
+    try {
+      buybackTreasury = await client.readContract({
+        address: escrow, abi: parseAbi(["function buybackTreasury() view returns (address)"]),
+        functionName: "buybackTreasury",
+      });
+    } catch (error) {
+      if (!(error instanceof BaseError && error.walk((cause) =>
+        cause instanceof ContractFunctionRevertedError || cause instanceof ExecutionRevertedError
+      ))) throw error;
+      console.info(`Escrow ${escrow} has no buyback treasury.`);
+    }
+    accounts.push(
+      { role: "launchpad", address: lower(deployment.address) },
+      { role: "quote", address: lower(quote) },
+      { role: "treasury", address: lower(treasury) },
+      { role: "escrow", address: lower(escrow) },
+      ...(buybackTreasury ? [{ role: "buybackTreasury", address: lower(buybackTreasury) }] : []),
+      { role: "locker", address: lower(locker) },
+    );
   }
-  const accounts = [
-    { role: "launchpad", address: launchpad },
-    { role: "quote", address: lower(quote) },
-    { role: "treasury", address: lower(treasury) },
-    { role: "escrow", address: lower(escrow) },
-    ...(buybackTreasury ? [{ role: "buybackTreasury", address: lower(buybackTreasury) }] : []),
-    { role: "locker", address: lower(locker) },
-    ...config.protocolAccounts,
-  ];
   await transaction(async (db) => {
     await db.query(
       `INSERT INTO chains (id,name,native_symbol,finality_confirmations)
@@ -491,17 +434,37 @@ async function initializeIndexerState() {
         Number(config.confirmations),
       ],
     );
-    if (await retirePreviousDeployment(db, launchpad)) {
-      console.info(
-        `Indexer switched to launchpad ${launchpad}; the previous deployment's rows are orphaned and re-indexing starts at block ${config.deploymentBlock}.`,
+    const registered = await db.query(
+      "SELECT address FROM contract_deployments WHERE chain_id=$1 AND role='launchpad'",
+      [config.chainId],
+    );
+    const knownAddresses = new Set(registered.rows.map((row) => row.address));
+    const newDeployments = config.launchpadDeployments.filter(
+      (deployment) => !knownAddresses.has(lower(deployment.address)),
+    );
+    for (const deployment of config.launchpadDeployments) {
+      await db.query(
+        `INSERT INTO contract_deployments (chain_id,role,address,version,deployment_block)
+        VALUES ($1,'launchpad',$2,$3,$4) ON CONFLICT (chain_id,role,address) DO UPDATE SET
+        deployment_block=EXCLUDED.deployment_block,active_until=NULL`,
+        [config.chainId, lower(deployment.address),
+          lower(deployment.address) === lower(config.launchpadAddress) && config.launchFeeMode === "oracle" ? "oracle-v3" : "lean-v2",
+          deployment.deploymentBlock.toString()],
       );
     }
-    await db.query(
-      `INSERT INTO contract_deployments (chain_id,role,address,version,deployment_block)
-      VALUES ($1,'launchpad',$2,'lean-v2',$3) ON CONFLICT (chain_id,role,address) DO UPDATE SET
-      deployment_block=EXCLUDED.deployment_block,active_until=NULL`,
-      [config.chainId, launchpad, config.deploymentBlock.toString()],
-    );
+    if (newDeployments.length) {
+      const backfillFrom = newDeployments.reduce(
+        (earliest, deployment) => deployment.deploymentBlock < earliest
+          ? deployment.deploymentBlock : earliest,
+        newDeployments[0].deploymentBlock,
+      );
+      // A launch may occur before the API switches to a newly deployed factory.
+      // Replaying all streams also recovers transfers and venue events for those launches.
+      await db.query(
+        "UPDATE chain_cursors SET next_block=LEAST(next_block,$2::numeric),updated_at=now() WHERE chain_id=$1 AND stream=ANY($3::text[])",
+        [config.chainId, backfillFrom.toString(), ["factory", "trades", "ledger", "venue"]],
+      );
+    }
     for (const account of accounts) {
       await db.query(
         `INSERT INTO protocol_accounts (chain_id,address,role,label,is_user_attributable)
@@ -512,8 +475,8 @@ async function initializeIndexerState() {
   });
 }
 
-async function indexFactoryRange(fromBlock, toBlock) {
-  const launchpad = config.launchpadAddress;
+async function indexFactoryRange(fromBlock, toBlock, deployment) {
+  const launchpad = deployment.address;
   const [launches, readies, aborts, graduations] = await Promise.all([
     client.getLogs({
       address: launchpad,
@@ -545,20 +508,20 @@ async function indexFactoryRange(fromBlock, toBlock) {
     }),
   ]);
   const timestamps = new Map();
-  const { supply, curveSupply } = supplies;
+  const { supply, curveSupply } = supplies.get(lower(launchpad));
 
   await transaction(async (db) => {
     const [replacedGraduations, replacedLifecycle] = await Promise.all([
       db.query(
         `SELECT token_address,pool_address FROM markets
-        WHERE chain_id=$1 AND pool_address IS NOT NULL AND graduation_block BETWEEN $2 AND $3`,
-        [config.chainId, fromBlock.toString(), toBlock.toString()],
+        WHERE chain_id=$1 AND pool_address IS NOT NULL AND graduation_block BETWEEN $2 AND $3 AND launchpad_address=$4`,
+        [config.chainId, fromBlock.toString(), toBlock.toString(), lower(launchpad)],
       ),
       db.query(
         `SELECT DISTINCT token_address FROM markets m JOIN chain_logs l
           ON l.chain_id=m.chain_id AND l.address=$4 AND l.orphaned=false AND l.block_number BETWEEN $2 AND $3
           AND l.topic0=ANY($5::text[]) AND l.topics->>1=('0x' || lpad(substr(m.token_address,3),64,'0'))
-        WHERE m.chain_id=$1 AND m.orphaned=false`,
+        WHERE m.chain_id=$1 AND m.orphaned=false AND m.launchpad_address=$4`,
         [
           config.chainId,
           fromBlock.toString(),
@@ -585,12 +548,12 @@ async function indexFactoryRange(fromBlock, toBlock) {
       ],
     );
     await db.query(
-      "UPDATE markets SET orphaned=true WHERE chain_id=$1 AND launch_block BETWEEN $2 AND $3",
-      [config.chainId, fromBlock.toString(), toBlock.toString()],
+      "UPDATE markets SET orphaned=true WHERE chain_id=$1 AND launch_block BETWEEN $2 AND $3 AND launchpad_address=$4",
+      [config.chainId, fromBlock.toString(), toBlock.toString(), lower(launchpad)],
     );
     await db.query(
-      "UPDATE markets SET graduated=false,pool_address=NULL,graduation_block=NULL,graduated_at=NULL WHERE chain_id=$1 AND graduation_block BETWEEN $2 AND $3",
-      [config.chainId, fromBlock.toString(), toBlock.toString()],
+      "UPDATE markets SET graduated=false,pool_address=NULL,graduation_block=NULL,graduated_at=NULL WHERE chain_id=$1 AND graduation_block BETWEEN $2 AND $3 AND launchpad_address=$4",
+      [config.chainId, fromBlock.toString(), toBlock.toString(), lower(launchpad)],
     );
     if (replacedPools.length) {
       await db.query(
@@ -799,18 +762,13 @@ async function indexFactoryRange(fromBlock, toBlock) {
       );
     }
 
-    await db.query(
-      `INSERT INTO chain_cursors (chain_id, stream, next_block) VALUES ($1,'factory',$2)
-       ON CONFLICT (chain_id, stream) DO UPDATE SET next_block = EXCLUDED.next_block, updated_at = now()`,
-      [config.chainId, (toBlock + 1n).toString()],
-    );
   });
 }
 
-async function indexTradeRange(fromBlock, toBlock, onEvent) {
-  const launchpad = lower(config.launchpadAddress);
+async function indexTradeRange(fromBlock, toBlock, onEvent, deployment) {
+  const launchpad = lower(deployment.address);
   const logs = await client.getLogs({
-    address: config.launchpadAddress,
+    address: deployment.address,
     event: tradeEvent,
     fromBlock,
     toBlock,
@@ -875,7 +833,7 @@ async function indexTradeRange(fromBlock, toBlock, onEvent) {
       const curveQuote = isBuy
         ? quoteAmount - fee - tax - antiSnipeTax
         : quoteAmount + fee + tax;
-      const soldAfter = supplies.supply - virtualToken;
+      const soldAfter = supplies.get(launchpad).supply - virtualToken;
       await db.query(
         `INSERT INTO trades
           (logical_id, chain_id, block_hash, block_number, transaction_hash, transaction_index, log_index,
@@ -1019,11 +977,6 @@ async function indexTradeRange(fromBlock, toBlock, onEvent) {
     }
     if (affectedTraders.size) await publishLeaderboards(db, toBlock);
 
-    await db.query(
-      `INSERT INTO chain_cursors (chain_id, stream, next_block) VALUES ($1,'trades',$2)
-       ON CONFLICT (chain_id, stream) DO UPDATE SET next_block = EXCLUDED.next_block, updated_at = now()`,
-      [config.chainId, (toBlock + 1n).toString()],
-    );
   });
 
   for (const event of emitted) onEvent?.(event);
@@ -1484,6 +1437,20 @@ async function scanStream(stream, safeHead, scan) {
   }
 }
 
+async function scanLaunchpads(stream, safeHead, indexRange) {
+  await scanStream(stream, safeHead, async (fromBlock, toBlock) => {
+    for (const deployment of config.launchpadDeployments) {
+      const start = fromBlock > deployment.deploymentBlock ? fromBlock : deployment.deploymentBlock;
+      if (start <= toBlock) await indexRange(start, toBlock, deployment);
+    }
+    await pool.query(
+      `INSERT INTO chain_cursors (chain_id,stream,next_block) VALUES ($1,$2,$3)
+       ON CONFLICT (chain_id,stream) DO UPDATE SET next_block=EXCLUDED.next_block,updated_at=now()`,
+      [config.chainId, stream, (toBlock + 1n).toString()],
+    );
+  });
+}
+
 export function startIndexer({ onEvent, onError } = {}) {
   let stopped = false;
   let timer;
@@ -1533,9 +1500,9 @@ export function startIndexer({ onEvent, onError } = {}) {
         const safeHead =
           head > config.confirmations ? head - config.confirmations : 0n;
         if (safeHead >= config.deploymentBlock) {
-          await scanStream("factory", safeHead, indexFactoryRange);
-          await scanStream("trades", safeHead, (from, to) =>
-            indexTradeRange(from, to, onEvent),
+          await scanLaunchpads("factory", safeHead, indexFactoryRange);
+          await scanLaunchpads("trades", safeHead, (from, to, deployment) =>
+            indexTradeRange(from, to, onEvent, deployment),
           );
           await scanStream("ledger", safeHead, indexLedgerRange);
           await scanStream("venue", safeHead, indexVenueRange);

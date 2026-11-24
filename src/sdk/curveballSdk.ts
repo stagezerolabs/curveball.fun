@@ -14,7 +14,13 @@ export type CurveballDeployment = Readonly<{
   swapAdapterCodeHash?: Hex;
   slippageBps: number;
   deadlineSeconds: number;
-}>;
+} & ({ feeMode: "fixed" } | { feeMode: "oracle" })>;
+
+/** One percent above the displayed quote; the transaction reverts above this cap. */
+export function maximumLaunchFee(quotedFee: bigint): bigint {
+  if (quotedFee < 0n) throw new Error("Launch fee cannot be negative.");
+  return (quotedFee * 10_100n + 9_999n) / 10_000n;
+}
 
 export function defineCurveballDeployment(input: {
   chainId: number;
@@ -23,6 +29,7 @@ export function defineCurveballDeployment(input: {
   swapAdapterCodeHash?: string;
   slippageBps?: number;
   deadlineSeconds?: number;
+  feeMode?: "fixed" | "oracle";
 }): CurveballDeployment {
   const slippageBps = input.slippageBps ?? 300;
   const deadlineSeconds = input.deadlineSeconds ?? 300;
@@ -71,6 +78,7 @@ export function defineCurveballDeployment(input: {
       : {}),
     slippageBps,
     deadlineSeconds,
+    feeMode: input.feeMode ?? "fixed",
   });
 }
 

@@ -5,6 +5,7 @@ import {Script} from "forge-std/Script.sol";
 import {CurveDeploy} from "./CurveDeploy.sol";
 import {CurveLaunchpad} from "../contracts/CurveLaunchpad.sol";
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
+import {IStork} from "../contracts/interfaces/IStork.sol";
 
 /// @notice Deploys mainnet governance and the four singletons through `CurveDeploy`.
 /// @dev Run with `--account`; the broadcasting account is the deployer whose nonce predicts the
@@ -25,7 +26,7 @@ contract Deploy is Script, CurveDeploy {
     bytes32 internal constant EXECUTOR_ROLE = keccak256("EXECUTOR_ROLE");
     bytes32 internal constant DEFAULT_ADMIN_ROLE = 0x00;
 
-    uint256 internal constant LAUNCH_FEE = 0.00045 ether;
+    address internal constant STORK_ORACLE = 0xacC0a0cF13571d30B4b8637996F5D6D774d4fd62;
     uint256 internal constant TESTNET_TARGET = 4 ether;
     uint256 internal constant MIN_MAINNET_TIMELOCK_DELAY = 2 days;
 
@@ -56,7 +57,7 @@ contract Deploy is Script, CurveDeploy {
 
     function params() public view returns (Params memory p) {
         p.quoteToken = WETH;
-        p.launchFee = LAUNCH_FEE;
+        p.storkOracle = STORK_ORACLE;
         p.walletCapBps = 500;
         p.fees = CurveLaunchpad.FeeDefaults({feeBps: 75, creatorShareBps: 5_000, buybackShareBps: 2_500, taxCapBps: 50});
         if (block.chainid == TESTNET) {
@@ -76,6 +77,13 @@ contract Deploy is Script, CurveDeploy {
     /// @notice Checks external dependencies and pinned policy before the timelock is deployed.
     function preflight(Params memory p) public view {
         _require(WETH.code.length != 0, "WETH has no code");
+        _require(p.storkOracle == STORK_ORACLE && STORK_ORACLE.code.length != 0, "Stork oracle mismatch");
+        IStork.TemporalNumericValue memory sample = IStork(STORK_ORACLE).getTemporalNumericValueV1(
+            0x7965e1bfc07a34caf0c3aa8146b200264fbb7a0eb85b1d3b1fdceecffd736b02
+        );
+        uint256 timestamp = uint256(sample.timestampNs) / 1e9;
+        _require(timestamp <= block.timestamp && block.timestamp - timestamp <= 60, "Stork price is stale");
+        _require(sample.quantizedValue >= 100 ether && sample.quantizedValue <= 100_000 ether, "Stork price invalid");
         _require(p.icarusFactory.code.length != 0, "Icarus factory has no code");
         // Icarus pause blocks swaps only. Launches, pool creation and liquidity seeding remain usable.
         _require(p.graduationTarget >= 4 ether, "graduation target below MIN_TARGET");

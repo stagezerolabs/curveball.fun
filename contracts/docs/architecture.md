@@ -193,7 +193,7 @@ All value-moving launchpad entry points and escrow functions that transfer fee a
 - Singleton addresses and the quote token/factory references are immutable.
 - Market tokens are deterministic clones of the immutable implementation created by the launchpad constructor.
 - Each market snapshots economic policy at launch; later owner changes apply only to new markets.
-- The treasury and launch fee are immutable launchpad values.
+- The treasury and $1 launch fee target are immutable launchpad values; the WETH charge is read from Stork for each launch.
 - The locker has no owner.
 - Ownership renunciation is disabled on all three owned modules.
 

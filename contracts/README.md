@@ -64,7 +64,7 @@ The relevant network configuration is encoded in `scripts/Deploy.s.sol` and `tes
 
 Both configurations use WETH at `0x4200000000000000000000000000000000000006`.
 
-`make smoke-testnet` broadcasts a smoke-token launch and a 0.003 WETH first buy against the recorded testnet launchpad. `Smoke.s.sol` supports the older five-argument launch ABI and the current four-argument ABI. Fund the broadcaster for the live launch fee, first-buy budget, and gas. Full sellout, graduation, a pool swap, and fee claims stay in the testnet fork smoke suite, which funds its actors with `vm.deal` and broadcasts nothing.
+`make smoke-testnet` broadcasts a smoke-token launch and a 0.003 WETH first buy against the recorded legacy testnet launchpad. `make smoke-testnet-oracle` targets the separately recorded oracle release. `Smoke.s.sol` supports the older five-argument launch ABI and the new five-argument oracle ABI. Fund the broadcaster for the fee cap, first-buy budget, and gas. Full sellout, graduation, a pool swap, and fee claims stay in the testnet fork smoke suite, which funds its actors with `vm.deal` and broadcasts nothing.
 
 ## Architecture and trust assumptions
 

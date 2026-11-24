@@ -11,6 +11,7 @@ DOT_ADDRESS := 0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3
 export QUOTE_TOKEN ICARUS_FACTORY BLOCKSCOUT_API RISE_MAINNET_RPC_URL RISE_RPC_URL
 
 .PHONY: test abis smoke-testnet set-testnet-graduation-target deploy-icarus-swap-testnet deploy-icarus-swap-mainnet build-icarus-swap-adapter require-fork-tests test-fork-strict test-fork-testnet verify-icarus require-mainnet-rpc require-mainnet-account require-production-config production-preflight deploy-production require-testnet-config testnet-preflight deploy-testnet
+.PHONY: production-oracle-preflight deploy-production-oracle deploy-icarus-swap-oracle-mainnet testnet-oracle-preflight deploy-testnet-oracle deploy-icarus-swap-oracle-testnet smoke-testnet-oracle
 
 # Fork suites need network access; they run only through the targets below.
 test:
@@ -53,12 +54,38 @@ require-production-config: require-mainnet-rpc require-mainnet-account
 # Dry-runs the pinned mainnet deployment, including its new timelock, without broadcasting.
 production-preflight: require-production-config test test-fork-strict verify-icarus
 	forge clean
-	forge script scripts/Deploy.s.sol:Deploy --rpc-url "$(MAINNET_RPC_URL)" --account "$(MAINNET_ACCOUNT)"
+	forge script scripts/Deploy.s.sol:Deploy --rpc-url "$(MAINNET_RPC_URL)" --sender 0xeEb364Ba1a9A4B6a75C41A39c4B91144a4aF156A
 
 deploy-production: production-preflight
 	@test ! -f ../deployments/4153/curveball.json || { echo "Mainnet Curveball is already recorded."; exit 2; }
 	@test "$(CONFIRM_DEPLOY)" = "DEPLOY_CURVEBALL_RISE_MAINNET_4153" || { echo "CONFIRM_DEPLOY is required."; exit 2; }
 	forge script scripts/Deploy.s.sol:Deploy \
+		--rpc-url "$(MAINNET_RPC_URL)" --broadcast --slow --account "$(MAINNET_ACCOUNT)" \
+		--verify --verifier blockscout --verifier-url "$(BLOCKSCOUT_VERIFIER_URL)" \
+		--retries 10 --delay 10
+
+production-oracle-preflight: production-preflight
+	@test -f ../deployments/4153/curveball.json || { echo "Legacy mainnet record is required."; exit 2; }
+	@test ! -f ../deployments/4153/curveball-oracle-v3.json || { echo "Oracle mainnet release is already recorded."; exit 2; }
+
+deploy-production-oracle: production-oracle-preflight
+	@test "$(CONFIRM_DEPLOY)" = "DEPLOY_CURVEBALL_ORACLE_RISE_MAINNET_4153" || { echo "Oracle deployment confirmation is required."; exit 2; }
+	forge script scripts/Deploy.s.sol:Deploy \
+		--rpc-url "$(MAINNET_RPC_URL)" --broadcast --slow --account "$(MAINNET_ACCOUNT)" \
+		--verify --verifier blockscout --verifier-url "$(BLOCKSCOUT_VERIFIER_URL)" \
+		--retries 10 --delay 10
+
+deploy-icarus-swap-oracle-mainnet: require-mainnet-rpc require-mainnet-account build-icarus-swap-adapter
+	@test -f ../deployments/4153/curveball-oracle-v3.json || { echo "Record the oracle launchpad first."; exit 2; }
+	@test ! -f ../deployments/4153/icarus-swap-adapter-oracle-v3.json || { echo "Oracle swap adapter is already recorded."; exit 2; }
+	forge test --match-path 'test/unit/IcarusSwapAdapter.t.sol' --match-contract IcarusSwapAdapterTest
+	CI_FORK=1 RISE_MAINNET_RPC_URL="$(MAINNET_RPC_URL)" forge test \
+		--match-path 'test/fork/Lifecycle.fork.t.sol' \
+		--match-contract LifecycleMainnetForkTest \
+		--match-test test_fork_adapterTradesBothDirectionsOnTheRealIcarusPool
+	ORACLE_RELEASE=true forge script scripts/DeployIcarusSwap.s.sol:DeployIcarusSwap --rpc-url "$(MAINNET_RPC_URL)"
+	@test "$(CONFIRM_ICARUS_SWAP_DEPLOY)" = "DEPLOY_ICARUS_SWAP_ORACLE_RISE_MAINNET_4153" || { echo "Oracle adapter confirmation is required."; exit 2; }
+	ORACLE_RELEASE=true forge script scripts/DeployIcarusSwap.s.sol:DeployIcarusSwap \
 		--rpc-url "$(MAINNET_RPC_URL)" --broadcast --slow --account "$(MAINNET_ACCOUNT)" \
 		--verify --verifier blockscout --verifier-url "$(BLOCKSCOUT_VERIFIER_URL)" \
 		--retries 10 --delay 10
@@ -73,12 +100,28 @@ require-testnet-config:
 testnet-preflight: require-testnet-config test test-fork-testnet
 	forge clean
 	forge script scripts/Deploy.s.sol:Deploy --rpc-url "$(TESTNET_RPC_URL)" \
-		--account "$(TESTNET_ACCOUNT)"
+		--sender "$(DOT_ADDRESS)"
 
 deploy-testnet: testnet-preflight
+	@echo "The deploy script now creates an oracle launchpad. Use deploy-testnet-oracle." >&2; exit 2
+
+testnet-oracle-preflight: testnet-preflight
+	@test ! -f ../deployments/11155931/curveball-oracle-v3.json || { echo "Oracle testnet release is already recorded."; exit 2; }
+
+deploy-testnet-oracle: testnet-oracle-preflight
 	forge script scripts/Deploy.s.sol:Deploy \
 		--rpc-url "$(TESTNET_RPC_URL)" --broadcast --slow \
 		--account "$(TESTNET_ACCOUNT)" \
+		--verify --verifier blockscout --verifier-url "$(TESTNET_BLOCKSCOUT_VERIFIER_URL)" \
+		--retries 10 --delay 10
+
+deploy-icarus-swap-oracle-testnet: require-testnet-config build-icarus-swap-adapter
+	@test -f ../deployments/11155931/curveball-oracle-v3.json || { echo "Record the oracle testnet launchpad first."; exit 2; }
+	@test ! -f ../deployments/11155931/icarus-swap-adapter-oracle-v3.json || { echo "Oracle testnet adapter is already recorded."; exit 2; }
+	forge test --match-contract IcarusSwapAdapterTest
+	ORACLE_RELEASE=true forge script scripts/DeployIcarusSwap.s.sol:DeployIcarusSwap --rpc-url "$(TESTNET_RPC_URL)"
+	ORACLE_RELEASE=true forge script scripts/DeployIcarusSwap.s.sol:DeployIcarusSwap \
+		--rpc-url "$(TESTNET_RPC_URL)" --broadcast --slow --account "$(TESTNET_ACCOUNT)" \
 		--verify --verifier blockscout --verifier-url "$(TESTNET_BLOCKSCOUT_VERIFIER_URL)" \
 		--retries 10 --delay 10
 
@@ -142,4 +185,9 @@ set-testnet-graduation-target: require-testnet-config
 # Fund the broadcaster for the live launch fee, 0.003 ETH first-buy budget, and gas.
 smoke-testnet: require-testnet-config
 	forge script scripts/Smoke.s.sol:Smoke --rpc-url "$(TESTNET_RPC_URL)" --broadcast --slow \
+		--account "$(TESTNET_ACCOUNT)"
+
+smoke-testnet-oracle: require-testnet-config
+	@test -f ../deployments/11155931/curveball-oracle-v3.json || { echo "Oracle testnet record is required."; exit 2; }
+	ORACLE_RELEASE=true forge script scripts/Smoke.s.sol:Smoke --rpc-url "$(TESTNET_RPC_URL)" --broadcast --slow \
 		--account "$(TESTNET_ACCOUNT)"

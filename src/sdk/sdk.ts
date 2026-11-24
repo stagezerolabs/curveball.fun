@@ -22,6 +22,7 @@ import {
 import {
   applySlippage,
   createDeadline,
+  maximumLaunchFee,
   validateTokenInput,
   type CurveballDeployment,
   type TokenInput,
@@ -35,6 +36,8 @@ import {
   icarusFactoryAbi,
   icarusPoolAbi,
   icarusSwapAdapterAbi,
+  legacyLaunchAbi,
+  legacyLaunchFeeAbi,
 } from "./contracts";
 import { validateLaunchpad } from "../deployment";
 
@@ -79,6 +82,7 @@ export type ConfirmedTrade = ConfirmedWrite &
   }>;
 export type LaunchInput = TokenInput & {
   creatorTaxBps?: number;
+  maxLaunchFeeWei?: bigint;
 };
 type WalletSession = Readonly<{ address: Address; connector?: Connector }>;
 
@@ -597,19 +601,32 @@ export function createCurveballSdk(
   }
 
   async function readLaunchPolicy() {
-    const [fees, launchFee, graduationTarget, supplies, walletCapBps] = await Promise.all([
+    const readLaunchFee = async () => {
+      if (deployment.feeMode === "fixed") {
+        const fee = await actions.readContract(config, {
+          address: launchpad,
+          abi: legacyLaunchFeeAbi,
+          functionName: "launchFee",
+          chainId,
+        });
+        return { fee, maximum: fee };
+      }
+      const [fee] = await actions.readContract(config, {
+        address: launchpad,
+        abi: curveLaunchpadAbi,
+        functionName: "quoteLaunchFee",
+        chainId,
+      });
+      return { fee, maximum: maximumLaunchFee(fee) };
+    };
+    const [fees, feeQuote, graduationTarget, supplies, walletCapBps] = await Promise.all([
       actions.readContract(config, {
         address: launchpad,
         abi: curveLaunchpadAbi,
         functionName: "feeDefaults",
         chainId,
       }),
-      actions.readContract(config, {
-        address: launchpad,
-        abi: curveLaunchpadAbi,
-        functionName: "launchFee",
-        chainId,
-      }),
+      readLaunchFee(),
       actions.readContract(config, {
         address: launchpad,
         abi: curveLaunchpadAbi,
@@ -623,7 +640,8 @@ export function createCurveballSdk(
     return {
       feeBps,
       taxCapBps,
-      launchFee,
+      launchFee: feeQuote.fee,
+      maxLaunchFee: feeQuote.maximum,
       graduationTarget,
       walletCapBps,
       ...supplies,
@@ -669,10 +687,17 @@ export function createCurveballSdk(
       throw new CurveballSdkError("Initial buy is too small.");
 
     const quote = await readQuoteToken();
+    const maxLaunchFee = deployment.feeMode === "oracle"
+      ? input.maxLaunchFeeWei
+      : policy.launchFee;
+    if (maxLaunchFee === undefined)
+      throw new CurveballSdkError("Review the current launch fee before confirming.");
+    if (maxLaunchFee < policy.launchFee)
+      throw new CurveballSdkError("The launch fee changed. Review the current quote and try again.");
     const { approved } = await ensureApproval(
       wallet,
       quote,
-      policy.launchFee + initialBuy,
+      maxLaunchFee + initialBuy,
       { wrap: true, onPhase: onProgress },
     );
     const meta = { name: token.name, symbol: token.symbol, uri: token.uri };
@@ -681,9 +706,11 @@ export function createCurveballSdk(
         actions.simulateContract(config, {
           account,
           address: launchpad,
-          abi: curveLaunchpadAbi,
+          abi: deployment.feeMode === "oracle" ? curveLaunchpadAbi : legacyLaunchAbi,
           functionName: "launch",
-          args: [meta, tax, initialBuy, minOut],
+          args: deployment.feeMode === "oracle"
+            ? [meta, tax, initialBuy, minOut, maxLaunchFee]
+            : [meta, tax, initialBuy, minOut],
           chainId,
         }),
       approved,

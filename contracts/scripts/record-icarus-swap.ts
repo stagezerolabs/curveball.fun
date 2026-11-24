@@ -14,14 +14,15 @@ if (networkName !== "testnet" && networkName !== "mainnet")
   throw new Error("DEPLOYMENT_NETWORK must be testnet or mainnet.");
 const testnet = networkName === "testnet";
 const chainId = testnet ? 11_155_931 : 4_153;
+const oracleRelease = Bun.env.DEPLOYMENT_FEE_MODE === "oracle";
 const rpcUrl = testnet
   ? Bun.env.RISE_TESTNET_RPC_URL?.trim() || Bun.env.VITE_RPC_URL?.trim()
   : Bun.env.RISE_MAINNET_RPC_URL?.trim();
 if (!rpcUrl?.startsWith("https://"))
   throw new Error(`An HTTPS RISE ${networkName} RPC is required.`);
 
-const launchpadRecordPath = `deployments/${chainId}/curveball.json`;
-const adapterRecordPath = `deployments/${chainId}/icarus-swap-adapter.json`;
+const launchpadRecordPath = `deployments/${chainId}/${oracleRelease ? "curveball-oracle-v3.json" : "curveball.json"}`;
+const adapterRecordPath = `deployments/${chainId}/${oracleRelease ? "icarus-swap-adapter-oracle-v3.json" : "icarus-swap-adapter.json"}`;
 const broadcastPath = `contracts/broadcast/DeployIcarusSwap.s.sol/${chainId}/run-latest.json`;
 const explorerOrigin = testnet
   ? "https://explorer.testnet.riselabs.xyz"

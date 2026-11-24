@@ -44,7 +44,10 @@ contract DeployTestnetForkTest is DeployFork {
         assertEq(d.launchpad.treasury(), TESTNET_OPERATOR);
         assertEq(d.escrow.owner(), TESTNET_OPERATOR);
         assertEq(d.launchpad.graduationTarget(), 4 ether);
-        assertEq(d.launchpad.launchFee(), 0.00045 ether);
+        assertEq(d.launchpad.USD_LAUNCH_FEE(), 1 ether);
+        assertEq(d.launchpad.storkOracle(), script.params().storkOracle);
+        (uint256 fee,,) = d.launchpad.quoteLaunchFee();
+        assertGt(fee, 0);
         assertEq(d.escrow.launchpad(), address(d.launchpad));
         assertEq(d.locker.launchpad(), address(d.launchpad));
     }

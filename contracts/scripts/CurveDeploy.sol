@@ -18,7 +18,7 @@ abstract contract CurveDeploy is CommonBase {
         address treasury;
         address quoteToken;
         address icarusFactory;
-        uint256 launchFee;
+        address storkOracle;
         uint16 walletCapBps;
         uint256 graduationTarget;
         CurveLaunchpad.FeeDefaults fees;
@@ -54,7 +54,7 @@ abstract contract CurveDeploy is CommonBase {
                 icarusFactory: p.icarusFactory,
                 escrow: address(d.escrow),
                 locker: address(d.locker),
-                launchFee: p.launchFee,
+                storkOracle: p.storkOracle,
                 walletCapBps: p.walletCapBps,
                 graduationTarget: p.graduationTarget,
                 fees: p.fees
@@ -80,6 +80,7 @@ abstract contract CurveDeploy is CommonBase {
         _check(d.launchpad.quoteToken() == p.quoteToken, "launchpad.quoteToken");
         _check(d.launchpad.icarusFactory() == p.icarusFactory, "launchpad.icarusFactory");
         _check(d.launchpad.treasury() == p.treasury, "launchpad.treasury");
+        _check(d.launchpad.storkOracle() == p.storkOracle, "launchpad.storkOracle");
         _check(d.launchpad.walletCapBps() == p.walletCapBps, "launchpad.walletCapBps");
         _check(d.launchpad.owner() == p.owner, "launchpad.owner");
         _check(d.launchpad.guardian() == p.guardian, "launchpad.guardian");

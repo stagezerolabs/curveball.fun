@@ -62,7 +62,7 @@ contract LifecycleTest is Fixture {
     function _launchWithFirstBuy() internal {
         _fund(creator, LAUNCH_FEE + 0.2 ether);
         vm.prank(creator);
-        (token, creatorTokens) = launchpad.launch(_meta(), 50, 0.2 ether, 0);
+        (token, creatorTokens) = launchpad.launch(_meta(), 50, 0.2 ether, 0, LAUNCH_FEE);
 
         assertGt(weth.balanceOf(treasury), LAUNCH_FEE, "opening buy tax goes to treasury");
         vm.warp(block.timestamp + 5);

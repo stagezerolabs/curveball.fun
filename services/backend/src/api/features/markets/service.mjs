@@ -6,7 +6,7 @@ import { pulseGraph } from "../pulse/pulse.mjs";
 function shapeMarket(row) {
   return {
     chainId: Number(row.chain_id),
-    factoryAddress: config.launchpadAddress.toLowerCase(),
+    factoryAddress: row.launchpad_address,
     tokenAddress: row.token_address,
     launchpadAddress: row.launchpad_address,
     creatorAddress: row.creator_address,

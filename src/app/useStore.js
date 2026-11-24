@@ -9,6 +9,7 @@ import {
 import {
   activeChainId,
   launchpadAddress,
+  launchpadDeployments,
   requireCurveballSdk,
 } from "../lib/web3";
 import { readableError } from "../lib/errors";
@@ -126,7 +127,8 @@ function mergeTokenLists(current, discovered) {
 
 export function rehydrateMarketCache(persisted, current) {
   const configured = (token) =>
-    token?.factory?.toLowerCase() === launchpadAddress?.toLowerCase();
+    launchpadDeployments.some((deployment) =>
+      token?.factory?.toLowerCase() === deployment.address.toLowerCase());
   const tokens = validCachedTokens(persisted?.tokens).filter(configured);
   const tokenCache = Object.fromEntries(
     Object.entries(persisted?.tokenCache ?? {}).filter(([, token]) =>
@@ -530,11 +532,13 @@ export const useStore = create(
         event.preventDefault();
         const submittedForm = event.currentTarget;
         const form = new FormData(submittedForm);
+        const maxLaunchFeeRaw = String(form.get("maxLaunchFeeWei") ?? "");
         const input = {
           name: String(form.get("name") ?? ""),
           symbol: String(form.get("symbol") ?? ""),
           uri: String(form.get("uri") ?? ""),
           creatorTaxBps: Number(form.get("creatorTaxBps") ?? 0),
+          ...(/^\d+$/.test(maxLaunchFeeRaw) ? { maxLaunchFeeWei: BigInt(maxLaunchFeeRaw) } : {}),
         };
         // The launchpad rejects an empty metadata URI, and metadata is published with the artwork.
         if (!hasPublishedArtwork(input.uri)) {
