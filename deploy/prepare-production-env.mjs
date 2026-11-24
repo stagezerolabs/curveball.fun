@@ -146,18 +146,19 @@ export function prepareProductionEnv({
   const expectedChain = String(chainId);
   const launchpad = deployment.launchpad;
   const deploymentBlock = String(deployment.deploymentBlock);
-  const legacy = oracleRelease
+  const legacy = oracleRelease && isMainnet
     ? JSON.parse(readFileSync(resolve(root, `deployments/${chainId}/curveball.json`), "utf8"))
     : null;
-  const legacySwap = oracleRelease
+  const legacySwap = oracleRelease && isMainnet
     ? JSON.parse(readFileSync(resolve(root, `deployments/${chainId}/icarus-swap-adapter.json`), "utf8"))
     : null;
-  if (oracleRelease) {
-    if (deployment.version !== "oracle-v3" ||
+  if (oracleRelease && (deployment.version !== "oracle-v3" ||
         deployment.storkOracle?.toLowerCase() !== "0xacc0a0cf13571d30b4b8637996f5d6d774d4fd62" ||
         deployment.storkFeedId?.toLowerCase() !== "0x7965e1bfc07a34caf0c3aa8146b200264fbb7a0eb85b1d3b1fdceecffd736b02" ||
-        deployment.launchFeeUsd !== "1000000000000000000" ||
-        !ADDRESS.test(legacy.launchpad) ||
+        deployment.launchFeeUsd !== "1000000000000000000"))
+    throw new Error("Oracle deployment record does not match the pinned fee policy.");
+  if (legacy) {
+    if (!ADDRESS.test(legacy.launchpad) ||
         !/^\d+$/.test(String(legacy.deploymentBlock)) ||
         legacySwap.launchpad?.toLowerCase() !== legacy.launchpad.toLowerCase() ||
         !ADDRESS.test(legacySwap.adapter) || !HASH.test(legacySwap.codeHash) ||
@@ -165,11 +166,12 @@ export function prepareProductionEnv({
         frontend.VITE_LEGACY_DEPLOYMENT_BLOCK !== String(legacy.deploymentBlock) ||
         frontend.VITE_LEGACY_ICARUS_SWAP_ADAPTER?.toLowerCase() !== legacySwap.adapter.toLowerCase() ||
         frontend.VITE_LEGACY_ICARUS_SWAP_ADAPTER_CODE_HASH?.toLowerCase() !== legacySwap.codeHash.toLowerCase() ||
-        social.SOCIAL_LAUNCH_FEE_MODE !== "oracle" ||
         social.SOCIAL_LEGACY_LAUNCHPADS?.toLowerCase() !== `${legacy.launchpad}:${legacy.deploymentBlock}`.toLowerCase() ||
         keeper.KEEPER_LEGACY_LAUNCHPADS?.toLowerCase() !== `${legacy.launchpad}:${legacy.deploymentBlock}`.toLowerCase())
       throw new Error("Oracle release or legacy deployment configuration does not match records.");
   }
+  if (oracleRelease && social.SOCIAL_LAUNCH_FEE_MODE !== "oracle")
+    throw new Error("SOCIAL_LAUNCH_FEE_MODE must be oracle for an oracle release.");
   const parity = [
     [
       frontend.VITE_CHAIN_ID,

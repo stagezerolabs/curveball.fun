@@ -199,6 +199,25 @@ test("testnet behavior remains available", () =>
     );
   }));
 
+test("oracle testnet release does not register its incompatible legacy contract", () =>
+  withFixture("testnet", ({ root, write, chain }) => {
+    const next = "0x4444444444444444444444444444444444444444";
+    const nextAdapter = "0x5555555555555555555555555555555555555555";
+    write(`deployments/${chain}/curveball-oracle-v3.json`, JSON.stringify({
+      chainId: chain, version: "oracle-v3", launchpad: next, deploymentBlock: "200",
+      storkOracle: "0xacC0a0cF13571d30B4b8637996F5D6D774d4fd62",
+      storkFeedId: "0x7965e1bfc07a34caf0c3aa8146b200264fbb7a0eb85b1d3b1fdceecffd736b02",
+      launchFeeUsd: "1000000000000000000",
+    }));
+    write(`deployments/${chain}/icarus-swap-adapter-oracle-v3.json`, JSON.stringify({
+      chainId: chain, launchpad: next, adapter: nextAdapter, codeHash: hash,
+    }));
+    write(".env", `VITE_CHAIN_ID=${chain}\nVITE_RPC_URL=https://rpc.example\nVITE_LAUNCHPAD_ADDRESS=${next}\nVITE_DEPLOYMENT_BLOCK=200\nVITE_LAUNCH_FEE_MODE=oracle\nVITE_ICARUS_SWAP_ADAPTER=${nextAdapter}\nVITE_ICARUS_SWAP_ADAPTER_CODE_HASH=${hash}\nVITE_PRIVY_APP_ID=test-privy-app\nVITE_ADMIN_ADDRESS=${admin}\nPINATA_JWT=pinata-secret\nSOCIAL_CHAIN_ID=${chain}\nSOCIAL_RPC_URL=https://rpc.example\nSOCIAL_LAUNCHPAD_ADDRESS=${next}\nSOCIAL_DEPLOYMENT_BLOCK=200\nSOCIAL_LAUNCH_FEE_MODE=oracle\nSOCIAL_ADMIN_ADDRESS=${admin}\nPRIVY_APP_ID=test-privy-app\nPRIVY_APP_SECRET=test-privy-secret\nKEEPER_CHAIN_ID=${chain}\nKEEPER_RPC_URL=https://rpc.example\nKEEPER_LAUNCHPAD_ADDRESS=${next}\nKEEPER_DEPLOYMENT_BLOCK=200\nKEEPER_PRIVATE_KEY=${keeperKey}\n`);
+    prepare(root, "testnet");
+    assert.doesNotMatch(readFileSync(join(root, "deploy/social.env"), "utf8"), /SOCIAL_LEGACY_LAUNCHPADS=/);
+    assert.doesNotMatch(readFileSync(join(root, "deploy/keeper.env"), "utf8"), /KEEPER_LEGACY_LAUNCHPADS=/);
+  }));
+
 test("existing destinations are never overwritten", () =>
   withFixture("mainnet", ({ root, write }) => {
     write("deploy/keeper.env", "keep-existing");

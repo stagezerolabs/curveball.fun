@@ -20,7 +20,7 @@ help:
 	@echo "Build:    dev, build (mainnet), build-testnet, test"
 	@echo "Testnet:  testnet-preflight, deploy-testnet, post-deploy-testnet, activate-testnet"
 	@echo "Oracle testnet: testnet-oracle-preflight, deploy-testnet-oracle, record-testnet-oracle"
-	@echo "                deploy-icarus-swap-oracle-testnet, record-icarus-swap-oracle-testnet, activate-testnet-oracle"
+	@echo "                deploy-icarus-swap-oracle-testnet, record-icarus-swap-oracle-testnet, configure-testnet-oracle"
 	@echo "          record-testnet, configure-testnet"
 	@echo "          deploy-icarus-swap-testnet, record-icarus-swap-testnet, activate-icarus-swap-testnet"
 	@echo "          set-testnet-graduation-target, reset-testnet-projections"
@@ -124,8 +124,7 @@ record-icarus-swap-oracle-testnet:
 	DEPLOYMENT_NETWORK=testnet DEPLOYMENT_FEE_MODE=oracle bun contracts/scripts/record-icarus-swap.ts
 
 activate-testnet-oracle:
-	$(MAKE) configure-testnet-oracle
-	$(MAKE) docker-rebuild
+	@echo "The legacy testnet contract emits incompatible events. Preview v3 against an isolated testnet database; this target does not migrate existing testnet projections." >&2; exit 2
 
 production-preflight:
 	$(MAKE) -C contracts production-preflight

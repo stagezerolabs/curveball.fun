@@ -53,20 +53,18 @@ const values = {
   VITE_ICARUS_SWAP_ADAPTER: swapAdapter,
   VITE_ICARUS_SWAP_ADAPTER_CODE_HASH: swapAdapterCodeHash,
 };
-const legacyRecord = oracleRelease
+const legacyRecord = oracleRelease && !isTestnet
   ? await Bun.file(`deployments/${chainId}/curveball.json`).json() as { launchpad: string; deploymentBlock: string }
   : null;
-const legacyAdapter = oracleRelease
+const legacyAdapter = oracleRelease && !isTestnet
   ? await Bun.file(`deployments/${chainId}/icarus-swap-adapter.json`).json() as { adapter: string; codeHash: string }
   : null;
 const releaseValues = {
   ...values,
-  ...(oracleRelease ? {
-    VITE_LEGACY_LAUNCHPAD_ADDRESS: legacyRecord!.launchpad,
-    VITE_LEGACY_DEPLOYMENT_BLOCK: legacyRecord!.deploymentBlock,
-    VITE_LEGACY_ICARUS_SWAP_ADAPTER: legacyAdapter!.adapter,
-    VITE_LEGACY_ICARUS_SWAP_ADAPTER_CODE_HASH: legacyAdapter!.codeHash,
-  } : {}),
+  VITE_LEGACY_LAUNCHPAD_ADDRESS: legacyRecord?.launchpad ?? "",
+  VITE_LEGACY_DEPLOYMENT_BLOCK: legacyRecord?.deploymentBlock ?? "",
+  VITE_LEGACY_ICARUS_SWAP_ADAPTER: legacyAdapter?.adapter ?? "",
+  VITE_LEGACY_ICARUS_SWAP_ADAPTER_CODE_HASH: legacyAdapter?.codeHash ?? "",
 };
 async function updateEnv(path: string, entries: Record<string, string>) {
   let source = (await Bun.file(path).exists())
@@ -91,11 +89,11 @@ if (isTestnet) {
     SOCIAL_CHAIN_ID: String(chainId),
     SOCIAL_LAUNCHPAD_ADDRESS: record.launchpad,
     SOCIAL_LAUNCH_FEE_MODE: oracleRelease ? "oracle" : "fixed",
-    ...(oracleRelease ? { SOCIAL_LEGACY_LAUNCHPADS: `${legacyRecord!.launchpad}:${legacyRecord!.deploymentBlock}` } : {}),
+    SOCIAL_LEGACY_LAUNCHPADS: legacyRecord ? `${legacyRecord.launchpad}:${legacyRecord.deploymentBlock}` : "",
     SOCIAL_DEPLOYMENT_BLOCK: record.deploymentBlock,
     KEEPER_CHAIN_ID: String(chainId),
     KEEPER_LAUNCHPAD_ADDRESS: record.launchpad,
-    ...(oracleRelease ? { KEEPER_LEGACY_LAUNCHPADS: `${legacyRecord!.launchpad}:${legacyRecord!.deploymentBlock}` } : {}),
+    KEEPER_LEGACY_LAUNCHPADS: legacyRecord ? `${legacyRecord.launchpad}:${legacyRecord.deploymentBlock}` : "",
     KEEPER_DEPLOYMENT_BLOCK: record.deploymentBlock,
   });
   const release = `testnet-${(record.sourceTreeSha256 ?? record.launchpad).slice(2, 14)}-${new Date()
@@ -111,12 +109,10 @@ if (isTestnet) {
       VITE_ICARUS_SWAP_ADAPTER: swapAdapter,
       VITE_ICARUS_SWAP_ADAPTER_CODE_HASH: swapAdapterCodeHash,
       VITE_LAUNCH_FEE_MODE: oracleRelease ? "oracle" : "fixed",
-      ...(oracleRelease ? {
-        VITE_LEGACY_LAUNCHPAD_ADDRESS: legacyRecord!.launchpad,
-        VITE_LEGACY_DEPLOYMENT_BLOCK: legacyRecord!.deploymentBlock,
-        VITE_LEGACY_ICARUS_SWAP_ADAPTER: legacyAdapter!.adapter,
-        VITE_LEGACY_ICARUS_SWAP_ADAPTER_CODE_HASH: legacyAdapter!.codeHash,
-      } : {}),
+      VITE_LEGACY_LAUNCHPAD_ADDRESS: legacyRecord?.launchpad ?? "",
+      VITE_LEGACY_DEPLOYMENT_BLOCK: legacyRecord?.deploymentBlock ?? "",
+      VITE_LEGACY_ICARUS_SWAP_ADAPTER: legacyAdapter?.adapter ?? "",
+      VITE_LEGACY_ICARUS_SWAP_ADAPTER_CODE_HASH: legacyAdapter?.codeHash ?? "",
     });
   }
   if (await Bun.file("deploy/social.env").exists()) {
@@ -124,7 +120,7 @@ if (isTestnet) {
       SOCIAL_CHAIN_ID: String(chainId),
       SOCIAL_LAUNCHPAD_ADDRESS: record.launchpad,
       SOCIAL_LAUNCH_FEE_MODE: oracleRelease ? "oracle" : "fixed",
-      ...(oracleRelease ? { SOCIAL_LEGACY_LAUNCHPADS: `${legacyRecord!.launchpad}:${legacyRecord!.deploymentBlock}` } : {}),
+      SOCIAL_LEGACY_LAUNCHPADS: legacyRecord ? `${legacyRecord.launchpad}:${legacyRecord.deploymentBlock}` : "",
       SOCIAL_DEPLOYMENT_BLOCK: record.deploymentBlock,
       SENTRY_RELEASE: `curveball-backend@${release}`,
     });
@@ -133,7 +129,7 @@ if (isTestnet) {
     await updateEnv("deploy/keeper.env", {
       KEEPER_CHAIN_ID: String(chainId),
       KEEPER_LAUNCHPAD_ADDRESS: record.launchpad,
-      ...(oracleRelease ? { KEEPER_LEGACY_LAUNCHPADS: `${legacyRecord!.launchpad}:${legacyRecord!.deploymentBlock}` } : {}),
+      KEEPER_LEGACY_LAUNCHPADS: legacyRecord ? `${legacyRecord.launchpad}:${legacyRecord.deploymentBlock}` : "",
       KEEPER_DEPLOYMENT_BLOCK: record.deploymentBlock,
       SENTRY_RELEASE: `curveball-keeper@${release}`,
     });

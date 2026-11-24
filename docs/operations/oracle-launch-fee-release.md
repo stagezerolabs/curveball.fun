@@ -4,6 +4,8 @@ The new launchpad charges WETH worth 1 USDC at the Stork ETH/USDC price. It requ
 
 The existing mainnet launchpad at `0xCD07f89C29E1FAE77EC1a342b5D47D9008E9a72d` remains live for its markets. It can still accept direct launches at its old fee while its buys are enabled. Pausing that contract would also stop buys, so do not pause it as part of the fee migration.
 
+The older testnet contract emits a different launch and trade event shape. Use the oracle testnet targets to deploy, record, and smoke test v3. Run any testnet app preview against an isolated database; `activate-testnet-oracle` intentionally refuses to reuse existing testnet projections.
+
 ## Before broadcasting
 
 1. Commit the contract source and run `make test`, `make -C contracts test-fork-strict`, and `make -C contracts test-fork-testnet`. Use a private HTTPS `RISE_MAINNET_RPC_URL` and the pinned `MAINNET_ACCOUNT=curveball` keystore in the ignored root `.env`. Check the current Stork ETH/USDC sample and Stork proxy code at `0xacC0a0cF13571d30B4b8637996F5D6D774d4fd62`.
