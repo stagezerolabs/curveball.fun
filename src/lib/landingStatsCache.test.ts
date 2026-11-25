@@ -65,4 +65,22 @@ describe("landing stats cache", () => {
     expect(readCachedLaunches("bad", storage)).toBeNull();
     expect(readCachedPayout("bad", storage)).toBeNull();
   });
+
+  test("old launch totals drop a hidden market while keeping other launches", () => {
+    const storage = memoryStorage();
+    writeCachedLaunches(
+      "network-a",
+      [
+        token,
+        {
+          ...token,
+          address: "0xCe4b88c65E3C1F57Ba43c1F6A3536ae15D6aF299",
+        },
+      ],
+      100,
+      storage,
+    );
+
+    expect(readCachedLaunches("network-a", storage)?.value).toEqual([token]);
+  });
 });

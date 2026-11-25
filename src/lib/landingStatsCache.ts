@@ -1,4 +1,5 @@
 import { isAddress, type Address } from "viem";
+import { isHiddenMarketAddress } from "./marketVisibility";
 
 export type CachedLaunch = {
   address: Address;
@@ -79,7 +80,12 @@ export function readCachedLaunches(
     )
   )
     return null;
-  return stored as Stored<CachedLaunch[]>;
+  return {
+    value: (stored.value as CachedLaunch[]).filter(
+      (token) => !isHiddenMarketAddress(token.address),
+    ),
+    updatedAt: stored.updatedAt,
+  };
 }
 
 export function writeCachedLaunches(

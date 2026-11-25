@@ -13,6 +13,7 @@ import {
   type CreatorTokenClient,
 } from "../creatorTokens";
 import { activeChainId } from "../lib/web3";
+import { isHiddenMarketAddress } from "../lib/marketVisibility";
 import type { MarketPriceChange } from "../lib/marketChart";
 import { useMarketPreviewStats } from "../lib/useMarketPreviewStats";
 import type { MarketPreviewStatsClient } from "../lib/marketPreviewStats";
@@ -52,7 +53,8 @@ export function MarketPage({
 }) {
   const publicClient = usePublicClient({ chainId: activeChainId });
   const backendEnabled = Boolean(socialApiBaseUrl);
-  const validAddress = isAddress(tokenAddress);
+  const hidden = isHiddenMarketAddress(tokenAddress);
+  const validAddress = isAddress(tokenAddress) && !hidden;
   const address = validAddress ? getAddress(tokenAddress) : undefined;
   const key = tokenAddress.toLowerCase();
   const { tokenCache, tokenFetchedAt, tokenErrors, actionError, loadToken } =
@@ -68,8 +70,9 @@ export function MarketPage({
       ) => Promise<Token | null>;
     };
   const { address: walletAddress } = useAccount();
-  const hasCachedResult = Object.prototype.hasOwnProperty.call(tokenCache, key);
-  const resolvedToken = tokenCache[key];
+  const hasCachedResult =
+    hidden || Object.prototype.hasOwnProperty.call(tokenCache, key);
+  const resolvedToken = hidden ? null : tokenCache[key];
   const fetchedAt = tokenFetchedAt[key];
   const statsTokens = useMemo(
     () => (resolvedToken ? [resolvedToken] : []),
@@ -81,7 +84,7 @@ export function MarketPage({
     fetchedAt ?? 0,
   );
   const discoveryError = tokenErrors[key];
-  const error = actionError || discoveryError;
+  const error = hidden ? "" : actionError || discoveryError;
   const [marketCapChange, setMarketCapChange] =
     useState<MarketPriceChange | null>(null);
 

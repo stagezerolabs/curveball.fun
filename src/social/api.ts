@@ -2,6 +2,7 @@ import { getAccessToken } from "@privy-io/react-auth";
 import { getAccount } from "@wagmi/core";
 import { getAddress, type Address } from "viem";
 import { wagmiConfig } from "../lib/web3";
+import { isHiddenMarketAddress } from "../lib/marketVisibility";
 import type {
   FollowingActivity,
   ModerationReport,
@@ -129,24 +130,47 @@ export const socialApi = {
       items: Record<string, unknown>[];
       nextCursor: string | null;
     }>(`/v1/feed?${query}`);
-    return { ...result, items: result.items.map(mapTrade) };
+    return {
+      ...result,
+      items: result.items
+        .map(mapTrade)
+        .filter((trade) => !isHiddenMarketAddress(trade.tokenAddress)),
+    };
   },
-  pulse(scope: PulseScope, period: PulsePeriod) {
+  async pulse(scope: PulseScope, period: PulsePeriod) {
     const query = new URLSearchParams({ scope, period });
-    return api<PulseResponse>(`/v1/pulse?${query}`);
+    const result = await api<PulseResponse>(`/v1/pulse?${query}`);
+    return {
+      ...result,
+      items: result.items.filter(
+        (moment) => !isHiddenMarketAddress(moment.tokenAddress),
+      ),
+    };
   },
-  followingActivity() {
-    return api<{
+  async followingActivity() {
+    const result = await api<{
       scope: "following";
       followedCount: number;
       items: FollowingActivity[];
     }>("/v1/following/activity");
+    return {
+      ...result,
+      items: result.items.filter(
+        (activity) => !isHiddenMarketAddress(activity.tokenAddress),
+      ),
+    };
   },
   leaderboard(category: "consistent" | "new") {
     return api<LeaderboardSnapshot>(`/v1/leaderboards/${category}`);
   },
-  profile(address: Address) {
-    return api<TraderProfile>(`/v1/profiles/${address}`);
+  async profile(address: Address) {
+    const result = await api<TraderProfile>(`/v1/profiles/${address}`);
+    return {
+      ...result,
+      positions: result.positions.filter(
+        (position) => !isHiddenMarketAddress(position.token_address),
+      ),
+    };
   },
   follow(address: Address, following: boolean) {
     return api<{ following: boolean }>(`/v1/follows/${address}`, {
@@ -188,10 +212,10 @@ export const socialApi = {
       items: Record<string, unknown>[];
       unreadCount: number;
     }>(`/v1/notifications?limit=${limit}`);
-    return {
-      items: result.items.map(mapNotification),
-      unreadCount: result.unreadCount,
-    };
+    const items = result.items
+      .map(mapNotification)
+      .filter((notification) => !isHiddenMarketAddress(notification.tokenAddress));
+    return { items, unreadCount: result.unreadCount };
   },
   markNotificationsRead(ids: string[]) {
     return api<{ ok: true }>("/v1/notifications/read", {

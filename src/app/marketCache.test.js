@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { createdTokenCacheUpdate, rehydrateMarketCache } from "./useStore.js";
+import { createdTokenCacheUpdate, rehydrateMarketCache, useStore } from "./useStore.js";
 import { launchpadAddress } from "../lib/web3";
 
 test("only configured factory markets rehydrate and are revalidated after page load", () => {
@@ -50,4 +50,39 @@ test("a confirmed launch survives malformed saved creator tokens", () => {
 
   expect(update.tokenCache[token.address.toLowerCase()]).toEqual(token);
   expect(update.creatorTokens[creatorKey]).toEqual([token]);
+});
+
+test("saved market lists and creator holdings never restore the hidden token", () => {
+  const hidden = {
+    address: "0xCe4b88c65E3C1F57Ba43c1F6A3536ae15D6aF299",
+    factory: launchpadAddress,
+    creator: "0x5CC42e772F67089b4670eec4dcD904be2F2D511c",
+  };
+  const visible = {
+    ...hidden,
+    address: "0x2114E56B6D3524022D0E4812F2523120C3BC94Aa",
+  };
+  const creatorKey = hidden.creator.toLowerCase();
+  const hiddenKey = hidden.address.toLowerCase();
+  const visibleKey = visible.address.toLowerCase();
+  const restored = rehydrateMarketCache(
+    {
+      tokens: [hidden, visible],
+      tokenCache: { [hiddenKey]: hidden, [visibleKey]: visible },
+      tokenFetchedAt: { [hiddenKey]: 1, [visibleKey]: 1 },
+      creatorTokens: { [creatorKey]: [hidden, visible] },
+    },
+    { tokens: [], tokenCache: {}, creatorTokens: {}, tokenFetchedAt: {} },
+  );
+
+  expect(restored.tokens).toEqual([visible]);
+  expect(restored.tokenCache).toEqual({ [visibleKey]: visible });
+  expect(restored.tokenFetchedAt).toEqual({ [visibleKey]: 1 });
+  expect(restored.creatorTokens[creatorKey]).toEqual([visible]);
+});
+
+test("a hidden market cannot load through its direct address", async () => {
+  const address = "0xCe4b88c65E3C1F57Ba43c1F6A3536ae15D6aF299";
+  expect(await useStore.getState().loadToken({}, address)).toBeNull();
+  expect(useStore.getState().tokenCache[address.toLowerCase()]).toBeUndefined();
 });

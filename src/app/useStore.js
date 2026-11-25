@@ -15,6 +15,7 @@ import { readableError } from "../lib/errors";
 import { PendingTransactionError } from "../sdk/sdk";
 import { hasPublishedArtwork } from "../lib/launchForm";
 import { tradeQuoteKey, tradeVenueForMarket } from "../lib/marketState";
+import { isHiddenMarketAddress } from "../lib/marketVisibility";
 import { sdkForMarket } from "../lib/marketFactories";
 import {
   fetchCreatorMarkets,
@@ -105,6 +106,7 @@ function cacheTokens(current, discovered, fetchedAt = Date.now()) {
   const tokenCache = { ...current.tokenCache };
   const tokenFetchedAt = { ...current.tokenFetchedAt };
   for (const token of discovered) {
+    if (isHiddenMarketAddress(token.address)) continue;
     const key = cacheKey(token.address);
     tokenCache[key] = token;
     tokenFetchedAt[key] = fetchedAt;
@@ -114,9 +116,12 @@ function cacheTokens(current, discovered, fetchedAt = Date.now()) {
 
 function mergeTokenLists(current, discovered) {
   const merged = new Map(
-    discovered.map((token) => [token.address.toLowerCase(), token]),
+    discovered
+      .filter((token) => !isHiddenMarketAddress(token.address))
+      .map((token) => [token.address.toLowerCase(), token]),
   );
   for (const token of current) {
+    if (isHiddenMarketAddress(token.address)) continue;
     if (!merged.has(token.address.toLowerCase())) {
       merged.set(token.address.toLowerCase(), token);
     }
@@ -126,7 +131,8 @@ function mergeTokenLists(current, discovered) {
 
 export function rehydrateMarketCache(persisted, current) {
   const configured = (token) =>
-    token?.factory?.toLowerCase() === launchpadAddress?.toLowerCase();
+    token?.factory?.toLowerCase() === launchpadAddress?.toLowerCase() &&
+    !isHiddenMarketAddress(token?.address);
   const tokens = validCachedTokens(persisted?.tokens).filter(configured);
   const tokenCache = Object.fromEntries(
     Object.entries(persisted?.tokenCache ?? {}).filter(([, token]) =>
@@ -139,11 +145,17 @@ export function rehydrateMarketCache(persisted, current) {
       validCachedTokens(entries).filter(configured),
     ]),
   );
+  const tokenFetchedAt = Object.fromEntries(
+    Object.entries(persisted?.tokenFetchedAt ?? {}).filter(
+      ([address]) => !isHiddenMarketAddress(address),
+    ),
+  );
   return {
     ...current,
     ...persisted,
     tokens,
     tokenCache,
+    tokenFetchedAt,
     creatorTokens,
     marketsFetchedAt: 0,
   };
@@ -155,6 +167,7 @@ const validCachedTokens = (tokens) =>
     : [];
 
 export function createdTokenCacheUpdate(state, token) {
+  if (isHiddenMarketAddress(token.address)) return {};
   const tokenKey = cacheKey(token.address);
   const creatorKey = cacheKey(token.creator);
   const creatorTokens =
@@ -205,6 +218,7 @@ export function confirmedTradeCacheUpdate(
   marketState,
   fetchedAt = Date.now(),
 ) {
+  if (isHiddenMarketAddress(token.address)) return {};
   const tokenKey = cacheKey(token.address);
   const creatorKey = cacheKey(token.creator);
   const invalidated = {
@@ -360,7 +374,9 @@ export const useStore = create(
                     current.tokens.filter((token) => token.indexing),
                     discovered,
                   )
-                : discovered,
+                : discovered.filter(
+                    (token) => !isHiddenMarketAddress(token.address),
+                  ),
               ...cacheTokens(current, discovered, fetchedAt),
               loading: false,
               marketsFetchedAt: fetchedAt,
@@ -389,7 +405,12 @@ export const useStore = create(
 
       loadToken: async (client, address, { force = false } = {}) => {
         const backendEnabled = Boolean(socialApiBaseUrl);
-        if ((!client && !backendEnabled) || !address) return null;
+        if (
+          (!client && !backendEnabled) ||
+          !address ||
+          isHiddenMarketAddress(address)
+        )
+          return null;
         const key = cacheKey(address);
         const state = get();
         if (!force && isFresh(state.tokenFetchedAt[key])) {
@@ -407,18 +428,20 @@ export const useStore = create(
             : discoverToken(client, address)
         )
           .then((token) => {
+            const visibleToken =
+              token && !isHiddenMarketAddress(token.address) ? token : null;
             const fetchedAt = Date.now();
             set((current) => ({
-              tokenCache: { ...current.tokenCache, [key]: token },
+              tokenCache: { ...current.tokenCache, [key]: visibleToken },
               tokenFetchedAt: { ...current.tokenFetchedAt, [key]: fetchedAt },
               tokenLoading: { ...current.tokenLoading, [key]: false },
               tokenErrors: { ...current.tokenErrors, [key]: "" },
               tokens:
-                token && current.marketsFetchedAt
-                  ? mergeTokenLists(current.tokens, [token])
+                visibleToken && current.marketsFetchedAt
+                  ? mergeTokenLists(current.tokens, [visibleToken])
                   : current.tokens,
             }));
-            return token;
+            return visibleToken;
           })
           .catch((cause) => {
             set((current) => ({
@@ -458,18 +481,21 @@ export const useStore = create(
             : discoverCreatorTokens(client, creator)
         )
           .then((tokens) => {
+            const visibleTokens = tokens.filter(
+              (token) => !isHiddenMarketAddress(token.address),
+            );
             const fetchedAt = Date.now();
             set((current) => ({
-              creatorTokens: { ...current.creatorTokens, [key]: tokens },
+              creatorTokens: { ...current.creatorTokens, [key]: visibleTokens },
               creatorFetchedAt: {
                 ...current.creatorFetchedAt,
                 [key]: fetchedAt,
               },
               creatorLoading: { ...current.creatorLoading, [key]: false },
               creatorErrors: { ...current.creatorErrors, [key]: "" },
-              ...cacheTokens(current, tokens, fetchedAt),
+              ...cacheTokens(current, visibleTokens, fetchedAt),
             }));
-            return tokens;
+            return visibleTokens;
           })
           .catch((cause) => {
             set((current) => ({

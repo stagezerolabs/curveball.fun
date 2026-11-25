@@ -7,6 +7,7 @@ import type {
 import type { MarketPreviewStatsByToken } from "../lib/marketPreviewStats";
 import { socialApiBaseUrl } from "../social/api";
 import { launchpadAddress } from "../lib/web3";
+import { isHiddenMarketAddress } from "../lib/marketVisibility";
 import type { Token } from "../types";
 import type { MarketLifecycle } from "../sdk/sdk";
 
@@ -179,7 +180,9 @@ export async function fetchMarkets(signal?: AbortSignal): Promise<Token[]> {
     if (cursor) query.set("cursor", cursor);
     const page: { items: MarketRow[]; nextCursor: string | null } =
       await request(`/v1/markets?${query}`, signal);
-    rows.push(...page.items);
+    rows.push(
+      ...page.items.filter((row) => !isHiddenMarketAddress(row.tokenAddress)),
+    );
     cursor = page.nextCursor;
   } while (cursor);
   return Promise.all(rows.map(marketRowToToken));
@@ -189,6 +192,7 @@ export async function fetchMarket(
   tokenAddress: Address,
   signal?: AbortSignal,
 ): Promise<Token | null> {
+  if (isHiddenMarketAddress(tokenAddress)) return null;
   try {
     const row = await request<MarketRow>(`/v1/markets/${tokenAddress}`, signal);
     return marketRowToToken(row);
