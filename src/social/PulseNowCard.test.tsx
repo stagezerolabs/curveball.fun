@@ -38,7 +38,7 @@ test("Now cards show the market, the buy/sell split and net inflow only", () => 
     <PulseNowCard moment={moment} token={token} navigate={() => undefined} />,
   );
   expect(html).toContain("View Glass Orbit market");
-  expect(html).toContain("68% to graduation");
+  expect(html).toContain("68% curve sold");
   expect(html).toContain("75% of value bought, 25% sold");
   expect(html).toContain("net inflow");
   for (const removed of [

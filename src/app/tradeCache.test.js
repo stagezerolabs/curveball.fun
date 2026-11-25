@@ -28,6 +28,8 @@ test("a confirmed trade updates every cached copy of the market immediately", ()
     marketCap: 100,
     supply: supply.toString(),
     curveSupply: curveSupply.toString(),
+    initialVirtualQuote: "1000000000000000000",
+    curveLiquidityWeth: 0.2,
     pending: false,
   };
 
@@ -53,6 +55,7 @@ test("a confirmed trade updates every cached copy of the market immediately", ()
     expect(cached.progress).toBe(25);
     expect(cached.price).toBe(0.5);
     expect(cached.marketCap).toBe(500);
+    expect(cached.curveLiquidityWeth).toBe(1);
   }
 });
 

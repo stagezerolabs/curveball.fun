@@ -172,7 +172,7 @@ export function MarketHeader({
             </dd>
           </div>
           <div className="market-stat-progress">
-            <dt>Bonding status</dt>
+            <dt>Curve sold</dt>
             <dd>{token.graduated ? "100%" : formatPercent(token.progress)}</dd>
             <dd className="market-stat-progress-track">
               <progress

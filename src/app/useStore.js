@@ -235,6 +235,7 @@ export function confirmedTradeCacheUpdate(
 
   const curveSupply = cachedBigInt(token.curveSupply);
   const supply = cachedBigInt(token.supply);
+  const initialVirtualQuote = cachedBigInt(token.initialVirtualQuote);
   const price =
     marketState.virtualToken === 0n
       ? null
@@ -256,6 +257,16 @@ export function confirmedTradeCacheUpdate(
       curveSupply === null || curveSupply === 0n
         ? token.progress
         : Number((marketState.sold * 10_000n) / curveSupply) / 100,
+    curveLiquidityWeth:
+      initialVirtualQuote === null
+        ? token.curveLiquidityWeth
+        : Number(
+            formatEther(
+              marketState.virtualQuote > initialVirtualQuote
+                ? marketState.virtualQuote - initialVirtualQuote
+                : 0n,
+            ),
+          ),
     pending:
       curveSupply === null ? token.pending : marketState.sold >= curveSupply,
   };

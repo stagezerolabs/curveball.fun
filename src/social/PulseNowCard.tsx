@@ -58,7 +58,7 @@ export function PulseNowCard({
               </span>
             ) : null}
             {progress != null ? (
-              <span>{progress.toFixed(0)}% to graduation</span>
+              <span>{progress.toFixed(0)}% curve sold</span>
             ) : null}
           </p>
         </div>

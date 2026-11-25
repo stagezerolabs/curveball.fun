@@ -90,6 +90,15 @@ export function MilestonePanel({
     };
 
   const progress = token.progress ?? 0;
+  const quoteTarget = token.graduationTargetWeth
+    ? Number(token.graduationTargetWeth)
+    : null;
+  const hasQuoteTarget = quoteTarget !== null && Number.isFinite(quoteTarget) && quoteTarget > 0;
+  const quoteRaised = token.curveLiquidityWeth;
+  const quoteProgress =
+    hasQuoteTarget && quoteRaised != null && Number.isFinite(quoteRaised)
+      ? (quoteRaised / quoteTarget) * 100
+      : null;
   const marketFactory = launchpadAddress
     ? factoryForToken(token.factory)
     : undefined;
@@ -177,7 +186,7 @@ export function MilestonePanel({
             onClick={() => toggleDetail("progress")}
           >
             <span className="fee-split-heading">
-              <span>Progress to graduation</span>
+              <span>Curve tokens sold</span>
               <span className="fee-split-meta">
                 <strong>{formatPercent(progress)}</strong>
                 <InfoIcon />
@@ -189,7 +198,7 @@ export function MilestonePanel({
               aria-valuenow={Math.round(progress)}
               aria-valuemin={0}
               aria-valuemax={100}
-              aria-label="Progress to graduation"
+              aria-label="Curve tokens sold"
             >
               <span style={{ width: formatPercent(progress) }} />
             </span>
@@ -201,11 +210,26 @@ export function MilestonePanel({
                 <UsdAmount weth={token.marketCap} compact />
               </dd>
             </div>
-            {token.graduationTargetWeth && (
-              <div>
-                <dt>Graduation target</dt>
-                <dd>{formatEthAmount(Number(token.graduationTargetWeth))} ETH</dd>
-              </div>
+            {hasQuoteTarget && (
+              quoteProgress !== null ? (
+                <>
+                  <div>
+                    <dt>Net WETH raised</dt>
+                    <dd>
+                      {formatEthAmount(quoteRaised)} / {formatEthAmount(quoteTarget)} WETH
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>WETH target filled</dt>
+                    <dd>{formatPercent(quoteProgress)}</dd>
+                  </div>
+                </>
+              ) : (
+                <div>
+                  <dt>Graduation target</dt>
+                  <dd>{formatEthAmount(quoteTarget)} WETH</dd>
+                </div>
+              )
             )}
             <div>
               <dt>Market cap at graduation</dt>

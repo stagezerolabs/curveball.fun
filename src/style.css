@@ -4582,15 +4582,20 @@ select:focus-visible {
 .milestone-details > div {
   display: flex;
   font-size: 14px;
+  gap: 12px;
   justify-content: space-between;
 }
 .milestone-details dt {
   color: var(--muted);
+  min-width: 0;
 }
 .milestone-details dd {
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 .claim-block {
   align-content: start;

@@ -48,7 +48,7 @@ export function TokenCard({
               </strong>
             </span>
             <span className="tcard-figure-end">
-              <small>{token.graduated ? "Status" : "Graduation"}</small>
+              <small>{token.graduated ? "Status" : "Curve sold"}</small>
               <strong>
                 {token.graduated ? "Complete" : formatPercent(token.progress)}
               </strong>
