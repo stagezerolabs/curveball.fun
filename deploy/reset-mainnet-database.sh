@@ -13,6 +13,10 @@ fi
 
 python3 deploy/configure-mainnet-host.py --check >/dev/null
 
+# Make exports VITE_RPC_URL even when its optional root .env is absent. Let
+# Compose read the production value from its explicit env file.
+unset VITE_RPC_URL
+
 compose=(docker compose --env-file deploy/production.env -f compose.production.yaml -f deploy/compose.mainnet.yaml)
 "${compose[@]}" config --quiet
 configured_volumes=$("${compose[@]}" config --volumes)

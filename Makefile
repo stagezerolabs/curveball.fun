@@ -1,4 +1,4 @@
-ENV_FILE := $(shell git rev-parse --show-toplevel)/.env
+ENV_FILE := $(shell git rev-parse --show-toplevel 2>/dev/null || pwd)/.env
 -include $(ENV_FILE)
 
 export RISE_MAINNET_RPC_URL RISE_TESTNET_RPC_URL VITE_RPC_URL
