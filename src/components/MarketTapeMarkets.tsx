@@ -32,7 +32,6 @@ export function MarketTapeMarkets({ navigate }: { navigate: Navigate }) {
     publicClient as MarketPreviewStatsClient | undefined,
     tokens,
     0,
-    { refetchInterval: false, staleTime: 5 * 60_000 },
   );
 
   useEffect(() => {

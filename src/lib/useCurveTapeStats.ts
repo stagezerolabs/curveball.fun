@@ -32,7 +32,7 @@ function displayStats(
         : formatCompactUsd(
             Number(formatEther(BigInt(stats.volume24hWei))) * usdPerEth,
           ),
-    bought24h: formatTokenAmount(stats.bought24hWei),
+    netSold: formatTokenAmount(stats.netSoldWei),
     burnedTotal: formatTokenAmount(stats.burnedTotalWei),
   };
 }

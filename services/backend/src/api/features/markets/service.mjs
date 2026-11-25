@@ -161,6 +161,7 @@ export async function marketAddressBySlug(slug) {
 export async function marketTape(address) {
   const result = await pool.query(
     `SELECT
+      COALESCE(ms.sold,0) AS net_sold_wei,
       (SELECT COALESCE(SUM(t.gross_curve_quote),0) FROM trades t
        WHERE t.chain_id=m.chain_id AND t.token_address=m.token_address
          AND t.orphaned=false AND t.block_timestamp>now()-interval '24 hours')
@@ -180,6 +181,7 @@ export async function marketTape(address) {
          AND a.to_address='0x0000000000000000000000000000000000000000'
          AND a.orphaned=false) AS burned_total_wei
     FROM markets m
+    LEFT JOIN market_stats ms ON ms.chain_id=m.chain_id AND ms.token_address=m.token_address
     WHERE m.chain_id=$1 AND m.token_address=$2 AND m.orphaned=false`,
     [config.chainId, address],
   );
@@ -188,6 +190,7 @@ export async function marketTape(address) {
     throw Object.assign(new Error("Market not found."), { status: 404 });
   return {
     tokenAddress: address,
+    netSoldWei: String(row.net_sold_wei),
     volume24hWei: String(row.volume_24h_wei),
     bought24hWei: String(row.bought_24h_wei),
     burnedTotalWei: String(row.burned_total_wei),

@@ -342,6 +342,7 @@ export function fetchProtocolStats(signal?: AbortSignal) {
 
 export type MarketTapeStats = {
   tokenAddress: Address;
+  netSoldWei: string;
   volume24hWei: string;
   bought24hWei: string;
   burnedTotalWei: string;

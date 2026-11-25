@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 export type CurveTapeDisplay = {
   volume24h: string;
-  bought24h: string;
+  netSold: string;
   burnedTotal: string;
 };
 
@@ -19,9 +19,9 @@ function CurveStats({ stats }: { stats?: CurveTapeDisplay }) {
         <span>24h</span>
       </span>
       <span className="market-snapshot market-snapshot-curve">
-        <span>$CURVE Bought</span>
-        <strong>{stats?.bought24h ?? "—"}</strong>
-        <span>24h</span>
+        <span>$CURVE Net sold</span>
+        <strong>{stats?.netSold ?? "—"}</strong>
+        <span>current</span>
       </span>
       <span className="market-snapshot market-snapshot-curve">
         <span>$CURVE Burned</span>
