@@ -3609,6 +3609,12 @@ select:focus-visible {
   gap: 20px;
   grid-template-columns: minmax(0, 1fr) 360px;
 }
+.market-workspace-main {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+}
 .market-activity {
   background: var(--panel);
   border-radius: 12px;
@@ -3888,26 +3894,6 @@ select:focus-visible {
 .market-activity-pages button:focus-visible {
   outline: 2px solid var(--lime);
   outline-offset: 2px;
-}
-@media (min-width: 921px) {
-  .market-workspace {
-    grid-template-areas:
-      "chart sidebar"
-      "deposits sidebar"
-      "activity activity";
-  }
-  .market-workspace > .market-chart-panel {
-    grid-area: chart;
-  }
-  .market-workspace > .market-deposits-panel {
-    grid-area: deposits;
-  }
-  .market-workspace > .market-activity {
-    grid-area: activity;
-  }
-  .market-sidebar {
-    grid-area: sidebar;
-  }
 }
 .market-sidebar {
   align-content: start;
@@ -4724,6 +4710,9 @@ select:focus-visible {
     border-radius: 12px;
   }
   .market-workspace {
+    gap: 16px;
+  }
+  .market-workspace-main {
     gap: 16px;
   }
   .market-activity-head {

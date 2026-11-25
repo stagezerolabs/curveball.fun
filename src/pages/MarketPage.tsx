@@ -204,21 +204,23 @@ export function MarketPage({
       />
 
       <div className="market-workspace">
-        <Suspense
-          fallback={
-            <div
-              className="market-chart-panel market-chart-lazy skeleton"
-              aria-label="Loading chart"
+        <div className="market-workspace-main">
+          <Suspense
+            fallback={
+              <div
+                className="market-chart-panel market-chart-lazy skeleton"
+                aria-label="Loading chart"
+              />
+            }
+          >
+            <MarketChart
+              token={resolvedToken}
+              navigate={navigate}
+              refreshKey={fetchedAt}
+              onMarketCapChange={setMarketCapChange}
             />
-          }
-        >
-          <MarketChart
-            token={resolvedToken}
-            navigate={navigate}
-            refreshKey={fetchedAt}
-            onMarketCapChange={setMarketCapChange}
-          />
-        </Suspense>
+          </Suspense>
+        </div>
         <aside className="market-sidebar" aria-label="Market actions">
           <TradePanel token={resolvedToken} address={walletAddress} />
           <MilestonePanel token={resolvedToken} address={walletAddress} />
