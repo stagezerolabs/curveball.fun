@@ -2,11 +2,13 @@
 
 The oracle-v3 buyback treasury at `0x402524223D629A7bf59b94DB0798a6D4995d5B0E` can permanently select one graduated launchpad token. The intended token is CURVE at `0x65014eDD6ea4A53152780742360Fb4685Abab689`. The treasury is owned by the two-day timelock at `0xC7FD90b14110D4b4a1854c9b1A14aC934f1d2f5d`. The `dot` keystore is its proposer and executor.
 
-As of 25 November 2026, this CURVE market is still `Trading`: its `poolOf` is zero and the treasury's `curveToken` is zero. `setCurveToken` rejects the token until the 800 million curve-sale tokens sell out and the market graduates. Scheduling the timelock operation can start the two-day delay before graduation, but execution must wait for both conditions.
+As of 25 November 2026, this CURVE market is still `Trading`: its `poolOf` is zero and the treasury's `curveToken` is zero. `setCurveToken` rejects the token until the 800 million curve-sale tokens sell out and the market graduates. The timelock operation is already scheduled and unlocks at **27 November 2026, 18:17:25 UTC**. Execution must wait for both the timelock and graduation.
 
-## Prepare and schedule
+The schedule transaction is `0x9400ea2283d2e759c6af4b86c618d398bbce66e6ce576bef5347de5ced7ace0f`; the operation ID is `0x585fc762cc13b324e0cca54bba94b5414632467bf66c5b131359e710af51a669`. See [`deployments/4153/curve-activation-schedule.json`](../../deployments/4153/curve-activation-schedule.json) for the exact call data, salt, and timestamp. Do not submit another schedule transaction while this operation exists.
 
-Run in the repository root using the operator's local `dot` Foundry keystore. The schedule transaction is cancellable. Check the addresses and call data before signing.
+## Verify the scheduled operation
+
+Run in the repository root. These reads reconstruct the operation ID and check its live timelock timestamp.
 
 ```sh
 RPC_URL=${RISE_MAINNET_RPC_URL:-https://rpc.risechain.com}
@@ -25,11 +27,9 @@ cast call "$LAUNCHPAD" 'poolOf(address)(address)' "$TOKEN" --rpc-url "$RPC_URL"
 cast call "$TIMELOCK" 'getMinDelay()(uint256)' --rpc-url "$RPC_URL"
 OPERATION_HASH=$(cast call "$TIMELOCK" 'hashOperation(address,uint256,bytes,bytes32,bytes32)(bytes32)' "$TREASURY" 0 "$DATA" "$ZERO" "$SALT" --rpc-url "$RPC_URL")
 cast call "$TIMELOCK" 'getTimestamp(bytes32)(uint256)' "$OPERATION_HASH" --rpc-url "$RPC_URL"
-
-cast send "$TIMELOCK" 'schedule(address,uint256,bytes,bytes32,bytes32,uint256)' "$TREASURY" 0 "$DATA" "$ZERO" "$SALT" 172800 --rpc-url "$RPC_URL" --account dot
 ```
 
-Save the schedule transaction hash and `OPERATION_HASH`. Recheck `getTimestamp(bytes32)` after scheduling; it must be greater than 1. The operation becomes ready after that timestamp.
+The operation ID must equal the recorded value, and `getTimestamp` must return `1795803445`. If it returns zero, the operation was canceled or removed and needs a new operator review.
 
 ## Execute after graduation
 

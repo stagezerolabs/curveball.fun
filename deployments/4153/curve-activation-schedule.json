@@ -1,0 +1,17 @@
+{
+  "chainId": 4153,
+  "version": "oracle-v3",
+  "curveToken": "0x65014eDD6ea4A53152780742360Fb4685Abab689",
+  "buybackTreasury": "0x402524223D629A7bf59b94DB0798a6D4995d5B0E",
+  "timelock": "0xC7FD90b14110D4b4a1854c9b1A14aC934f1d2f5d",
+  "operationId": "0x585fc762cc13b324e0cca54bba94b5414632467bf66c5b131359e710af51a669",
+  "scheduleTransaction": "0x9400ea2283d2e759c6af4b86c618d398bbce66e6ce576bef5347de5ced7ace0f",
+  "scheduleBlock": 28024886,
+  "scheduledAt": "2026-11-25T18:17:25Z",
+  "delaySeconds": 172800,
+  "readyAt": "2026-11-27T18:17:25Z",
+  "value": "0",
+  "data": "0xa6b22f6700000000000000000000000065014edd6ea4a53152780742360fb4685abab689",
+  "predecessor": "0x0000000000000000000000000000000000000000000000000000000000000000",
+  "salt": "0xa7a5e24df40fd828c311f59887b2fe37ff6402c916326fd2c8547a0a860c78b7"
+}
