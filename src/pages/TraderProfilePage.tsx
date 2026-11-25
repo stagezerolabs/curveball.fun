@@ -61,7 +61,7 @@ function CreatorMarketList({
           <AppLink
             className="profile-row"
             route="market"
-            params={{ address: token.address }}
+            params={{ address: token.slug ?? token.address }}
             navigate={navigate}
           >
             <span className="profile-row-main">
@@ -445,7 +445,7 @@ export function TraderProfilePage({
                   <AppLink
                     className="profile-row profile-holding-row"
                     route="market"
-                    params={{ address: position.token_address }}
+                    params={{ address: position.token_slug ?? position.token_address }}
                     navigate={navigate}
                   >
                     <span className="profile-row-main">
@@ -525,7 +525,7 @@ export function TraderProfilePage({
                   <AppLink
                     className="profile-row"
                     route="market"
-                    params={{ address: trade.tokenAddress }}
+                    params={{ address: trade.tokenSlug ?? trade.tokenAddress }}
                     navigate={navigate}
                   >
                     <span

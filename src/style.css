@@ -2050,6 +2050,7 @@ select:focus-visible {
   text-transform: none;
 }
 .launch-form input,
+.launch-form textarea,
 .launch-form select {
   background: var(--surface);
   border: 0;
@@ -2063,7 +2064,13 @@ select:focus-visible {
   padding: 0 16px;
   width: 100%;
 }
-.launch-form input:focus-visible {
+.launch-form textarea {
+  min-height: 112px;
+  padding-block: 14px;
+  resize: vertical;
+}
+.launch-form input:focus-visible,
+.launch-form textarea:focus-visible {
   outline-color: var(--lime);
 }
 .symbol-input:focus-within {
@@ -2076,7 +2083,8 @@ select:focus-visible {
   appearance: none;
   cursor: pointer;
 }
-.launch-form input::placeholder {
+.launch-form input::placeholder,
+.launch-form textarea::placeholder {
   color: var(--muted);
   opacity: 0.8;
 }
@@ -9869,6 +9877,13 @@ img.profile-hero-avatar {
   line-height: 1.5;
   margin: 0;
   padding: 20px 0 22px;
+}
+.market-about > .market-about-bio {
+  font-weight: 700;
+  padding-bottom: 0;
+}
+.market-about > .market-about-bio + p {
+  padding-top: 10px;
 }
 .market-about > h2 + .market-about-facts {
   padding-top: 12px;

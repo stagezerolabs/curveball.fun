@@ -6,7 +6,7 @@ import type { FollowingActivity, FollowingActor } from "./types";
 export const FOLLOWING_ACTIVITY_LIMIT = 12;
 
 type MarketEvents = {
-  token: Pick<Token, "address" | "name" | "symbol">;
+  token: Pick<Token, "address" | "name" | "symbol" | "slug">;
   actors: Map<string, FollowingActor>;
   bought: bigint;
   sold: bigint;
@@ -29,7 +29,7 @@ export function buildFollowingActivity(
   const markets = new Map<string, MarketEvents>();
 
   const record = (
-    token: Pick<Token, "address" | "name" | "symbol" | "creator">,
+    token: Pick<Token, "address" | "name" | "symbol" | "creator" | "slug">,
     actor: FollowingActor,
     at: number,
   ) => {
@@ -110,6 +110,7 @@ export function buildFollowingActivity(
       tokenAddress: market.token.address as Address,
       tokenName: market.token.name,
       tokenSymbol: market.token.symbol,
+      tokenSlug: market.token.slug,
       actors,
       boughtQuoteWei: bought.toString(),
       soldQuoteWei: sold.toString(),

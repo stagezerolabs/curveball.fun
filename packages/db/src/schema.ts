@@ -185,6 +185,7 @@ export const markets = curveball.table(
     creatorAddress: text("creator_address").notNull(),
     name: text("name").notNull(),
     symbol: text("symbol").notNull(),
+    slug: text("slug").notNull(),
     metadataUri: text("metadata_uri").notNull().default(""),
     launchTxHash: text("launch_tx_hash").notNull(),
     launchLogIndex: integer("launch_log_index").notNull(),
@@ -215,6 +216,7 @@ export const markets = curveball.table(
   },
   (table) => [
     primaryKey({ columns: [table.chainId, table.tokenAddress] }),
+    uniqueIndex("markets_chain_slug_unique").on(table.chainId, table.slug),
     index("markets_launchpad_idx").on(table.chainId, table.launchpadAddress),
     index("markets_creator_idx").on(
       table.chainId,

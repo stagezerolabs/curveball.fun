@@ -38,7 +38,7 @@ export function Featured({
         <AppLink
           className="featured-leader"
           route="market"
-          params={{ address: leader.address }}
+          params={{ address: leader.slug ?? leader.address }}
           navigate={navigate}
         >
           <span className="featured-leader-content">
@@ -67,7 +67,7 @@ export function Featured({
               <AppLink
                 className={`featured-contender ${index === 0 ? "featured-contender-next" : "featured-contender-last"}`}
                 route="market"
-                params={{ address: token.address }}
+                params={{ address: token.slug ?? token.address }}
                 navigate={navigate}
                 key={token.address}
               >

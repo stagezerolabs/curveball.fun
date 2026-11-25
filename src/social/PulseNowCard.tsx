@@ -30,7 +30,7 @@ export function PulseNowCard({
     <article className="pulse-now-card">
       <AppLink
         route="market"
-        params={{ address: moment.tokenAddress }}
+        params={{ address: moment.tokenSlug ?? token?.slug ?? moment.tokenAddress }}
         navigate={navigate}
         className="pulse-now-link"
         aria-label={`View ${moment.tokenName} market`}

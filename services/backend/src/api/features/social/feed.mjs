@@ -29,7 +29,7 @@ export async function feed(url, viewer) {
     `SELECT t.logical_id AS id, t.trader_address, t.is_buy, t.net_trader_quote AS quote_amount_wei,
        t.token_amount AS token_amount_wei, t.virtual_quote_after, t.virtual_token_after,
        t.transaction_hash, t.log_index, t.block_timestamp, m.token_address, m.name AS token_name,
-       m.symbol AS token_symbol, m.launchpad_address, n.note,
+       m.symbol AS token_symbol, m.slug AS token_slug, m.launchpad_address, n.note,
        (SELECT COUNT(*) FROM trade_reactions rx WHERE rx.logical_trade_id=t.logical_id) AS reaction_count,
        EXISTS(SELECT 1 FROM trade_reactions rx WHERE rx.logical_trade_id=t.logical_id AND rx.reactor_address=$4) AS reacted,
        EXISTS(SELECT 1 FROM follows fv WHERE fv.chain_id=t.chain_id AND fv.follower_address=$4 AND fv.followed_address=t.trader_address) AS is_followed,

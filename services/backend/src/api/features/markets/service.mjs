@@ -12,8 +12,15 @@ function shapeMarket(row) {
     creatorAddress: row.creator_address,
     name: row.name,
     symbol: row.symbol,
+    slug: row.slug,
     metadataUri: row.metadata_uri,
     imageUrl: row.token_metadata?.imageUrl || null,
+    bio: row.token_metadata?.bio || null,
+    description: row.token_metadata?.description || null,
+    website: row.token_metadata?.website || null,
+    xUrl: row.token_metadata?.xUrl || null,
+    telegramUrl: row.token_metadata?.telegramUrl || null,
+    discordUrl: row.token_metadata?.discordUrl || null,
     state: row.state,
     readyAt: row.ready_at,
     isGraduated: Boolean(row.graduated),
@@ -139,6 +146,16 @@ export async function market(address) {
   if (!result.rows[0])
     throw Object.assign(new Error("Market not found."), { status: 404 });
   return shapeMarket(result.rows[0]);
+}
+
+export async function marketAddressBySlug(slug) {
+  const result = await pool.query(
+    "SELECT token_address FROM markets WHERE chain_id=$1 AND slug=$2 AND orphaned=false",
+    [config.chainId, slug],
+  );
+  if (!result.rows[0])
+    throw Object.assign(new Error("Market not found."), { status: 404 });
+  return { tokenAddress: result.rows[0].token_address };
 }
 
 export async function marketTape(address) {

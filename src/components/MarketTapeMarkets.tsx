@@ -98,7 +98,7 @@ export function MarketTapeMarkets({ navigate }: { navigate: Navigate }) {
                 <AppLink
                   className="market-snapshot market-snapshot-token"
                   route="market"
-                  params={{ address: token.address }}
+                  params={{ address: token.slug ?? token.address }}
                   navigate={navigate}
                   title={`${token.name} · 24h volume and price change`}
                   key={token.address}

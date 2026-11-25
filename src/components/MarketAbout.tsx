@@ -77,6 +77,7 @@ export function MarketAbout({
   return (
     <section className="market-about" aria-labelledby="market-about-title">
       <h2 id="market-about-title">About {token.name}</h2>
+      {token.bio && <p className="market-about-bio">{token.bio}</p>}
       {description && <p>{description}</p>}
       <dl className="market-about-facts">
         {token.pool && (

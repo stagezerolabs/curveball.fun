@@ -8,6 +8,7 @@ export type Token = {
   factory?: Address;
   name: string;
   symbol: string;
+  slug?: string;
   creator: Address;
   graduated: boolean;
   /** Sold out and waiting for `graduate`; the same as `lifecycle === "ready"`. */
@@ -38,7 +39,9 @@ export type Token = {
   pool?: Address | null;
   quoteSymbol?: string | null;
   description?: string | null;
+  bio?: string | null;
   website?: string | null;
-  xHandle?: string | null;
-  telegram?: string | null;
+  xUrl?: string | null;
+  telegramUrl?: string | null;
+  discordUrl?: string | null;
 };

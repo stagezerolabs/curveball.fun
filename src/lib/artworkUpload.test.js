@@ -24,6 +24,8 @@ test("publishes an image and metadata without a wallet signature", async () => {
   const uri = await publishTokenMetadata(cid, {
     name: " Demo ",
     symbol: "punk",
+    bio: " A short bio ",
+    telegramUrl: "https://t.me/demo",
   });
 
   expect(uri).toBe(`ipfs://${metadataCid}`);
@@ -38,6 +40,8 @@ test("publishes an image and metadata without a wallet signature", async () => {
   expect(requests[1].options.body.get("imageCid")).toBe(imageCid);
   expect(requests[1].options.body.get("name")).toBe("Demo");
   expect(requests[1].options.body.get("symbol")).toBe("PUNK");
+  expect(requests[1].options.body.get("bio")).toBe("A short bio");
+  expect(requests[1].options.body.get("telegramUrl")).toBe("https://t.me/demo");
   expect(requests[0].options.body.get("signature")).toBeNull();
   expect(requests[1].options.body.get("signature")).toBeNull();
 });

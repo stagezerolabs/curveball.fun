@@ -24,7 +24,7 @@ export function DiscoveryCard({
       <AppLink
         className="discovery-card"
         route="market"
-        params={{ address: token.address }}
+        params={{ address: token.slug ?? token.address }}
         navigate={navigate}
       >
         <span className="discovery-card-art">

@@ -45,7 +45,7 @@ export function SocialTradeCard({
         <AppLink
           className="social-token-link"
           route="market"
-          params={{ address: trade.tokenAddress }}
+          params={{ address: trade.tokenSlug ?? trade.tokenAddress }}
           navigate={navigate}
         >
           <TokenAvatar token={activityToken} className="social-token-avatar" />
@@ -75,7 +75,7 @@ export function SocialTradeCard({
           </a>
           <AppLink
             route="market"
-            params={{ address: trade.tokenAddress }}
+            params={{ address: trade.tokenSlug ?? trade.tokenAddress }}
             navigate={navigate}
             aria-label={`View ${trade.tokenName} market`}
           >

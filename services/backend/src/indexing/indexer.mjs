@@ -8,6 +8,7 @@ import {
 import { config } from "../platform/config.mjs";
 import { pool, transaction } from "../platform/db.mjs";
 import { crossedCurveMilestones } from "./milestones.mjs";
+import { duplicateMarketSlug, marketSlugBase } from "./marketSlug.mjs";
 import {
   publishLeaderboards,
   refreshPerformanceSnapshot,
@@ -589,13 +590,29 @@ async function indexFactoryRange(fromBlock, toBlock) {
       const initialVirtualQuote = market.initialVirtualQuote;
       const graduationTarget =
         (initialVirtualQuote * curveSupply) / (supply - curveSupply);
+      const tokenAddress = lower(log.args.token);
+      const existingSlug = await db.query(
+        "SELECT slug FROM markets WHERE chain_id=$1 AND token_address=$2",
+        [config.chainId, tokenAddress],
+      );
+      const baseSlug = marketSlugBase(log.args.symbol);
+      const claimedBase = existingSlug.rows[0]
+        ? null
+        : await db.query(
+            "SELECT 1 FROM markets WHERE chain_id=$1 AND slug=$2 LIMIT 1",
+            [config.chainId, baseSlug],
+          );
+      const slug = existingSlug.rows[0]?.slug ??
+        (claimedBase?.rowCount
+          ? duplicateMarketSlug(baseSlug, tokenAddress)
+          : baseSlug);
       await db.query(
         `INSERT INTO markets
           (chain_id, token_address, launchpad_address, creator_address, name, symbol, metadata_uri,
            launch_tx_hash, launch_log_index, launch_block, launched_at,total_supply,curve_supply,
            initial_virtual_quote,graduation_target_quote,fee_bps,creator_fee_share_bps,buyback_fee_share_bps,creator_tax_bps,
-           state,ready_at,orphaned)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,'trading',NULL,false)
+           slug,state,ready_at,orphaned)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,'trading',NULL,false)
          ON CONFLICT (chain_id, token_address) DO UPDATE SET
            launchpad_address = EXCLUDED.launchpad_address, creator_address = EXCLUDED.creator_address,
            name = EXCLUDED.name, symbol = EXCLUDED.symbol, metadata_uri = EXCLUDED.metadata_uri,
@@ -608,7 +625,7 @@ async function indexFactoryRange(fromBlock, toBlock) {
            state='trading', ready_at=NULL, orphaned = false`,
         [
           config.chainId,
-          lower(log.args.token),
+          tokenAddress,
           lower(launchpad),
           lower(log.args.creator),
           log.args.name,
@@ -626,6 +643,7 @@ async function indexFactoryRange(fromBlock, toBlock) {
           Number(log.args.creatorShareBps),
           Number(log.args.buybackShareBps),
           Number(log.args.taxBps),
+          slug,
         ],
       );
       await db.query(

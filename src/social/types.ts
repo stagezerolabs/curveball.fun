@@ -26,6 +26,7 @@ export type SocialTrade = {
   tokenAddress: Address;
   tokenName: string;
   tokenSymbol: string;
+  tokenSlug?: string | null;
   launchpadAddress: Address;
   note: string | null;
   reactionCount: number;
@@ -38,6 +39,7 @@ export type PulseMoment = {
   tokenAddress: Address;
   tokenName: string;
   tokenSymbol: string;
+  tokenSlug?: string | null;
   firstAt: string;
   latestAt: string;
   tradeCount: number;
@@ -64,6 +66,7 @@ export type FollowingActivity = {
   tokenAddress: Address;
   tokenName: string;
   tokenSymbol: string;
+  tokenSlug?: string | null;
   actors: FollowingActor[];
   boughtQuoteWei: string;
   soldQuoteWei: string;
@@ -126,6 +129,7 @@ export type TraderPosition = {
   token_address: Address;
   token_name: string;
   token_symbol: string;
+  token_slug?: string | null;
   balance_wei: string;
   known_basis_balance_wei: string;
   exact_balance_indexed: boolean;
@@ -166,6 +170,7 @@ export type Notification = {
   tokenAddress: Address | null;
   tokenName: string | null;
   tokenSymbol: string | null;
+  tokenSlug: string | null;
   milestone: number | null;
   readAt: string | null;
   createdAt: string;

@@ -285,7 +285,7 @@ function CreatorLaunchDashboard({
                     <AppLink
                       className="profile-market-link"
                       route="market"
-                      params={{ address: selectedToken.address }}
+                      params={{ address: selectedToken.slug ?? selectedToken.address }}
                       navigate={navigate}
                     >
                       View market <span aria-hidden="true">↗</span>

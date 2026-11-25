@@ -32,7 +32,7 @@ const marketMomentsSql = `, market_windows AS (
     MIN(transaction_hash) AS transaction_hash
   FROM actor_windows GROUP BY token_address,bucket
 ), ranked_windows AS (
-  SELECT mw.*,m.name AS token_name,m.symbol AS token_symbol,
+  SELECT mw.*,m.name AS token_name,m.symbol AS token_symbol,m.slug AS token_slug,
     (LEAST(mw.actor_score,24)+LEAST(mw.distinct_wallet_count,8)*2
       + CASE WHEN $3::text IS NOT NULL THEN LEAST(mw.distinct_wallet_count,3)*2 ELSE 0 END) /
       (1+GREATEST(0,EXTRACT(EPOCH FROM ($5::timestamptz-mw.latest_at))/3600) /
@@ -47,7 +47,7 @@ export const followingPulseSql = pulseActorWindowsSql(true) + marketMomentsSql;
 
 // Now: one row per market over the whole window, kept only when buy value beat sell value and
 // ranked by net inflow. Params: $1 chain, $2 interval, $3 asOf, $4 blocked wallets.
-export const nowPulseSql = `SELECT t.token_address,m.name AS token_name,m.symbol AS token_symbol,
+export const nowPulseSql = `SELECT t.token_address,m.name AS token_name,m.symbol AS token_symbol,m.slug AS token_slug,
     MIN(t.block_timestamp) AS first_at,MAX(t.block_timestamp) AS latest_at,
     COUNT(*) AS trade_count,
     COUNT(*) FILTER (WHERE t.is_buy) AS buy_count,
@@ -63,7 +63,7 @@ export const nowPulseSql = `SELECT t.token_address,m.name AS token_name,m.symbol
     AND NOT EXISTS (SELECT 1 FROM protocol_accounts pa WHERE pa.chain_id=t.chain_id
       AND pa.address=t.trader_address AND pa.is_user_attributable=false)
     AND NOT (t.trader_address=ANY($4::text[]))
-  GROUP BY t.token_address,m.name,m.symbol
+  GROUP BY t.token_address,m.name,m.symbol,m.slug
   HAVING COALESCE(SUM(t.net_trader_quote) FILTER (WHERE t.is_buy),0)
     > COALESCE(SUM(t.net_trader_quote) FILTER (WHERE NOT t.is_buy),0)
   ORDER BY COALESCE(SUM(t.net_trader_quote) FILTER (WHERE t.is_buy),0)
@@ -102,7 +102,7 @@ export const followingActivitySql = `WITH events AS (
       AND NOT EXISTS (SELECT 1 FROM protocol_accounts pa WHERE pa.chain_id=t.chain_id
         AND pa.address=t.trader_address AND pa.is_user_attributable=false)
   )
-  SELECT a.token_address,m.name AS token_name,m.symbol AS token_symbol,
+  SELECT a.token_address,m.name AS token_name,m.symbol AS token_symbol,m.slug AS token_slug,
     COALESCE(SUM(a.quote_amount) FILTER (WHERE a.action='buy'),0)::text AS bought_quote_wei,
     COALESCE(SUM(a.quote_amount) FILTER (WHERE a.action='sell'),0)::text AS sold_quote_wei,
     MAX(a.occurred_at) AS latest_at,
@@ -113,5 +113,5 @@ export const followingActivitySql = `WITH events AS (
     FROM events GROUP BY token_address,actor_address,action
   ) a
   JOIN markets m ON m.chain_id=$1 AND m.token_address=a.token_address AND m.orphaned=false
-  GROUP BY a.token_address,m.name,m.symbol
+  GROUP BY a.token_address,m.name,m.symbol,m.slug
   ORDER BY MAX(a.occurred_at) DESC,COUNT(*) DESC LIMIT 12`;

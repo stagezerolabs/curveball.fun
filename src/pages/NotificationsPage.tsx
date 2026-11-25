@@ -250,7 +250,7 @@ export function NotificationsPage({ navigate }: { navigate: Navigate }) {
                     <AppLink
                       className="notifications-token"
                       route="market"
-                      params={{ address: item.tokenAddress }}
+                      params={{ address: item.tokenSlug ?? item.tokenAddress }}
                       navigate={navigate}
                       aria-label={`View ${item.tokenName ?? "market"}`}
                     >

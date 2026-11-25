@@ -1,4 +1,5 @@
 import { MAX_ARTWORK_BYTES } from "../src/lib/artworkRules.js";
+import { normalizeLaunchDetails } from "../src/lib/launchDetails.js";
 
 const PINATA_UPLOAD_URL = "https://uploads.pinata.cloud/v3/files";
 const CID = /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|baf[a-z2-7]{20,})$/i;
@@ -118,11 +119,28 @@ export async function POST(request) {
         400,
       );
     }
+    let details;
+    try {
+      details = normalizeLaunchDetails({
+        bio: form.get("bio") ?? "",
+        description: form.get("description") ?? "",
+        website: form.get("website") ?? "",
+        xUrl: form.get("xUrl") ?? "",
+        telegramUrl: form.get("telegramUrl") ?? "",
+        discordUrl: form.get("discordUrl") ?? "",
+      });
+    } catch (error) {
+      return json({ error: error.message }, 400);
+    }
     try {
       const metadata = {
         name: name.trim(),
         symbol: symbol.trim().toUpperCase(),
         image: `ipfs://${imageCid}`,
+        ...Object.fromEntries(
+          Object.entries(details).filter(([, value]) => value !== null),
+        ),
+        ...(details.website ? { external_url: details.website } : {}),
       };
       const metadataFile = new File(
         [JSON.stringify(metadata)],

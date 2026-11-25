@@ -1,6 +1,7 @@
 import { config } from "../platform/config.mjs";
 import { pool } from "../platform/db.mjs";
 import { traceBackendTask } from "../platform/instrument.mjs";
+import { readLaunchDetails } from "../../../../src/lib/launchDetails.js";
 
 const CID = /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|baf[a-z2-7]{20,})(\/[^\s]*)?$/i;
 const MAX_METADATA_BYTES = 256 * 1024;
@@ -46,9 +47,8 @@ async function fetchMetadata(uri) {
     throw new Error("Metadata must be a JSON object.");
   return {
     name: shortString(value.name, 120),
-    description: shortString(value.description, 1_000),
     imageUrl: publicUrl(value.image, true),
-    externalUrl: publicUrl(value.external_url, true),
+    ...readLaunchDetails(value),
   };
 }
 

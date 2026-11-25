@@ -50,6 +50,7 @@ export function useProtocolStats() {
       const launches = tokens.map(
         ({
           address,
+          slug,
           factory,
           creator,
           graduated,
@@ -59,6 +60,7 @@ export function useProtocolStats() {
           createdAt,
         }) => ({
           address,
+          slug,
           factory,
           creator,
           graduated,

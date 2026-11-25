@@ -8,6 +8,7 @@ export function shapePublicPulseMoments(rows, { scope = "now" } = {}) {
       tokenAddress: row.token_address,
       tokenName: row.token_name,
       tokenSymbol: row.token_symbol,
+      tokenSlug: row.token_slug,
       firstAt: row.first_at,
       latestAt: row.latest_at,
       tradeCount: Number(row.trade_count),

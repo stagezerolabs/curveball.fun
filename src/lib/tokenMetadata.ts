@@ -1,9 +1,11 @@
+import { readLaunchDetails } from "./launchDetails.js";
+
 const CID = /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|baf[a-z2-7]{20,})(\/[^\s?#]*)?$/i;
 const MAX_METADATA_BYTES = 32_000;
 const TRUSTED_CONTENT_HOSTS = new Set(["gateway.pinata.cloud"]);
 const cache = new Map<
   string,
-  Promise<{ image: string | null; description: string | null } | null>
+  Promise<({ image: string | null } & ReturnType<typeof readLaunchDetails>) | null>
 >();
 
 async function readMetadata(response: Response): Promise<unknown> {
@@ -65,14 +67,9 @@ async function tokenMetadata(uri: string) {
       const metadata = await readMetadata(response);
       if (!metadata || typeof metadata !== "object") return null;
       const image = "image" in metadata ? metadata.image : null;
-      const description =
-        "description" in metadata ? metadata.description : null;
       return {
         image: typeof image === "string" ? publicContentUrl(image) : null,
-        description:
-          typeof description === "string"
-            ? description.trim().slice(0, 2_000) || null
-            : null,
+        ...readLaunchDetails(metadata),
       };
     } catch {
       return null;
@@ -91,4 +88,8 @@ export async function tokenArtworkUrl(uri: string): Promise<string | null> {
 
 export async function tokenDescription(uri: string): Promise<string | null> {
   return (await tokenMetadata(uri))?.description ?? null;
+}
+
+export async function tokenDetails(uri: string) {
+  return tokenMetadata(uri);
 }

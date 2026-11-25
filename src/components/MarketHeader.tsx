@@ -11,15 +11,20 @@ import { formatMarketAge, formatMarketCount } from "../lib/marketDisplay";
 function Socials({ token }: { token: Token }) {
   const links = [
     token.website && { href: token.website, label: "Website", icon: "globe" },
-    token.xHandle && {
-      href: `https://x.com/${token.xHandle.replace(/^@/, "")}`,
+    token.xUrl && {
+      href: token.xUrl,
       label: "X",
       icon: "x",
     },
-    token.telegram && {
-      href: `https://t.me/${token.telegram.replace(/^@/, "")}`,
+    token.telegramUrl && {
+      href: token.telegramUrl,
       label: "Telegram",
       icon: "telegram",
+    },
+    token.discordUrl && {
+      href: token.discordUrl,
+      label: "Discord",
+      icon: "discord",
     },
   ].filter(Boolean) as { href: string; label: string; icon: string }[];
 
@@ -48,6 +53,9 @@ function Socials({ token }: { token: Token }) {
             {link.icon === "x" && <path d="M4 4l12 12M16 4L4 16" />}
             {link.icon === "telegram" && (
               <path d="M17 4 3 9.6l4 1.4 1.4 4.5L11 12l4 4 2-12Z" />
+            )}
+            {link.icon === "discord" && (
+              <path d="M5 6.5c3.2-1.8 6.8-1.8 10 0l1.4 7c-1.8 1.4-3.7 2.2-5.6 2.5l-.7-1.1c.8-.2 1.5-.5 2.2-.9-.6.3-1.4.5-2.3.5s-1.7-.2-2.3-.5c.7.4 1.4.7 2.2.9L9.2 16c-1.9-.3-3.8-1.1-5.6-2.5L5 6.5ZM7.5 11.5h.1m4.8 0h.1" />
             )}
           </svg>
           {link.label}

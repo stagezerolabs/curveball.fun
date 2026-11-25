@@ -175,6 +175,7 @@ export async function followingActivity(viewer) {
       tokenAddress: row.token_address,
       tokenName: row.token_name,
       tokenSymbol: row.token_symbol,
+      tokenSlug: row.token_slug,
       boughtQuoteWei: row.bought_quote_wei,
       soldQuoteWei: row.sold_quote_wei,
       latestAt: row.latest_at,

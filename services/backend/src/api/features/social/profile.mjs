@@ -99,7 +99,7 @@ export async function profile(address, viewer) {
             / NULLIF(SUM(net_trader_quote) FILTER (WHERE NOT is_buy AND market_cap_wei IS NOT NULL),0))::text
             AS average_exit_market_cap_wei
         FROM priced_trades GROUP BY token_address
-      ) SELECT pt.token_address,m.name AS token_name,m.symbol AS token_symbol,
+      ) SELECT pt.token_address,m.name AS token_name,m.symbol AS token_symbol,m.slug AS token_slug,
         COALESCE(tb.balance,cp.known_basis_token_balance,0) AS balance_wei,
         COALESCE(cp.known_basis_token_balance,0) AS known_basis_balance_wei,
         (tb.token_address IS NOT NULL) AS exact_balance_indexed,

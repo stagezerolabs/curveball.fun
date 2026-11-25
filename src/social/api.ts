@@ -82,6 +82,7 @@ function mapTrade(row: Record<string, unknown>): SocialTrade {
     tokenAddress: getAddress(String(row.token_address)),
     tokenName: String(row.token_name),
     tokenSymbol: String(row.token_symbol),
+    tokenSlug: typeof row.token_slug === "string" ? row.token_slug : null,
     launchpadAddress: getAddress(String(row.launchpad_address)),
     note: typeof row.note === "string" ? row.note : null,
     reactionCount: Number(row.reaction_count || 0),
@@ -107,6 +108,8 @@ function mapNotification(row: Record<string, unknown>): Notification {
     tokenName: typeof payload.tokenName === "string" ? payload.tokenName : null,
     tokenSymbol:
       typeof payload.tokenSymbol === "string" ? payload.tokenSymbol : null,
+    tokenSlug:
+      typeof payload.tokenSlug === "string" ? payload.tokenSlug : null,
     milestone: typeof payload.milestone === "number" ? payload.milestone : null,
     readAt: typeof row.read_at === "string" ? row.read_at : null,
     createdAt: String(row.created_at),

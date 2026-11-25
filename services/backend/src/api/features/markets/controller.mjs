@@ -1,10 +1,13 @@
 import { addressParam } from "../../transport/params.mjs";
 import { send } from "../../transport/http.mjs";
-import { markets, market, marketTape, marketTrades, marketCandles, marketHolders } from "./service.mjs";
+import { markets, market, marketAddressBySlug, marketTape, marketTrades, marketCandles, marketHolders } from "./service.mjs";
 
 export async function handleMarkets(request, response, url, viewer) {
   if (request.method === "GET" && url.pathname === "/v1/markets")
     return send(request, response, 200, await markets(url));
+  const marketSlugMatch = url.pathname.match(/^\/v1\/markets\/slug\/([a-z0-9-]{1,122})$/);
+  if (request.method === "GET" && marketSlugMatch)
+    return send(request, response, 200, await marketAddressBySlug(marketSlugMatch[1]));
   const marketTradesMatch = url.pathname.match(
     /^\/v1\/markets\/(0x[a-fA-F0-9]{40})\/trades$/,
   );

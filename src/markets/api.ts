@@ -49,8 +49,15 @@ type MarketRow = {
   creatorAddress: Address;
   name: string;
   symbol: string;
+  slug: string;
   metadataUri: string;
   imageUrl: string | null;
+  bio: string | null;
+  description: string | null;
+  website: string | null;
+  xUrl: string | null;
+  telegramUrl: string | null;
+  discordUrl: string | null;
   state: Exclude<MarketLifecycle, "none">;
   readyAt: string | null;
   isGraduated: boolean;
@@ -126,6 +133,7 @@ async function marketRowToToken(row: MarketRow): Promise<Token> {
     factory: getAddress(row.factoryAddress || launchpadAddress!),
     name: row.name,
     symbol: row.symbol,
+    slug: row.slug,
     creator: getAddress(row.creatorAddress),
     graduated: row.isGraduated,
     lifecycle: row.state,
@@ -166,6 +174,12 @@ async function marketRowToToken(row: MarketRow): Promise<Token> {
     supply: row.policy.totalSupply,
     curveSupply: row.policy.curveSupply,
     imageUrl: row.imageUrl,
+    bio: row.bio,
+    description: row.description,
+    website: row.website,
+    xUrl: row.xUrl,
+    telegramUrl: row.telegramUrl,
+    discordUrl: row.discordUrl,
     metadataUri: row.metadataUri || null,
     pool: row.poolAddress ? getAddress(row.poolAddress) : null,
     quoteSymbol: "WETH",
@@ -201,6 +215,13 @@ export async function fetchMarket(
       return null;
     throw error;
   }
+}
+
+export async function resolveMarketSlug(slug: string): Promise<Address> {
+  const result = await request<{ tokenAddress: Address }>(
+    `/v1/markets/slug/${encodeURIComponent(slug)}`,
+  );
+  return getAddress(result.tokenAddress);
 }
 
 export async function fetchCreatorMarkets(

@@ -1,4 +1,5 @@
 import { MAX_ARTWORK_BYTES } from "./artworkRules";
+import { normalizeLaunchDetails } from "./launchDetails";
 
 const CID = /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|baf[a-z2-7]{20,})$/i;
 
@@ -36,13 +37,16 @@ export async function uploadArtworkImage(file, { signal } = {}) {
   return data.cid;
 }
 
-export async function publishTokenMetadata(imageCid, { name, symbol, signal }) {
+export async function publishTokenMetadata(imageCid, { name, symbol, signal, ...details }) {
   if (!CID.test(imageCid)) throw new Error("Artwork has no valid IPFS hash.");
+  const normalized = normalizeLaunchDetails(details);
   const form = new FormData();
   form.set("kind", "metadata");
   form.set("imageCid", imageCid);
   form.set("name", name.trim());
   form.set("symbol", symbol.trim().toUpperCase());
+  for (const [key, value] of Object.entries(normalized))
+    if (value) form.set(key, value);
   const data = await postArtwork(form, signal);
   if (
     typeof data.uri !== "string" ||

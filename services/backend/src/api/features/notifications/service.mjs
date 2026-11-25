@@ -9,7 +9,7 @@ export function createNotifications({ query = (...args) => pool.query(...args), 
         query(
           `SELECT n.id,n.kind,n.actor_address,
             n.payload || jsonb_strip_nulls(jsonb_build_object(
-              'tokenName',m.name,'tokenSymbol',m.symbol
+              'tokenName',m.name,'tokenSymbol',m.symbol,'tokenSlug',m.slug
             )) AS payload,n.read_at,n.created_at
             FROM notifications n
             LEFT JOIN markets m ON m.chain_id=n.chain_id AND m.token_address=n.payload->>'tokenAddress'

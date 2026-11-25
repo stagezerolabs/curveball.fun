@@ -10,7 +10,7 @@ export function pulsePeriodSeconds(period: PulsePeriod) {
 }
 
 type MarketTally = {
-  token: Pick<Token, "address" | "name" | "symbol">;
+  token: Pick<Token, "address" | "name" | "symbol" | "slug">;
   first: number;
   latest: number;
   buyCount: number;
@@ -27,7 +27,7 @@ type MarketTally = {
  */
 export function buildNowMoments(
   samples: readonly MarketTradeSample[],
-  tokens: readonly Pick<Token, "address" | "name" | "symbol">[],
+  tokens: readonly Pick<Token, "address" | "name" | "symbol" | "slug">[],
   period: PulsePeriod,
   now = Date.now() / 1_000,
 ): PulseMoment[] {
@@ -96,6 +96,7 @@ export function buildNowMoments(
       tokenAddress: tally.token.address as Address,
       tokenName: tally.token.name,
       tokenSymbol: tally.token.symbol,
+      tokenSlug: tally.token.slug,
       firstAt: new Date(tally.first * 1_000).toISOString(),
       latestAt: new Date(tally.latest * 1_000).toISOString(),
       tradeCount: tally.buyCount + tally.sellCount,

@@ -93,7 +93,7 @@ export function MarketList({
                 >
                   <AppLink
                     route="market"
-                    params={{ address: token.address }}
+                    params={{ address: token.slug ?? token.address }}
                     navigate={navigate}
                     className="market-card-link"
                     aria-label={`View ${token.name} market`}

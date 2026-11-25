@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import { usePrivy } from "@privy-io/react-auth";
 import { ArrowIcon } from "../components/ArrowIcon";
@@ -26,6 +26,7 @@ import {
 } from "../lib/launchForm";
 import { formatSignificantAmount } from "../lib/format.js";
 import { publishTokenMetadata, uploadArtworkImage } from "../lib/artworkUpload";
+import { normalizeLaunchDetails } from "../lib/launchDetails.js";
 import type { Navigate } from "../types";
 
 type LaunchPhase =
@@ -52,8 +53,7 @@ type ImageUpload = {
 };
 type MetadataUpload = {
   file: File;
-  name: string;
-  symbol: string;
+  detailsKey: string;
   status: "publishing" | "ready" | "error";
   uri?: string;
   error?: string;
@@ -126,6 +126,12 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
   const reviewedLaunchFee = useRef<bigint | null>(null);
   const [draftName, setDraftName] = useState("");
   const [draftSymbol, setDraftSymbol] = useState("");
+  const [draftBio, setDraftBio] = useState("");
+  const [draftDescription, setDraftDescription] = useState("");
+  const [draftWebsite, setDraftWebsite] = useState("");
+  const [draftXUrl, setDraftXUrl] = useState("");
+  const [draftTelegramUrl, setDraftTelegramUrl] = useState("");
+  const [draftDiscordUrl, setDraftDiscordUrl] = useState("");
   const [draftTaxPercent, setDraftTaxPercent] = useState("0");
   const [selectedBuyPercent, setSelectedBuyPercent] =
     useState<InitialBuyPercent | "custom">(0);
@@ -263,6 +269,31 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
   }, [artworkFile, imageRetry]);
   const nameForMetadata = draftName.trim();
   const symbolForMetadata = draftSymbol.trim().toUpperCase();
+  const launchDetails = useMemo(() => {
+    try {
+      return {
+        value: normalizeLaunchDetails({
+          bio: draftBio,
+          description: draftDescription,
+          website: draftWebsite,
+          xUrl: draftXUrl,
+          telegramUrl: draftTelegramUrl,
+          discordUrl: draftDiscordUrl,
+        }),
+        error: "",
+      };
+    } catch (error) {
+      return {
+        value: null,
+        error: error instanceof Error ? error.message : "Check the optional launch details.",
+      };
+    }
+  }, [draftBio, draftDescription, draftWebsite, draftXUrl, draftTelegramUrl, draftDiscordUrl]);
+  const metadataDetailsKey = JSON.stringify({
+    name: nameForMetadata,
+    symbol: symbolForMetadata,
+    ...launchDetails.value,
+  });
   const imageCid =
     imageUpload?.file === artworkFile && imageUpload.status === "ready"
       ? imageUpload.cid
@@ -270,15 +301,15 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
   const metadataDetailsValid =
     nameForMetadata.length > 0 &&
     new TextEncoder().encode(nameForMetadata).length <= 64 &&
-    /^[A-Z0-9]{1,12}$/.test(symbolForMetadata);
+    /^[A-Z0-9]{1,12}$/.test(symbolForMetadata) &&
+    launchDetails.value !== null;
   useEffect(() => {
     if (!artworkFile || !imageCid || !metadataDetailsValid) return;
     const controller = new AbortController();
     let active = true;
     setMetadataUpload({
       file: artworkFile,
-      name: nameForMetadata,
-      symbol: symbolForMetadata,
+      detailsKey: metadataDetailsKey,
       status: "publishing",
     });
     const timer = window.setTimeout(() => {
@@ -286,6 +317,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
       void publishTokenMetadata(imageCid, {
         name: nameForMetadata,
         symbol: symbolForMetadata,
+        ...(launchDetails.value ?? {}),
         signal: controller.signal,
       })
         .then((uri: string) => {
@@ -293,8 +325,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
             console.log("Token metadata published to IPFS.");
             setMetadataUpload({
               file: artworkFile,
-              name: nameForMetadata,
-              symbol: symbolForMetadata,
+              detailsKey: metadataDetailsKey,
               status: "ready",
               uri,
             });
@@ -304,8 +335,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
           if (active && !controller.signal.aborted)
             setMetadataUpload({
               file: artworkFile,
-              name: nameForMetadata,
-              symbol: symbolForMetadata,
+              detailsKey: metadataDetailsKey,
               status: "error",
               error:
                 cause instanceof Error
@@ -323,15 +353,13 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
     artworkFile,
     imageCid,
     metadataDetailsValid,
-    nameForMetadata,
-    symbolForMetadata,
+    metadataDetailsKey,
     metadataRetry,
   ]);
   const publishedUri =
     artworkFile &&
     metadataUpload?.file === artworkFile &&
-    metadataUpload.name === nameForMetadata &&
-    metadataUpload.symbol === symbolForMetadata &&
+    metadataUpload.detailsKey === metadataDetailsKey &&
     metadataUpload.status === "ready"
       ? (metadataUpload.uri ?? "")
       : "";
@@ -344,8 +372,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
         : !metadataDetailsValid
           ? "waiting"
           : metadataUpload?.file !== artworkFile ||
-              metadataUpload.name !== nameForMetadata ||
-              metadataUpload.symbol !== symbolForMetadata ||
+              metadataUpload.detailsKey !== metadataDetailsKey ||
               metadataUpload.status === "publishing"
             ? "publishing"
             : metadataUpload.status === "error"
@@ -361,6 +388,12 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
     if (launchProgress?.phase !== "success") return;
     setSelectedBuyPercent(0);
     setDraftInitialBuy("0");
+    setDraftBio("");
+    setDraftDescription("");
+    setDraftWebsite("");
+    setDraftXUrl("");
+    setDraftTelegramUrl("");
+    setDraftDiscordUrl("");
     setArtworkFile(null);
     setImageUpload(null);
     setMetadataUpload(null);
@@ -605,6 +638,53 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                   </span>
                 </label>
               </div>
+            </div>
+
+            <div className="launch-form-group">
+              <div className="launch-group-heading">
+                <h2>About and links</h2>
+                <p className="launch-field-help">Everything here is optional and appears on your market page.</p>
+              </div>
+              <div className="launch-fields">
+                <label className="launch-field-wide">
+                  <span>Short bio</span>
+                  <input
+                    name="bio"
+                    placeholder="One line about your token"
+                    maxLength={160}
+                    value={draftBio}
+                    onChange={(event) => setDraftBio(event.target.value)}
+                  />
+                </label>
+                <label className="launch-field-wide">
+                  <span>Description</span>
+                  <textarea
+                    name="description"
+                    placeholder="Tell people more about your launch"
+                    maxLength={1000}
+                    rows={4}
+                    value={draftDescription}
+                    onChange={(event) => setDraftDescription(event.target.value)}
+                  />
+                </label>
+                <label className="launch-field-wide">
+                  <span>Website</span>
+                  <input type="url" name="website" placeholder="https://example.com" value={draftWebsite} onChange={(event) => setDraftWebsite(event.target.value)} />
+                </label>
+                <label className="launch-field-wide">
+                  <span>X</span>
+                  <input type="url" name="xUrl" placeholder="https://x.com/yourtoken" value={draftXUrl} onChange={(event) => setDraftXUrl(event.target.value)} />
+                </label>
+                <label className="launch-field-wide">
+                  <span>Telegram</span>
+                  <input type="url" name="telegramUrl" placeholder="https://t.me/yourtoken" value={draftTelegramUrl} onChange={(event) => setDraftTelegramUrl(event.target.value)} />
+                </label>
+                <label className="launch-field-wide">
+                  <span>Discord</span>
+                  <input type="url" name="discordUrl" placeholder="https://discord.gg/invite" value={draftDiscordUrl} onChange={(event) => setDraftDiscordUrl(event.target.value)} />
+                </label>
+              </div>
+              {launchDetails.error && <p className="launch-field-error" role="alert">{launchDetails.error}</p>}
             </div>
 
             <div className="launch-form-group launch-buy-group">

@@ -24,7 +24,7 @@ export function TokenCard({
       <AppLink
         className="tcard"
         route="market"
-        params={{ address: token.address }}
+        params={{ address: token.slug ?? token.address }}
         navigate={navigate}
       >
         <span className="tcard-head">

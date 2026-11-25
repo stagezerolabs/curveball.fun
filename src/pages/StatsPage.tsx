@@ -160,7 +160,7 @@ export function StatsPage({ navigate }: { navigate: Navigate }) {
                 <li key={token.address}>
                   <AppLink
                     route="market"
-                    params={{ address: token.address }}
+                    params={{ address: token.slug ?? token.address }}
                     navigate={navigate}
                   >
                     <span>

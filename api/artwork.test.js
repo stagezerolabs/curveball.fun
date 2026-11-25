@@ -68,6 +68,12 @@ test("pins an image without a wallet signature, then pins its token metadata", a
     imageCid,
     name: "Demo",
     symbol: "demo",
+    bio: "A short introduction",
+    description: "A longer story about Demo.",
+    website: "https://demo.example",
+    xUrl: "https://x.com/demo",
+    telegramUrl: "https://t.me/demo",
+    discordUrl: "https://discord.gg/demo",
   });
   expect(metadataResponse.status).toBe(200);
   expect(await metadataResponse.json()).toEqual({
@@ -77,6 +83,13 @@ test("pins an image without a wallet signature, then pins its token metadata", a
     name: "Demo",
     symbol: "DEMO",
     image: `ipfs://${imageCid}`,
+    bio: "A short introduction",
+    description: "A longer story about Demo.",
+    website: "https://demo.example/",
+    external_url: "https://demo.example/",
+    xUrl: "https://x.com/demo",
+    telegramUrl: "https://t.me/demo",
+    discordUrl: "https://discord.gg/demo",
   });
 });
 
@@ -108,4 +121,22 @@ test("metadata requires a valid pinned image CID and token details", async () =>
     ).status,
   ).toBe(400);
   expect(calls).toBe(0);
+});
+
+test("rejects unsafe social links before Pinata", async () => {
+  process.env.PINATA_JWT = "test-token";
+  let called = false;
+  globalThis.fetch = async () => {
+    called = true;
+    return Response.json({});
+  };
+  const response = await request({
+    kind: "metadata",
+    imageCid: "bafy" + "a".repeat(55),
+    name: "Demo",
+    symbol: "DEMO",
+    xUrl: "https://x.com.evil.example/demo",
+  });
+  expect(response.status).toBe(400);
+  expect(called).toBe(false);
 });

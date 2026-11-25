@@ -3,6 +3,7 @@ import { isHiddenMarketAddress } from "./marketVisibility";
 
 export type CachedLaunch = {
   address: Address;
+  slug?: string;
   factory?: Address;
   creator: Address;
   graduated: boolean;
@@ -68,6 +69,8 @@ export function readCachedLaunches(
         token &&
         typeof token === "object" &&
         isAddress(token.address) &&
+        (token.slug === undefined ||
+          (typeof token.slug === "string" && /^[a-z0-9-]{1,122}$/.test(token.slug))) &&
         (token.factory === undefined || isAddress(token.factory)) &&
         isAddress(token.creator) &&
         typeof token.graduated === "boolean" &&

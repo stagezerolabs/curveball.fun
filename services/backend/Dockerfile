@@ -61,6 +61,7 @@ COPY services/backend/src ./services/backend/src
 COPY services/backend/certs ./services/backend/certs
 COPY api ./api
 COPY src/lib/artworkRules.js ./src/lib/artworkRules.js
+COPY src/lib/launchDetails.js ./src/lib/launchDetails.js
 COPY --from=web-build /app/dist ./dist
 
 USER bun
