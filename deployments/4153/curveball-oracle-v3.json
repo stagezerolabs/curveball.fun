@@ -1,0 +1,106 @@
+{
+  "version": "oracle-v3",
+  "release": "mainnet",
+  "chainId": 4153,
+  "sourceCommit": "18a456c6bc7a44c237a887facab5156796169695",
+  "sourceTreeSha256": "0x54f8976a1a50728c2e60b0956756a31d37d0c3ea30cc34269d1b5b1087f06ee6",
+  "sourceWorkingTreeDirty": false,
+  "launchpad": "0xC2C337301303d8bE4803042425aA5A325d30e6d7",
+  "deploymentBlock": "28010540",
+  "quote": "0x4200000000000000000000000000000000000006",
+  "icarusFactory": "0xEe10C6a0f158bFEeef3d48Dc0D26130Cf6115615",
+  "owner": "0xC7FD90b14110D4b4a1854c9b1A14aC934f1d2f5d",
+  "guardian": "0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3",
+  "treasury": "0x7e6B1bEfC7dd622c20961140779eF61cd9C62Ce4",
+  "launchFeeUsd": "1000000000000000000",
+  "maxOracleAgeSeconds": "1800",
+  "storkOracle": "0xacC0a0cF13571d30B4b8637996F5D6D774d4fd62",
+  "storkFeedId": "0x7965e1bfc07a34caf0c3aa8146b200264fbb7a0eb85b1d3b1fdceecffd736b02",
+  "oracleQuote": {
+    "fee": "612401144925424",
+    "price": "1632916607498793000000",
+    "timestampNs": "1795616901562624101"
+  },
+  "graduationTarget": "4000000000000000000",
+  "feeDefaults": {
+    "feeBps": 75,
+    "creatorShareBps": 5000,
+    "buybackShareBps": 2500,
+    "taxCapBps": 50
+  },
+  "supply": "1000000000000000000000000000",
+  "curveSupply": "800000000000000000000000000",
+  "walletCapBps": 500,
+  "singletons": {
+    "escrow": "0xAB595661467DA4b3d8282070f98743Db9F4da75E",
+    "locker": "0xCF18fDC41B3e63F4b6126a838802fA6400825F27",
+    "buybackTreasury": "0x402524223D629A7bf59b94DB0798a6D4995d5B0E",
+    "tokenImplementation": "0x60c7fe8a9Dec703607883519bD3C8425446C1Fd0"
+  },
+  "codeHashes": {
+    "TimelockController": "0xde3ad72519c38859ec8dc65fac1a0cb984d5dad30f444a60984e0942e38be573",
+    "CurveFeeEscrow": "0x013f77a09eb8bd5f157e8b35eb0f7392ea3bd109850252e28f87ec91e023a641",
+    "CurveBuybackTreasury": "0x4588ae3e6d54f197106449dbb56ba57a0dd183de8490ab482f3f33b6f541746d",
+    "CurveLpLocker": "0x2d04260d1925fad838f203204e6324a0afaf3470c3acea5b0694e745842e11e1",
+    "CurveLaunchpad": "0xfcd85dba4a5143a05e93036a10bb4f9cc63089ac5bfdfe15a31c383f0535ff94",
+    "CurveToken": "0x39a60e5bb218e171cd16ee4790129ddf959d4267db3bff4b74e069398d2d4ab7"
+  },
+  "sourceVerification": {
+    "TimelockController": {
+      "name": "TimelockController",
+      "url": "https://explorer.risechain.com/address/0xC7FD90b14110D4b4a1854c9b1A14aC934f1d2f5d?tab=contract"
+    },
+    "CurveFeeEscrow": {
+      "name": "CurveFeeEscrow",
+      "url": "https://explorer.risechain.com/address/0xAB595661467DA4b3d8282070f98743Db9F4da75E?tab=contract"
+    },
+    "CurveBuybackTreasury": {
+      "name": "CurveBuybackTreasury",
+      "url": "https://explorer.risechain.com/address/0x402524223D629A7bf59b94DB0798a6D4995d5B0E?tab=contract"
+    },
+    "CurveLpLocker": {
+      "name": "CurveLpLocker",
+      "url": "https://explorer.risechain.com/address/0xCF18fDC41B3e63F4b6126a838802fA6400825F27?tab=contract"
+    },
+    "CurveLaunchpad": {
+      "name": "CurveLaunchpad",
+      "url": "https://explorer.risechain.com/address/0xC2C337301303d8bE4803042425aA5A325d30e6d7?tab=contract"
+    },
+    "CurveToken": {
+      "name": "CurveToken",
+      "url": "https://explorer.risechain.com/address/0x60c7fe8a9Dec703607883519bD3C8425446C1Fd0?tab=contract"
+    }
+  },
+  "transactions": [
+    {
+      "name": "TimelockController",
+      "address": "0xC7FD90b14110D4b4a1854c9b1A14aC934f1d2f5d",
+      "hash": "0x3071518a28daa4d95aa15c092618670f91325d8e7f8f6de0360391e7fa0d86fb",
+      "blockNumber": "28010532"
+    },
+    {
+      "name": "CurveFeeEscrow",
+      "address": "0xAB595661467DA4b3d8282070f98743Db9F4da75E",
+      "hash": "0x9f85ffd8da4f3ce9b1a2d6fc8cdc5bec017a9d5c3f60144388439c5626264ed5",
+      "blockNumber": "28010533"
+    },
+    {
+      "name": "CurveBuybackTreasury",
+      "address": "0x402524223D629A7bf59b94DB0798a6D4995d5B0E",
+      "hash": "0x8febf3142ec59463fb13cdfdd94766509b533479c123f4fc162e5dcd7083a2af",
+      "blockNumber": "28010535"
+    },
+    {
+      "name": "CurveLpLocker",
+      "address": "0xCF18fDC41B3e63F4b6126a838802fA6400825F27",
+      "hash": "0x00b2e5d087caf7736171e411de1fcd9dfed23958d0beafb20b7aeed870269307",
+      "blockNumber": "28010538"
+    },
+    {
+      "name": "CurveLaunchpad",
+      "address": "0xC2C337301303d8bE4803042425aA5A325d30e6d7",
+      "hash": "0xc937fa77f49f3792a9ace4c71f51a0b4454717c4adcf4a9f849e3e0871377bd6",
+      "blockNumber": "28010540"
+    }
+  ]
+}

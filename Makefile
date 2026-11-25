@@ -13,7 +13,7 @@ TAIL ?= 100
 
 .PHONY: help dev build build-testnet test typecheck js-tests contracts-test \
   preflight-mainnet-dot deploy-mainnet-dot record-mainnet-dot deploy-swap-mainnet-dot \
-  record-swap-mainnet-dot configure-mainnet-dot oracle-status-mainnet reset-mainnet-database \
+  record-swap-mainnet-dot configure-mainnet-dot configure-mainnet-host oracle-status-mainnet reset-mainnet-database \
   testnet-preflight deploy-testnet-oracle record-testnet-oracle \
   deploy-swap-testnet-oracle record-swap-testnet-oracle configure-testnet-oracle \
   docker-setup docker-up docker-down docker-rebuild docker-status docker-config \
@@ -25,7 +25,7 @@ help:
 	@echo "Build:    dev, build, build-testnet, test"
 	@echo "Mainnet:  preflight-mainnet-dot, deploy-mainnet-dot, record-mainnet-dot"
 	@echo "          deploy-swap-mainnet-dot, record-swap-mainnet-dot, configure-mainnet-dot, oracle-status-mainnet"
-	@echo "VPS:      reset-mainnet-database (clears all database and on-host backup data)"
+	@echo "VPS:      configure-mainnet-host, reset-mainnet-database"
 	@echo "Testnet:  testnet-preflight, deploy-testnet-oracle, record-testnet-oracle"
 	@echo "          deploy-swap-testnet-oracle, record-swap-testnet-oracle, configure-testnet-oracle"
 	@echo "Docker:   docker-setup, docker-up, docker-down, docker-rebuild, docker-status"
@@ -73,6 +73,9 @@ record-swap-mainnet-dot:
 
 configure-mainnet-dot:
 	bun contracts/scripts/sync-production-config.ts
+
+configure-mainnet-host:
+	python3 deploy/configure-mainnet-host.py
 
 oracle-status-mainnet:
 	$(MAKE) -C contracts oracle-status-mainnet

@@ -64,8 +64,8 @@ export default defineConfig(({ mode }) => {
         }
       }
     }
-    const deploymentPath = "deployments/4153/curveball.json";
-    const adapterPath = "deployments/4153/icarus-swap-adapter.json";
+    const deploymentPath = "deployments/4153/curveball-oracle-v3.json";
+    const adapterPath = "deployments/4153/icarus-swap-adapter-oracle-v3.json";
     if (!existsSync(deploymentPath) || !existsSync(adapterPath)) {
       throw new Error(
         "Verified RISE mainnet launchpad and Icarus adapter records are required for a production build.",
@@ -75,6 +75,10 @@ export default defineConfig(({ mode }) => {
     const adapter = JSON.parse(readFileSync(adapterPath, "utf8"));
     if (
       deployment.chainId !== 4153 ||
+      deployment.version !== "oracle-v3" ||
+      deployment.launchFeeUsd !== "1000000000000000000" ||
+      deployment.maxOracleAgeSeconds !== "1800" ||
+      deployment.storkOracle?.toLowerCase() !== "0xacc0a0cf13571d30b4b8637996f5d6d774d4fd62" ||
       adapter.chainId !== 4153 ||
       deployment.launchpad?.toLowerCase() !==
         env.VITE_LAUNCHPAD_ADDRESS.toLowerCase() ||

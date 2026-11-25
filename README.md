@@ -11,7 +11,7 @@ Four singletons run every market (see `docs/adr/0003-lean-singleton-launchpad.md
 - `CurveBuybackTreasury` pools WETH buyback fees across markets, converts token-denominated LP fees to WETH, and buys and burns one permanently selected graduated CURVE token. Its owner selects that token after graduation.
 - `CurveLpLocker` holds every pool's LP forever and forwards its fees to the escrow.
 
-The oracle v3 source charges WETH worth at least $1 from Stork's RISE mainnet ETH/USDC feed. The launchpad reads the Stork proxy at `0xacC0a0cF13571d30B4b8637996F5D6D774d4fd62` and rejects prices older than 30 minutes, future prices, and values outside $100–$100,000 per ETH. The creator reviews a WETH cap before launch. There is no fixed-fee branch in the new app and no old market discovery. The existing onchain launchpad and its markets cannot be erased; the full reset clears the app database, including profiles, follows, trades, charts, and its on-host backup volume. The production app remains on the prior release until the operator deploys and activates v3.
+The oracle v3 source charges WETH worth at least $1 from Stork's RISE mainnet ETH/USDC feed. The launchpad reads the Stork proxy at `0xacC0a0cF13571d30B4b8637996F5D6D774d4fd62` and rejects prices older than 30 minutes, future prices, and values outside $100–$100,000 per ETH. The creator reviews a WETH cap before launch. There is no fixed-fee branch in the new app and no old market discovery. The existing onchain launchpad and its markets cannot be erased; the full reset clears the app database, including profiles, follows, trades, charts, and its on-host backup volume. The oracle contract is deployed at `0xC2C337301303d8bE4803042425aA5A325d30e6d7`; the production app remains on the prior release until the VPS cutover.
 
 ### RISE mainnet release from `dot`
 
@@ -28,7 +28,7 @@ make configure-mainnet-dot        # update frontend, backend, keeper, and releas
 make oracle-status-mainnet       # read-only check of the deployed launchpad quote
 ```
 
-The mainnet commands do not launch a token, buy, or run a smoke transaction. Record and publish the new deployment files and updated source before activating the VPS. On the VPS, stage the files and existing secrets as described in [the release runbook](docs/operations/oracle-launch-fee-release.md), run `make configure-mainnet-dot`, then run the explicitly destructive full reset:
+The mainnet commands do not launch a token, buy, or run a smoke transaction. Record and publish the new deployment files and updated source before activating the VPS. On the VPS, stage the files and existing secrets as described in [the release runbook](docs/operations/oracle-launch-fee-release.md), run `make configure-mainnet-host`, then run the explicitly destructive full reset:
 
 ```bash
 cd /opt/curveball-mainnet
