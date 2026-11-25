@@ -123,6 +123,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
   const formRef = useRef<HTMLFormElement>(null);
   const feeReviewConfirmed = useRef(false);
   const reviewedFeeCap = useRef<bigint | null>(null);
+  const reviewedLaunchFee = useRef<bigint | null>(null);
   const [draftName, setDraftName] = useState("");
   const [draftSymbol, setDraftSymbol] = useState("");
   const [draftTaxPercent, setDraftTaxPercent] = useState("0");
@@ -167,7 +168,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
     ...launchpadRead,
     functionName: "paused",
   });
-  const { data: oracleQuote, isError: oracleQuoteError } = useReadContract({
+  const { data: oracleQuote, isError: oracleQuoteError, isFetching: oracleQuoteFetching } = useReadContract({
     ...launchpadRead,
     functionName: "quoteLaunchFee",
     query: {
@@ -205,6 +206,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
   const launchFee = quoteTooOld || oracleQuoteError ? undefined : oracleQuote?.[0];
   const launchFeeCap = launchFee === undefined ? undefined :
     maximumLaunchFee(launchFee);
+  const reviewQuoteReady = launchFeeCap !== undefined && !oracleQuoteFetching;
   const launchFeeError = oracleQuoteError;
   const buybackShareBps = feeDefaults?.[2];
   const creatorTaxCapBps = feeDefaults?.[3];
@@ -379,18 +381,21 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
   } catch {
     initialBuyWei = undefined;
   }
+  const fundingFeeCap = feeReviewOpen ? reviewedFeeCap.current ?? launchFeeCap : launchFeeCap;
   const funding =
     wethBalance !== undefined &&
     nativeBalance !== undefined &&
-    launchFeeCap !== undefined &&
+    fundingFeeCap !== undefined &&
     initialBuyWei !== undefined
       ? launchFundingState(
           wethBalance,
           nativeBalance.value,
-          launchFeeCap,
+          fundingFeeCap,
           initialBuyWei,
         )
       : null;
+  const receiptFeeCap = reviewedFeeCap.current ?? launchFeeCap;
+  const receiptTotal = (receiptFeeCap ?? 0n) + (initialBuyWei ?? 0n);
   const draftTaxBps = percentToBps(draftTaxPercent || "0") ?? 0;
   const taxCap = creatorTaxCapBps;
   const taxInvalid =
@@ -429,7 +434,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
       taxCapBps: creatorTaxCapBps,
     });
   const submitLaunch = (event: React.FormEvent<HTMLFormElement>) => {
-    if (!formReady || !canCreate) {
+    if (!formReady || !canCreate || (feeReviewConfirmed.current && !reviewQuoteReady)) {
       event.preventDefault();
       return;
     }
@@ -441,6 +446,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
     ) {
       event.preventDefault();
       reviewedFeeCap.current = launchFeeCap;
+      reviewedLaunchFee.current = launchFee ?? null;
       setFeeReviewOpen(true);
       return;
     }
@@ -829,13 +835,6 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
             </Dialog.Close>
             <Dialog.Title>Review launch cost</Dialog.Title>
             <dl className="launch-fee-review-amounts">
-              <div>
-                <dt>Launch fee</dt>
-                <dd title={`${formatEther(launchFee ?? 0n)} WETH`}>
-                  $1.00
-                  <small>{displayWeth(launchFee ?? 0n)} WETH</small>
-                </dd>
-              </div>
               {initialBuyWei !== undefined && initialBuyWei > 0n && (
                 <div>
                   <dt>Initial buy</dt>
@@ -845,17 +844,18 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                   </dd>
                 </div>
               )}
+              <div>
+                <dt>Launch fee</dt>
+                <dd title={`${formatEther(reviewedLaunchFee.current ?? launchFee ?? 0n)} WETH`}>
+                  $1.00
+                  <small>{displayWeth(reviewedLaunchFee.current ?? launchFee ?? 0n)} WETH</small>
+                </dd>
+              </div>
               <div className="launch-fee-review-total">
-                <dt>Maximum WETH spend</dt>
-                <dd
-                  title={`${formatEther((reviewedFeeCap.current ?? launchFeeCap ?? 0n) + (initialBuyWei ?? 0n))} WETH`}
-                >
-                  <UsdAmount
-                    weth={Number(formatEther((reviewedFeeCap.current ?? launchFeeCap ?? 0n) + (initialBuyWei ?? 0n)))}
-                  />
-                  <small>
-                    {displayWeth((reviewedFeeCap.current ?? launchFeeCap ?? 0n) + (initialBuyWei ?? 0n))} WETH
-                  </small>
+                <dt>Total (up to)</dt>
+                <dd title={`${formatEther(receiptTotal)} WETH`}>
+                  <UsdAmount weth={Number(formatEther(receiptTotal))} />
+                  <small>{displayWeth(receiptTotal)} WETH</small>
                 </dd>
               </div>
               {funding && (
@@ -870,16 +870,14 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                       <dd>{displayWeth(funding.ethToWrap)} ETH</dd>
                     </div>
                   )}
-                  <div>
-                    <dt>Kept for gas</dt>
-                    <dd>At least {formatEther(LAUNCH_GAS_RESERVE)} ETH</dd>
-                  </div>
                 </>
               )}
             </dl>
             <p className="launch-fee-review-note">
               The launch may spend less than this limit. Any WETH left after
               launch stays in your wallet.
+              <br />
+              At least {formatEther(LAUNCH_GAS_RESERVE)} ETH is kept available for gas.
             </p>
             <div className="launch-fee-review-actions">
               <Dialog.Close className="launch-fee-review-cancel">
@@ -888,8 +886,9 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
               <button
                 type="button"
                 className="launch-modal-action"
-                disabled={!formReady || !canCreate || isPending}
+                disabled={!formReady || !canCreate || isPending || !reviewQuoteReady}
                 onClick={() => {
+                  if (!reviewQuoteReady || !formReady || !canCreate || isPending) return;
                   const form = formRef.current;
                   if (!form || !form.reportValidity()) return;
                   const capField = form.elements.namedItem("maxLaunchFeeWei");
@@ -904,7 +903,11 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                   }
                 }}
               >
-                Continue to wallet
+                {reviewQuoteReady
+                  ? "Continue to wallet"
+                  : oracleQuoteError
+                    ? "Price unavailable"
+                    : "Checking price…"}
               </button>
             </div>
           </Dialog.Popup>

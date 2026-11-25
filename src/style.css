@@ -2276,9 +2276,13 @@ select:focus-visible {
   margin-top: 4px;
   padding-top: 12px;
 }
-.launch-fee-review-note {
+.launch-modal .launch-fee-review-note {
+  background: var(--raise);
+  border: 1px solid var(--line);
+  border-radius: 10px;
   font-size: 12px;
-  margin: 14px 0 0;
+  margin-top: 16px;
+  padding: 12px 14px;
 }
 .launch-fee-review-total dt,
 .launch-fee-review-total dd {
