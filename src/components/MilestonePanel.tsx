@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../app/useStore.js";
-import { formatEthAmount, formatPercent } from "../lib/format.js";
+import { formatAddress, formatEthAmount, formatPercent } from "../lib/format.js";
 import type { Address } from "viem";
-import { formatEther } from "viem";
+import { formatEther, zeroAddress } from "viem";
 import { useReadContract } from "wagmi";
 import { curveFeeEscrowAbi, curveLaunchpadAbi, curveBuybackTreasuryAbi } from "../sdk/contracts";
 import { activeChainId, launchpadAddress } from "../lib/web3";
@@ -154,6 +154,9 @@ export function MilestonePanel({
   });
   const hasQuotePayment = quoteOwed !== undefined && quoteOwed > 0n;
   const hasTokenPayment = tokenOwed !== undefined && tokenOwed > 0n;
+  const hasCurveTarget = Boolean(curveTarget && curveTarget !== zeroAddress);
+  const buybackWeth =
+    buybackBalance === undefined ? null : Number(formatEther(buybackBalance));
   const targetMarketCap = getTargetMarketCap(token);
 
   return (
@@ -332,13 +335,20 @@ export function MilestonePanel({
           <div className="claim-block">
             <h3 className="panel-subhead">Buyback</h3>
             <p className="panel-note">
-              <UsdAmount weth={Number(formatEther(buybackBalance))} /> ({formatEther(buybackBalance)} WETH) in the shared treasury funds CURVE buybacks.
-              {curveTarget ? ` Target: ${curveTarget}.` : " The target will be set after CURVE graduates."}
+              Shared treasury: {formatEthAmount(buybackWeth)} WETH (
+              <UsdAmount weth={buybackWeth} />) for CURVE buybacks.
+            </p>
+            <p className="panel-note">
+              Target: {hasCurveTarget ? (
+                <span title={curveTarget}>{formatAddress(curveTarget)}</span>
+              ) : (
+                "Waiting for CURVE to graduate"
+              )}
             </p>
             <button
               type="button"
               className="primary-button claim-button"
-              disabled={isPending || !curveTarget || curveTarget === "0x0000000000000000000000000000000000000000"}
+              disabled={isPending || !hasCurveTarget}
               onClick={async () => {
                 await runBuyback(token.address, marketFactory);
                 await refetchBuyback();
@@ -353,34 +363,42 @@ export function MilestonePanel({
         <div className="claim-block">
           <h3 className="panel-subhead">Creator fees</h3>
           {hasQuotePayment && quote && (
-            <button
-              type="button"
-              className="primary-button claim-button"
-              disabled={isPending}
-              onClick={async () => {
-                await claimEscrow(quote, marketFactory);
-                await refetchQuoteOwed();
-              }}
-            >
-              {isPending
-                ? "Claiming…"
-                : `Claim ${formatEther(quoteOwed)} WETH (all your launches)`}
-            </button>
+            <>
+              <p className="panel-note" title={`${formatEther(quoteOwed)} WETH`}>
+                Available: {formatEthAmount(Number(formatEther(quoteOwed)))} WETH
+                across all your launches.
+              </p>
+              <button
+                type="button"
+                className="primary-button claim-button"
+                disabled={isPending}
+                onClick={async () => {
+                  await claimEscrow(quote, marketFactory);
+                  await refetchQuoteOwed();
+                }}
+              >
+                {isPending ? "Claiming…" : "Claim WETH fees"}
+              </button>
+            </>
           )}
           {hasTokenPayment && (
-            <button
-              type="button"
-              className="primary-button claim-button"
-              disabled={isPending}
-              onClick={async () => {
-                await claimEscrow(token.address, marketFactory);
-                await refetchTokenOwed();
-              }}
-            >
-              {isPending
-                ? "Claiming…"
-                : `Claim ${formatEther(tokenOwed)} ${token.symbol}`}
-            </button>
+            <>
+              <p className="panel-note" title={`${formatEther(tokenOwed)} ${token.symbol}`}>
+                Available: {formatEthAmount(Number(formatEther(tokenOwed)))}{" "}
+                {token.symbol}.
+              </p>
+              <button
+                type="button"
+                className="primary-button claim-button"
+                disabled={isPending}
+                onClick={async () => {
+                  await claimEscrow(token.address, marketFactory);
+                  await refetchTokenOwed();
+                }}
+              >
+                {isPending ? "Claiming…" : `Claim ${token.symbol} fees`}
+              </button>
+            </>
           )}
         </div>
       )}
