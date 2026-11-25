@@ -3,8 +3,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { LandingFooter } from "../components/Navigation";
 import { DocsPage } from "./DocsPage";
 import { documentedNetworks } from "./docsContracts";
-import mainnet from "../../deployments/4153/curveball.json";
-import mainnetAdapter from "../../deployments/4153/icarus-swap-adapter.json";
 
 const navigate = () => undefined;
 
@@ -31,18 +29,14 @@ test("docs topics have direct links and the selected chapter has navigation", ()
   expect(home).toContain('href="/docs/contracts"');
 });
 
-test("contracts docs list only the recorded RISE Mainnet deployment", () => {
+test("contracts docs exclude the retired launchpad and list the oracle dependency", () => {
   const html = renderToStaticMarkup(<DocsPage navigate={navigate} slug="contracts" />);
   const documented = documentedNetworks[0];
-  const expected = new Set([
-    mainnet.launchpad,
-    ...Object.values(mainnet.singletons),
-    mainnetAdapter.adapter,
-    mainnet.owner,
-  ]);
   expect(documentedNetworks).toHaveLength(1);
-  expect(new Set(documented.protocol.map(({ address }) => address))).toEqual(expected);
-  for (const address of expected) expect(html).toContain(`${documented.explorer}/address/${address}`);
+  for (const contract of documented.protocol) expect(html).toContain(`${documented.explorer}/address/${contract.address}`);
+  expect(html).toContain("0xacC0a0cF13571d30B4b8637996F5D6D774d4fd62");
+  if (documented.protocol.length === 0)
+    expect(html).toContain("Oracle release addresses will appear after mainnet deployment.");
   expect(html).toContain("External contracts used by Curveball");
   expect(html).not.toContain("RISE Testnet");
   expect(html).not.toContain("11155931");

@@ -36,8 +36,6 @@ import {
   icarusFactoryAbi,
   icarusPoolAbi,
   icarusSwapAdapterAbi,
-  legacyLaunchAbi,
-  legacyLaunchFeeAbi,
 } from "./contracts";
 import { validateLaunchpad } from "../deployment";
 
@@ -602,15 +600,6 @@ export function createCurveballSdk(
 
   async function readLaunchPolicy() {
     const readLaunchFee = async () => {
-      if (deployment.feeMode === "fixed") {
-        const fee = await actions.readContract(config, {
-          address: launchpad,
-          abi: legacyLaunchFeeAbi,
-          functionName: "launchFee",
-          chainId,
-        });
-        return { fee, maximum: fee };
-      }
       const [fee] = await actions.readContract(config, {
         address: launchpad,
         abi: curveLaunchpadAbi,
@@ -687,9 +676,7 @@ export function createCurveballSdk(
       throw new CurveballSdkError("Initial buy is too small.");
 
     const quote = await readQuoteToken();
-    const maxLaunchFee = deployment.feeMode === "oracle"
-      ? input.maxLaunchFeeWei
-      : policy.launchFee;
+    const maxLaunchFee = input.maxLaunchFeeWei;
     if (maxLaunchFee === undefined)
       throw new CurveballSdkError("Review the current launch fee before confirming.");
     if (maxLaunchFee < policy.launchFee)
@@ -706,11 +693,9 @@ export function createCurveballSdk(
         actions.simulateContract(config, {
           account,
           address: launchpad,
-          abi: deployment.feeMode === "oracle" ? curveLaunchpadAbi : legacyLaunchAbi,
+          abi: curveLaunchpadAbi,
           functionName: "launch",
-          args: deployment.feeMode === "oracle"
-            ? [meta, tax, initialBuy, minOut, maxLaunchFee]
-            : [meta, tax, initialBuy, minOut],
+          args: [meta, tax, initialBuy, minOut, maxLaunchFee],
           chainId,
         }),
       approved,

@@ -61,7 +61,7 @@ contract DeployTestnetForkTest is DeployFork {
 }
 
 contract DeployMainnetForkTest is DeployFork {
-    address constant MAINNET_DEPLOYER = 0xeEb364Ba1a9A4B6a75C41A39c4B91144a4aF156A;
+    address constant MAINNET_DEPLOYER = 0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3;
     address constant MAINNET_TREASURY = 0x7e6B1bEfC7dd622c20961140779eF61cd9C62Ce4;
 
     function setUp() public {

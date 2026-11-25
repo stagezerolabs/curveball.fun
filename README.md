@@ -11,46 +11,35 @@ Four singletons run every market (see `docs/adr/0003-lean-singleton-launchpad.md
 - `CurveBuybackTreasury` pools WETH buyback fees across markets, converts token-denominated LP fees to WETH, and buys and burns one permanently selected graduated CURVE token. Its owner selects that token after graduation.
 - `CurveLpLocker` holds every pool's LP forever and forwards its fees to the escrow.
 
-The current mainnet release is recorded at `deployments/4153/curveball.json` and charges a fixed 0.00045 WETH launch fee. This source tree prepares an oracle v3 release that charges WETH worth approximately $1 at a fresh Stork ETH/USDC price. The new release needs a separate deployment and record at `deployments/4153/curveball-oracle-v3.json`; until activation, the app continues to use the fixed-fee contract. The recorded testnet deployment uses an older 1,000,000-token release and a 0.001 WETH fee. Existing markets remain on their original launchpad after v3 activation.
+The oracle v3 source charges WETH worth at least $1 from Stork's RISE mainnet ETH/USDC feed. The launchpad reads the Stork proxy at `0xacC0a0cF13571d30B4b8637996F5D6D774d4fd62` and rejects prices older than 30 minutes, future prices, and values outside $100–$100,000 per ETH. The creator reviews a WETH cap before launch. There is no fixed-fee branch in the new app and no old market discovery. The existing onchain launchpad and its markets cannot be erased; the full reset clears the app database, including profiles, follows, trades, charts, and its on-host backup volume. The production app remains on the prior release until the operator deploys and activates v3.
+
+### RISE mainnet release from `dot`
+
+Use the `dot` Foundry keystore (`0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3`) in your own shell. Set `RISE_MAINNET_RPC_URL` in ignored `.env` if you prefer a private endpoint; the targets otherwise use `https://rpc.risechain.com`. The new mainnet timelock gives `dot` proposer, executor, and canceller roles. The protocol treasury remains `0x7e6B1bEfC7dd622c20961140779eF61cd9C62Ce4`.
+
+```bash
+make oracle-status-mainnet       # read-only Stork freshness and fee check
+make preflight-mainnet-dot        # tests, fork tests, dependency checks, dry run
+make deploy-mainnet-dot           # deploy oracle launchpad and singletons from dot
+make record-mainnet-dot           # verify receipts, wiring, bytecode, source, oracle policy
+make deploy-swap-mainnet-dot      # deploy the new swap adapter from dot
+make record-swap-mainnet-dot      # verify and record its wiring and bytecode
+make configure-mainnet-dot        # update frontend, backend, keeper, and release envs
+make oracle-status-mainnet       # read-only check of the deployed launchpad quote
+```
+
+The mainnet commands do not launch a token, buy, or run a smoke transaction. Record and publish the new deployment files and updated source before activating the VPS. On the VPS, stage the files and existing secrets as described in [the release runbook](docs/operations/oracle-launch-fee-release.md), run `make configure-mainnet-dot`, then run the explicitly destructive full reset:
+
+```bash
+cd /opt/curveball-mainnet
+make reset-mainnet-database CONFIRM_RESET=DELETE_ALL_CURVEBALL_MAINNET_DATA
+```
+
+The reset builds the new API and keeper images, removes both `curveball-mainnet-postgres-data` and `curveball-mainnet-postgres-backups`, and recreates the stack and schema. It refuses mismatched chain, record, and environment addresses. Nothing is reset by the deploy command. See [the release runbook](docs/operations/oracle-launch-fee-release.md) for the complete sequence, scope, and checks.
 
 ### Testnet rehearsal
 
-The testnet path deploys the current contracts against canonical RISE Testnet WETH and the live Icarus testnet factory. The `dot` Foundry keystore broadcasts the deployment and is the owner, guardian and treasury. Foundry prompts for the keystore password. It does not modify production configuration.
-
-```bash
-make deploy-testnet      # runs the contract suite, testnet forks, preflight, then broadcasts
-make post-deploy-testnet # records, activates and recreates the stack, then launches and buys a smoke token
-make set-testnet-graduation-target # owner update on the recorded live launchpad; prompts for dot password
-make deploy-icarus-swap-testnet # deploy and verify the atomic adapter; prompts for dot password
-make record-icarus-swap-testnet # verify its onchain wiring and save the runtime code hash
-make activate-icarus-swap-testnet # configure the web app and rebuild Docker
-```
-
-The broadcast verifies all five contracts (the four singletons and the token implementation) on the RISE Testnet Blockscout. Recording validates every receipt, the singletons' wiring, policy values, bytecode hashes and verified sources before writing `deployments/11155931/curveball.json`. Activation updates the backend, keeper, and prepared VPS deployment env files, clears previous local chain projections and indexer cursors while keeping wallet profiles and follows, then rebuilds and recreates the complete local stack.
-
-The recorded release uses Icarus's basic (V2) pool factory at `0x8221dfB70c9A2dE60253dcfC58231FD529bbF4F9`; [the Icarus testnet app](https://testnet.icarus.finance) can be used to inspect swaps and liquidity. Factory pause blocks basic-pool swaps only, so graduation and fee claims remain available. At the last documented testnet check, the volatile swap fee was 30 bps and 10% of that fee went to gauge rewards; both rates can change, including per pool. Curveball's locked LP collects its unstaked LP share. Buyback calls `sync()` before sampling two price intervals. Each observation requires more than 1,800 seconds since the previous one, so a quiet pool can have a longer lookback; schedule `sync()` about every 30 minutes only if a bounded lookback is needed.
-
-Graduated markets use the same buy/sell panel to trade their canonical Icarus basic pool. The panel quotes the pool's fee-inclusive output, shows its current fee and pause state, and executes an atomic swap through `CurveIcarusSwapAdapter` with a minimum output based on the displayed quote. The adapter is permissionless and holds no user assets. Until its verified deployment record is activated, the panel shows that Icarus trading is unavailable and keeps wallet trading disabled. The pool explorer link remains available for inspection.
-
-New deployments enforce a 4 WETH minimum graduation target, and the testnet deploy script uses 4 WETH. The recorded testnet launchpad currently reports a 4 WETH target, although its deployment record captures the original 0.01 WETH setting. The owner command changes the target for new markets; existing markets retain their launch-time curve parameters. The live contract's older bytecode still permits its owner to lower the target later; only the new release enforces the 4 WETH floor. The new release caps each wallet's net curve purchases at 40,000,000 tokens (5% of the 800,000,000-token curve allocation), so a complete sellout requires at least 20 buying addresses. `Smoke.s.sol` supports both legacy and oracle launch ABIs and broadcasts only a launch with a 0.003 WETH first-buy budget; fund its broadcaster for that budget, the live fee cap, and gas. The testnet fork smoke suite uses dealt ETH to simulate sellout, graduation, a pool swap, and fee claims without spending live funds. Buys in the first five seconds after launch pay an additional treasury tax of 99%, 25%, 3%, 0.36%, or 0.04% at elapsed seconds 0–4, then zero.
-
-### Mainnet deployment
-
-Set `MAINNET_ACCOUNT=curveball` and a private `RISE_MAINNET_RPC_URL` in the ignored repository-level `.env`. The script permits only the `curveball` deployer (`0xeEb364Ba1a9A4B6a75C41A39c4B91144a4aF156A`). On mainnet it creates a self-administered two-day OpenZeppelin timelock as owner; `curveball` is its proposer and executor and the launchpad guardian. The protocol treasury is `0x7e6B1bEfC7dd622c20961140779eF61cd9C62Ce4`, and the initial graduation target is 4 WETH. The deploy transaction does not launch, buy, or graduate a market.
-
-```bash
-make production-preflight
-CONFIRM_DEPLOY=DEPLOY_CURVEBALL_RISE_MAINNET_4153 make deploy-production
-CONFIRM_RECORD_PRODUCTION=RECORD_CURVEBALL_RISE_MAINNET_4153 make record-production
-make configure-production
-CONFIRM_ICARUS_SWAP_DEPLOY=DEPLOY_ICARUS_SWAP_RISE_MAINNET_4153 make deploy-icarus-swap-mainnet # requires core record
-make record-icarus-swap-mainnet # pins adapter wiring, bytecode and verified source
-make activate-icarus-swap-mainnet # prepares mainnet env and builds isolated Compose images
-```
-
-The oracle release uses `make production-oracle-preflight`, `make deploy-production-oracle`, and `make record-production-oracle`; the original mainnet record remains intact. Preflight checks the live Stork feed, bytecode limits, strict fork lifecycle, canonical RISE WETH and Icarus contracts, and timelock authority. Recording verifies onchain wiring, oracle fee arithmetic, timelock roles, runtime bytecode, and Blockscout source verification. A new swap adapter is tied to the new launchpad. See `docs/operations/oracle-launch-fee-release.md` for activation and rollback.
-
-After recording, set the same launchpad and deployment block in Vercel and the keeper. Do not copy deployment credentials, keystore passwords, or keeper keys into any `VITE_` variable.
+The oracle testnet targets are `make testnet-preflight`, `make deploy-testnet-oracle`, `make record-testnet-oracle`, `make deploy-swap-testnet-oracle`, `make record-swap-testnet-oracle`, and `make configure-testnet-oracle`. They use the same oracle-only contract and `dot` signer. Mainnet release does not require a live testnet smoke launch; Foundry fork tests simulate launches and graduation without onchain transactions.
 
 ## Keeper
 
@@ -60,7 +49,7 @@ The standalone worker in [`keeper/`](keeper/README.md) discovers launches and se
 
 For the local stack, `compose.yaml` runs one backend container for the app, social API, indexer,
 and metadata worker, plus the keeper and a local Postgres database. The app reads its launchpad
-configuration from the root `.env` (written by `make configure-testnet`).
+configuration from the root `.env` (written by `make configure-testnet-oracle` after testnet deployment).
 
 ```bash
 # Copy .env.example to .env and fill in app, backend, keeper, and secret values.

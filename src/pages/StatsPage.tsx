@@ -86,7 +86,7 @@ export function StatsPage({ navigate }: { navigate: Navigate }) {
           <div>
             <dt>Tokens created</dt>
             <dd>{loading ? "…" : data ? total.toLocaleString() : "—"}</dd>
-            <small>Across supported launchpads</small>
+            <small>From this launchpad</small>
           </div>
           <div>
             <dt>Not yet graduated</dt>
@@ -152,7 +152,7 @@ export function StatsPage({ navigate }: { navigate: Navigate }) {
             <p className="protocol-stats-empty">Launch data is unavailable.</p>
           ) : !data.length ? (
             <p className="protocol-stats-empty">
-              No launches yet.
+              No launches from this launchpad yet.
             </p>
           ) : (
             <ul className="protocol-stats-list">
@@ -200,7 +200,7 @@ export function StatsPage({ navigate }: { navigate: Navigate }) {
         </div>
         <div>
           <p>
-            Launches and graduations: supported launchpads. Creator earnings: WETH
+            Launches and graduations: current launchpad. Creator earnings: WETH
             credited to creators from curve fees, creator tax and pool fees,
             whether claimed yet or not.
           </p>

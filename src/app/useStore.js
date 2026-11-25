@@ -9,7 +9,6 @@ import {
 import {
   activeChainId,
   launchpadAddress,
-  launchpadDeployments,
   requireCurveballSdk,
 } from "../lib/web3";
 import { readableError } from "../lib/errors";
@@ -127,8 +126,7 @@ function mergeTokenLists(current, discovered) {
 
 export function rehydrateMarketCache(persisted, current) {
   const configured = (token) =>
-    launchpadDeployments.some((deployment) =>
-      token?.factory?.toLowerCase() === deployment.address.toLowerCase());
+    token?.factory?.toLowerCase() === launchpadAddress?.toLowerCase();
   const tokens = validCachedTokens(persisted?.tokens).filter(configured);
   const tokenCache = Object.fromEntries(
     Object.entries(persisted?.tokenCache ?? {}).filter(([, token]) =>

@@ -6,9 +6,10 @@ import { useBalance, useReadContract } from "wagmi";
 import { curveLaunchpadAbi, erc20Abi } from "../sdk/contracts";
 import {
   activeChainId,
+  activeSwapAdapterAddress,
   launchpadAddress,
 } from "../lib/web3";
-import { factoryForToken, swapAdapterForMarket } from "../lib/marketFactories";
+import { factoryForToken } from "../lib/marketFactories";
 import {
   poolTradeAvailability,
   selectTradeState,
@@ -144,7 +145,7 @@ export function TradePanel({
   const poolAvailability = poolTradeAvailability({
     venue,
     paused: poolPauseError ? undefined : poolPaused,
-    adapter: swapAdapterForMarket(token.factory),
+    adapter: activeSwapAdapterAddress,
   });
   const poolQuoteReady =
     poolMode &&

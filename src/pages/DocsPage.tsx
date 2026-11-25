@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { AppLink } from "../components/Navigation";
 import type { Navigate } from "../types";
 import { documentedNetworks, type DocumentedContract } from "./docsContracts";
-import { activeLaunchFeeMode } from "../lib/web3";
 
 const chapters = [
   {
@@ -120,7 +119,7 @@ function DocsContent({ slug, navigate }: { slug: Chapter["slug"]; navigate: Navi
     case "fees":
       return (
         <>
-          <section className="docs-section"><h2>Where value goes.</h2><div className="docs-two-up"><div><span className="docs-overline">Launch</span><h3>Anti-spam fee</h3><p>{activeLaunchFeeMode === "oracle" ? "New launches pay about $1 in WETH to the protocol treasury, priced by the onchain ETH/USDC oracle. The review shows the WETH estimate and your maximum fee. If the oracle is stale or the fee exceeds that maximum, the launch stops before payment." : "A fixed WETH launch fee is sent to the protocol treasury. The launch review shows the amount and a USD estimate."}</p></div><div><span className="docs-overline">Curve trades</span><h3>Trading fee and creator tax</h3><p>The market's fee and any creator tax are shown in the trade panel. An additional opening tax applies to buys during the first few seconds after launch.</p></div><div><span className="docs-overline">After graduation</span><h3>Pool fees</h3><p>Icarus sets its pool swap fee. Curveball's locked LP earns its share, which flows through the fee escrow.</p></div><div><span className="docs-overline">Distribution</span><h3>Creator, protocol, buyback</h3><p>Escrow splits eligible fees among the creator, protocol treasury, and shared buyback treasury. The market page shows its split.</p></div></div></section>
+          <section className="docs-section"><h2>Where value goes.</h2><div className="docs-two-up"><div><span className="docs-overline">Launch</span><h3>Anti-spam fee</h3><p>New launches pay about $1 in WETH to the protocol treasury, priced by the onchain ETH/USDC oracle. The review shows the WETH estimate and your maximum fee. If the oracle is stale or the fee exceeds that maximum, the launch stops before payment.</p></div><div><span className="docs-overline">Curve trades</span><h3>Trading fee and creator tax</h3><p>The market's fee and any creator tax are shown in the trade panel. An additional opening tax applies to buys during the first few seconds after launch.</p></div><div><span className="docs-overline">After graduation</span><h3>Pool fees</h3><p>Icarus sets its pool swap fee. Curveball's locked LP earns its share, which flows through the fee escrow.</p></div><div><span className="docs-overline">Distribution</span><h3>Creator, protocol, buyback</h3><p>Escrow splits eligible fees among the creator, protocol treasury, and shared buyback treasury. The market page shows its split.</p></div></div></section>
           <section className="docs-section"><h2>Claiming creator fees.</h2><p>Creators can claim available WETH fees through the market page. Claims are wallet transactions; the button shows the exact token amount to receive. Buyback funds are used to buy and burn the selected graduated CURVE token when that program is active.</p></section>
         </>
       );
@@ -132,6 +131,7 @@ function DocsContent({ slug, navigate }: { slug: Chapter["slug"]; navigate: Navi
               <span className="docs-overline">Chain ID {network.chainId}</span>
               <h2>{network.name}</h2>
               <p>Curveball protocol deployments</p>
+              {network.protocol.length === 0 && <p>Oracle release addresses will appear after mainnet deployment.</p>}
               <ContractList contracts={network.protocol} explorer={network.explorer} />
               <h3>External contracts used by Curveball</h3>
               <ContractList contracts={network.dependencies} explorer={network.explorer} />

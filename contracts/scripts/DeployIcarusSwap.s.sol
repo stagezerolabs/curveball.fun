@@ -20,7 +20,7 @@ contract DeployIcarusSwap is Script {
     function run() external returns (CurveIcarusSwapAdapter adapter) {
         string memory recordPath;
         address expectedFactory;
-        string memory recordName = vm.envOr("ORACLE_RELEASE", false) ? "curveball-oracle-v3.json" : "curveball.json";
+        string memory recordName = "curveball-oracle-v3.json";
         if (block.chainid == TESTNET) {
             recordPath = string.concat(vm.projectRoot(), "/../deployments/11155931/", recordName);
             expectedFactory = TESTNET_ICARUS;

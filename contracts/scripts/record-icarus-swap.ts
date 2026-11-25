@@ -14,15 +14,14 @@ if (networkName !== "testnet" && networkName !== "mainnet")
   throw new Error("DEPLOYMENT_NETWORK must be testnet or mainnet.");
 const testnet = networkName === "testnet";
 const chainId = testnet ? 11_155_931 : 4_153;
-const oracleRelease = Bun.env.DEPLOYMENT_FEE_MODE === "oracle";
 const rpcUrl = testnet
-  ? Bun.env.RISE_TESTNET_RPC_URL?.trim() || Bun.env.VITE_RPC_URL?.trim()
+  ? Bun.env.RISE_TESTNET_RPC_URL?.trim() || "https://testnet.riselabs.xyz"
   : Bun.env.RISE_MAINNET_RPC_URL?.trim();
 if (!rpcUrl?.startsWith("https://"))
   throw new Error(`An HTTPS RISE ${networkName} RPC is required.`);
 
-const launchpadRecordPath = `deployments/${chainId}/${oracleRelease ? "curveball-oracle-v3.json" : "curveball.json"}`;
-const adapterRecordPath = `deployments/${chainId}/${oracleRelease ? "icarus-swap-adapter-oracle-v3.json" : "icarus-swap-adapter.json"}`;
+const launchpadRecordPath = `deployments/${chainId}/curveball-oracle-v3.json`;
+const adapterRecordPath = `deployments/${chainId}/icarus-swap-adapter-oracle-v3.json`;
 const broadcastPath = `contracts/broadcast/DeployIcarusSwap.s.sol/${chainId}/run-latest.json`;
 const explorerOrigin = testnet
   ? "https://explorer.testnet.riselabs.xyz"
@@ -31,12 +30,13 @@ if (await Bun.file(adapterRecordPath).exists())
   throw new Error(`${adapterRecordPath} already exists.`);
 
 const launchpadRecord = (await Bun.file(launchpadRecordPath).json()) as {
+  version: string;
   chainId: number;
   launchpad: string;
   quote: string;
   icarusFactory: string;
 };
-if (launchpadRecord.chainId !== chainId)
+if (launchpadRecord.chainId !== chainId || launchpadRecord.version !== "oracle-v3")
   throw new Error("Launchpad record is for another chain.");
 const launchpad = getAddress(launchpadRecord.launchpad);
 const quoteToken = getAddress(launchpadRecord.quote);

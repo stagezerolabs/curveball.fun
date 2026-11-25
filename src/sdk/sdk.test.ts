@@ -114,7 +114,7 @@ function reads(overrides: Record<string, unknown> = {}) {
   const values: Record<string, unknown> = {
     market,
     quoteToken: quote,
-    launchFee: 0n,
+    quoteLaunchFee: [0n, parseEther("2000"), 0n],
     graduationTarget: parseEther("0.01"),
     SUPPLY: TOKEN_SUPPLY,
     CURVE_SUPPLY,
@@ -133,32 +133,6 @@ function reads(overrides: Record<string, unknown> = {}) {
 test("first-buy quote respects a five-percent curve wallet cap", () => {
   expect(quoteFirstBuy(parseEther("100"), parseEther("4"), 75, 0,
     1_000_000_000n * 10n ** 18n, 800_000_000n * 10n ** 18n, 9_900, 500)).toBe(40_000_000n * 10n ** 18n);
-});
-
-test("a first buy is quoted exactly as the launchpad filled it on testnet", () => {
-  // The smoke launch: 0.003 WETH at a 0.01 target, 75 bps fee and no tax received this many tokens.
-  const legacySupply = 1_000_000n * 10n ** 18n;
-  const legacyCurveSupply = 800_000n * 10n ** 18n;
-  expect(
-    quoteFirstBuy(
-      3_000_000_000_000_000n,
-      parseEther("0.01"),
-      75,
-      0,
-      legacySupply,
-      legacyCurveSupply,
-    ),
-  ).toBe(543_601_359_003_397_503_945_291n);
-  expect(
-    quoteFirstBuy(
-      parseEther("100"),
-      parseEther("0.01"),
-      75,
-      0,
-      legacySupply,
-      legacyCurveSupply,
-    ),
-  ).toBe(800_000n * 10n ** 18n);
 });
 
 test("a graduated market quotes the canonical Icarus pool and rejects a paused factory", async () => {
@@ -479,7 +453,7 @@ test("a missing launch transaction cannot leave confirmation waiting forever", a
   const sdk = createCurveballSdk({} as Config, deployment, actions);
 
   const outcome = await Promise.race([
-    sdk.createToken({ name: "Test", symbol: "TST", uri }).then(
+    sdk.createToken({ name: "Test", symbol: "TST", uri, maxLaunchFeeWei: 0n }).then(
       () => "confirmed",
       (error: Error) => error.name,
     ),
@@ -512,7 +486,7 @@ test("a receipt found after the waiter fails still completes the launch", async 
     {} as Config,
     deployment,
     actions,
-  ).createToken({ name: "Test", symbol: "TST", uri });
+  ).createToken({ name: "Test", symbol: "TST", uri, maxLaunchFeeWei: 0n });
   expect(result.token).toBe(token);
   expect(result.creator).toBe(wallet);
   expect(result.hash).toBe(hash);
@@ -535,6 +509,7 @@ test("a reverted receipt found after the waiter fails is reported as a failure",
       name: "Test",
       symbol: "TST",
       uri,
+      maxLaunchFeeWei: 0n,
     }),
   ).rejects.toThrow(`Transaction ${hash} reverted.`);
 });
@@ -552,7 +527,7 @@ test("a launch wraps and approves the fee plus the first buy, then calls launch 
     getAccount: () => ({ address: wallet, chainId: RISE_TESTNET_CHAIN_ID }),
     getBalance: async () => ({ value: 10n ** 18n }),
     readContract: reads({
-      launchFee: fee,
+      quoteLaunchFee: [fee, parseEther("2000"), 0n],
       balanceOf: 0n,
       allowance: () => (approved ? fee + initialBuy : 0n),
     }),
@@ -584,7 +559,7 @@ test("a launch wraps and approves the fee plus the first buy, then calls launch 
     {} as Config,
     deployment,
     actions,
-  ).launchAndBuy({ name: "Test", symbol: "TST", uri }, initialBuy);
+  ).launchAndBuy({ name: "Test", symbol: "TST", uri, maxLaunchFeeWei: fee }, initialBuy);
   expect(simulations.map((request) => request.functionName)).toEqual([
     "deposit",
     "approve",
@@ -610,6 +585,7 @@ test("a launch wraps and approves the fee plus the first buy, then calls launch 
     0,
     initialBuy,
     expectedMinOut,
+    fee,
   ]);
   expect(result.minimumOutput).toBe(expectedMinOut);
 });
@@ -641,7 +617,6 @@ test("oracle launch approves the reviewed cap and passes it to the contract", as
   const oracleDeployment = defineCurveballDeployment({
     chainId: RISE_TESTNET_CHAIN_ID,
     launchpad: deployment.launchpad,
-    feeMode: "oracle",
   });
   await createCurveballSdk({} as Config, oracleDeployment, actions).launchAndBuy(
     { name: "Test", symbol: "TST", uri, maxLaunchFeeWei: cap },
@@ -665,7 +640,6 @@ test("oracle launch rejects a quote above the reviewed cap before asking for fun
   const oracleDeployment = defineCurveballDeployment({
     chainId: RISE_TESTNET_CHAIN_ID,
     launchpad: deployment.launchpad,
-    feeMode: "oracle",
   });
   await expect(createCurveballSdk({} as Config, oracleDeployment, actions).createToken({
     name: "Test", symbol: "TST", uri, maxLaunchFeeWei: reviewedCap,
@@ -685,7 +659,7 @@ test("a launch retry reuses WETH after wrapping when approval was rejected", asy
     getAccount: () => ({ address: wallet, chainId: RISE_TESTNET_CHAIN_ID }),
     getBalance: async () => ({ value: parseEther("0.01") }),
     readContract: reads({
-      launchFee: fee,
+      quoteLaunchFee: [fee, parseEther("2000"), 0n],
       balanceOf: () => wethBalance,
       allowance: () => (approved ? total : 0n),
     }),
@@ -716,10 +690,10 @@ test("a launch retry reuses WETH after wrapping when approval was rejected", asy
   const sdk = createCurveballSdk({} as Config, deployment, actions);
 
   await expect(
-    sdk.launchAndBuy({ name: "Test", symbol: "TST", uri }, initialBuy),
+    sdk.launchAndBuy({ name: "Test", symbol: "TST", uri, maxLaunchFeeWei: fee }, initialBuy),
   ).rejects.toThrow("User rejected approval");
   expect(wethBalance).toBe(total);
-  await sdk.launchAndBuy({ name: "Test", symbol: "TST", uri }, initialBuy);
+  await sdk.launchAndBuy({ name: "Test", symbol: "TST", uri, maxLaunchFeeWei: fee }, initialBuy);
   expect(simulations.map(({ functionName }) => functionName)).toEqual([
     "deposit",
     "approve",
@@ -827,7 +801,7 @@ test("a wallet whose provider is still on chain 1 is switched before the launch 
     {} as Config,
     deployment,
     actions,
-  ).createToken({ name: "Test", symbol: "TST", uri });
+  ).createToken({ name: "Test", symbol: "TST", uri, maxLaunchFeeWei: 0n });
   expect(switched).toEqual([RISE_TESTNET_CHAIN_ID]);
   expect(result.token).toBe(token);
 });
@@ -883,7 +857,7 @@ test("a launch rechecks the same wallet connector when its provider changes befo
     {} as Config,
     deployment,
     actions,
-  ).createToken({ name: "Test", symbol: "TST", uri });
+  ).createToken({ name: "Test", symbol: "TST", uri, maxLaunchFeeWei: 0n });
   expect(switched).toEqual([{ chainId: RISE_TESTNET_CHAIN_ID, connector }]);
   expect(result.token).toBe(token);
 });

@@ -1,7 +1,4 @@
 import {
-  BaseError,
-  ContractFunctionRevertedError,
-  ExecutionRevertedError,
   createPublicClient,
   http,
   parseAbi,
@@ -66,6 +63,9 @@ const launchpadAbi = parseAbi([
   "function locker() view returns (address)",
   "function SUPPLY() view returns (uint256)",
   "function CURVE_SUPPLY() view returns (uint256)",
+  "function storkOracle() view returns (address)",
+  "function MAX_ORACLE_AGE() view returns (uint256)",
+  "function USD_LAUNCH_FEE() view returns (uint256)",
   "function market(address token) view returns ((address creator,uint16 feeBps,uint16 creatorShareBps,uint16 buybackShareBps,uint16 taxBps,uint8 state,uint128 virtualToken,uint128 virtualQuote,uint128 initialVirtualQuote,uint128 realQuote,uint40 readyAt,address pool,uint40 launchedAt))",
 ]);
 // Trades and lifecycle events both come from the launchpad, so each stream orphans only its own topics.
@@ -79,7 +79,7 @@ const tradeTopic = toEventSelector(tradeEvent).toLowerCase();
 /** CurveLaunchpad.State in enum order, as stored in markets.state. */
 const MARKET_STATES = ["trading", "trading", "ready", "graduated", "aborted"];
 /** The launchpad's SUPPLY and CURVE_SUPPLY, read once at startup. */
-const supplies = new Map();
+let supplies;
 const poolPairAbi = parseAbi([
   "function token0() view returns (address)",
   "function token1() view returns (address)",
@@ -384,6 +384,22 @@ async function rebuildMarketCandles(db, tokenAddress) {
   }
 }
 
+async function requireFreshDeployment(db, launchpad) {
+  const existing = await db.query(
+    `SELECT address FROM contract_deployments
+    WHERE chain_id=$1 AND role IN ('factory','launchpad') AND address<>$2 LIMIT 1`,
+    [config.chainId, launchpad],
+  );
+  const oldMarket = await db.query(
+    `SELECT token_address FROM markets
+    WHERE chain_id=$1 AND launchpad_address<>$2 LIMIT 1`,
+    [config.chainId, launchpad],
+  );
+  if (existing.rowCount || oldMarket.rowCount) {
+    throw new Error("Database contains an older launchpad. Run the full reset before activating the oracle release.");
+  }
+}
+
 async function initializeIndexerState() {
   const connectedChainId = await client.getChainId();
   if (connectedChainId !== config.chainId) {
@@ -391,37 +407,47 @@ async function initializeIndexerState() {
       `RPC chain ${connectedChainId} does not match configured chain ${config.chainId}.`,
     );
   }
-  const accounts = [...config.protocolAccounts];
-  for (const deployment of config.launchpadDeployments) {
-    const read = (functionName) => client.readContract({
-      address: deployment.address, abi: launchpadAbi, functionName,
+  const launchpad = lower(config.launchpadAddress);
+  const read = (functionName) =>
+    client.readContract({
+      address: config.launchpadAddress,
+      abi: launchpadAbi,
+      functionName,
     });
-    const [quote, treasury, escrow, locker, supply, curveSupply] = await Promise.all([
-      read("quoteToken"), read("treasury"), read("escrow"), read("locker"),
-      read("SUPPLY"), read("CURVE_SUPPLY"),
+  const [quote, treasury, escrow, locker, supply, curveSupply, storkOracle, maxOracleAge, usdLaunchFee] =
+    await Promise.all([
+      read("quoteToken"),
+      read("treasury"),
+      read("escrow"),
+      read("locker"),
+      read("SUPPLY"),
+      read("CURVE_SUPPLY"),
+      read("storkOracle"),
+      read("MAX_ORACLE_AGE"),
+      read("USD_LAUNCH_FEE"),
     ]);
-    supplies.set(lower(deployment.address), { supply, curveSupply });
-    let buybackTreasury = null;
-    try {
-      buybackTreasury = await client.readContract({
-        address: escrow, abi: parseAbi(["function buybackTreasury() view returns (address)"]),
-        functionName: "buybackTreasury",
-      });
-    } catch (error) {
-      if (!(error instanceof BaseError && error.walk((cause) =>
-        cause instanceof ContractFunctionRevertedError || cause instanceof ExecutionRevertedError
-      ))) throw error;
-      console.info(`Escrow ${escrow} has no buyback treasury.`);
-    }
-    accounts.push(
-      { role: "launchpad", address: lower(deployment.address) },
-      { role: "quote", address: lower(quote) },
-      { role: "treasury", address: lower(treasury) },
-      { role: "escrow", address: lower(escrow) },
-      ...(buybackTreasury ? [{ role: "buybackTreasury", address: lower(buybackTreasury) }] : []),
-      { role: "locker", address: lower(locker) },
-    );
+  if (
+    lower(storkOracle) !== "0xacc0a0cf13571d30b4b8637996f5d6d774d4fd62" ||
+    maxOracleAge !== 1800n ||
+    usdLaunchFee !== 10n ** 18n
+  ) {
+    throw new Error("Configured launchpad does not match the RISE Stork oracle fee release.");
   }
+  supplies = { supply, curveSupply };
+  // Roles the ledger stream reads logs from; none of these addresses is a user for stats or holders.
+  const buybackTreasury = await client.readContract({
+    address: escrow, abi: parseAbi(["function buybackTreasury() view returns (address)"]),
+    functionName: "buybackTreasury",
+  });
+  const accounts = [
+    { role: "launchpad", address: launchpad },
+    { role: "quote", address: lower(quote) },
+    { role: "treasury", address: lower(treasury) },
+    { role: "escrow", address: lower(escrow) },
+    { role: "buybackTreasury", address: lower(buybackTreasury) },
+    { role: "locker", address: lower(locker) },
+    ...config.protocolAccounts,
+  ];
   await transaction(async (db) => {
     await db.query(
       `INSERT INTO chains (id,name,native_symbol,finality_confirmations)
@@ -434,37 +460,13 @@ async function initializeIndexerState() {
         Number(config.confirmations),
       ],
     );
-    const registered = await db.query(
-      "SELECT address FROM contract_deployments WHERE chain_id=$1 AND role='launchpad'",
-      [config.chainId],
+    await requireFreshDeployment(db, launchpad);
+    await db.query(
+      `INSERT INTO contract_deployments (chain_id,role,address,version,deployment_block)
+      VALUES ($1,'launchpad',$2,'oracle-v3',$3) ON CONFLICT (chain_id,role,address) DO UPDATE SET
+      deployment_block=EXCLUDED.deployment_block,active_until=NULL`,
+      [config.chainId, launchpad, config.deploymentBlock.toString()],
     );
-    const knownAddresses = new Set(registered.rows.map((row) => row.address));
-    const newDeployments = config.launchpadDeployments.filter(
-      (deployment) => !knownAddresses.has(lower(deployment.address)),
-    );
-    for (const deployment of config.launchpadDeployments) {
-      await db.query(
-        `INSERT INTO contract_deployments (chain_id,role,address,version,deployment_block)
-        VALUES ($1,'launchpad',$2,$3,$4) ON CONFLICT (chain_id,role,address) DO UPDATE SET
-        deployment_block=EXCLUDED.deployment_block,active_until=NULL`,
-        [config.chainId, lower(deployment.address),
-          lower(deployment.address) === lower(config.launchpadAddress) && config.launchFeeMode === "oracle" ? "oracle-v3" : "lean-v2",
-          deployment.deploymentBlock.toString()],
-      );
-    }
-    if (newDeployments.length) {
-      const backfillFrom = newDeployments.reduce(
-        (earliest, deployment) => deployment.deploymentBlock < earliest
-          ? deployment.deploymentBlock : earliest,
-        newDeployments[0].deploymentBlock,
-      );
-      // A launch may occur before the API switches to a newly deployed factory.
-      // Replaying all streams also recovers transfers and venue events for those launches.
-      await db.query(
-        "UPDATE chain_cursors SET next_block=LEAST(next_block,$2::numeric),updated_at=now() WHERE chain_id=$1 AND stream=ANY($3::text[])",
-        [config.chainId, backfillFrom.toString(), ["factory", "trades", "ledger", "venue"]],
-      );
-    }
     for (const account of accounts) {
       await db.query(
         `INSERT INTO protocol_accounts (chain_id,address,role,label,is_user_attributable)
@@ -475,8 +477,8 @@ async function initializeIndexerState() {
   });
 }
 
-async function indexFactoryRange(fromBlock, toBlock, deployment) {
-  const launchpad = deployment.address;
+async function indexFactoryRange(fromBlock, toBlock) {
+  const launchpad = config.launchpadAddress;
   const [launches, readies, aborts, graduations] = await Promise.all([
     client.getLogs({
       address: launchpad,
@@ -508,20 +510,20 @@ async function indexFactoryRange(fromBlock, toBlock, deployment) {
     }),
   ]);
   const timestamps = new Map();
-  const { supply, curveSupply } = supplies.get(lower(launchpad));
+  const { supply, curveSupply } = supplies;
 
   await transaction(async (db) => {
     const [replacedGraduations, replacedLifecycle] = await Promise.all([
       db.query(
         `SELECT token_address,pool_address FROM markets
-        WHERE chain_id=$1 AND pool_address IS NOT NULL AND graduation_block BETWEEN $2 AND $3 AND launchpad_address=$4`,
-        [config.chainId, fromBlock.toString(), toBlock.toString(), lower(launchpad)],
+        WHERE chain_id=$1 AND pool_address IS NOT NULL AND graduation_block BETWEEN $2 AND $3`,
+        [config.chainId, fromBlock.toString(), toBlock.toString()],
       ),
       db.query(
         `SELECT DISTINCT token_address FROM markets m JOIN chain_logs l
           ON l.chain_id=m.chain_id AND l.address=$4 AND l.orphaned=false AND l.block_number BETWEEN $2 AND $3
           AND l.topic0=ANY($5::text[]) AND l.topics->>1=('0x' || lpad(substr(m.token_address,3),64,'0'))
-        WHERE m.chain_id=$1 AND m.orphaned=false AND m.launchpad_address=$4`,
+        WHERE m.chain_id=$1 AND m.orphaned=false`,
         [
           config.chainId,
           fromBlock.toString(),
@@ -548,12 +550,12 @@ async function indexFactoryRange(fromBlock, toBlock, deployment) {
       ],
     );
     await db.query(
-      "UPDATE markets SET orphaned=true WHERE chain_id=$1 AND launch_block BETWEEN $2 AND $3 AND launchpad_address=$4",
-      [config.chainId, fromBlock.toString(), toBlock.toString(), lower(launchpad)],
+      "UPDATE markets SET orphaned=true WHERE chain_id=$1 AND launch_block BETWEEN $2 AND $3",
+      [config.chainId, fromBlock.toString(), toBlock.toString()],
     );
     await db.query(
-      "UPDATE markets SET graduated=false,pool_address=NULL,graduation_block=NULL,graduated_at=NULL WHERE chain_id=$1 AND graduation_block BETWEEN $2 AND $3 AND launchpad_address=$4",
-      [config.chainId, fromBlock.toString(), toBlock.toString(), lower(launchpad)],
+      "UPDATE markets SET graduated=false,pool_address=NULL,graduation_block=NULL,graduated_at=NULL WHERE chain_id=$1 AND graduation_block BETWEEN $2 AND $3",
+      [config.chainId, fromBlock.toString(), toBlock.toString()],
     );
     if (replacedPools.length) {
       await db.query(
@@ -762,13 +764,18 @@ async function indexFactoryRange(fromBlock, toBlock, deployment) {
       );
     }
 
+    await db.query(
+      `INSERT INTO chain_cursors (chain_id, stream, next_block) VALUES ($1,'factory',$2)
+       ON CONFLICT (chain_id, stream) DO UPDATE SET next_block = EXCLUDED.next_block, updated_at = now()`,
+      [config.chainId, (toBlock + 1n).toString()],
+    );
   });
 }
 
-async function indexTradeRange(fromBlock, toBlock, onEvent, deployment) {
-  const launchpad = lower(deployment.address);
+async function indexTradeRange(fromBlock, toBlock, onEvent) {
+  const launchpad = lower(config.launchpadAddress);
   const logs = await client.getLogs({
-    address: deployment.address,
+    address: config.launchpadAddress,
     event: tradeEvent,
     fromBlock,
     toBlock,
@@ -833,7 +840,7 @@ async function indexTradeRange(fromBlock, toBlock, onEvent, deployment) {
       const curveQuote = isBuy
         ? quoteAmount - fee - tax - antiSnipeTax
         : quoteAmount + fee + tax;
-      const soldAfter = supplies.get(launchpad).supply - virtualToken;
+      const soldAfter = supplies.supply - virtualToken;
       await db.query(
         `INSERT INTO trades
           (logical_id, chain_id, block_hash, block_number, transaction_hash, transaction_index, log_index,
@@ -977,6 +984,11 @@ async function indexTradeRange(fromBlock, toBlock, onEvent, deployment) {
     }
     if (affectedTraders.size) await publishLeaderboards(db, toBlock);
 
+    await db.query(
+      `INSERT INTO chain_cursors (chain_id, stream, next_block) VALUES ($1,'trades',$2)
+       ON CONFLICT (chain_id, stream) DO UPDATE SET next_block = EXCLUDED.next_block, updated_at = now()`,
+      [config.chainId, (toBlock + 1n).toString()],
+    );
   });
 
   for (const event of emitted) onEvent?.(event);
@@ -1437,20 +1449,6 @@ async function scanStream(stream, safeHead, scan) {
   }
 }
 
-async function scanLaunchpads(stream, safeHead, indexRange) {
-  await scanStream(stream, safeHead, async (fromBlock, toBlock) => {
-    for (const deployment of config.launchpadDeployments) {
-      const start = fromBlock > deployment.deploymentBlock ? fromBlock : deployment.deploymentBlock;
-      if (start <= toBlock) await indexRange(start, toBlock, deployment);
-    }
-    await pool.query(
-      `INSERT INTO chain_cursors (chain_id,stream,next_block) VALUES ($1,$2,$3)
-       ON CONFLICT (chain_id,stream) DO UPDATE SET next_block=EXCLUDED.next_block,updated_at=now()`,
-      [config.chainId, stream, (toBlock + 1n).toString()],
-    );
-  });
-}
-
 export function startIndexer({ onEvent, onError } = {}) {
   let stopped = false;
   let timer;
@@ -1500,9 +1498,9 @@ export function startIndexer({ onEvent, onError } = {}) {
         const safeHead =
           head > config.confirmations ? head - config.confirmations : 0n;
         if (safeHead >= config.deploymentBlock) {
-          await scanLaunchpads("factory", safeHead, indexFactoryRange);
-          await scanLaunchpads("trades", safeHead, (from, to, deployment) =>
-            indexTradeRange(from, to, onEvent, deployment),
+          await scanStream("factory", safeHead, indexFactoryRange);
+          await scanStream("trades", safeHead, (from, to) =>
+            indexTradeRange(from, to, onEvent),
           );
           await scanStream("ledger", safeHead, indexLedgerRange);
           await scanStream("venue", safeHead, indexVenueRange);

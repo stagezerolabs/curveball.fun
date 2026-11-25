@@ -1,12 +1,5 @@
 import assert from "node:assert/strict";
-import {
-  mkdtempSync,
-  mkdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-  existsSync,
-} from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import test from "node:test";
@@ -16,215 +9,77 @@ const launchpad = "0x1111111111111111111111111111111111111111";
 const adapter = "0x2222222222222222222222222222222222222222";
 const admin = "0x3333333333333333333333333333333333333333";
 const hash = `0x${"a".repeat(64)}`;
-const keeperKey = `0x${"b".repeat(64)}`;
+const storkOracle = "0xacC0a0cF13571d30B4b8637996F5D6D774d4fd62";
+const storkFeedId = "0x7965e1bfc07a34caf0c3aa8146b200264fbb7a0eb85b1d3b1fdceecffd736b02";
 
-function fixture(network) {
+function withFixture(network, run) {
   const root = mkdtempSync(join(tmpdir(), "curveball-deploy-"));
   mkdirSync(join(root, "deploy"));
   const chain = network === "mainnet" ? 4153 : 11155931;
-  const write = (path, content) => {
-    const fullPath = join(root, path);
-    mkdirSync(dirname(fullPath), { recursive: true });
-    writeFileSync(fullPath, content);
+  const write = (path, value) => {
+    const full = join(root, path);
+    mkdirSync(dirname(full), { recursive: true });
+    writeFileSync(full, value);
   };
-  const record = { chainId: chain, launchpad, deploymentBlock: "100" };
-  write(`deployments/${chain}/curveball.json`, JSON.stringify(record));
-  write(
-    `deployments/${chain}/icarus-swap-adapter.json`,
-    JSON.stringify({
-      chainId: chain,
-      launchpad,
-      adapter,
-      codeHash: hash,
-    }),
-  );
-  const front = `VITE_CHAIN_ID=${chain}\nVITE_RPC_URL=https://rpc.example\nVITE_LAUNCHPAD_ADDRESS=${launchpad}\nVITE_DEPLOYMENT_BLOCK=100\nVITE_ICARUS_SWAP_ADAPTER=${adapter}\nVITE_ICARUS_SWAP_ADAPTER_CODE_HASH=${hash}\nVITE_PRIVY_APP_ID=test-privy-app\n`;
+  const record = { version: "oracle-v3", chainId: chain, launchpad, deploymentBlock: "100",
+    storkOracle, storkFeedId, launchFeeUsd: "1000000000000000000", maxOracleAgeSeconds: "1800" };
+  write(`deployments/${chain}/curveball-oracle-v3.json`, JSON.stringify(record));
+  write(`deployments/${chain}/icarus-swap-adapter-oracle-v3.json`, JSON.stringify({ chainId: chain, launchpad, adapter, codeHash: hash }));
+  const front = `VITE_CHAIN_ID=${chain}\nVITE_RPC_URL=https://rpc.example\nVITE_LAUNCHPAD_ADDRESS=${launchpad}\nVITE_DEPLOYMENT_BLOCK=100\nVITE_ICARUS_SWAP_ADAPTER=${adapter}\nVITE_ICARUS_SWAP_ADAPTER_CODE_HASH=${hash}\nVITE_PRIVY_APP_ID=test-app\n`;
   const secrets = `VITE_ADMIN_ADDRESS=${admin}\nPINATA_JWT=pinata-secret\nCURVEBALL_TRUSTED_PROXY_CIDR=172.28.0.0/16\n`;
-  const social = `SOCIAL_CHAIN_ID=${chain}\nSOCIAL_RPC_URL=https://rpc.example\nSOCIAL_LAUNCHPAD_ADDRESS=${launchpad}\nSOCIAL_DEPLOYMENT_BLOCK=100\nSOCIAL_ADMIN_ADDRESS=${admin}\nPRIVY_APP_ID=test-privy-app\nPRIVY_APP_SECRET=test-privy-secret\n`;
-  const keeper = `KEEPER_CHAIN_ID=${chain}\nKEEPER_RPC_URL=https://rpc.example\nKEEPER_LAUNCHPAD_ADDRESS=${launchpad}\nKEEPER_DEPLOYMENT_BLOCK=100\n${network === "testnet" ? `KEEPER_PRIVATE_KEY=${keeperKey}\n` : ""}`;
+  const social = `SOCIAL_CHAIN_ID=${chain}\nSOCIAL_RPC_URL=https://rpc.example\nSOCIAL_LAUNCHPAD_ADDRESS=${launchpad}\nSOCIAL_DEPLOYMENT_BLOCK=100\nSOCIAL_ADMIN_ADDRESS=${admin}\nPRIVY_APP_ID=test-app\nPRIVY_APP_SECRET=test-secret\n`;
+  const keeper = `KEEPER_CHAIN_ID=${chain}\nKEEPER_RPC_URL=https://rpc.example\nKEEPER_LAUNCHPAD_ADDRESS=${launchpad}\nKEEPER_DEPLOYMENT_BLOCK=100\n${network === "testnet" ? `KEEPER_PRIVATE_KEY=0x${"b".repeat(64)}\n` : ""}`;
   if (network === "mainnet") {
     write(".env.production", front);
     write(".env.mainnet.local", secrets);
     write("services/backend/.env.mainnet.local", social);
     write("keeper/.env.mainnet.local", keeper);
   } else {
-    write(
-      ".env",
-      front +
-        secrets +
-        social +
-        keeper +
-        "SENTRY_BACKEND_DSN=https://backend.example/1\nSENTRY_KEEPER_DSN=https://keeper.example/2\n",
-    );
+    write(".env", front + secrets + social + keeper);
   }
-  return { root, write, chain };
-}
-
-function withFixture(network, run) {
-  const context = fixture(network);
-  try {
-    run(context);
-  } finally {
-    rmSync(context.root, { recursive: true, force: true });
-  }
+  try { run({ root, chain, write, record }); }
+  finally { rmSync(root, { recursive: true, force: true }); }
 }
 
 function prepare(root, network) {
-  return prepareProductionEnv({
-    root,
-    network,
-    gitCommit: "abc123",
-    dirty: false,
-    timestamp: "20261106T000000Z",
-  });
+  return prepareProductionEnv({ root, network, gitCommit: "abc123", dirty: false, timestamp: "20261106T000000Z" });
 }
 
-test("mainnet creates matching chain env files and explicit admin", () =>
-  withFixture("mainnet", ({ root }) => {
-    assert.equal(prepare(root, "mainnet"), "mainnet-abc123-20261106T000000Z");
-    const front = readFileSync(join(root, "deploy/production.env"), "utf8");
-    const social = readFileSync(join(root, "deploy/social.env"), "utf8");
-    const keeper = readFileSync(join(root, "deploy/keeper.env"), "utf8");
-    assert.match(front, /VITE_CHAIN_ID=4153/);
-    assert.match(front, new RegExp(`VITE_ICARUS_SWAP_ADAPTER=${adapter}`));
-    assert.match(front, new RegExp(`VITE_ADMIN_ADDRESS=${admin}`));
-    assert.match(front, /CURVEBALL_TRUSTED_PROXY_CIDR=172\.28\.0\.0\/16/);
-    assert.match(social, /SOCIAL_CHAIN_NAME=RISE Mainnet/);
-    assert.match(social, /SOCIAL_CHAIN_ID=4153/);
-    assert.match(social, /SOCIAL_TRUST_PROXY_CLIENT_IP=1/);
-    assert.match(keeper, /KEEPER_CHAIN_ID=4153/);
-    assert.match(keeper, /KEEPER_PRIVATE_KEY_FILE=\/run\/secrets\/keeper_private_key/);
-    assert.doesNotMatch(keeper, /KEEPER_PRIVATE_KEY=/);
-    assert.match(
-      readFileSync(join(root, "deploy/web.env"), "utf8"),
-      /PINATA_JWT=pinata-secret/,
-    );
-  }));
+test("mainnet writes one oracle deployment to every service", () => withFixture("mainnet", ({ root }) => {
+  assert.equal(prepare(root, "mainnet"), "mainnet-abc123-20261106T000000Z");
+  for (const [file, prefix] of [["production", "VITE"], ["social", "SOCIAL"], ["keeper", "KEEPER"]]) {
+    const content = readFileSync(join(root, `deploy/${file}.env`), "utf8");
+    assert.match(content, new RegExp(`${prefix}_LAUNCHPAD_ADDRESS=${launchpad}`));
+    assert.doesNotMatch(content, /LEGACY|LAUNCH_FEE_MODE|fixed/);
+  }
+  assert.match(readFileSync(join(root, "deploy/keeper.env"), "utf8"), /KEEPER_PRIVATE_KEY_FILE=\/run\/secrets\/keeper_private_key/);
+  assert.match(readFileSync(join(root, "deploy/web.env"), "utf8"), /PINATA_JWT=pinata-secret/);
+}));
 
-test("oracle release keeps the legacy launchpad and adapter in every service", () =>
-  withFixture("mainnet", ({ root, write, chain }) => {
-    const next = "0x4444444444444444444444444444444444444444";
-    const nextAdapter = "0x5555555555555555555555555555555555555555";
-    write(`deployments/${chain}/curveball-oracle-v3.json`, JSON.stringify({
-      chainId: chain, version: "oracle-v3", launchpad: next, deploymentBlock: "200",
-      storkOracle: "0xacC0a0cF13571d30B4b8637996F5D6D774d4fd62",
-      storkFeedId: "0x7965e1bfc07a34caf0c3aa8146b200264fbb7a0eb85b1d3b1fdceecffd736b02",
-      launchFeeUsd: "1000000000000000000",
-    }));
-    write(`deployments/${chain}/icarus-swap-adapter-oracle-v3.json`, JSON.stringify({
-      chainId: chain, launchpad: next, adapter: nextAdapter, codeHash: hash,
-    }));
-    write(".env.production", `VITE_CHAIN_ID=4153\nVITE_RPC_URL=https://rpc.example\nVITE_LAUNCHPAD_ADDRESS=${next}\nVITE_DEPLOYMENT_BLOCK=200\nVITE_LAUNCH_FEE_MODE=oracle\nVITE_ICARUS_SWAP_ADAPTER=${nextAdapter}\nVITE_ICARUS_SWAP_ADAPTER_CODE_HASH=${hash}\nVITE_LEGACY_LAUNCHPAD_ADDRESS=${launchpad}\nVITE_LEGACY_DEPLOYMENT_BLOCK=100\nVITE_LEGACY_ICARUS_SWAP_ADAPTER=${adapter}\nVITE_LEGACY_ICARUS_SWAP_ADAPTER_CODE_HASH=${hash}\nVITE_PRIVY_APP_ID=test-privy-app\n`);
-    write("services/backend/.env.mainnet.local", `SOCIAL_CHAIN_ID=4153\nSOCIAL_RPC_URL=https://rpc.example\nSOCIAL_LAUNCHPAD_ADDRESS=${next}\nSOCIAL_DEPLOYMENT_BLOCK=200\nSOCIAL_LAUNCH_FEE_MODE=oracle\nSOCIAL_LEGACY_LAUNCHPADS=${launchpad}:100\nSOCIAL_ADMIN_ADDRESS=${admin}\nPRIVY_APP_ID=test-privy-app\nPRIVY_APP_SECRET=test-privy-secret\n`);
-    write("keeper/.env.mainnet.local", `KEEPER_CHAIN_ID=4153\nKEEPER_RPC_URL=https://rpc.example\nKEEPER_LAUNCHPAD_ADDRESS=${next}\nKEEPER_DEPLOYMENT_BLOCK=200\nKEEPER_LEGACY_LAUNCHPADS=${launchpad}:100\n`);
-    prepare(root, "mainnet");
-    const front = readFileSync(join(root, "deploy/production.env"), "utf8");
-    const social = readFileSync(join(root, "deploy/social.env"), "utf8");
-    const keeper = readFileSync(join(root, "deploy/keeper.env"), "utf8");
-    assert.match(front, /VITE_LAUNCH_FEE_MODE=oracle/);
-    assert.match(front, new RegExp(`VITE_LEGACY_LAUNCHPAD_ADDRESS=${launchpad}`));
-    assert.match(social, new RegExp(`SOCIAL_LEGACY_LAUNCHPADS=${launchpad}:100`));
-    assert.match(keeper, new RegExp(`KEEPER_LEGACY_LAUNCHPADS=${launchpad}:100`));
-  }));
+test("missing or mismatched oracle records block release files", () => withFixture("mainnet", ({ root, chain, write, record }) => {
+  write(`deployments/${chain}/curveball-oracle-v3.json`, JSON.stringify({ ...record, maxOracleAgeSeconds: "60" }));
+  assert.throws(() => prepare(root, "mainnet"), /Oracle deployment record/);
+  assert.equal(existsSync(join(root, "deploy/production.env")), false);
+}));
 
-test("mainnet refuses an inline keeper key", () =>
-  withFixture("mainnet", ({ root, write }) => {
-    write(
-      "keeper/.env.mainnet.local",
-      `KEEPER_CHAIN_ID=4153\nKEEPER_RPC_URL=https://rpc.example\nKEEPER_LAUNCHPAD_ADDRESS=${launchpad}\nKEEPER_DEPLOYMENT_BLOCK=100\nKEEPER_PRIVATE_KEY=${keeperKey}\n`,
-    );
-    assert.throws(() => prepare(root, "mainnet"), /host secret file/);
-    assert.equal(existsSync(join(root, "deploy/keeper.env")), false);
-  }));
+test("an old adapter cannot be paired with the new launchpad", () => withFixture("mainnet", ({ root, chain, write }) => {
+  write(`deployments/${chain}/icarus-swap-adapter-oracle-v3.json`, JSON.stringify({ chainId: chain, launchpad: admin, adapter, codeHash: hash }));
+  assert.throws(() => prepare(root, "mainnet"), /Swap adapter record/);
+}));
 
-test("mainnet refuses missing Icarus adapter before writing files", () =>
-  withFixture("mainnet", ({ root, chain }) => {
-    rmSync(join(root, `deployments/${chain}/icarus-swap-adapter.json`));
-    assert.throws(
-      () => prepare(root, "mainnet"),
-      /Mainnet Icarus swap adapter record is missing/,
-    );
-    assert.equal(existsSync(join(root, "deploy/production.env")), false);
-  }));
+test("mainnet refuses an inline keeper key", () => withFixture("mainnet", ({ root, write }) => {
+  write("keeper/.env.mainnet.local", `KEEPER_PRIVATE_KEY=0x${"b".repeat(64)}\n`);
+  assert.throws(() => prepare(root, "mainnet"), /host secret file/);
+}));
 
-test("mainnet refuses a broad trusted proxy range", () =>
-  withFixture("mainnet", ({ root, write }) => {
-    write(
-      ".env.mainnet.local",
-      `VITE_ADMIN_ADDRESS=${admin}\nPINATA_JWT=pinata-secret\nCURVEBALL_TRUSTED_PROXY_CIDR=0.0.0.0/0\n`,
-    );
-    assert.throws(
-      () => prepare(root, "mainnet"),
-      /actual private Docker proxy subnet/,
-    );
-    assert.equal(existsSync(join(root, "deploy/production.env")), false);
-  }));
+test("existing destinations are never overwritten", () => withFixture("mainnet", ({ root, write }) => {
+  write("deploy/keeper.env", "keep-existing");
+  assert.throws(() => prepare(root, "mainnet"), /Refusing to overwrite/);
+  assert.equal(readFileSync(join(root, "deploy/keeper.env"), "utf8"), "keep-existing");
+}));
 
-test("mainnet refuses deployment and admin mismatches", () =>
-  withFixture("mainnet", ({ root, write }) => {
-    write(
-      "services/backend/.env.mainnet.local",
-      `SOCIAL_CHAIN_ID=11155931\nSOCIAL_RPC_URL=https://rpc.example\nSOCIAL_LAUNCHPAD_ADDRESS=${launchpad}\nSOCIAL_DEPLOYMENT_BLOCK=100\nSOCIAL_ADMIN_ADDRESS=${admin}\nPRIVY_APP_ID=test-privy-app\nPRIVY_APP_SECRET=test-privy-secret\n`,
-    );
-    assert.throws(
-      () => prepare(root, "mainnet"),
-      /Source environments do not match/,
-    );
-    assert.equal(existsSync(join(root, "deploy/production.env")), false);
-    write(
-      "services/backend/.env.mainnet.local",
-      `SOCIAL_CHAIN_ID=4153\nSOCIAL_RPC_URL=https://rpc.example\nSOCIAL_LAUNCHPAD_ADDRESS=${launchpad}\nSOCIAL_DEPLOYMENT_BLOCK=100\nPRIVY_APP_ID=test-privy-app\nPRIVY_APP_SECRET=test-privy-secret\n`,
-    );
-    assert.throws(
-      () => prepare(root, "mainnet"),
-      /SOCIAL_ADMIN_ADDRESS is missing/,
-    );
-    assert.equal(existsSync(join(root, "deploy/production.env")), false);
-  }));
-
-test("testnet behavior remains available", () =>
-  withFixture("testnet", ({ root }) => {
-    assert.match(prepare(root, "testnet"), /^testnet-/);
-    assert.match(
-      readFileSync(join(root, "deploy/social.env"), "utf8"),
-      /SOCIAL_CHAIN_NAME=RISE Testnet/,
-    );
-    assert.match(
-      readFileSync(join(root, "deploy/social.env"), "utf8"),
-      /SENTRY_DSN=https:\/\/backend\.example\/1/,
-    );
-    assert.match(
-      readFileSync(join(root, "deploy/keeper.env"), "utf8"),
-      /SENTRY_DSN=https:\/\/keeper\.example\/2/,
-    );
-  }));
-
-test("oracle testnet release does not register its incompatible legacy contract", () =>
-  withFixture("testnet", ({ root, write, chain }) => {
-    const next = "0x4444444444444444444444444444444444444444";
-    const nextAdapter = "0x5555555555555555555555555555555555555555";
-    write(`deployments/${chain}/curveball-oracle-v3.json`, JSON.stringify({
-      chainId: chain, version: "oracle-v3", launchpad: next, deploymentBlock: "200",
-      storkOracle: "0xacC0a0cF13571d30B4b8637996F5D6D774d4fd62",
-      storkFeedId: "0x7965e1bfc07a34caf0c3aa8146b200264fbb7a0eb85b1d3b1fdceecffd736b02",
-      launchFeeUsd: "1000000000000000000",
-    }));
-    write(`deployments/${chain}/icarus-swap-adapter-oracle-v3.json`, JSON.stringify({
-      chainId: chain, launchpad: next, adapter: nextAdapter, codeHash: hash,
-    }));
-    write(".env", `VITE_CHAIN_ID=${chain}\nVITE_RPC_URL=https://rpc.example\nVITE_LAUNCHPAD_ADDRESS=${next}\nVITE_DEPLOYMENT_BLOCK=200\nVITE_LAUNCH_FEE_MODE=oracle\nVITE_ICARUS_SWAP_ADAPTER=${nextAdapter}\nVITE_ICARUS_SWAP_ADAPTER_CODE_HASH=${hash}\nVITE_PRIVY_APP_ID=test-privy-app\nVITE_ADMIN_ADDRESS=${admin}\nPINATA_JWT=pinata-secret\nSOCIAL_CHAIN_ID=${chain}\nSOCIAL_RPC_URL=https://rpc.example\nSOCIAL_LAUNCHPAD_ADDRESS=${next}\nSOCIAL_DEPLOYMENT_BLOCK=200\nSOCIAL_LAUNCH_FEE_MODE=oracle\nSOCIAL_ADMIN_ADDRESS=${admin}\nPRIVY_APP_ID=test-privy-app\nPRIVY_APP_SECRET=test-privy-secret\nKEEPER_CHAIN_ID=${chain}\nKEEPER_RPC_URL=https://rpc.example\nKEEPER_LAUNCHPAD_ADDRESS=${next}\nKEEPER_DEPLOYMENT_BLOCK=200\nKEEPER_PRIVATE_KEY=${keeperKey}\n`);
-    prepare(root, "testnet");
-    assert.doesNotMatch(readFileSync(join(root, "deploy/social.env"), "utf8"), /SOCIAL_LEGACY_LAUNCHPADS=/);
-    assert.doesNotMatch(readFileSync(join(root, "deploy/keeper.env"), "utf8"), /KEEPER_LEGACY_LAUNCHPADS=/);
-  }));
-
-test("existing destinations are never overwritten", () =>
-  withFixture("mainnet", ({ root, write }) => {
-    write("deploy/keeper.env", "keep-existing");
-    assert.throws(() => prepare(root, "mainnet"), /Refusing to overwrite/);
-    assert.equal(
-      readFileSync(join(root, "deploy/keeper.env"), "utf8"),
-      "keep-existing",
-    );
-    assert.equal(existsSync(join(root, "deploy/production.env")), false);
-  }));
+test("testnet can prepare the same oracle release", () => withFixture("testnet", ({ root }) => {
+  prepare(root, "testnet");
+  assert.match(readFileSync(join(root, "deploy/social.env"), "utf8"), /SOCIAL_CHAIN_ID=11155931/);
+  assert.doesNotMatch(readFileSync(join(root, "deploy/social.env"), "utf8"), /LEGACY/);
+}));

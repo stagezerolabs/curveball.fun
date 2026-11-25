@@ -5,33 +5,33 @@ export RISE_MAINNET_RPC_URL RISE_TESTNET_RPC_URL VITE_RPC_URL
 
 COMPOSE ?= docker compose
 MAINNET_LOCAL_COMPOSE := docker compose -p curveball-mainnet -f compose.yaml
+MAINNET_RPC_URL := $(or $(RISE_MAINNET_RPC_URL),https://rpc.risechain.com)
 SERVICES ?=
 TAIL ?= 100
 
 .DEFAULT_GOAL := help
 
-.PHONY: help dev build build-testnet test typecheck js-tests contracts-test testnet-preflight deploy-testnet post-deploy-testnet set-testnet-graduation-target deploy-icarus-swap-testnet record-icarus-swap-testnet activate-icarus-swap-testnet deploy-icarus-swap-mainnet record-icarus-swap-mainnet activate-icarus-swap-mainnet record-testnet configure-testnet reset-testnet-projections activate-testnet production-preflight deploy-production record-production configure-production \
-	docker-setup docker-up docker-down docker-rebuild docker-status docker-config docker-logs docker-clean-old-images docker-fresh-testnet \
-	docker-mainnet-up docker-mainnet-rebuild docker-mainnet-status docker-mainnet-logs docker-mainnet-down
-.PHONY: production-oracle-preflight deploy-production-oracle record-production-oracle deploy-icarus-swap-oracle-mainnet record-icarus-swap-oracle-mainnet configure-production-oracle
-.PHONY: testnet-oracle-preflight deploy-testnet-oracle record-testnet-oracle configure-testnet-oracle deploy-icarus-swap-oracle-testnet record-icarus-swap-oracle-testnet activate-testnet-oracle
+.PHONY: help dev build build-testnet test typecheck js-tests contracts-test \
+  preflight-mainnet-dot deploy-mainnet-dot record-mainnet-dot deploy-swap-mainnet-dot \
+  record-swap-mainnet-dot configure-mainnet-dot oracle-status-mainnet reset-mainnet-database \
+  testnet-preflight deploy-testnet-oracle record-testnet-oracle \
+  deploy-swap-testnet-oracle record-swap-testnet-oracle configure-testnet-oracle \
+  docker-setup docker-up docker-down docker-rebuild docker-status docker-config \
+  docker-logs docker-clean-old-images docker-fresh-testnet \
+  docker-mainnet-up docker-mainnet-rebuild docker-mainnet-status \
+  docker-mainnet-logs docker-mainnet-down
 
 help:
-	@echo "Build:    dev, build (mainnet), build-testnet, test"
-	@echo "Testnet:  testnet-preflight, deploy-testnet, post-deploy-testnet, activate-testnet"
-	@echo "Oracle testnet: testnet-oracle-preflight, deploy-testnet-oracle, record-testnet-oracle"
-	@echo "                deploy-icarus-swap-oracle-testnet, record-icarus-swap-oracle-testnet, configure-testnet-oracle"
-	@echo "          record-testnet, configure-testnet"
-	@echo "          deploy-icarus-swap-testnet, record-icarus-swap-testnet, activate-icarus-swap-testnet"
-	@echo "          set-testnet-graduation-target, reset-testnet-projections"
-	@echo "Mainnet:  production-preflight, deploy-production, record-production, configure-production"
-	@echo "Oracle:   production-oracle-preflight, deploy-production-oracle, record-production-oracle"
-	@echo "          deploy-icarus-swap-oracle-mainnet, record-icarus-swap-oracle-mainnet, configure-production-oracle"
-	@echo "          deploy-icarus-swap-mainnet, record-icarus-swap-mainnet, activate-icarus-swap-mainnet"
+	@echo "Build:    dev, build, build-testnet, test"
+	@echo "Mainnet:  preflight-mainnet-dot, deploy-mainnet-dot, record-mainnet-dot"
+	@echo "          deploy-swap-mainnet-dot, record-swap-mainnet-dot, configure-mainnet-dot, oracle-status-mainnet"
+	@echo "VPS:      reset-mainnet-database (clears all database and on-host backup data)"
+	@echo "Testnet:  testnet-preflight, deploy-testnet-oracle, record-testnet-oracle"
+	@echo "          deploy-swap-testnet-oracle, record-swap-testnet-oracle, configure-testnet-oracle"
 	@echo "Docker:   docker-setup, docker-up, docker-down, docker-rebuild, docker-status"
 	@echo "          docker-config, docker-logs, docker-clean-old-images"
 	@echo "Local mainnet: docker-mainnet-up, docker-mainnet-rebuild, docker-mainnet-status"
-	@echo "               docker-mainnet-logs, docker-mainnet-down (keeper stays stopped)"
+	@echo "               docker-mainnet-logs, docker-mainnet-down"
 	@echo "          docker-fresh-testnet (deletes the local database volume)"
 
 dev:
@@ -54,122 +54,51 @@ js-tests:
 contracts-test:
 	$(MAKE) -C contracts test
 
+preflight-mainnet-dot:
+	$(MAKE) -C contracts preflight-mainnet-dot
+
+deploy-mainnet-dot:
+	$(MAKE) -C contracts deploy-mainnet-dot
+
+record-mainnet-dot:
+	$(MAKE) -C contracts require-mainnet-rpc
+	RISE_MAINNET_RPC_URL="$(MAINNET_RPC_URL)" CONFIRM_RECORD_PRODUCTION=RECORD_CURVEBALL_RISE_MAINNET_4153 bun contracts/scripts/record-production.ts
+
+deploy-swap-mainnet-dot:
+	$(MAKE) -C contracts deploy-swap-mainnet-dot
+
+record-swap-mainnet-dot:
+	$(MAKE) -C contracts require-mainnet-rpc build-icarus-swap-adapter
+	RISE_MAINNET_RPC_URL="$(MAINNET_RPC_URL)" DEPLOYMENT_NETWORK=mainnet bun contracts/scripts/record-icarus-swap.ts
+
+configure-mainnet-dot:
+	bun contracts/scripts/sync-production-config.ts
+
+oracle-status-mainnet:
+	$(MAKE) -C contracts oracle-status-mainnet
+
+# Run on /opt/curveball-mainnet after source, deployment records and secrets are staged.
+reset-mainnet-database:
+	CONFIRM_RESET='$(CONFIRM_RESET)' bash deploy/reset-mainnet-database.sh
+
 testnet-preflight:
 	$(MAKE) -C contracts testnet-preflight
-
-deploy-testnet:
-	$(MAKE) -C contracts deploy-testnet
-
-set-testnet-graduation-target:
-	$(MAKE) -C contracts set-testnet-graduation-target
-
-deploy-icarus-swap-testnet:
-	$(MAKE) -C contracts deploy-icarus-swap-testnet
-
-record-icarus-swap-testnet:
-	$(MAKE) -C contracts build-icarus-swap-adapter
-	DEPLOYMENT_NETWORK=testnet bun contracts/scripts/record-icarus-swap.ts
-
-activate-icarus-swap-testnet:
-	$(MAKE) configure-testnet
-	$(MAKE) docker-rebuild
-
-record-testnet:
-	@echo "Use record-testnet-oracle; the legacy testnet record must remain intact." >&2; exit 2
-
-configure-testnet:
-	DEPLOYMENT_NETWORK=testnet bun contracts/scripts/sync-production-config.ts
-
-reset-testnet-projections:
-	@set -eu; \
-		new_launchpad="$$(jq -er 'select(.chainId == 11155931) | .launchpad | select(type == "string" and test("^0x[0-9a-fA-F]{40}$$"))' deployments/11155931/curveball.json)" || { echo "A valid testnet launchpad record is required before stopping services." >&2; exit 2; }; \
-		$(COMPOSE) config --quiet; \
-		was_running="$$( $(COMPOSE) ps --services --status running )"; \
-		restore() { \
-			result="$$1"; trap - EXIT; \
-			if { test "$$result" -ne 0 || test "$(RESET_LEAVE_STOPPED)" != "1"; } && test -n "$$was_running"; then \
-				$(COMPOSE) up -d $$was_running || { echo "Failed to restore previously running services." >&2; exit 1; }; \
-			fi; \
-			exit "$$result"; \
-		}; \
-		trap 'restore "$$?"' EXIT; \
-		$(COMPOSE) stop api keeper; \
-		$(COMPOSE) up -d postgres; \
-		$(COMPOSE) exec -T postgres psql -U curveball -d curveball -v ON_ERROR_STOP=1 -v new_launchpad="$$new_launchpad" -f /dev/stdin < deploy/reset-local-testnet-projections.sql
-
-activate-testnet:
-	@echo "Use activate-testnet-oracle; resetting projections would orphan legacy markets." >&2; exit 2
-
-# Run after deploy-testnet: activate the recorded release, then broadcast a small smoke launch/buy.
-post-deploy-testnet:
-	@echo "Use the oracle release targets; old projection reset is unsafe for this migration." >&2; exit 2
-
-testnet-oracle-preflight:
-	$(MAKE) -C contracts testnet-oracle-preflight
 
 deploy-testnet-oracle:
 	$(MAKE) -C contracts deploy-testnet-oracle
 
 record-testnet-oracle:
-	DEPLOYMENT_NETWORK=testnet DEPLOYMENT_FEE_MODE=oracle bun contracts/scripts/record-production.ts
+	DEPLOYMENT_NETWORK=testnet bun contracts/scripts/record-production.ts
+
+deploy-swap-testnet-oracle:
+	$(MAKE) -C contracts deploy-swap-testnet-oracle
+
+record-swap-testnet-oracle:
+	$(MAKE) -C contracts build-icarus-swap-adapter
+	DEPLOYMENT_NETWORK=testnet bun contracts/scripts/record-icarus-swap.ts
 
 configure-testnet-oracle:
-	DEPLOYMENT_NETWORK=testnet DEPLOYMENT_FEE_MODE=oracle bun contracts/scripts/sync-production-config.ts
-
-deploy-icarus-swap-oracle-testnet:
-	$(MAKE) -C contracts deploy-icarus-swap-oracle-testnet
-
-record-icarus-swap-oracle-testnet:
-	$(MAKE) -C contracts build-icarus-swap-adapter
-	DEPLOYMENT_NETWORK=testnet DEPLOYMENT_FEE_MODE=oracle bun contracts/scripts/record-icarus-swap.ts
-
-activate-testnet-oracle:
-	@echo "The legacy testnet contract emits incompatible events. Preview v3 against an isolated testnet database; this target does not migrate existing testnet projections." >&2; exit 2
-
-production-preflight:
-	$(MAKE) -C contracts production-preflight
-
-deploy-production:
-	$(MAKE) -C contracts deploy-production
-
-record-production:
-	bun contracts/scripts/record-production.ts
-
-configure-production:
-	bun contracts/scripts/sync-production-config.ts
-
-production-oracle-preflight:
-	$(MAKE) -C contracts production-oracle-preflight
-
-deploy-production-oracle:
-	$(MAKE) -C contracts deploy-production-oracle
-
-record-production-oracle:
-	DEPLOYMENT_FEE_MODE=oracle bun contracts/scripts/record-production.ts
-
-configure-production-oracle:
-	DEPLOYMENT_FEE_MODE=oracle bun contracts/scripts/sync-production-config.ts
-
-deploy-icarus-swap-oracle-mainnet:
-	$(MAKE) -C contracts deploy-icarus-swap-oracle-mainnet
-
-record-icarus-swap-oracle-mainnet:
-	$(MAKE) -C contracts require-mainnet-rpc build-icarus-swap-adapter
-	DEPLOYMENT_NETWORK=mainnet DEPLOYMENT_FEE_MODE=oracle bun contracts/scripts/record-icarus-swap.ts
-
-deploy-icarus-swap-mainnet:
-	$(MAKE) -C contracts deploy-icarus-swap-mainnet
-
-record-icarus-swap-mainnet:
-	$(MAKE) -C contracts require-mainnet-rpc build-icarus-swap-adapter
-	@DEPLOYMENT_NETWORK=mainnet bun contracts/scripts/record-icarus-swap.ts
-
-activate-icarus-swap-mainnet:
-	@test -f deployments/4153/icarus-swap-adapter.json || { echo "Record the mainnet swap adapter first."; exit 2; }
-	$(MAKE) configure-production
-	bun deploy/prepare-production-env.mjs --network mainnet
-	docker compose --env-file deploy/production.env -f compose.production.yaml -f deploy/compose.mainnet.yaml config --quiet
-	docker compose --env-file deploy/production.env -f compose.production.yaml -f deploy/compose.mainnet.yaml build
+	DEPLOYMENT_NETWORK=testnet bun contracts/scripts/sync-production-config.ts
 
 docker-setup:
 	@test -f .env || { echo "Copy .env.example to .env and fill in the required values first." >&2; exit 2; }

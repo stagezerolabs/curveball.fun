@@ -58,28 +58,6 @@ if (!isAddress(launchpad))
 const admin = required("SOCIAL_ADMIN_ADDRESS");
 if (!isAddress(admin)) throw new Error("SOCIAL_ADMIN_ADDRESS is invalid.");
 const metadata = metadataConfiguration();
-const launchFeeMode = process.env.SOCIAL_LAUNCH_FEE_MODE || "fixed";
-if (launchFeeMode !== "fixed" && launchFeeMode !== "oracle")
-  throw new Error("SOCIAL_LAUNCH_FEE_MODE must be fixed or oracle.");
-const primaryDeploymentBlock = BigInt(required("SOCIAL_DEPLOYMENT_BLOCK"));
-const launchpadDeployments = [
-  { address: getAddress(launchpad), deploymentBlock: primaryDeploymentBlock },
-  ...(process.env.SOCIAL_LEGACY_LAUNCHPADS || "")
-    .split(",")
-    .filter(Boolean)
-    .map((entry) => {
-      const [address, block, extra] = entry.trim().split(":");
-      if (extra !== undefined || !isAddress(address) || !/^\d+$/.test(block || ""))
-        throw new Error("SOCIAL_LEGACY_LAUNCHPADS must contain address:block pairs.");
-      return { address: getAddress(address), deploymentBlock: BigInt(block) };
-    }),
-];
-if (new Set(launchpadDeployments.map((entry) => entry.address.toLowerCase())).size !== launchpadDeployments.length)
-  throw new Error("Launchpad deployments must have distinct addresses.");
-const earliestDeploymentBlock = launchpadDeployments.reduce(
-  (earliest, entry) => entry.deploymentBlock < earliest ? entry.deploymentBlock : earliest,
-  primaryDeploymentBlock,
-);
 const rnsApiUrl =
   process.env.SOCIAL_RNS_API_URL?.trim() ||
   "https://api.stage0.xyz/api/public/rns/resolve/address/";
@@ -98,11 +76,9 @@ export const config = Object.freeze({
   chainName: process.env.SOCIAL_CHAIN_NAME?.trim() || "Rise Testnet",
   nativeSymbol: process.env.SOCIAL_NATIVE_SYMBOL?.trim() || "ETH",
   launchpadAddress: getAddress(launchpad),
-  launchpadDeployments,
-  launchFeeMode,
   adminAddress: getAddress(admin).toLowerCase(),
   protocolAccounts: protocolAccounts(process.env.SOCIAL_PROTOCOL_ACCOUNTS),
-  deploymentBlock: earliestDeploymentBlock,
+  deploymentBlock: BigInt(required("SOCIAL_DEPLOYMENT_BLOCK")),
   port: positiveInteger("SOCIAL_PORT", 8787),
   publicOrigin:
     process.env.SOCIAL_PUBLIC_ORIGIN?.trim() || "http://localhost:8787",

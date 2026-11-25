@@ -34,14 +34,5 @@ export const icarusSwapAdapterAbi = parseAbi([
   "function swapExactIn(address token, bool buy, uint256 amountIn, uint256 minOut, uint256 deadline) returns (uint256 amountOut)",
 ]);
 
-/** The already deployed fixed-fee launchpad remains active for its existing markets. */
-export const legacyLaunchFeeAbi = parseAbi([
-  "function launchFee() view returns (uint256)",
-]);
-
-export const legacyLaunchAbi = parseAbi([
-  "function launch((string name,string symbol,string uri) meta,uint16 taxBps,uint256 maxSpend,uint256 minOut) returns (address token,uint256 tokensOut)",
-]);
-
 // The launchpad and its singletons, generated from the forge artifacts by `make -C contracts abis`.
 export * from "./abis.generated";

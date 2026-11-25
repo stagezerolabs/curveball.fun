@@ -8,12 +8,11 @@ import RubberSegment from "../components/RubberSegment";
 import { useStore } from "../app/useStore.js";
 import { useAccount, useBalance, useReadContract } from "wagmi";
 import { formatEther, parseEther } from "viem";
-import { curveLaunchpadAbi, erc20Abi, legacyLaunchFeeAbi } from "../sdk/contracts";
+import { curveLaunchpadAbi, erc20Abi } from "../sdk/contracts";
 import { maximumLaunchFee } from "../sdk/curveballSdk";
 import {
   activeChainId,
   activeExplorerUrl,
-  activeLaunchFeeMode,
   launchpadAddress,
 } from "../lib/web3";
 import {
@@ -168,18 +167,11 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
     ...launchpadRead,
     functionName: "paused",
   });
-  const { data: fixedLaunchFee, isError: fixedLaunchFeeError } = useReadContract({
-    address: launchpadAddress ?? undefined,
-    abi: legacyLaunchFeeAbi,
-    functionName: "launchFee",
-    chainId: activeChainId,
-    query: { enabled: Boolean(launchpadAddress) && activeLaunchFeeMode === "fixed" },
-  });
   const { data: oracleQuote, isError: oracleQuoteError } = useReadContract({
     ...launchpadRead,
     functionName: "quoteLaunchFee",
     query: {
-      enabled: Boolean(launchpadAddress) && activeLaunchFeeMode === "oracle",
+      enabled: Boolean(launchpadAddress),
       refetchInterval: 10_000,
     },
   });
@@ -208,13 +200,12 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
     query: { enabled: Boolean(address), refetchInterval: 15_000 },
   });
   const quoteTimestamp = oracleQuote ? Number(oracleQuote[2] / 1_000_000_000n) : undefined;
-  const quoteTooOld = activeLaunchFeeMode === "oracle" && quoteTimestamp !== undefined &&
-    (quoteTimestamp > nowSeconds || nowSeconds - quoteTimestamp > 45);
-  const launchFee = quoteTooOld || oracleQuoteError ? undefined :
-    activeLaunchFeeMode === "oracle" ? oracleQuote?.[0] : fixedLaunchFee;
+  const quoteTooOld = quoteTimestamp !== undefined &&
+    (quoteTimestamp > nowSeconds || nowSeconds - quoteTimestamp > 1770);
+  const launchFee = quoteTooOld || oracleQuoteError ? undefined : oracleQuote?.[0];
   const launchFeeCap = launchFee === undefined ? undefined :
-    activeLaunchFeeMode === "oracle" ? maximumLaunchFee(launchFee) : launchFee;
-  const launchFeeError = activeLaunchFeeMode === "oracle" ? oracleQuoteError : fixedLaunchFeeError;
+    maximumLaunchFee(launchFee);
+  const launchFeeError = oracleQuoteError;
   const buybackShareBps = feeDefaults?.[2];
   const creatorTaxCapBps = feeDefaults?.[3];
   // The guardian's pause stops new launches (and buys); nothing else gates who may launch.
@@ -841,9 +832,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
               The launch fee and first buy settle in WETH. Curveball wraps any
               missing ETH, requests approval if needed, then asks you to confirm
               the launch. These may be separate wallet transactions.
-              {activeLaunchFeeMode === "oracle" && (
-                <> The fee uses the latest onchain ETH/USDC price. The launch fails if the fee rises above your reviewed WETH limit.</>
-              )}
+              The fee uses the latest onchain ETH/USDC price. The launch fails if the fee rises above your reviewed WETH limit.
             </Dialog.Description>
             <ol className="launch-wallet-steps">
               {funding && funding.ethToWrap > 0n && <li>Wrap ETH into WETH</li>}
@@ -852,26 +841,22 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
             </ol>
             <dl className="launch-fee-review-amounts">
               <div>
-                <dt>Anti-spam fee{activeLaunchFeeMode === "oracle" ? " · $1 target" : ""}</dt>
+                <dt>Anti-spam fee · $1 target</dt>
                 <dd title={`${formatEther(launchFee ?? 0n)} WETH`}>
-                  {activeLaunchFeeMode === "oracle"
-                    ? "$1.00"
-                    : <UsdAmount weth={Number(formatEther(launchFee ?? 0n))} />}
+                  $1.00
                   <small>{displayWeth(launchFee ?? 0n)} WETH</small>
                 </dd>
               </div>
-              {activeLaunchFeeMode === "oracle" && quoteTimestamp !== undefined && (
+              {quoteTimestamp !== undefined && (
                 <div>
                   <dt>Oracle price age</dt>
                   <dd>{Math.max(0, nowSeconds - quoteTimestamp)} seconds</dd>
                 </div>
               )}
-              {activeLaunchFeeMode === "oracle" && (
-                <div>
-                  <dt>Maximum fee if ETH price moves</dt>
-                  <dd>{displayWeth(reviewedFeeCap.current ?? launchFeeCap ?? 0n)} WETH</dd>
-                </div>
-              )}
+              <div>
+                <dt>Maximum fee if ETH price moves</dt>
+                <dd>{displayWeth(reviewedFeeCap.current ?? launchFeeCap ?? 0n)} WETH</dd>
+              </div>
               {initialBuyWei !== undefined && initialBuyWei > 0n && (
                 <div>
                   <dt>Initial buy</dt>

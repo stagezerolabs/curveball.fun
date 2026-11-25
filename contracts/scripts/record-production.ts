@@ -10,14 +10,13 @@ import {
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { validateLaunchpad } from "../../src/deployment";
-import { curveFeeEscrowAbi, curveLaunchpadAbi, legacyLaunchFeeAbi } from "../../src/sdk/contracts";
+import { curveFeeEscrowAbi, curveLaunchpadAbi } from "../../src/sdk/contracts";
 import {
   matchesCompiledRuntime,
   type RuntimeArtifact,
 } from "./verify-runtime-bytecode";
 
 const requestedNetwork = Bun.env.DEPLOYMENT_NETWORK?.trim() || "mainnet";
-const oracleRelease = Bun.env.DEPLOYMENT_FEE_MODE === "oracle";
 if (requestedNetwork !== "mainnet" && requestedNetwork !== "testnet") {
   throw new Error("DEPLOYMENT_NETWORK must be mainnet or testnet.");
 }
@@ -26,9 +25,9 @@ const network =
     ? {
         name: "testnet",
         chainId: 11_155_931,
-        outputPath: oracleRelease ? "deployments/11155931/curveball-oracle-v3.json" : "deployments/11155931/curveball.json",
+        outputPath: "deployments/11155931/curveball-oracle-v3.json",
         rpcUrl:
-          Bun.env.RISE_TESTNET_RPC_URL?.trim() || Bun.env.VITE_RPC_URL?.trim(),
+          Bun.env.RISE_TESTNET_RPC_URL?.trim() || "https://testnet.riselabs.xyz",
         icarusFactory: getAddress("0x8221dfB70c9A2dE60253dcfC58231FD529bbF4F9"),
         explorerOrigin: "https://explorer.testnet.riselabs.xyz",
         // Testnet authorities are the dot operator; mainnet's are checked by the deploy preflight.
@@ -38,7 +37,7 @@ const network =
     : {
         name: "mainnet",
         chainId: 4_153,
-        outputPath: oracleRelease ? "deployments/4153/curveball-oracle-v3.json" : "deployments/4153/curveball.json",
+        outputPath: "deployments/4153/curveball-oracle-v3.json",
         rpcUrl: Bun.env.RISE_MAINNET_RPC_URL?.trim(),
         icarusFactory: getAddress("0xEe10C6a0f158bFEeef3d48Dc0D26130Cf6115615"),
         explorerOrigin: "https://explorer.risechain.com",
@@ -54,7 +53,7 @@ const coreNames = [
   "CurveLaunchpad",
 ] as const;
 const expectedNames = network.name === "mainnet" ? ["TimelockController", ...coreNames] : [...coreNames];
-const mainnetDeployer = getAddress("0xeEb364Ba1a9A4B6a75C41A39c4B91144a4aF156A");
+const mainnetDeployer = getAddress("0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3");
 const mainnetTreasury = getAddress("0x7e6B1bEfC7dd622c20961140779eF61cd9C62Ce4");
 const timelockAbi = parseAbi([
   "function getMinDelay() view returns (uint256)",
@@ -186,7 +185,7 @@ if (singletons.icarusFactory !== icarusFactory)
 const read = (functionName: string) =>
   client.readContract({
     address: launchpad,
-    abi: functionName === "launchFee" ? legacyLaunchFeeAbi : curveLaunchpadAbi,
+    abi: curveLaunchpadAbi,
     functionName,
   } as never) as Promise<unknown>;
 const [
@@ -205,7 +204,7 @@ const [
   read("owner"),
   read("guardian"),
   read("treasury"),
-  read(oracleRelease ? "storkOracle" : "launchFee"),
+  read("storkOracle"),
   read("graduationTarget"),
   read("feeDefaults"),
   read("SUPPLY"),
@@ -221,7 +220,7 @@ const [
   Address,
   Address,
   Address,
-  bigint | Address,
+  Address,
   bigint,
   readonly [number, number, number, number],
   bigint,
@@ -231,22 +230,21 @@ const [
   number,
 ];
 const [feeBps, creatorShareBps, buybackShareBps, taxCapBps] = feeDefaults;
-const launchFee = oracleRelease ? null : feeConfiguration as bigint;
-const storkOracle = oracleRelease ? feeConfiguration as Address : null;
-let oracleQuote: { fee: bigint; price: bigint; timestampNs: bigint } | null = null;
-if (oracleRelease) {
-  if (storkOracle !== storkOracleAddress)
-    throw new Error("Stork oracle address mismatch.");
-  const [fee, price, timestampNs] = await read("quoteLaunchFee") as readonly [bigint, bigint, bigint];
-  if (price < 100n * 10n ** 18n || price > 100_000n * 10n ** 18n ||
-      fee !== (10n ** 36n + price - 1n) / price || fee > 10n ** 16n)
-    throw new Error("Oracle launch fee policy mismatch.");
-  oracleQuote = { fee, price, timestampNs };
-}
+const storkOracle = feeConfiguration;
+if (storkOracle !== storkOracleAddress)
+  throw new Error("Stork oracle address mismatch.");
+const [fee, price, timestampNs] = await read("quoteLaunchFee") as readonly [bigint, bigint, bigint];
+const oracleAge = await read("MAX_ORACLE_AGE") as bigint;
+const block = await client.getBlock();
+if (price < 100n * 10n ** 18n || price > 100_000n * 10n ** 18n ||
+    fee !== (10n ** 36n + price - 1n) / price || fee > 10n ** 16n ||
+    oracleAge !== 30n * 60n || timestampNs / 1_000_000_000n > block.timestamp ||
+    block.timestamp - timestampNs / 1_000_000_000n > oracleAge)
+  throw new Error("Oracle launch fee or freshness policy mismatch.");
+const oracleQuote = { fee, price, timestampNs };
 if (
   paused ||
   escrowOwner !== owner ||
-  (!oracleRelease && launchFee !== 450_000_000_000_000n) ||
   graduationTarget < 4n * 10n ** 18n ||
   feeBps !== 75 ||
   creatorShareBps !== 5_000 ||
@@ -362,7 +360,7 @@ const sourceWorkingTreeDirty = Boolean(
     .trim(),
 );
 const record = {
-  version: oracleRelease ? "oracle-v3" : "lean-v2",
+  version: "oracle-v3",
   release: network.name,
   chainId,
   sourceCommit: gitCommit,
@@ -375,12 +373,11 @@ const record = {
   owner,
   guardian,
   treasury,
-  ...(oracleRelease ? {
-    launchFeeUsd: "1000000000000000000",
-    storkOracle,
-    storkFeedId: "0x7965e1bfc07a34caf0c3aa8146b200264fbb7a0eb85b1d3b1fdceecffd736b02",
-    oracleQuote: { fee: oracleQuote!.fee.toString(), price: oracleQuote!.price.toString(), timestampNs: oracleQuote!.timestampNs.toString() },
-  } : { launchFee: launchFee!.toString() }),
+  launchFeeUsd: "1000000000000000000",
+  maxOracleAgeSeconds: oracleAge.toString(),
+  storkOracle,
+  storkFeedId: "0x7965e1bfc07a34caf0c3aa8146b200264fbb7a0eb85b1d3b1fdceecffd736b02",
+  oracleQuote: { fee: oracleQuote.fee.toString(), price: oracleQuote.price.toString(), timestampNs: oracleQuote.timestampNs.toString() },
   graduationTarget: graduationTarget.toString(),
   feeDefaults: { feeBps, creatorShareBps, buybackShareBps, taxCapBps },
   supply: supply.toString(),

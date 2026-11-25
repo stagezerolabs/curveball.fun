@@ -34,7 +34,7 @@ contract CurveLaunchpad is ICurveLaunchpad, Ownable2Step, ReentrancyGuard {
     uint256 public constant MAX_TAX_BPS = 50;
     uint256 public constant USD_LAUNCH_FEE = 1 ether;
     uint256 public constant MAX_LAUNCH_FEE = 0.01 ether;
-    uint256 public constant MAX_ORACLE_AGE = 60 seconds;
+    uint256 public constant MAX_ORACLE_AGE = 30 minutes;
     uint256 public constant MIN_ETH_USDC_PRICE = 100 ether;
     uint256 public constant MAX_ETH_USDC_PRICE = 100_000 ether;
     bytes32 public constant ETH_USDC_FEED_ID = 0x7965e1bfc07a34caf0c3aa8146b200264fbb7a0eb85b1d3b1fdceecffd736b02;

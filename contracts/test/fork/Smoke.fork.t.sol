@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {CurveDeploy} from "../../scripts/CurveDeploy.sol";
-import {Smoke, ILegacyLaunchpad} from "../../scripts/Smoke.s.sol";
+import {Smoke} from "../../scripts/Smoke.s.sol";
 import {CurveFeeEscrow} from "../../contracts/CurveFeeEscrow.sol";
 import {CurveLaunchpad} from "../../contracts/CurveLaunchpad.sol";
 import {CurveLpLocker} from "../../contracts/CurveLpLocker.sol";
@@ -14,10 +14,6 @@ import {IIcarusPool} from "../../contracts/interfaces/IIcarus.sol";
 interface IForkWETH {
     function deposit() external payable;
     function withdraw(uint256 amount) external;
-}
-
-interface ILegacyFeeEscrow {
-    function buybackBalance(address token) external view returns (uint256);
 }
 
 /// @dev The buyer contracts exist only in fork state. Their WETH comes from an actor funded by vm.deal.
@@ -55,39 +51,31 @@ contract ForkSmokeActor is Smoke {
     CurveFeeEscrow private feeEscrow;
     CurveLpLocker private lpLocker;
     address private quote;
-    bool private legacy;
 
     receive() external payable {}
 
-    function simulate(address launchpad_, address escrow_, address locker_, bool legacy_)
+    function simulate(address launchpad_, address escrow_, address locker_)
         external
         returns (address token)
     {
         lp = CurveLaunchpad(launchpad_);
         feeEscrow = CurveFeeEscrow(escrow_);
         lpLocker = CurveLpLocker(locker_);
-        legacy = legacy_;
-        require(_isLegacy(lp) == legacy, "wrong release");
         quote = lp.quoteToken();
 
-        uint256 fee = legacy ? ILegacyLaunchpad(address(lp)).launchFee() : _quotedFee(lp);
+        uint256 fee = _quotedFee(lp);
         uint256 wrap = lp.graduationTarget() * 210 / 100 + fee + POOL_SWAP + 0.01 ether;
         IForkWETH(quote).deposit{value: wrap}();
         IERC20(quote).forceApprove(launchpad_, type(uint256).max);
         uint256 firstTokens;
-        (token, firstTokens) = _launchAndBuy(lp, address(this), legacy, fee);
+        (token, firstTokens) = _launchAndBuy(lp, address(this), fee);
 
         IERC20(token).forceApprove(launchpad_, firstTokens / 2);
         require(lp.sell(token, firstTokens / 2, 1, block.timestamp + 1 hours) != 0, "sell");
 
         ForkSmokeBuyer[] memory buyers;
         uint256 buyerCount;
-        if (legacy) {
-            lp.buy(token, IERC20(quote).balanceOf(address(this)) - POOL_SWAP, 1, block.timestamp + 1 hours);
-            require(lp.held(token, address(this)) == lp.CURVE_SUPPLY(), "legacy sellout");
-        } else {
-            (buyers, buyerCount) = _fillCappedCurve(token);
-        }
+        (buyers, buyerCount) = _fillCappedCurve(token);
 
         IIcarusPool pool = IIcarusPool(lp.graduate(token));
         require(lp.poolOf(token) == address(pool), "not graduated");
@@ -128,29 +116,13 @@ contract ForkSmokeActor is Smoke {
         (, uint256 quoteFees) = lpLocker.claim(address(pool));
         require(quoteFees != 0, "LP fees");
         require(feeEscrow.claim(quote) != 0, "creator claim");
-        if (legacy) {
-            require(ILegacyFeeEscrow(address(feeEscrow)).buybackBalance(token) != 0, "legacy buyback");
-        } else {
-            require(feeEscrow.buybackTreasury().quoteBudget() != 0, "buyback budget");
-        }
+        require(feeEscrow.buybackTreasury().quoteBudget() != 0, "buyback budget");
     }
 }
 
 contract SmokeTestnetForkTest is Test, CurveDeploy {
     address constant TESTNET_WETH = 0x4200000000000000000000000000000000000006;
     address constant TESTNET_ICARUS = 0x8221dfB70c9A2dE60253dcfC58231FD529bbF4F9;
-    address constant LEGACY_LAUNCHPAD = 0xb919a4e77bF084e6b5bAF358Ed485F19451c9582;
-    address constant LEGACY_ESCROW = 0x5D86a629681344902b8E32554C8a78b88B62e3e8;
-    address constant LEGACY_LOCKER = 0xA2D87f7E9E604C946e5c4b1690159089c4447aec;
-
-    function test_fork_legacyLaunchAndGraduation() public {
-        _forkTestnet();
-        ForkSmokeActor actor = new ForkSmokeActor();
-        vm.deal(address(actor), 9 ether);
-        address token = actor.simulate(LEGACY_LAUNCHPAD, LEGACY_ESCROW, LEGACY_LOCKER, true);
-        assertTrue(CurveLaunchpad(LEGACY_LAUNCHPAD).poolOf(token) != address(0));
-    }
-
     function test_fork_cappedLaunchAndGraduation() public {
         _forkTestnet();
         Deployment memory d = _deployCurve(
@@ -169,7 +141,7 @@ contract SmokeTestnetForkTest is Test, CurveDeploy {
         );
         ForkSmokeActor actor = new ForkSmokeActor();
         vm.deal(address(actor), 9 ether);
-        address token = actor.simulate(address(d.launchpad), address(d.escrow), address(d.locker), false);
+        address token = actor.simulate(address(d.launchpad), address(d.escrow), address(d.locker));
         assertEq(uint8(d.launchpad.market(token).state), uint8(CurveLaunchpad.State.Graduated));
         assertGt(IERC20(token).balanceOf(address(actor)), d.launchpad.CURVE_SUPPLY());
     }

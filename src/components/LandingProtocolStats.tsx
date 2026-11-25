@@ -14,8 +14,8 @@ import {
 import { getCreatorEarnings } from "../lib/protocolStats";
 import {
   activeChainId,
+  activeDeploymentBlock,
   launchpadAddress,
-  launchpadDeployments,
 } from "../lib/web3";
 import type { Token } from "../types";
 
@@ -25,7 +25,7 @@ export function useProtocolStats() {
     client?: CreatorTokenClient,
   ) => Promise<Token[]>;
   const factoryKey = launchpadAddress
-    ? launchpadDeployments.map(({ address, block }) => `${address.toLowerCase()}:${block}`).join("|")
+    ? `${launchpadAddress.toLowerCase()}:${activeDeploymentBlock}`
     : "";
   const cacheKey = `curveball:landing-stats:current:${activeChainId}:${factoryKey}`;
   const [cachedLaunches] = useState(() => readCachedLaunches(cacheKey));
@@ -87,18 +87,12 @@ export function useProtocolStats() {
     staleTime: 300_000,
     retry: 1,
     queryFn: async () => {
-      const results = await Promise.all(launchpadDeployments.map(({ address, block }) =>
-        getCreatorEarnings(
-          client as unknown as Parameters<typeof getCreatorEarnings>[0],
-          address,
-          data!.filter((token) => token.factory?.toLowerCase() === address.toLowerCase()),
-          block,
-        ),
-      ));
-      const result = {
-        amount: results.reduce((total, current) => total + current.amount, 0n),
-        decimals: results[0]?.decimals ?? 18,
-      };
+      const result = await getCreatorEarnings(
+        client as unknown as Parameters<typeof getCreatorEarnings>[0],
+        launchpadAddress!,
+        data!,
+        activeDeploymentBlock,
+      );
       writeCachedPayout(cacheKey, result);
       return result;
     },

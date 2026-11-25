@@ -40,7 +40,10 @@ contract LaunchpadOracleFeeTest is Fixture {
 
     function test_staleOracleBlocksLaunchButExistingMarketStillTrades() public {
         address token = _launch(creator, 0);
-        vm.warp(block.timestamp + 61);
+        vm.warp(block.timestamp + 30 minutes);
+        (uint256 fee,,) = launchpad.quoteLaunchFee();
+        assertGt(fee, 0);
+        vm.warp(block.timestamp + 1);
         _fund(bob, 1 ether);
         vm.prank(bob);
         vm.expectRevert(CurveLaunchpad.StaleOraclePrice.selector);

@@ -1,69 +1,38 @@
 # Curveball VPS deployment
 
-This stack runs one Bun/Fastify backend for the frontend, social API, indexer, metadata worker, and artwork uploads. The keeper and Postgres run separately behind the server's existing `proxy` Docker network. The `--network` argument to the env generator selects the recorded RISE deployment used by the frontend, backend, and keeper. The generator refuses mixed chain IDs, launchpads, or deployment blocks, and it never overwrites existing output files. The checked-in testnet record describes a legacy contract release; it is not a deployment record for the current four-singleton source.
+The mainnet stack runs one Bun/Fastify container for the app, API, and indexer, plus a keeper, Postgres, a local backup job, and two Nginx edges on the existing `proxy` Docker network. The oracle v3 deployment and full database reset are described in [the release runbook](../docs/operations/oracle-launch-fee-release.md).
 
-## Prepare a RISE mainnet release
+## Prepare the oracle release
 
-1. The original fixed-fee mainnet release is recorded at `deployments/4153/curveball.json`. The oracle v3 release has its own preflight, deployment, record, adapter, configuration, and rollback sequence in [`docs/operations/oracle-launch-fee-release.md`](../docs/operations/oracle-launch-fee-release.md). The original deployment targets do not replace the recorded contract.
-2. Run `make deploy-icarus-swap-mainnet CONFIRM_ICARUS_SWAP_DEPLOY=DEPLOY_ICARUS_SWAP_RISE_MAINNET_4153` after the launchpad record exists. This target checks the adapter against a live Icarus pool and simulates deployment before broadcasting. Then run `make record-icarus-swap-mainnet`; it checks the deployment transaction, compiled creation code, wiring, receipt, and Blockscout source before writing `deployments/4153/icarus-swap-adapter.json`. Run `make configure-production` again to copy its address and code hash into `.env.production`. The env generator refuses mainnet without a matching adapter record.
-3. Create ignored `.env.mainnet.local` with `VITE_ADMIN_ADDRESS`, `VITE_PRIVY_APP_ID`, optional `VITE_PRIVY_CLIENT_ID`, `PINATA_JWT`, and `CURVEBALL_TRUSTED_PROXY_CIDR`. Set the CIDR to the actual Docker `proxy` network subnet from `docker network inspect proxy`; only that network is trusted to supply client IP headers. `.env.production` supplies `VITE_CHAIN_ID`, `VITE_RPC_URL`, `VITE_LAUNCHPAD_ADDRESS`, `VITE_DEPLOYMENT_BLOCK`, and the Icarus adapter address and code hash. If the local file also defines any of those chain fields, their values must agree.
-4. Create ignored `services/backend/.env.mainnet.local` and `keeper/.env.mainnet.local` from their respective `.env.example` files. Set chain `4153`, the exact recorded launchpad and deployment block, mainnet RPC URLs, `PRIVY_APP_ID` and the server-only `PRIVY_APP_SECRET`, and the moderator address. Do not put the mainnet keeper key in an env file. `SOCIAL_ADMIN_ADDRESS` must equal `VITE_ADMIN_ADDRESS`. Use a public browser-safe RPC in the Vite build and private provider endpoints for the backend and keeper.
-5. On the VPS, provision the keeper key as a host file outside the checkout. The Compose overlay runs the keeper as UID/GID `2001` and mounts only this file at `/run/secrets/keeper_private_key`:
+After `make deploy-mainnet-dot`, `make record-mainnet-dot`, `make deploy-swap-mainnet-dot`, and `make record-swap-mainnet-dot` have completed in the operator's local shell, run `make configure-mainnet-dot`. It writes the new address and deployment block to `.env.production`, and updates existing ignored service and Compose env files. Transfer the new source and both `deployments/4153/*-oracle-v3.json` records to `/opt/curveball-mainnet`, following [the production file transfer procedure](../.codex/DEPLOYMENT.md). Run `make configure-mainnet-dot` on the VPS too, so its secret-bearing env files receive the new address without replacing their secrets.
+
+For a first deployment with no generated env files, create `.env.mainnet.local`, `services/backend/.env.mainnet.local`, and `keeper/.env.mainnet.local` from their examples. Set chain 4153, the recorded launchpad and deployment block, RPC URLs, Privy values, and the moderator address. `SOCIAL_ADMIN_ADDRESS` must equal `VITE_ADMIN_ADDRESS`. Use a browser-safe public RPC in Vite and private endpoints for the backend and keeper. Then run `bun deploy/prepare-production-env.mjs --network mainnet` to generate `deploy/production.env`, `deploy/social.env`, `deploy/keeper.env`, and `deploy/web.env` with mode 0600. The generator refuses mismatched records and existing outputs.
+
+Provision the keeper key outside the checkout. The Compose overlay mounts it for UID/GID `2001` at `/run/secrets/keeper_private_key`:
 
 ```sh
 sudo install -d -o root -g root -m 0711 /opt/curveball-mainnet-secrets
 sudo install -o 2001 -g 2001 -m 0400 /secure/source/keeper.key /opt/curveball-mainnet-secrets/keeper.key
 ```
 
-The source file must contain only the `0x`-prefixed private key and an optional trailing newline. Keep the source in a secure backup, never in a command argument or shell history. Docker Compose uses a file-backed secret: it removes the key from container environment inspection, but the host file remains plaintext and anyone with root or Docker daemon access can still read it. Limit Docker access to trusted operators.
+The key file contains only a `0x`-prefixed private key and optional trailing newline. Never place it in a `VITE_` variable or a command argument.
 
-6. Generate the four ignored Compose env files:
-
-```sh
-bun deploy/prepare-production-env.mjs --network mainnet
-```
-
-The generator writes `deploy/production.env`, `deploy/social.env`, `deploy/keeper.env`, and `deploy/web.env` with mode `0600`. The mainnet `deploy/keeper.env` contains only the secret file path, never the key. Existing files are never overwritten. Use a separate checkout or Git worktree for concurrent testnet and mainnet releases because these generated env file paths are shared within a checkout. Each Makefile reads `.env` from its own checkout. The mainnet Compose overlay gives each release separate containers, networks, and Postgres volumes.
-
-For a testnet release, the root `.env` contains the frontend, social, and keeper settings:
-
-```sh
-bun deploy/prepare-production-env.mjs --network testnet
-```
-
-The no-argument form continues to select testnet for existing callers.
-
-After deploying a replacement testnet release, `make record-testnet` rechecks the live deployment and replaces the testnet record only if it matches current policy. `make configure-testnet` copies that record into `.env` and any already generated testnet env files. `make reset-testnet-projections` stops the app services, starts Postgres, and clears chain projections only when the local database contains a different testnet launchpad; it preserves wallet profiles, follows, and other user-owned social state. It restores previously running services unless `RESET_LEAVE_STOPPED=1`. `make activate-testnet` runs record, configure, conditional projection reset, and Docker rebuild in that order. These targets operate on the local testnet Compose project; they do not deploy contracts.
-
-`make activate-icarus-swap-mainnet` refreshes `.env.production`, prepares the env files, validates Compose, and builds images. It does not restart the running stack. Because the env generator refuses to overwrite any existing output, use it in a checkout without previously generated `deploy/*.env` files.
-
-## Start and verify the stack
-
-The production Compose files use an external Docker network named `proxy`. On a new host,
-create it once and attach the existing Nginx Proxy Manager container before starting the stack:
-
-```sh
-docker network inspect proxy >/dev/null 2>&1 || docker network create proxy
-```
-
-For mainnet, run from the mainnet checkout after reviewing the generated env files. Always supply both Compose files, in this order:
+Check the rendered production stack before reset:
 
 ```sh
 docker compose --env-file deploy/production.env -f compose.production.yaml -f deploy/compose.mainnet.yaml config --quiet
-docker compose --env-file deploy/production.env -f compose.production.yaml -f deploy/compose.mainnet.yaml build
-docker compose --env-file deploy/production.env -f compose.production.yaml -f deploy/compose.mainnet.yaml run --rm migrate
-docker compose --env-file deploy/production.env -f compose.production.yaml -f deploy/compose.mainnet.yaml up -d --remove-orphans
 ```
 
-The overlay selects project `curveball-mainnet`, names its public containers `curveball-mainnet-web-edge` and `curveball-mainnet-api-edge`, routes both edges to one backend container on the private app network, and names its database volumes `curveball-mainnet-postgres-data` and `curveball-mainnet-postgres-backups`. It does not change the existing testnet stack. Route `curveball.fun` in Nginx Proxy Manager to `curveball-mainnet-web-edge:8081` and `social-api.curveball.fun` to `curveball-mainnet-api-edge:8788` only at cutover. The API edge disables buffering and uses a long read timeout for `/v1/events`, limits `/v1/rns/primary/` per client, and checks the upstream API for health; enable WebSocket support on the Proxy Manager host as well. The web edge applies a request body limit near 2.1 MB and a strict rate limit to `/api/artwork`; it rejects `/v1/` requests so API rate limits cannot be bypassed through the web domain. Before public cutover, test that Proxy Manager appends the real client IP to `X-Forwarded-For` and that forged client-supplied forwarding headers cannot evade the edge rate limits. The API edge overwrites `X-Curveball-Client-IP` for the private API; inspect RNS lookup limits from two distinct clients to confirm they are not grouped under one proxy address.
+## Full reset and activation
 
-For the existing testnet release, continue using `compose.production.yaml` alone. Do not include the mainnet overlay in testnet commands.
+From `/opt/curveball-mainnet` on the VPS, run:
 
-After the replacement backend is healthy, run `make docker-clean-old-images`. It removes unused
-images from the former `curveball-social`, `curveball-web`, and `curveball-frontend` image names;
-it keeps any image still used by a container. Do not run broad Docker image or volume pruning
-as part of this migration.
+```sh
+make reset-mainnet-database CONFIRM_RESET=DELETE_ALL_CURVEBALL_MAINNET_DATA
+```
 
-Verify `GET /health` reports chain `4153` and advancing cursors, then exercise a small mainnet launch, buy, sell, graduation, Icarus pool swap, fee claim, and keeper action with controlled wallets before opening public traffic. The health endpoint reports cursors but does not fail when they lag, so monitor cursor freshness and keeper logs separately.
+The target checks the v3 records and environment parity, builds replacement images, stops the mainnet Compose project, deletes **both** `curveball-mainnet-postgres-data` and `curveball-mainnet-postgres-backups`, and starts the new stack. It clears profiles and follows along with every market, trade, chart, note, notification, and cursor. Existing onchain markets remain on the old contract but are absent from the new app. Any off-host database copy is outside this command's reach.
 
-Never use `docker compose down -v` on a live stack. The `postgres_data` volume contains both rebuildable chain projections and non-rebuildable social state. The included backup loop stores dumps on a local Docker volume for seven days; arrange an off-host encrypted backup and test a restore before treating the deployment as durable.
+The overlay names its public containers `curveball-mainnet-web-edge` and `curveball-mainnet-api-edge`. Route `curveball.fun` to `curveball-mainnet-web-edge:8081` and `social-api.curveball.fun` to `curveball-mainnet-api-edge:8788`. The API edge forwards `/v1/events` without buffering; the web edge limits artwork uploads and rejects `/v1/` requests.
+
+Confirm the API and both edges report healthy, then check the empty market list and `make oracle-status-mainnet`. Do not send a live token launch or buy as a verification step. The local backup job will begin new backups of the fresh database after restart. If an off-host archive of the old database exists and the full reset policy covers it, remove it through its own storage procedure.

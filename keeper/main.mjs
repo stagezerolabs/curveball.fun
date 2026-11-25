@@ -173,17 +173,6 @@ export async function main() {
   const privateKey = readKeeperPrivateKey();
   const chainId = Number(required("KEEPER_CHAIN_ID"));
   const deploymentBlock = BigInt(required("KEEPER_DEPLOYMENT_BLOCK"));
-  const legacyDeployments = (process.env.KEEPER_LEGACY_LAUNCHPADS || "")
-    .split(",")
-    .filter(Boolean)
-    .map((entry) => {
-      const [address, block, extra] = entry.trim().split(":");
-      if (extra !== undefined || !isAddress(address) || !/^\d+$/.test(block || ""))
-        throw new Error("KEEPER_LEGACY_LAUNCHPADS must contain address:block pairs.");
-      return { address: getAddress(address), deploymentBlock: BigInt(block) };
-    });
-  if (legacyDeployments.some((entry) => entry.address.toLowerCase() === launchpad.toLowerCase()))
-    throw new Error("Legacy and active keeper launchpads must be distinct.");
   const intervalMs = Number(process.env.KEEPER_POLL_INTERVAL_MS || 10_000);
   if (
     !isAddress(launchpad) ||
@@ -211,12 +200,12 @@ export async function main() {
     chain,
     transport: http(rpcUrl),
   });
-  const keepers = [
-    { address: getAddress(launchpad), deploymentBlock },
-    ...legacyDeployments,
-  ].map(({ address, deploymentBlock: block }) => createGraduationKeeper({
-    publicClient, walletClient, launchpad: address, deploymentBlock: block,
-  }));
+  const keeper = createGraduationKeeper({
+    publicClient,
+    walletClient,
+    launchpad: getAddress(launchpad),
+    deploymentBlock,
+  });
   let stopping = false;
   process.on("SIGINT", () => {
     stopping = true;
@@ -225,12 +214,11 @@ export async function main() {
     stopping = true;
   });
   console.info(
-    `Keeper started for ${keepers.length} launchpad(s) on chain ${chainId}.`,
+    `Keeper started for launchpad ${getAddress(launchpad)} on chain ${chainId}.`,
   );
   while (!stopping) {
     try {
-      for (const keeper of keepers)
-        await traceKeeperSweep(() => keeper.tick());
+      await traceKeeperSweep(() => keeper.tick());
     } catch (error) {
       captureKeeperException(error, "sweep");
       console.error(

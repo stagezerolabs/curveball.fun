@@ -10,7 +10,7 @@ import {IStork} from "../contracts/interfaces/IStork.sol";
 /// @notice Deploys mainnet governance and the four singletons through `CurveDeploy`.
 /// @dev Run with `--account`; the broadcasting account is the deployer whose nonce predicts the
 ///      launchpad address. On testnet 11155931 the owner, guardian and treasury use the configured
-///      testnet operator. On mainnet 4153, Curveball's dedicated keystore deploys a self-administered
+///      testnet operator. On mainnet 4153, the dot keystore deploys a self-administered
 ///      two-day timelock, then owns the launchpad through it. The deployer can propose, execute and
 ///      cancel timelock operations, and serves as guardian. Protocol fees go to the pinned treasury.
 contract Deploy is Script, CurveDeploy {
@@ -20,7 +20,7 @@ contract Deploy is Script, CurveDeploy {
     address internal constant MAINNET_ICARUS = 0xEe10C6a0f158bFEeef3d48Dc0D26130Cf6115615;
     address internal constant TESTNET_ICARUS = 0x8221dfB70c9A2dE60253dcfC58231FD529bbF4F9;
     address internal constant TESTNET_OPERATOR = 0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3;
-    address internal constant MAINNET_DEPLOYER = 0xeEb364Ba1a9A4B6a75C41A39c4B91144a4aF156A;
+    address internal constant MAINNET_DEPLOYER = 0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3;
     address internal constant MAINNET_TREASURY = 0x7e6B1bEfC7dd622c20961140779eF61cd9C62Ce4;
     bytes32 internal constant PROPOSER_ROLE = keccak256("PROPOSER_ROLE");
     bytes32 internal constant EXECUTOR_ROLE = keccak256("EXECUTOR_ROLE");
@@ -82,7 +82,7 @@ contract Deploy is Script, CurveDeploy {
             0x7965e1bfc07a34caf0c3aa8146b200264fbb7a0eb85b1d3b1fdceecffd736b02
         );
         uint256 timestamp = uint256(sample.timestampNs) / 1e9;
-        _require(timestamp <= block.timestamp && block.timestamp - timestamp <= 60, "Stork price is stale");
+        _require(timestamp <= block.timestamp && block.timestamp - timestamp <= 30 minutes, "Stork price is stale");
         _require(sample.quantizedValue >= 100 ether && sample.quantizedValue <= 100_000 ether, "Stork price invalid");
         _require(p.icarusFactory.code.length != 0, "Icarus factory has no code");
         // Icarus pause blocks swaps only. Launches, pool creation and liquidity seeding remain usable.
