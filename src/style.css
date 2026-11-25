@@ -2242,13 +2242,6 @@ select:focus-visible {
   gap: 12px;
   margin: 24px 0 0;
 }
-.launch-wallet-steps {
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.6;
-  margin: 18px 0 0;
-  padding-left: 22px;
-}
 .launch-retry-note {
   border-left: 2px solid var(--lime);
   padding-left: 12px;

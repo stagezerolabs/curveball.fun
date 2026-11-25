@@ -828,34 +828,13 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
               ×
             </Dialog.Close>
             <Dialog.Title>Review launch cost</Dialog.Title>
-            <Dialog.Description>
-              The launch fee and first buy settle in WETH. Curveball wraps any
-              missing ETH, requests approval if needed, then asks you to confirm
-              the launch. These may be separate wallet transactions.
-              The fee uses the latest onchain ETH/USDC price. The launch fails if the fee rises above your reviewed WETH limit.
-            </Dialog.Description>
-            <ol className="launch-wallet-steps">
-              {funding && funding.ethToWrap > 0n && <li>Wrap ETH into WETH</li>}
-              <li>Approve WETH if your wallet asks</li>
-              <li>Confirm the market launch</li>
-            </ol>
             <dl className="launch-fee-review-amounts">
               <div>
-                <dt>Anti-spam fee · $1 target</dt>
+                <dt>Launch fee</dt>
                 <dd title={`${formatEther(launchFee ?? 0n)} WETH`}>
                   $1.00
                   <small>{displayWeth(launchFee ?? 0n)} WETH</small>
                 </dd>
-              </div>
-              {quoteTimestamp !== undefined && (
-                <div>
-                  <dt>Oracle price age</dt>
-                  <dd>{Math.max(0, nowSeconds - quoteTimestamp)} seconds</dd>
-                </div>
-              )}
-              <div>
-                <dt>Maximum fee if ETH price moves</dt>
-                <dd>{displayWeth(reviewedFeeCap.current ?? launchFeeCap ?? 0n)} WETH</dd>
               </div>
               {initialBuyWei !== undefined && initialBuyWei > 0n && (
                 <div>
