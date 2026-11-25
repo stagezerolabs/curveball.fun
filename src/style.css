@@ -3913,6 +3913,7 @@ select:focus-visible {
   align-content: start;
   display: grid;
   gap: 20px;
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
 }
 .market-chart-panel {
@@ -4132,6 +4133,7 @@ select:focus-visible {
   border-radius: 12px;
   display: grid;
   gap: 16px;
+  grid-template-columns: minmax(0, 1fr);
   padding: 22px 24px 24px;
 }
 .trade-panel {
