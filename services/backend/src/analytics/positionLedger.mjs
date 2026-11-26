@@ -56,6 +56,10 @@ export function replayWallet({
   launchpadAddress,
   creatorByToken = new Map(),
 }) {
+  const isLaunchpad =
+    launchpadAddress instanceof Set
+      ? (address) => launchpadAddress.has(address)
+      : (address) => address === launchpadAddress;
   const perToken = new Map();
   const trades = [];
   let excludedCreatorTrades = 0;
@@ -84,7 +88,7 @@ export function replayWallet({
       const current = position(token);
       current.onchainBalance += outbound ? -amount : amount;
       // Curve legs are accounted for by their trade rows.
-      if (event.from === launchpadAddress || event.to === launchpadAddress) continue;
+      if (isLaunchpad(event.from) || isLaunchpad(event.to)) continue;
       if (!outbound) continue; // inbound: no basis, no value
       const removed = removeBasis(current, amount);
       if (removed.known > 0n) {

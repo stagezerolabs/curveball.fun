@@ -77,3 +77,41 @@ export function eventFactory() {
       ),
   };
 }
+
+export const AS_OF = T0 + 40 * DAY;
+export const CREATOR = "0xcreator";
+
+// A deep, freshly traded market: 1 WETH real quote on a 1 WETH virtual reserve.
+export function market(token, overrides = {}) {
+  const vQ = overrides.vQ ?? 2n * E;
+  const k = 1000000000n * E * E;
+  return {
+    token,
+    creator: CREATOR,
+    launchpad: LAUNCHPAD,
+    launchBlock: 1n,
+    initialVirtualQuote: E,
+    feeBps: 75,
+    creatorTaxBps: 0,
+    state: "trading",
+    vQ,
+    vT: overrides.vT ?? (k + vQ - 1n) / vQ,
+    latestTradeAt: AS_OF - 3600,
+    ...overrides,
+  };
+}
+
+// Splits factory events into the engine's trade and transfer inputs.
+export function engineInput(f, markets, extra = {}) {
+  return {
+    asOfBlock: 1_000_000n,
+    asOfTime: AS_OF,
+    markets,
+    statesByToken: new Map(),
+    trades: f.events.filter((e) => e.kind === "trade"),
+    transfers: f.events.filter((e) => e.kind === "transfer"),
+    protocolAccounts: [LAUNCHPAD],
+    follows: [],
+    ...extra,
+  };
+}
