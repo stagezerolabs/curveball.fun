@@ -55,6 +55,8 @@ export function replayWallet({
   events,
   launchpadAddress,
   creatorByToken = new Map(),
+  windowStart = null,
+  rebase = null,
 }) {
   const isLaunchpad =
     launchpadAddress instanceof Set
@@ -65,6 +67,41 @@ export function replayWallet({
   let excludedCreatorTrades = 0;
   let deployed = 0n;
   let peakCapital = 0n;
+  // Windowed replay (spec 5.5): state at the window start is carried forward with realized
+  // P&L and capital reset, and each open known-basis position re-based at `rebase(token,
+  // markable)`, its exit value at the window start, as a synthetic opening buy. A null
+  // re-base value (unpriceable at the start) keeps the original cost, so pre-window gains
+  // are never credited as in-window profit.
+  let rebased = windowStart === null;
+  const rebaseAtWindowStart = () => {
+    rebased = true;
+    trades.length = 0;
+    excludedCreatorTrades = 0;
+    deployed = 0n;
+    for (const [token, current] of perToken) {
+      const onchain = current.onchainBalance > 0n ? current.onchainBalance : 0n;
+      const markable = minimum(current.knownBalance, onchain);
+      let basis = 0n;
+      if (markable > 0n) {
+        const value = rebase ? rebase(token, markable) : null;
+        basis =
+          value === null || value === undefined
+            ? minimum(
+                current.remainingCost,
+                ceilDiv(current.remainingCost * markable, current.knownBalance),
+              )
+            : BigInt(value);
+      }
+      Object.assign(current, emptyPosition(), {
+        onchainBalance: current.onchainBalance,
+        knownBalance: markable,
+        remainingCost: basis,
+        invested: basis,
+      });
+      deployed += basis;
+    }
+    peakCapital = deployed;
+  };
   const position = (token) => {
     let current = perToken.get(token);
     if (!current) {
@@ -75,6 +112,7 @@ export function replayWallet({
   };
 
   for (const event of [...events].sort(compareEvents)) {
+    if (!rebased && event.at >= windowStart) rebaseAtWindowStart();
     const token = event.token;
     if (creatorByToken.get(token) === wallet) {
       if (event.kind === "trade") excludedCreatorTrades += 1;
@@ -135,6 +173,7 @@ export function replayWallet({
     trades.push(record);
   }
 
+  if (!rebased) rebaseAtWindowStart();
   let realizedPnl = 0n;
   for (const current of perToken.values()) {
     const onchain = current.onchainBalance > 0n ? current.onchainBalance : 0n;

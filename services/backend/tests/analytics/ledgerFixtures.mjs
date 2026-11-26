@@ -37,6 +37,8 @@ export function eventFactory() {
       tokenAmount: BigInt(tokens),
       netQuote: BigInt(quote),
       antiSnipeTax: BigInt(opts.antiSnipeTax ?? 0n),
+      vQ: opts.vQ ?? null,
+      vT: opts.vT ?? null,
       blockNumber,
       txIndex: 0,
       logIndex: 1,

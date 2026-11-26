@@ -4,9 +4,9 @@
 //
 // Seam for linked-wallet clustering (deferred): every evaluation carries `entityId`, which
 // is the wallet address today, and ranked categories keep one row per entity.
-import { ceilDiv, markPosition } from "./curveExit.mjs";
+import { ceilDiv, exitValue, markPosition } from "./curveExit.mjs";
 import { LEADERBOARD_RULES_V3, publicRules } from "./leaderboardRules.mjs";
-import { replayWallet } from "./positionLedger.mjs";
+import { compareEvents, replayWallet } from "./positionLedger.mjs";
 import {
   compareEntities,
   confidenceLabel,
@@ -121,13 +121,15 @@ function markToken({ wallet, position, market, states, tradersByToken, asOfTime,
   return row;
 }
 
-function evaluateWallet({ wallet, events, ctx }) {
+function evaluateWallet({ wallet, events, ctx, window = null }) {
   const { rules, asOfTime, marketsByToken, statesByToken, tradersByToken } = ctx;
   const replay = replayWallet({
     wallet,
     events,
     launchpadAddress: ctx.launchpads,
     creatorByToken: ctx.creatorByToken,
+    windowStart: window?.start ?? null,
+    rebase: window?.rebase ?? null,
   });
   const peak = replay.peakCapital;
   const minTrade = BigInt(rules.minQualifyingTradeWei);
@@ -253,6 +255,7 @@ function evaluateWallet({ wallet, events, ctx }) {
       singleMarketShareBps: positiveTotal > 0n ? bpsShare(positiveMax, positiveTotal) : 0,
       launchWindowShareBps: bpsShare(launchBuyQuote, buyQuote),
       confidence: confidenceLabel(n, rules),
+      windowDays: window?.days ?? null,
       firstTradeAt: isoTime(firstTradeAt),
       lastTradeAt: isoTime(lastTradeAt),
     },
@@ -507,9 +510,43 @@ export function evaluateLeaderboards({
     evaluation.followerWindow = windowActivity(evaluation.qualifying, followerWindowStart);
   }
 
+  // Trending ranks windowed P&L (spec 5.5): positions open at the window start are re-based
+  // at their exit value against the last curve state before the start.
+  const trendingDays = rules.categories.trending.windowDays;
+  const windowStart = ctx.asOfTime - trendingDays * 86400;
+  const stateAtStart = new Map();
+  for (const trade of [...trades].sort(compareEvents)) {
+    if (trade.at >= windowStart || trade.vQ === null || trade.vQ === undefined) continue;
+    if (trade.vT === null || trade.vT === undefined) continue;
+    stateAtStart.set(lower(trade.token), { vQ: BigInt(trade.vQ), vT: BigInt(trade.vT) });
+  }
+  const rebase = (token, amount) => {
+    const market = marketsByToken.get(token);
+    const state = stateAtStart.get(token);
+    if (!market || !state) return null;
+    const realQuote = state.vQ - market.initialVirtualQuote;
+    return exitValue({
+      vT: state.vT,
+      vQ: state.vQ,
+      realQuote: realQuote > 0n ? realQuote : 0n,
+      amount,
+      feeBps: market.feeBps,
+      taxBps: market.creatorTaxBps,
+    });
+  };
+  const trendingEvaluations = [...traders].sort().map((wallet) =>
+    evaluateWallet({
+      wallet,
+      events: byWallet.get(wallet),
+      ctx,
+      window: { start: windowStart, rebase, days: trendingDays },
+    }),
+  );
+
   const categories = {};
   for (const category of RANKED_CATEGORIES) {
-    categories[category] = buildCategory(category, evaluations, ctx);
+    const pool = category === "trending" ? trendingEvaluations : evaluations;
+    categories[category] = buildCategory(category, pool, ctx);
   }
   return { categories, evaluations };
 }

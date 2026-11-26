@@ -118,3 +118,46 @@ describe("replayWallet", () => {
     expect(result.entityId).toBe(W);
   });
 });
+
+describe("replayWallet with a window start", () => {
+  const S = 1_800_000_000 + 10 * 86400;
+  const windowed = (f, rebaseValue) =>
+    replayWallet({
+      wallet: W,
+      events: f.forWallet(W),
+      launchpadAddress: LAUNCHPAD,
+      windowStart: S,
+      rebase: () => rebaseValue,
+    });
+
+  test("pre-window gains are not credited", () => {
+    const f = eventFactory();
+    f.buy(W, "0xa", 1000n, milli(50), { at: S - 86400 });
+    f.sell(W, "0xa", 1000n, milli(80), { at: S + 60 });
+    const result = windowed(f, milli(80));
+    expect(result.perToken.get("0xa").realizedPnl).toBe(0n);
+    expect(result.realizedPnl).toBe(0n);
+    // The re-based position is an opening synthetic buy for peak capital.
+    expect(result.peakCapital).toBe(milli(80));
+    expect(result.trades).toHaveLength(1);
+  });
+
+  test("in-window loss on a pre-window position counts", () => {
+    const f = eventFactory();
+    f.buy(W, "0xa", 1000n, milli(50), { at: S - 86400 });
+    f.sell(W, "0xa", 1000n, milli(60), { at: S + 60 });
+    const result = windowed(f, milli(80));
+    expect(result.perToken.get("0xa").realizedPnl).toBe(-milli(20));
+  });
+
+  test("pre-window realized P&L and closed positions are dropped", () => {
+    const f = eventFactory();
+    f.buy(W, "0xb", 1000n, milli(50), { at: S - 2 * 86400 });
+    f.sell(W, "0xb", 1000n, milli(90), { at: S - 86400 });
+    f.buy(W, "0xc", 1000n, milli(30), { at: S + 10 });
+    const result = windowed(f, 0n);
+    expect(result.realizedPnl).toBe(0n);
+    expect(result.peakCapital).toBe(milli(30));
+    expect(result.trades.map((t) => t.token)).toEqual(["0xc"]);
+  });
+});

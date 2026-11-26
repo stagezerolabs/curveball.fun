@@ -302,4 +302,34 @@ describe("evaluateLeaderboards", () => {
     // 0xcrowd0 has no qualifying volume, so only 0xfan counts.
     expect(board.items[0].score).toBe(1n);
   });
+
+  test("Trending ranks only in-window P&L", () => {
+    const f = eventFactory();
+    crowd(f);
+    profitableTrader(f, "0xpast", { start: AS_OF - 20 * DAY });
+    profitableTrader(f, "0xrecent", { start: AS_OF - 6 * DAY });
+    const result = evaluateLeaderboards(engineInput(f, MARKETS));
+    const board = result.categories.trending;
+    expect(addresses(board)).toEqual(["0xrecent"]);
+    expect(board.items[0].metrics.windowDays).toBe(7);
+    expect(board.items[0].metrics.netPnlWei).toBe("60000000000000000");
+  });
+
+  test("Trending re-bases a pre-window position at its exit value at the window start", () => {
+    const f = eventFactory();
+    crowd(f);
+    const vQ = 2n * E;
+    const vT = (1000000000n * E * E + vQ - 1n) / vQ;
+    // Bought cheaply before the window; the window-start exit value is the basis.
+    f.buy("0xholder", "0xa", 100000000n * E, milli(100), { at: AS_OF - 9 * DAY, vQ, vT });
+    profitableTrader(f, "0xholder", { start: AS_OF - 6 * DAY, tokens: ["0xb", "0xc", "0xb", "0xc", "0xb", "0xc"] });
+    f.sell("0xholder", "0xa", 100000000n * E, milli(100), { at: AS_OF - DAY });
+    const result = evaluateLeaderboards(engineInput(f, MARKETS));
+    const row = result.categories.trending.items.find((item) => item.address === "0xholder");
+    // Exit value of 1e8 tokens at the window-start state is ~0.33 WETH, so selling for
+    // 0.1 WETH in-window is a ~0.23 WETH windowed loss and the wallet cannot rank.
+    expect(row).toBeUndefined();
+    const allTime = evaluationOf(result, "0xholder");
+    expect(allTime.metrics.realizedPnlWei).toBe("60000000000000000");
+  });
 });
