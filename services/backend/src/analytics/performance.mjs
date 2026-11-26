@@ -1,30 +1,11 @@
 import { config } from "../platform/config.mjs";
+import { RANKED_CATEGORIES, evaluateLeaderboards } from "./leaderboardEngine.mjs";
+import { LEADERBOARD_RULES_V3 } from "./leaderboardRules.mjs";
 
-export const PERFORMANCE_METHODOLOGY = "curve-known-basis-v2";
-
-// Quote amounts use the chain's 18-decimal WETH. These are sample floors, not
-// claims that a ranked wallet is safe to follow or that its trades were human.
-// Trading-day counts bucket each wallet's trades into 24-hour windows anchored at that wallet's
-// first trade, so a session crossing a global midnight counts once instead of twice.
-export const LEADERBOARD_RULES = Object.freeze({
-  minimumInvestedWei: "10000000000000000", // 0.01 WETH in cumulative curve buys
-  minimumFollowerInvestedWei: "5000000000000000", // 0.005 WETH
-  establishedTrades: 6,
-  establishedTradingDays: 3,
-  establishedMarkets: 2,
-  emergingTrades: 4,
-  emergingTradingDays: 2,
-  emergingMarkets: 2,
-  emergingWindowDays: 14,
-  activeTradingDays: 2,
-  activeMarkets: 2,
-  activeWindowDays: 7,
-  followerWindowDays: 30,
-  openPriceMaxAgeDays: 7,
-});
-
-const methodologyCaveat =
-  "Estimated from known-basis curve trades and last curve prices; transfers and other venues can make wallet PnL incomplete. Open positions and future outcomes may differ.";
+// Leaderboards use the v3 engine. Per-wallet performance snapshots (a realized/basis cache
+// for profiles) keep their own label so their rows are never mislabelled v3.
+export const PERFORMANCE_METHODOLOGY = LEADERBOARD_RULES_V3.methodologyVersion;
+export const PERFORMANCE_SNAPSHOT_METHODOLOGY = "curve-known-basis-v2";
 
 export async function refreshPerformanceSnapshot(db, address, asOfBlock) {
   await db.query(
@@ -76,185 +57,237 @@ export async function refreshPerformanceSnapshot(db, address, asOfBlock) {
       concentration_bps=EXCLUDED.concentration_bps,trade_count=EXCLUDED.trade_count,
       market_count=EXCLUDED.market_count,profitable_market_count=EXCLUDED.profitable_market_count,
       calculated_at=now()`,
-    [config.chainId, address, asOfBlock.toString(), PERFORMANCE_METHODOLOGY],
+    [config.chainId, address, asOfBlock.toString(), PERFORMANCE_SNAPSHOT_METHODOLOGY],
   );
 }
 
-const scoreExpressions = {
-  // Bounded breadth favors repeated participation across days and markets,
-  // without paying a rank bonus for every bot-generated swap or gross volume.
-  trending:
-    "LEAST(activity.recent_trading_day_count,7)*8+LEAST(activity.recent_market_count,4)",
-  consistent:
-    "(latest.realized_pnl_quote+pricing.marked_unrealized_pnl_quote)*10000.0/NULLIF(latest.invested_quote,0)",
-  // Only followers with a recorded curve trade count toward this social signal.
-  followers:
-    "(SELECT COUNT(*) FROM follows f WHERE f.chain_id=$1 AND f.followed_address=latest.address AND EXISTS (SELECT 1 FROM trades ft WHERE ft.chain_id=$1 AND ft.trader_address=f.follower_address AND ft.orphaned=false))",
-  new: "(latest.realized_pnl_quote+pricing.marked_unrealized_pnl_quote)/1000000000000000000.0",
-};
 
-const eligibleExpressions = {
-  trending: `activity.recent_trading_day_count>=${LEADERBOARD_RULES.activeTradingDays}
-    AND activity.recent_market_count>=${LEADERBOARD_RULES.activeMarkets}
-    AND activity.recent_invested_quote>=${LEADERBOARD_RULES.minimumInvestedWei}
-    AND latest.realized_pnl_quote+pricing.marked_unrealized_pnl_quote>0
-    AND pricing.stale_open_market_count=0 AND pricing.external_outbound_count=0`,
-  consistent: `latest.trade_count>=${LEADERBOARD_RULES.establishedTrades}
-    AND activity.trading_day_count>=${LEADERBOARD_RULES.establishedTradingDays}
-    AND latest.market_count>=${LEADERBOARD_RULES.establishedMarkets}
-    AND latest.invested_quote>=${LEADERBOARD_RULES.minimumInvestedWei}
-    AND latest.realized_pnl_quote+pricing.marked_unrealized_pnl_quote>0
-    AND pricing.stale_open_market_count=0 AND pricing.external_outbound_count=0`,
-  followers: `latest.trade_count>=2
-    AND activity.trading_day_count>=2
-    AND latest.invested_quote>=${LEADERBOARD_RULES.minimumFollowerInvestedWei}
-    AND activity.last_trade_at>now()-interval '${LEADERBOARD_RULES.followerWindowDays} days'`,
-  new: `latest.trade_count>=${LEADERBOARD_RULES.emergingTrades}
-    AND activity.trading_day_count>=${LEADERBOARD_RULES.emergingTradingDays}
-    AND latest.market_count>=${LEADERBOARD_RULES.emergingMarkets}
-    AND latest.invested_quote>=${LEADERBOARD_RULES.minimumInvestedWei}
-    AND activity.first_trade_at>now()-interval '${LEADERBOARD_RULES.emergingWindowDays} days'
-    AND latest.realized_pnl_quote+pricing.marked_unrealized_pnl_quote>0
-    AND pricing.stale_open_market_count=0 AND pricing.external_outbound_count=0`,
-};
+const WEI = 10n ** 18n;
 
-export async function publishLeaderboards(db, asOfBlock) {
-  const categories = Object.keys(scoreExpressions);
-  const snapshotIds = [];
-  for (const category of categories) {
-    const snapshot = await db.query(
-      `INSERT INTO leaderboard_snapshots
-      (chain_id,category,period,methodology_version,as_of_block,published_at)
-      VALUES ($1,$2,'all',$3,$4,now())
-      ON CONFLICT (chain_id,category,period,as_of_block,methodology_version) DO UPDATE SET
-        calculated_at=now(),published_at=now() RETURNING id`,
-      [config.chainId, category, PERFORMANCE_METHODOLOGY, asOfBlock.toString()],
-    );
-    const snapshotId = snapshot.rows[0].id;
-    await db.query("DELETE FROM leaderboard_rows WHERE snapshot_id=$1", [
-      snapshotId,
-    ]);
-    snapshotIds.push(snapshotId);
+// numeric(38,18) holds 20 integer digits, so wei scores are stored as exact WETH decimals.
+export function weiToDecimal(wei) {
+  const value = BigInt(wei);
+  const abs = value < 0n ? -value : value;
+  const fraction = (abs % WEI).toString().padStart(18, "0");
+  return `${value < 0n ? "-" : ""}${abs / WEI}.${fraction}`;
+}
+
+const epoch = (value) => (value === null || value === undefined ? null : Number(value));
+
+// One bulk, read-only load of everything the v3 engine needs at `asOfBlock`. Curve state and
+// TWAP history come from trades at or before the block, so a rerun is reproducible.
+export async function loadLeaderboardInputs(db, asOfBlock, asOfTime, { chainId = config.chainId } = {}) {
+  const block = asOfBlock.toString();
+  const marketScope = `SELECT token_address FROM markets WHERE chain_id=$1 AND orphaned=false`;
+  const [marketRows, tradeRows, transferRows, protocolRows, followRows] = await Promise.all([
+    db.query(
+      `SELECT m.token_address,m.creator_address,m.launchpad_address,m.launch_block,
+        EXTRACT(EPOCH FROM m.launched_at)::bigint AS launched_at_epoch,
+        m.initial_virtual_quote,m.total_supply,m.fee_bps,m.creator_tax_bps,m.state,m.graduation_block
+      FROM markets m WHERE m.chain_id=$1 AND m.orphaned=false AND m.launch_block<=$2`,
+      [chainId, block],
+    ),
+    db.query(
+      `SELECT t.token_address,t.trader_address,t.is_buy,t.token_amount,t.net_trader_quote,
+        t.anti_snipe_tax_quote,t.virtual_quote_after,t.virtual_token_after,t.block_number,
+        t.transaction_index,t.log_index,EXTRACT(EPOCH FROM t.block_timestamp)::bigint AS at_epoch
+      FROM trades t WHERE t.chain_id=$1 AND t.block_number<=$2 AND t.orphaned=false
+        AND t.token_address IN (${marketScope})
+      ORDER BY t.block_number,t.transaction_index NULLS LAST,t.log_index`,
+      [chainId, block],
+    ),
+    db.query(
+      `SELECT a.token_address,a.from_address,a.to_address,a.amount,a.block_number,
+        a.transaction_index,a.log_index,EXTRACT(EPOCH FROM a.block_timestamp)::bigint AS at_epoch
+      FROM asset_transfers a WHERE a.chain_id=$1 AND a.block_number<=$2 AND a.orphaned=false
+        AND a.token_address IN (${marketScope})
+      ORDER BY a.block_number,a.transaction_index NULLS LAST,a.log_index`,
+      [chainId, block],
+    ),
+    db.query("SELECT DISTINCT address FROM protocol_accounts WHERE chain_id=$1", [chainId]),
+    db.query(
+      "SELECT follower_address,followed_address FROM follows WHERE chain_id=$1 AND created_at<=$2",
+      [chainId, asOfTime],
+    ),
+  ]);
+
+  const asOfSeconds = Math.floor(asOfTime.getTime() / 1000);
+  const windowStart = asOfSeconds - LEADERBOARD_RULES_V3.twapWindowSec;
+  const trades = tradeRows.rows.map((row) => ({
+    token: row.token_address,
+    trader: row.trader_address,
+    isBuy: row.is_buy,
+    tokenAmount: BigInt(row.token_amount),
+    netQuote: BigInt(row.net_trader_quote),
+    antiSnipeTax: BigInt(row.anti_snipe_tax_quote ?? 0),
+    vQ: row.virtual_quote_after,
+    vT: row.virtual_token_after,
+    blockNumber: BigInt(row.block_number),
+    txIndex: row.transaction_index,
+    logIndex: row.log_index,
+    at: epoch(row.at_epoch),
+  }));
+  const transfers = transferRows.rows.map((row) => ({
+    token: row.token_address,
+    from: row.from_address,
+    to: row.to_address,
+    amount: BigInt(row.amount),
+    blockNumber: BigInt(row.block_number),
+    txIndex: row.transaction_index,
+    logIndex: row.log_index,
+    at: epoch(row.at_epoch),
+  }));
+
+  const historyByToken = new Map();
+  const markets = marketRows.rows.map((row) => {
+    const graduated =
+      row.graduation_block !== null && row.graduation_block !== undefined &&
+      BigInt(row.graduation_block) <= BigInt(block);
+    const launchState = {
+      at: epoch(row.launched_at_epoch),
+      vQ: row.initial_virtual_quote,
+      vT: row.total_supply,
+    };
+    historyByToken.set(row.token_address, [launchState]);
+    return {
+      token: row.token_address,
+      creator: row.creator_address,
+      launchpad: row.launchpad_address,
+      launchBlock: row.launch_block,
+      initialVirtualQuote: row.initial_virtual_quote,
+      feeBps: row.fee_bps ?? 0,
+      creatorTaxBps: row.creator_tax_bps ?? 0,
+      // A market that graduated after asOfBlock was still on its curve at the block.
+      state: graduated ? "graduated" : row.state === "graduated" ? "ready" : row.state,
+      vQ: row.initial_virtual_quote,
+      vT: row.total_supply,
+      latestTradeAt: null,
+    };
+  });
+  const marketByToken = new Map(markets.map((market) => [market.token, market]));
+  for (const trade of trades) {
+    const market = marketByToken.get(trade.token);
+    if (!market || trade.vQ === null || trade.vT === null) continue;
+    market.vQ = trade.vQ;
+    market.vT = trade.vT;
+    market.latestTradeAt = trade.at;
+    historyByToken.get(trade.token).push({ at: trade.at, vQ: trade.vQ, vT: trade.vT });
+  }
+  const statesByToken = new Map();
+  for (const [token, history] of historyByToken) {
+    let first = 0;
+    for (let i = 0; i < history.length; i++) if (history[i].at <= windowStart) first = i;
+    statesByToken.set(token, history.slice(first));
   }
 
-  const candidateExpression = (expression) =>
-    expression.replace(/\b(?:latest|activity|pricing)\./g, "candidate.");
-  const categoryRows = categories
-    .map((category, index) => `('${category}',$${index + 5}::uuid)`)
-    .join(",");
-  const scores = categories
-    .map(
-      (category) =>
-        `WHEN categories.category='${category}' THEN ${candidateExpression(scoreExpressions[category])}`,
-    )
-    .join(" ");
-  const eligibility = categories
-    .map(
-      (category) =>
-        `(categories.category='${category}' AND ${candidateExpression(eligibleExpressions[category])})`,
-    )
-    .join(" OR ");
+  return {
+    asOfBlock: BigInt(block),
+    asOfTime: asOfSeconds,
+    markets,
+    statesByToken,
+    trades,
+    transfers,
+    protocolAccounts: protocolRows.rows.map((row) => row.address),
+    follows: followRows.rows.map((row) => ({
+      follower: row.follower_address,
+      followed: row.followed_address,
+    })),
+  };
+}
 
-  // MATERIALIZED makes the wallet activity/price work happen once per publish,
-  // even though the same candidates appear in four category rankings.
+async function inTransaction(db, run) {
+  // A pg Pool hands out connections per query, so a transaction needs one checked-out client.
+  if (typeof db.connect === "function" && "totalCount" in db) {
+    const client = await db.connect();
+    try {
+      await client.query("BEGIN");
+      const result = await run(client);
+      await client.query("COMMIT");
+      return result;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+  await db.query("BEGIN");
+  try {
+    const result = await run(db);
+    await db.query("COMMIT");
+    return result;
+  } catch (error) {
+    await db.query("ROLLBACK");
+    throw error;
+  }
+}
+
+const jsonWithBigInt = (value) =>
+  JSON.stringify(value, (_key, item) => (typeof item === "bigint" ? item.toString() : item));
+
+export async function publishLeaderboards(db, asOfBlock, asOfTime = new Date(), { chainId = config.chainId } = {}) {
+  const started = Date.now();
+  const inputs = await loadLeaderboardInputs(db, asOfBlock, asOfTime, { chainId });
+  const { categories, evaluations } = evaluateLeaderboards({ ...inputs, rules: LEADERBOARD_RULES_V3 });
+  const summary = { asOfBlock: asOfBlock.toString(), walletCount: evaluations.length, categories: {} };
+
+  for (const category of RANKED_CATEGORIES) {
+    const board = categories[category];
+    const details = {
+      rules: board.rules,
+      watching: board.watching,
+      progress: board.progress,
+    };
+    const rows = board.items.map((item) => ({
+      address: item.address,
+      rank: item.rank,
+      score: category === "followers" ? `${item.score}` : weiToDecimal(item.score),
+      metrics: { ...item.metrics, scoreWei: category === "followers" ? undefined : item.score.toString() },
+    }));
+    await inTransaction(db, async (client) => {
+      const snapshot = await client.query(
+        `INSERT INTO leaderboard_snapshots
+        (chain_id,category,period,methodology_version,as_of_block,published_at,status,as_of_time,details)
+        VALUES ($1,$2,'all',$3,$4,now(),$5,$6,$7::jsonb)
+        ON CONFLICT (chain_id,category,period,as_of_block,methodology_version) DO UPDATE SET
+          calculated_at=now(),published_at=now(),status=EXCLUDED.status,
+          as_of_time=EXCLUDED.as_of_time,details=EXCLUDED.details
+        RETURNING id`,
+        [
+          chainId,
+          category,
+          PERFORMANCE_METHODOLOGY,
+          asOfBlock.toString(),
+          board.status,
+          asOfTime,
+          jsonWithBigInt(details),
+        ],
+      );
+      const snapshotId = snapshot.rows[0].id;
+      await client.query("DELETE FROM leaderboard_rows WHERE snapshot_id=$1", [snapshotId]);
+      if (rows.length) {
+        await client.query(
+          `INSERT INTO leaderboard_rows (snapshot_id,address,rank,score,metrics)
+          SELECT $1,r.address,r.rank,r.score::numeric,r.metrics
+          FROM jsonb_to_recordset($2::jsonb) AS r(address text,rank integer,score text,metrics jsonb)`,
+          [snapshotId, jsonWithBigInt(rows)],
+        );
+      }
+    });
+    summary.categories[category] = { status: board.status, rows: rows.length };
+  }
+
+  // Keep the latest snapshot per category; never touch other methodology versions.
   await db.query(
-    `WITH latest AS (
-      SELECT DISTINCT ON (address) * FROM trader_performance_snapshots
-      WHERE chain_id=$1 AND period='all' AND methodology_version IN ('curve-known-basis-v1',$2) AND as_of_block<=$3
-      ORDER BY address,as_of_block DESC,methodology_version DESC
-    ), candidate AS MATERIALIZED (
-      SELECT latest.*,activity.*,pricing.*,
-        (SELECT COALESCE(SUM(cost.realized_cost_basis_quote),0)::text FROM curve_positions cost
-          WHERE cost.chain_id=$1 AND cost.trader_address=latest.address) AS realized_cost_wei
-      FROM latest
-      CROSS JOIN LATERAL (
-        SELECT (EXTRACT(EPOCH FROM MIN(t.block_timestamp)))::bigint AS day0_epoch
-        FROM trades t WHERE t.chain_id=$1 AND t.trader_address=latest.address AND t.orphaned=false
-      ) activity_window
-      CROSS JOIN LATERAL (
-        SELECT COUNT(DISTINCT (EXTRACT(EPOCH FROM t.block_timestamp)::bigint-activity_window.day0_epoch)/86400) AS trading_day_count,
-          MIN(t.block_timestamp) AS first_trade_at,MAX(t.block_timestamp) AS last_trade_at,
-          COUNT(DISTINCT (EXTRACT(EPOCH FROM t.block_timestamp)::bigint-activity_window.day0_epoch)/86400)
-            FILTER (WHERE t.block_timestamp>now()-interval '${LEADERBOARD_RULES.activeWindowDays} days') AS recent_trading_day_count,
-          COUNT(DISTINCT t.token_address)
-            FILTER (WHERE t.block_timestamp>now()-interval '${LEADERBOARD_RULES.activeWindowDays} days') AS recent_market_count,
-          COALESCE(SUM(t.net_trader_quote) FILTER (WHERE t.is_buy AND t.block_timestamp>now()-interval '${LEADERBOARD_RULES.activeWindowDays} days'),0) AS recent_invested_quote,
-          COALESCE(SUM(t.net_trader_quote) FILTER (WHERE t.block_timestamp>now()-interval '${LEADERBOARD_RULES.activeWindowDays} days'),0) AS recent_volume_quote
-        FROM trades t WHERE t.chain_id=$1 AND t.trader_address=latest.address AND t.orphaned=false
-      ) activity
-      CROSS JOIN LATERAL (
-        SELECT COUNT(*) FILTER (WHERE holdings.effective_balance>0 AND
-            (holdings.current_price_x18 IS NULL OR holdings.current_price_x18=0
-              OR holdings.latest_trade_at IS NULL
-              OR holdings.latest_trade_at<now()-interval '${LEADERBOARD_RULES.openPriceMaxAgeDays} days'))
-            AS stale_open_market_count,
-          COALESCE(SUM(floor(holdings.effective_balance*COALESCE(holdings.current_price_x18,0)/1000000000000000000)
-            - CASE WHEN holdings.known_basis_token_balance>0 THEN
-                floor(holdings.remaining_cost_basis_quote*holdings.effective_balance/holdings.known_basis_token_balance)
-              ELSE 0 END),0) AS marked_unrealized_pnl_quote,
-          COALESCE(SUM(floor(holdings.effective_balance*COALESCE(holdings.current_price_x18,0)/1000000000000000000)),0)
-            AS marked_portfolio_value_quote,
-          COALESCE(MAX(floor(holdings.effective_balance*COALESCE(holdings.current_price_x18,0)/1000000000000000000)),0)
-            AS largest_marked_position_quote,
-          (SELECT COUNT(*) FROM asset_transfers outgoing
-            JOIN curve_positions position ON position.chain_id=outgoing.chain_id
-              AND position.token_address=outgoing.token_address AND position.trader_address=latest.address
-            WHERE outgoing.chain_id=$1 AND outgoing.from_address=latest.address AND outgoing.orphaned=false
-              AND NOT EXISTS (SELECT 1 FROM trades sell WHERE sell.chain_id=$1
-                AND sell.trader_address=latest.address AND sell.token_address=outgoing.token_address
-                AND sell.transaction_hash=outgoing.transaction_hash AND sell.is_buy=false AND sell.orphaned=false))
-            AS external_outbound_count
-        FROM (
-          SELECT cp.known_basis_token_balance,cp.remaining_cost_basis_quote,
-            ms.current_price_x18,ms.latest_trade_at,
-            LEAST(cp.known_basis_token_balance,GREATEST(0,COALESCE(tb.balance,cp.known_basis_token_balance))) AS effective_balance
-          FROM curve_positions cp
-          LEFT JOIN market_stats ms ON ms.chain_id=cp.chain_id AND ms.token_address=cp.token_address
-          LEFT JOIN LATERAL (
-            SELECT SUM(CASE WHEN at.to_address=latest.address THEN at.amount ELSE 0 END)-
-              SUM(CASE WHEN at.from_address=latest.address THEN at.amount ELSE 0 END) AS balance
-            FROM asset_transfers at WHERE at.chain_id=$1 AND at.token_address=cp.token_address
-              AND at.orphaned=false AND (at.to_address=latest.address OR at.from_address=latest.address)
-          ) tb ON true
-          WHERE cp.chain_id=$1 AND cp.trader_address=latest.address
-        ) holdings
-      ) pricing
-      WHERE NOT EXISTS (SELECT 1 FROM protocol_accounts pa WHERE pa.chain_id=$1 AND pa.address=latest.address AND pa.is_user_attributable=false)
-    ), categories(category,snapshot_id) AS (VALUES ${categoryRows}), scored AS (
-      SELECT categories.snapshot_id,candidate.address,
-        CASE ${scores} END AS score,
-        candidate.realized_pnl_quote+candidate.marked_unrealized_pnl_quote AS net_pnl,
-        jsonb_build_object('realizedPnlWei',candidate.realized_pnl_quote::text,
-          'unrealizedPnlWei',candidate.marked_unrealized_pnl_quote::text,
-          'netPnlWei',(candidate.realized_pnl_quote+candidate.marked_unrealized_pnl_quote)::text,
-          'investedWei',candidate.invested_quote::text,'realizedCostWei',candidate.realized_cost_wei,
-          'returnBps',(candidate.realized_pnl_quote+candidate.marked_unrealized_pnl_quote)*10000.0/NULLIF(candidate.invested_quote,0),
-          'tradeCount',candidate.trade_count,'marketCount',candidate.market_count,
-          'tradingDayCount',candidate.trading_day_count,'recentTradingDayCount',candidate.recent_trading_day_count,
-          'recentMarketCount',candidate.recent_market_count,'recentInvestedWei',candidate.recent_invested_quote::text,
-          'recentVolumeWei',candidate.recent_volume_quote::text,'volumeWei',candidate.wallet_cash_turnover::text,
-          'firstTradeAt',candidate.first_trade_at,'lastTradeAt',candidate.last_trade_at,
-          'staleOpenMarketCount',candidate.stale_open_market_count,
-          'externalOutboundTransferCount',candidate.external_outbound_count,
-          'sampleLabel',CASE WHEN categories.category='consistent' THEN 'established' ELSE 'provisional' END,
-          'methodologyVersion',$2,'methodologyCaveat',$4::text,
-          'portfolioValueWei',candidate.marked_portfolio_value_quote::text,
-          'concentrationBps',CASE WHEN candidate.marked_portfolio_value_quote>0 THEN
-            candidate.largest_marked_position_quote*10000.0/candidate.marked_portfolio_value_quote END) AS metrics
-      FROM candidate CROSS JOIN categories WHERE ${eligibility}
-    ), ranked AS (
-      SELECT snapshot_id,address,score,metrics,
-        row_number() OVER (PARTITION BY snapshot_id ORDER BY score DESC,net_pnl DESC,address ASC) AS rank
-      FROM scored
-    )
-    INSERT INTO leaderboard_rows (snapshot_id,address,rank,score,metrics)
-    SELECT snapshot_id,address,rank,score,metrics FROM ranked WHERE rank<=100`,
-    [
-      config.chainId,
-      PERFORMANCE_METHODOLOGY,
-      asOfBlock.toString(),
-      methodologyCaveat,
-      ...snapshotIds,
-    ],
+    `DELETE FROM leaderboard_snapshots s
+    WHERE s.chain_id=$1 AND s.methodology_version=$2
+      AND s.published_at<now()-interval '7 days'
+      AND s.published_at<(SELECT max(latest.published_at) FROM leaderboard_snapshots latest
+        WHERE latest.chain_id=s.chain_id AND latest.category=s.category
+          AND latest.methodology_version=$2)`,
+    [chainId, PERFORMANCE_METHODOLOGY],
   );
+
+  summary.durationMs = Date.now() - started;
+  return summary;
 }
