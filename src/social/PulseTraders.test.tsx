@@ -106,12 +106,14 @@ function watchingSection(html: string) {
   return html.slice(start, html.indexOf("</ul>", start));
 }
 
-test("ranked board shows ranks and WETH profit", () => {
+test("ranked rows show the rank and only the return percent", () => {
   const html = render(leaderboard);
   expect(html).toContain('aria-label="Rank 1"');
-  expect(html).toContain("+0.1 WETH");
   expect(html).toContain("+10.0%");
-  expect(html).toContain("Developing");
+  expect(html).not.toContain("WETH");
+  expect(html).not.toContain("Developing");
+  // Visible text only; the row keeps its pulse-leader-return class.
+  expect(html).not.toMatch(/>[^<]*\breturn\b[^<]*</i);
 });
 
 test("no_qualifiers renders the checklist from rules", () => {
@@ -156,17 +158,12 @@ test("stale board shows Updated N min ago", () => {
   expect(html).toContain('aria-label="Rank 1"');
 });
 
-test("How ranking works panel is present", () => {
-  const html = render(noQualifiers);
-  expect(html).toContain("<details");
-  expect(html).toContain("How ranking works");
-  expect(html).toContain("not percent");
-  expect(html).toContain("what selling them would actually return");
-  expect(html).toContain("block 28100000");
-  expect(html).not.toMatch(/linked wallet/i);
+test("no How ranking works panel is rendered", () => {
+  expect(render(noQualifiers)).not.toContain("How ranking works");
+  expect(render(leaderboard)).not.toContain("<details");
 });
 
-test("preview boards carry a visible Preview rules badge", () => {
-  expect(render({ ...leaderboard, preview: true })).toContain("Preview rules");
-  expect(render(leaderboard)).not.toContain("Preview rules");
+
+test("preview boards render without a Preview rules badge", () => {
+  expect(render({ ...leaderboard, preview: true })).not.toContain("Preview rules");
 });

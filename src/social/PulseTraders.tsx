@@ -4,7 +4,6 @@ import type { Navigate } from "../types";
 import { TraderIdentity } from "./TraderIdentity";
 import type {
   LeaderboardCategory,
-  LeaderboardConfidence,
   LeaderboardRules,
   LeaderboardSnapshot,
   LeaderboardTrader,
@@ -16,12 +15,6 @@ const P_AND_L_CATEGORIES = new Set<LeaderboardCategory>([
   "new",
   "trending",
 ]);
-
-const CONFIDENCE_LABELS: Record<LeaderboardConfidence, string> = {
-  established: "Established",
-  developing: "Developing",
-  new: "New",
-};
 
 const RANKING_LABELS: Record<LeaderboardCategory, string> = {
   consistent: "Track record ranking",
@@ -36,14 +29,8 @@ function weth(wei: string | null | undefined) {
   return formatEthAmount(Number(formatUnits(BigInt(wei), 18)));
 }
 
-function signedWeth(wei: string | null | undefined) {
-  const value = BigInt(wei || "0");
-  const sign = value > 0n ? "+" : value < 0n ? "-" : "";
-  return `${sign}${weth((value < 0n ? -value : value).toString())} WETH`;
-}
-
 function percent(bps: number | null | undefined) {
-  if (bps === null || bps === undefined || !Number.isFinite(bps)) return null;
+  if (bps === null || bps === undefined || !Number.isFinite(bps)) return "—";
   return `${bps >= 0 ? "+" : ""}${(bps / 100).toFixed(1)}%`;
 }
 
@@ -118,8 +105,7 @@ function TraderRow({
 }) {
   const metrics = trader.publishedMetrics || {};
   const isFollowers = category === "followers";
-  const net = BigInt(metrics.netPnlWei || "0");
-  const returnText = percent(metrics.returnBps);
+  const returnBps = metrics.returnBps;
   return (
     <li className={`pulse-leader${rank <= 3 ? " is-podium" : ""}`}>
       <span className="pulse-leader-rank" aria-label={`Rank ${rank}`}>
@@ -133,16 +119,11 @@ function TraderRow({
             <span>followers</span>
           </>
         ) : (
-          <>
-            <strong className={net < 0n ? "negative" : ""}>
-              {signedWeth(metrics.netPnlWei)}
-            </strong>
-            <span>
-              {returnText ? `${returnText} return` : "net profit"}
-              {" · "}
-              {CONFIDENCE_LABELS[trader.confidence] ?? "New"}
-            </span>
-          </>
+          <strong
+            className={returnBps != null && returnBps < 0 ? "negative" : ""}
+          >
+            {percent(returnBps)}
+          </strong>
         )}
       </div>
     </li>
@@ -173,27 +154,6 @@ function WatchingRow({
         ) : null}
       </div>
     </li>
-  );
-}
-
-function HowRankingWorks({ asOfBlock }: { asOfBlock?: string | null }) {
-  return (
-    <details className="pulse-ranking-method">
-      <summary>How ranking works</summary>
-      <ul>
-        <li>Ranked by profit in WETH, not percent, adjusted for sample size.</li>
-        <li>
-          Open positions are valued at what selling them would actually
-          return, not at the last price.
-        </li>
-        <li>Trades in a creator&apos;s own token are excluded.</li>
-        <li>Minimum trade counts, markets, active days and capital apply.</li>
-        <li>
-          Updated every few minutes
-          {asOfBlock ? ` at block ${asOfBlock}` : ""}.
-        </li>
-      </ul>
-    </details>
   );
 }
 
@@ -281,19 +241,12 @@ export function PulseTraders({
 
   return (
     <>
-      {data.preview ? (
-        <p className="pulse-preview-badge" role="note">
-          <span>Preview rules</span>
-          Relaxed thresholds for product validation, not the final ranking.
-        </p>
-      ) : null}
       {data.stale && !data.paused && data.ageMinutes !== null ? (
         <p className="pulse-leader-freshness" role="status">
           Updated {data.ageMinutes} min ago
         </p>
       ) : null}
       {body}
-      <HowRankingWorks asOfBlock={data.asOfBlock} />
     </>
   );
 }
