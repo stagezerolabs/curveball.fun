@@ -52,3 +52,61 @@ export function exitValue({ vT, vQ, realQuote, amount, feeBps, taxBps }) {
   const net = gross - fee - tax;
   return net > 0n ? net : 0n;
 }
+
+// Floored time-weighted average of vQ over [asOf - window, asOf]. `states` is ordered by
+// `at` (epoch seconds) and includes the last state before the window start, or the launch
+// state; a market launched inside the window averages from launch.
+export function twapVirtualQuote(states, asOfTime, windowSec) {
+  if (!states?.length) return null;
+  const asOf = Number(asOfTime);
+  const start = Math.max(asOf - Number(windowSec), Number(states[0].at));
+  let weighted = 0n;
+  let total = 0n;
+  for (let i = 0; i < states.length; i++) {
+    const from = Math.max(start, Number(states[i].at));
+    const to = Math.min(
+      asOf,
+      i + 1 < states.length ? Number(states[i + 1].at) : asOf,
+    );
+    if (to <= from) continue;
+    const span = BigInt(to - from);
+    weighted += BigInt(states[i].vQ) * span;
+    total += span;
+  }
+  if (total === 0n) {
+    const before = states.filter((state) => Number(state.at) <= asOf);
+    const last = before.at(-1) ?? states[0];
+    return BigInt(last.vQ);
+  }
+  return weighted / total;
+}
+
+// Conservative mark for an open position: the lower of the exit value now and the exit
+// value at the TWAP state on the same constant-product curve (last-minute-pump guard).
+export function markPosition({
+  amount,
+  now,
+  states,
+  initialVirtualQuote,
+  feeBps,
+  taxBps,
+  asOfTime,
+  windowSec,
+}) {
+  const current = exitValue({ ...now, amount, feeBps, taxBps });
+  if (current === 0n) return 0n;
+  const vQt = twapVirtualQuote(states, asOfTime, windowSec);
+  if (vQt === null || vQt <= 0n) return current;
+  const kNow = BigInt(now.vT) * BigInt(now.vQ);
+  const vTt = ceilDiv(kNow, vQt);
+  const realT = vQt - BigInt(initialVirtualQuote);
+  const twap = exitValue({
+    vT: vTt,
+    vQ: vQt,
+    realQuote: realT > 0n ? realT : 0n,
+    amount,
+    feeBps,
+    taxBps,
+  });
+  return twap < current ? twap : current;
+}

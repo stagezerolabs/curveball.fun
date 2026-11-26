@@ -1,6 +1,12 @@
 import { describe, expect, test } from "bun:test";
 
-import { exitValue, quoteSellExact } from "../../src/analytics/curveExit.mjs";
+import {
+  ceilDiv,
+  exitValue,
+  markPosition,
+  quoteSellExact,
+  twapVirtualQuote,
+} from "../../src/analytics/curveExit.mjs";
 import {
   LEADERBOARD_RULES_V3,
   publicRules,
@@ -124,5 +130,50 @@ describe("leaderboard rules", () => {
       ["consistent", "new", "trending", "followers"].map((c) => publicRules(c)),
     );
     expect(serialized).not.toMatch(/depth|launch|thin/i);
+  });
+});
+
+describe("TWAP and conservative mark", () => {
+  const asOf = 1_800_000_000;
+  const H = 3600;
+  const history = [
+    { at: asOf - 8 * H, vQ: E, vT: 0n },
+    { at: asOf - 3 * H, vQ: (12n * E) / 10n, vT: 0n },
+  ];
+
+  test("TWAP averages vQ over time", () => {
+    expect(twapVirtualQuote(history, asOf, 6 * H)).toBe(1100000000000000000n);
+  });
+
+  test("TWAP uses the launch state when the market is younger than the window", () => {
+    const young = [
+      { at: asOf - 2 * H, vQ: E, vT: 0n },
+      { at: asOf - H, vQ: (12n * E) / 10n, vT: 0n },
+    ];
+    expect(twapVirtualQuote(young, asOf, 6 * H)).toBe(1100000000000000000n);
+  });
+
+  test("mark is the lower of current and TWAP exit", () => {
+    const k = 900000000n * E * 1111111111111111112n;
+    const vQ = (12n * E) / 10n;
+    const now = { vQ, vT: ceilDiv(k, vQ), realQuote: vQ - E };
+    const amount = 10000000n * E;
+    expect(
+      exitValue({ ...now, amount, feeBps: 75n, taxBps: 31n }),
+    ).toBe(14078418972332017n);
+    expect(ceilDiv(now.vT * now.vQ, 1100000000000000000n)).toBe(
+      909090909090909091636363637n,
+    );
+    const mark = markPosition({
+      amount,
+      now,
+      states: history,
+      initialVirtualQuote: E,
+      feeBps: 75n,
+      taxBps: 31n,
+      asOfTime: asOf,
+      windowSec: 6 * H,
+    });
+    expect(mark).toBe(11841483679525223n);
   });
 });
