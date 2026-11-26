@@ -17,13 +17,13 @@ import {
   tradeVenueForMarket,
 } from "../lib/marketState";
 import { useStore } from "../app/useStore.js";
-import { formatEthAmount, formatPercent } from "../lib/format.js";
+import { formatPercent, formatTradeAmount } from "../lib/format.js";
 import { getBuyFundingState, TradeFundingStatus } from "./TradeFundingStatus";
 import { NATIVE_GAS_RESERVE } from "../sdk/sdk";
 import type { Address } from "viem";
 import type { Token } from "../types";
 import { tradeButtonLabel } from "../lib/tradeProgress";
-import { UsdAmount } from "./UsdAmount";
+import { formatUsd, useEthUsdRate } from "./UsdAmount";
 
 const SLIPPAGE_BPS = 300; // useStore sends minOut at 97% of the quote.
 const PRESETS = [25, 50, 100];
@@ -49,6 +49,25 @@ function Row({
   );
 }
 
+function UsdHint({ weth }: { weth: number }) {
+  const usdPerEth = useEthUsdRate();
+  if (usdPerEth == null) return null;
+  const usd = weth * usdPerEth;
+  return (
+    <small className="trade-usd">
+      ≈ {usd > 0 && usd < 0.01 ? "<$0.01" : formatUsd(usd)}
+    </small>
+  );
+}
+
+function TokenAmount({ value, symbol }: { value: number; symbol: string }) {
+  return (
+    <span className="trade-amount" title={`${value} ${symbol}`}>
+      {formatTradeAmount(value)} <span>{symbol}</span>
+    </span>
+  );
+}
+
 export function TradePanel({
   token,
   address,
@@ -63,7 +82,6 @@ export function TradePanel({
     setSide,
     trade,
     isPending,
-    tradeMessage,
     tradeProgress,
     quotePreview,
     quoteContext,
@@ -89,11 +107,15 @@ export function TradePanel({
     },
   });
   const { data: walletCapacity } = useReadContract({
-    address: marketFactory, abi: curveLaunchpadAbi,
+    address: marketFactory,
+    abi: curveLaunchpadAbi,
     functionName: "remainingWalletCapacity",
     args: address ? [token.address, address] : undefined,
     chainId: activeChainId,
-    query: { enabled: venue === "curve" && Boolean(marketFactory && address), refetchInterval: 10_000 },
+    query: {
+      enabled: venue === "curve" && Boolean(marketFactory && address),
+      refetchInterval: 10_000,
+    },
   });
   const { data: paused } = useReadContract({
     address: marketFactory,
@@ -331,14 +353,17 @@ export function TradePanel({
             step="any"
             inputMode="decimal"
             autoComplete="off"
-            value={amount}
+            placeholder="0"
+            value={amount === "0" ? "" : amount}
             style={{
               fontSize:
-                amount.length > 18
-                  ? "20px"
+                amount.length > 16
+                  ? "18px"
                   : amount.length > 12
-                    ? "24px"
-                    : undefined,
+                    ? "22px"
+                    : amount.length > 9
+                      ? "26px"
+                      : undefined,
             }}
             onChange={(event) => setAmount(event.target.value)}
           />
@@ -357,23 +382,26 @@ export function TradePanel({
         <Row
           label="You receive"
           value={
-            quoting
-              ? "…"
-              : received === null
-                ? "—"
-                : <>
-                    {formatEthAmount(received)} {receiving}
-                    {side === "sell" ? <> (≈ <UsdAmount weth={received} />)</> : null}
-                  </>
+            quoting ? (
+              "…"
+            ) : received === null ? (
+              "—"
+            ) : (
+              <>
+                <TokenAmount value={received} symbol={receiving} />
+                {side === "sell" && <UsdHint weth={received} />}
+              </>
+            )
           }
         />
         <Row
           label="At least"
           value={
-            atLeast === null ? "—" : <>
-              {formatEthAmount(atLeast)} {receiving}
-              {side === "sell" ? <> (≈ <UsdAmount weth={atLeast} />)</> : null}
-            </>
+            atLeast === null ? (
+              "—"
+            ) : (
+              <TokenAmount value={atLeast} symbol={receiving} />
+            )
           }
         />
         <Row label="Slippage limit" value={`${SLIPPAGE_BPS / 100}%`} />
@@ -438,11 +466,6 @@ export function TradePanel({
         >
           Sign in to trade
         </button>
-      )}
-      {tradeMessage && !isPending && (
-        <p className="trade-hint success" role="status">
-          {tradeMessage}
-        </p>
       )}
       {graduatedVenue && (
         <div className="trade-powered-by">

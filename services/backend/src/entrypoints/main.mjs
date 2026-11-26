@@ -5,7 +5,10 @@ import { startIndexer } from "../indexing/indexer.mjs";
 import { startMetadataWorker } from "../workers/metadata.mjs";
 import { createSocialServer } from "../api/server.mjs";
 import { registerWebRoutes } from "../web/routes.mjs";
-import { captureBackendException, flushBackendEvents } from "../platform/instrument.mjs";
+import {
+  captureBackendException,
+  flushBackendEvents,
+} from "../platform/instrument.mjs";
 
 const events = new EventEmitter();
 events.setMaxListeners(1_000);

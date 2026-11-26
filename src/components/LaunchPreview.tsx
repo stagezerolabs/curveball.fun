@@ -114,7 +114,10 @@ export function LaunchPreview({
                   </div>
                 </div>
                 {showAllocation && (
-                  <section className="launch-preview-allocation" aria-label="Estimated token allocation">
+                  <section
+                    className="launch-preview-allocation"
+                    aria-label="Estimated token allocation"
+                  >
                     <dl className="launch-preview-allocation-list">
                       <div>
                         <dt>Curve sale</dt>
@@ -145,11 +148,17 @@ export function LaunchPreview({
                   <div>
                     <dt>Buyback</dt>
                     <dd>
-                      {buybackShareBps === undefined
-                        ? buybackUnavailable
-                          ? "Unavailable"
-                          : "Loading…"
-                        : <>{buybackShareBps / 100}% <small>of trading fee</small></>}
+                      {buybackShareBps === undefined ? (
+                        buybackUnavailable ? (
+                          "Unavailable"
+                        ) : (
+                          "Loading…"
+                        )
+                      ) : (
+                        <>
+                          {buybackShareBps / 100}% <small>of trading fee</small>
+                        </>
+                      )}
                     </dd>
                   </div>
                 </dl>

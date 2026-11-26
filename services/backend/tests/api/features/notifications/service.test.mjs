@@ -2,7 +2,8 @@ import { expect, test } from "bun:test";
 import { configureTestEnvironment } from "../../../helpers/environment.mjs";
 
 configureTestEnvironment();
-const { createNotifications } = await import("../../../../src/api/features/notifications/service.mjs");
+const { createNotifications } =
+  await import("../../../../src/api/features/notifications/service.mjs");
 const alice = "0x0000000000000000000000000000000000000011";
 
 test("marking notifications read accepts only bounded numeric IDs", async () => {

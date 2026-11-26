@@ -1,6 +1,11 @@
 import { pool } from "../../../platform/db.mjs";
 import { config } from "../../../platform/config.mjs";
-import { addressParam, boundedLimit, decodeCursor, encodeCursor } from "../../transport/params.mjs";
+import {
+  addressParam,
+  boundedLimit,
+  decodeCursor,
+  encodeCursor,
+} from "../../transport/params.mjs";
 
 export async function feed(url, viewer) {
   const limit = boundedLimit(url);

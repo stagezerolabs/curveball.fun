@@ -30,13 +30,20 @@ test("docs topics have direct links and the selected chapter has navigation", ()
 });
 
 test("contracts docs exclude the retired launchpad and list the oracle dependency", () => {
-  const html = renderToStaticMarkup(<DocsPage navigate={navigate} slug="contracts" />);
+  const html = renderToStaticMarkup(
+    <DocsPage navigate={navigate} slug="contracts" />,
+  );
   const documented = documentedNetworks[0];
   expect(documentedNetworks).toHaveLength(1);
-  for (const contract of documented.protocol) expect(html).toContain(`${documented.explorer}/address/${contract.address}`);
+  for (const contract of documented.protocol)
+    expect(html).toContain(
+      `${documented.explorer}/address/${contract.address}`,
+    );
   expect(html).toContain("0xacC0a0cF13571d30B4b8637996F5D6D774d4fd62");
   if (documented.protocol.length === 0)
-    expect(html).toContain("Oracle release addresses will appear after mainnet deployment.");
+    expect(html).toContain(
+      "Oracle release addresses will appear after mainnet deployment.",
+    );
   expect(html).toContain("External contracts used by Curveball");
   expect(html).not.toContain("RISE Testnet");
   expect(html).not.toContain("11155931");

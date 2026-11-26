@@ -70,7 +70,8 @@ export function readCachedLaunches(
         typeof token === "object" &&
         isAddress(token.address) &&
         (token.slug === undefined ||
-          (typeof token.slug === "string" && /^[a-z0-9-]{1,122}$/.test(token.slug))) &&
+          (typeof token.slug === "string" &&
+            /^[a-z0-9-]{1,122}$/.test(token.slug))) &&
         (token.factory === undefined || isAddress(token.factory)) &&
         isAddress(token.creator) &&
         typeof token.graduated === "boolean" &&

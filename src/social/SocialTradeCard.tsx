@@ -61,7 +61,9 @@ export function SocialTradeCard({
           <strong>
             {formatEthAmount(tokenAmount)} {trade.tokenSymbol}
           </strong>
-          <span>for <UsdAmount weth={quote} compact /></span>
+          <span>
+            for <UsdAmount weth={quote} compact />
+          </span>
         </div>
       </div>
       <footer>

@@ -20,7 +20,9 @@ export function encodeCursor(value) {
 export function decodeCursor(value) {
   if (!value) return null;
   try {
-    const decoded = JSON.parse(Buffer.from(value, "base64url").toString("utf8"));
+    const decoded = JSON.parse(
+      Buffer.from(value, "base64url").toString("utf8"),
+    );
     return decoded && typeof decoded === "object" ? decoded : null;
   } catch {
     throw Object.assign(new Error("The pagination cursor is invalid."), {

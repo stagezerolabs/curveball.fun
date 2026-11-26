@@ -60,15 +60,23 @@ test("trade history includes execution, wallet, time, and transaction details", 
   expect(html).not.toContain("Venue");
   expect(html).toContain("Block 12,345");
   expect(html).toContain("0x5555…5555");
-  expect(html).toContain('role="tab" aria-selected="true" aria-controls="market-trades-panel"');
-  expect(html).toContain('role="tab" aria-selected="false" aria-controls="market-holders-panel"');
+  expect(html).toContain(
+    'role="tab" aria-selected="true" aria-controls="market-trades-panel"',
+  );
+  expect(html).toContain(
+    'role="tab" aria-selected="false" aria-controls="market-holders-panel"',
+  );
   expect(html).toContain("Top 50 holders");
 });
 
 test("trade execution price uses the current USD exchange rate", () => {
-  expect(averageUsdPrice(trade.quoteAmount, trade.tokenAmount, 2_000)).toBe("$1,000.00");
+  expect(averageUsdPrice(trade.quoteAmount, trade.tokenAmount, 2_000)).toBe(
+    "$1,000.00",
+  );
   expect(averageUsdPrice(trade.quoteAmount, trade.tokenAmount, null)).toBe("—");
-  expect(averageUsdPrice(1_000_000n, 1_000_000_000_000_000_000n, 2_000)).toBe("$0.000000002");
+  expect(averageUsdPrice(1_000_000n, 1_000_000_000_000_000_000n, 2_000)).toBe(
+    "$0.000000002",
+  );
 });
 
 test("holder percentages use eligible wallet supply and handle empty supply", () => {

@@ -108,8 +108,7 @@ function mapNotification(row: Record<string, unknown>): Notification {
     tokenName: typeof payload.tokenName === "string" ? payload.tokenName : null,
     tokenSymbol:
       typeof payload.tokenSymbol === "string" ? payload.tokenSymbol : null,
-    tokenSlug:
-      typeof payload.tokenSlug === "string" ? payload.tokenSlug : null,
+    tokenSlug: typeof payload.tokenSlug === "string" ? payload.tokenSlug : null,
     milestone: typeof payload.milestone === "number" ? payload.milestone : null,
     readAt: typeof row.read_at === "string" ? row.read_at : null,
     createdAt: String(row.created_at),
@@ -217,7 +216,9 @@ export const socialApi = {
     }>(`/v1/notifications?limit=${limit}`);
     const items = result.items
       .map(mapNotification)
-      .filter((notification) => !isHiddenMarketAddress(notification.tokenAddress));
+      .filter(
+        (notification) => !isHiddenMarketAddress(notification.tokenAddress),
+      );
     return { items, unreadCount: result.unreadCount };
   },
   markNotificationsRead(ids: string[]) {

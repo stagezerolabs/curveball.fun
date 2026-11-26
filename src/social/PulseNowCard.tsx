@@ -30,7 +30,9 @@ export function PulseNowCard({
     <article className="pulse-now-card">
       <AppLink
         route="market"
-        params={{ address: moment.tokenSlug ?? token?.slug ?? moment.tokenAddress }}
+        params={{
+          address: moment.tokenSlug ?? token?.slug ?? moment.tokenAddress,
+        }}
         navigate={navigate}
         className="pulse-now-link"
         aria-label={`View ${moment.tokenName} market`}
@@ -73,8 +75,12 @@ export function PulseNowCard({
           <span className="sell" />
         </div>
         <p>
-          <span className="buy"><UsdAmount weth={quote(buy)} compact /> bought</span>
-          <span className="sell"><UsdAmount weth={quote(sell)} compact /> sold</span>
+          <span className="buy">
+            <UsdAmount weth={quote(buy)} compact /> bought
+          </span>
+          <span className="sell">
+            <UsdAmount weth={quote(sell)} compact /> sold
+          </span>
         </p>
       </div>
       <div className="pulse-now-net">

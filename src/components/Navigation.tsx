@@ -582,7 +582,6 @@ export function LandingFooter({
             </svg>
           </a>
         </nav>
-
       </div>
 
       <div className="landing-footer-bottom">

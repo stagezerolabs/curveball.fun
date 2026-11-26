@@ -156,7 +156,8 @@ export function MarketActivity({
           role="tablist"
           aria-label="Market data"
           onKeyDown={(event) => {
-            if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+            if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key))
+              return;
             event.preventDefault();
             const next =
               event.key === "Home"
@@ -169,7 +170,9 @@ export function MarketActivity({
             setTab(next);
             event.currentTarget
               .querySelector<HTMLButtonElement>(
-                next === "trades" ? "#market-trades-tab" : "#market-holders-tab",
+                next === "trades"
+                  ? "#market-trades-tab"
+                  : "#market-holders-tab",
               )
               ?.focus();
           }}
@@ -306,7 +309,9 @@ export function MarketActivity({
         aria-labelledby="market-holders-tab"
         hidden={tab !== "holders"}
       >
-        {tab === "holders" && <MarketHolders token={token} navigate={navigate} />}
+        {tab === "holders" && (
+          <MarketHolders token={token} navigate={navigate} />
+        )}
       </div>
     </section>
   );

@@ -24,7 +24,10 @@ function formatQuantity(balance: bigint) {
 
 export function holderPercentage(balance: bigint, eligibleSupply: bigint) {
   if (balance <= 0n || eligibleSupply <= 0n) return 0;
-  return Number((balance * 1_000_000n + eligibleSupply / 2n) / eligibleSupply) / 10_000;
+  return (
+    Number((balance * 1_000_000n + eligibleSupply / 2n) / eligibleSupply) /
+    10_000
+  );
 }
 
 function HolderRow({
@@ -119,7 +122,10 @@ export function MarketHolders({
       );
       return {
         atBlock: block.toString(),
-        eligibleSupply: holders.reduce((sum, holder) => sum + holder.balance, 0n),
+        eligibleSupply: holders.reduce(
+          (sum, holder) => sum + holder.balance,
+          0n,
+        ),
         items: holders,
       };
     },
@@ -138,7 +144,10 @@ export function MarketHolders({
   const unavailable = !backendEnabled && !client;
 
   return (
-    <div className="market-holders" aria-busy={active.isPending && !unavailable}>
+    <div
+      className="market-holders"
+      aria-busy={active.isPending && !unavailable}
+    >
       {unavailable ? (
         <p className="market-activity-status" role="alert">
           Holder balances are unavailable right now.
@@ -198,7 +207,8 @@ export function MarketHolders({
       {holders.length > PAGE_SIZE && (
         <footer className="market-activity-footer">
           <span>
-            {firstHolder + 1}–{firstHolder + visibleHolders.length} of {holders.length} holders
+            {firstHolder + 1}–{firstHolder + visibleHolders.length} of{" "}
+            {holders.length} holders
           </span>
           <nav className="market-activity-pages" aria-label="Top holders pages">
             <button
@@ -208,7 +218,9 @@ export function MarketHolders({
             >
               Previous
             </button>
-            <span>Page {currentPage + 1} of {pageCount}</span>
+            <span>
+              Page {currentPage + 1} of {pageCount}
+            </span>
             <button
               type="button"
               disabled={currentPage >= pageCount - 1}

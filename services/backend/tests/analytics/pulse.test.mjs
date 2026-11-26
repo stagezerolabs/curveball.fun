@@ -51,7 +51,8 @@ test("Now SQL keeps only net-buying markets and ranks them by net inflow", async
 });
 
 test("Following SQL reports each followed wallet's launches, buys, and sells", async () => {
-  const { followingActivitySql } = await import("../../src/analytics/pulseSql.mjs");
+  const { followingActivitySql } =
+    await import("../../src/analytics/pulseSql.mjs");
   assert.match(followingActivitySql, /'launch'::text AS action/);
   assert.match(followingActivitySql, /m\.creator_address=ANY\(\$2::text\[\]\)/);
   assert.match(

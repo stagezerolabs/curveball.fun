@@ -55,7 +55,9 @@ export function PulseFollowingCard({
     <article className="pulse-now-card pulse-following-card">
       <AppLink
         route="market"
-        params={{ address: activity.tokenSlug ?? token?.slug ?? activity.tokenAddress }}
+        params={{
+          address: activity.tokenSlug ?? token?.slug ?? activity.tokenAddress,
+        }}
         navigate={navigate}
         className="pulse-now-link"
         aria-label={`View ${activity.tokenName} market`}
@@ -118,7 +120,8 @@ export function PulseFollowingCard({
               "just created"
             ) : (
               <>
-                <UsdAmount weth={weth(activity.boughtQuoteWei)} compact /> in · {wallets} {noun} active
+                <UsdAmount weth={weth(activity.boughtQuoteWei)} compact /> in ·{" "}
+                {wallets} {noun} active
               </>
             )}
             {" · "}

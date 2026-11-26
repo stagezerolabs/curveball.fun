@@ -19,7 +19,9 @@ export function createSocialActions({
     async setFollow(follower, followedValue, active) {
       const followed = addressParam(followedValue);
       if (!followed || followed === follower)
-        throw Object.assign(new Error("Choose another trader to follow."), { status: 400 });
+        throw Object.assign(new Error("Choose another trader to follow."), {
+          status: 400,
+        });
       if (active) {
         await runTransaction(async (db) => {
           const blocked = await db.query(
@@ -29,7 +31,12 @@ export function createSocialActions({
             [chainId, follower, followed],
           );
           if (blocked.rowCount)
-            throw Object.assign(new Error("This follow is unavailable because one wallet has blocked the other."), { status: 409 });
+            throw Object.assign(
+              new Error(
+                "This follow is unavailable because one wallet has blocked the other.",
+              ),
+              { status: 409 },
+            );
           const inserted = await db.query(
             "INSERT INTO follows (chain_id,follower_address,followed_address) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING RETURNING followed_address",
             [chainId, follower, followed],
@@ -56,7 +63,9 @@ export function createSocialActions({
     async setBlock(blocker, blockedValue, active) {
       const blocked = addressParam(blockedValue);
       if (!blocked || blocked === blocker)
-        throw Object.assign(new Error("Choose another trader to block."), { status: 400 });
+        throw Object.assign(new Error("Choose another trader to block."), {
+          status: 400,
+        });
       if (active) {
         await runTransaction(async (db) => {
           await db.query(
@@ -82,36 +91,66 @@ export function createSocialActions({
 
     async report(reporter, body) {
       const subject = addressParam(body.subjectAddress);
-      const allowed = new Set(["spam", "impersonation", "manipulation", "harmful_content", "other"]);
-      const tradeId = body.tradeId == null
-        ? null
-        : typeof body.tradeId === "string" && body.tradeId.length <= 256 ? body.tradeId : "";
-      if (!subject || subject === reporter || !allowed.has(body.reason) || (body.tradeId != null && !tradeId))
-        throw Object.assign(new Error("Choose a valid report reason."), { status: 400 });
+      const allowed = new Set([
+        "spam",
+        "impersonation",
+        "manipulation",
+        "harmful_content",
+        "other",
+      ]);
+      const tradeId =
+        body.tradeId == null
+          ? null
+          : typeof body.tradeId === "string" && body.tradeId.length <= 256
+            ? body.tradeId
+            : "";
+      if (
+        !subject ||
+        subject === reporter ||
+        !allowed.has(body.reason) ||
+        (body.tradeId != null && !tradeId)
+      )
+        throw Object.assign(new Error("Choose a valid report reason."), {
+          status: 400,
+        });
       if (tradeId) {
         const trade = await query(
           "SELECT trader_address FROM trades WHERE logical_id=$1 AND chain_id=$2 AND orphaned=false",
           [tradeId, chainId],
         );
         if (!trade.rows[0] || trade.rows[0].trader_address !== subject)
-          throw Object.assign(new Error("The reported trade does not belong to that wallet."), { status: 400 });
+          throw Object.assign(
+            new Error("The reported trade does not belong to that wallet."),
+            { status: 400 },
+          );
       }
       await query(
         "INSERT INTO reports (chain_id,reporter_address,subject_address,subject_trade_id,reason,details) VALUES ($1,$2,$3,$4,$5,$6)",
-        [chainId, reporter, subject, tradeId, body.reason, typeof body.details === "string" ? body.details.slice(0, 1000) : ""],
+        [
+          chainId,
+          reporter,
+          subject,
+          tradeId,
+          body.reason,
+          typeof body.details === "string" ? body.details.slice(0, 1000) : "",
+        ],
       );
       return { ok: true };
     },
 
     async setTradeNote(author, body) {
       const tradeId = typeof body.tradeId === "string" ? body.tradeId : "";
-      const note = typeof body.note === "string" ? body.note.trim().slice(0, 240) : "";
+      const note =
+        typeof body.note === "string" ? body.note.trim().slice(0, 240) : "";
       const trade = await query(
         "SELECT trader_address FROM trades WHERE logical_id=$1 AND chain_id=$2 AND orphaned=false",
         [tradeId, chainId],
       );
       if (!trade.rows[0] || trade.rows[0].trader_address !== author)
-        throw Object.assign(new Error("Only the wallet that made this trade can attach a note."), { status: 403 });
+        throw Object.assign(
+          new Error("Only the wallet that made this trade can attach a note."),
+          { status: 403 },
+        );
       if (note) {
         await query(
           `INSERT INTO trade_notes (logical_trade_id,chain_id,author_address,note) VALUES ($1,$2,$3,$4)
@@ -119,7 +158,10 @@ export function createSocialActions({
           [tradeId, chainId, author, note],
         );
       } else {
-        await query("DELETE FROM trade_notes WHERE logical_trade_id=$1 AND author_address=$2", [tradeId, author]);
+        await query(
+          "DELETE FROM trade_notes WHERE logical_trade_id=$1 AND author_address=$2",
+          [tradeId, author],
+        );
       }
       return { note: note || null };
     },
@@ -133,7 +175,10 @@ export function createSocialActions({
       if (!trade.rows[0])
         throw Object.assign(new Error("Trade not found."), { status: 404 });
       if (body.active === false) {
-        await query("DELETE FROM trade_reactions WHERE logical_trade_id=$1 AND reactor_address=$2", [tradeId, reactor]);
+        await query(
+          "DELETE FROM trade_reactions WHERE logical_trade_id=$1 AND reactor_address=$2",
+          [tradeId, reactor],
+        );
       } else {
         await query(
           "INSERT INTO trade_reactions (logical_trade_id,chain_id,reactor_address) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING",
@@ -145,12 +190,26 @@ export function createSocialActions({
               SELECT $1,$2,'reaction',$3,$4,$5::jsonb
               WHERE COALESCE((SELECT in_app FROM notification_preferences WHERE chain_id=$1 AND address=$2),true)=true
               ON CONFLICT DO NOTHING`,
-            [chainId, trade.rows[0].trader_address, reactor, `${tradeId}:reaction:${reactor}`,
-              JSON.stringify({ tradeId, tokenAddress: trade.rows[0].token_address })],
+            [
+              chainId,
+              trade.rows[0].trader_address,
+              reactor,
+              `${tradeId}:reaction:${reactor}`,
+              JSON.stringify({
+                tradeId,
+                tokenAddress: trade.rows[0].token_address,
+              }),
+            ],
           );
       }
-      const count = await query("SELECT COUNT(*) AS count FROM trade_reactions WHERE logical_trade_id=$1", [tradeId]);
-      return { active: body.active !== false, count: Number(count.rows[0].count) };
+      const count = await query(
+        "SELECT COUNT(*) AS count FROM trade_reactions WHERE logical_trade_id=$1",
+        [tradeId],
+      );
+      return {
+        active: body.active !== false,
+        count: Number(count.rows[0].count),
+      };
     },
   };
 }

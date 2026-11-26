@@ -3,7 +3,10 @@ import { config } from "../../../platform/config.mjs";
 import { boundedLimit } from "../../transport/params.mjs";
 import { pulseGraph } from "./pulse.mjs";
 import { PERFORMANCE_METHODOLOGY } from "../../../analytics/performance.mjs";
-import { provisionalLeaderboardSql, followingActivitySql } from "../../../analytics/pulseSql.mjs";
+import {
+  provisionalLeaderboardSql,
+  followingActivitySql,
+} from "../../../analytics/pulseSql.mjs";
 
 const leaderboardPublicCache = new Map();
 

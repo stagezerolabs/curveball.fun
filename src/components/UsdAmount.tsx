@@ -110,7 +110,10 @@ export function UsdAmount({
   const sign = showPlus && weth > 0 ? "+" : "";
   if (compact)
     return (
-      <span title={`${sign}${full}${suffix}`} aria-label={`${sign}${full}${suffix}`}>
+      <span
+        title={`${sign}${full}${suffix}`}
+        aria-label={`${sign}${full}${suffix}`}
+      >
         {sign}
         {formatCompactUsd(weth * usdPerEth)}
         {suffix}

@@ -397,7 +397,9 @@ async function requireFreshDeployment(db, launchpad) {
     [config.chainId, launchpad],
   );
   if (existing.rowCount || oldMarket.rowCount) {
-    throw new Error("Database contains an older launchpad. Run the full reset before activating the oracle release.");
+    throw new Error(
+      "Database contains an older launchpad. Run the full reset before activating the oracle release.",
+    );
   }
 }
 
@@ -415,29 +417,41 @@ async function initializeIndexerState() {
       abi: launchpadAbi,
       functionName,
     });
-  const [quote, treasury, escrow, locker, supply, curveSupply, storkOracle, maxOracleAge, usdLaunchFee] =
-    await Promise.all([
-      read("quoteToken"),
-      read("treasury"),
-      read("escrow"),
-      read("locker"),
-      read("SUPPLY"),
-      read("CURVE_SUPPLY"),
-      read("storkOracle"),
-      read("MAX_ORACLE_AGE"),
-      read("USD_LAUNCH_FEE"),
-    ]);
+  const [
+    quote,
+    treasury,
+    escrow,
+    locker,
+    supply,
+    curveSupply,
+    storkOracle,
+    maxOracleAge,
+    usdLaunchFee,
+  ] = await Promise.all([
+    read("quoteToken"),
+    read("treasury"),
+    read("escrow"),
+    read("locker"),
+    read("SUPPLY"),
+    read("CURVE_SUPPLY"),
+    read("storkOracle"),
+    read("MAX_ORACLE_AGE"),
+    read("USD_LAUNCH_FEE"),
+  ]);
   if (
     lower(storkOracle) !== "0xacc0a0cf13571d30b4b8637996f5d6d774d4fd62" ||
     maxOracleAge !== 1800n ||
     usdLaunchFee !== 10n ** 18n
   ) {
-    throw new Error("Configured launchpad does not match the RISE Stork oracle fee release.");
+    throw new Error(
+      "Configured launchpad does not match the RISE Stork oracle fee release.",
+    );
   }
   supplies = { supply, curveSupply };
   // Roles the ledger stream reads logs from; none of these addresses is a user for stats or holders.
   const buybackTreasury = await client.readContract({
-    address: escrow, abi: parseAbi(["function buybackTreasury() view returns (address)"]),
+    address: escrow,
+    abi: parseAbi(["function buybackTreasury() view returns (address)"]),
     functionName: "buybackTreasury",
   });
   const accounts = [
@@ -602,7 +616,8 @@ async function indexFactoryRange(fromBlock, toBlock) {
             "SELECT 1 FROM markets WHERE chain_id=$1 AND slug=$2 LIMIT 1",
             [config.chainId, baseSlug],
           );
-      const slug = existingSlug.rows[0]?.slug ??
+      const slug =
+        existingSlug.rows[0]?.slug ??
         (claimedBase?.rowCount
           ? duplicateMarketSlug(baseSlug, tokenAddress)
           : baseSlug);

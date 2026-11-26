@@ -26,7 +26,8 @@ export function firstBuySpendCap({
     curveSupply <= 0n ||
     curveSupply >= tokenSupply ||
     walletCapBps <= 0
-  ) return 0n;
+  )
+    return 0n;
   const virtualQuote =
     (graduationTarget * (tokenSupply - curveSupply)) / curveSupply;
   const walletCap = (curveSupply * BigInt(walletCapBps)) / BPS;

@@ -112,9 +112,14 @@ function displayWeth(amount: bigint): string {
 }
 
 export function LaunchPage({ navigate }: { navigate: Navigate }) {
-  const [nowSeconds, setNowSeconds] = useState(() => Math.floor(Date.now() / 1_000));
+  const [nowSeconds, setNowSeconds] = useState(() =>
+    Math.floor(Date.now() / 1_000),
+  );
   useEffect(() => {
-    const timer = window.setInterval(() => setNowSeconds(Math.floor(Date.now() / 1_000)), 5_000);
+    const timer = window.setInterval(
+      () => setNowSeconds(Math.floor(Date.now() / 1_000)),
+      5_000,
+    );
     return () => window.clearInterval(timer);
   }, []);
   const dialogHeading = useRef<HTMLHeadingElement>(null);
@@ -133,8 +138,9 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
   const [draftTelegramUrl, setDraftTelegramUrl] = useState("");
   const [draftDiscordUrl, setDraftDiscordUrl] = useState("");
   const [draftTaxPercent, setDraftTaxPercent] = useState("0");
-  const [selectedBuyPercent, setSelectedBuyPercent] =
-    useState<InitialBuyPercent | "custom">(0);
+  const [selectedBuyPercent, setSelectedBuyPercent] = useState<
+    InitialBuyPercent | "custom"
+  >(0);
   const [draftInitialBuy, setDraftInitialBuy] = useState("0");
   const [feeReviewOpen, setFeeReviewOpen] = useState(false);
   const [draftImageUrl, setDraftImageUrl] = useState<string>();
@@ -174,7 +180,11 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
     ...launchpadRead,
     functionName: "paused",
   });
-  const { data: oracleQuote, isError: oracleQuoteError, isFetching: oracleQuoteFetching } = useReadContract({
+  const {
+    data: oracleQuote,
+    isError: oracleQuoteError,
+    isFetching: oracleQuoteFetching,
+  } = useReadContract({
     ...launchpadRead,
     functionName: "quoteLaunchFee",
     query: {
@@ -206,12 +216,16 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
     chainId: activeChainId,
     query: { enabled: Boolean(address), refetchInterval: 15_000 },
   });
-  const quoteTimestamp = oracleQuote ? Number(oracleQuote[2] / 1_000_000_000n) : undefined;
-  const quoteTooOld = quoteTimestamp !== undefined &&
+  const quoteTimestamp = oracleQuote
+    ? Number(oracleQuote[2] / 1_000_000_000n)
+    : undefined;
+  const quoteTooOld =
+    quoteTimestamp !== undefined &&
     (quoteTimestamp > nowSeconds || nowSeconds - quoteTimestamp > 1770);
-  const launchFee = quoteTooOld || oracleQuoteError ? undefined : oracleQuote?.[0];
-  const launchFeeCap = launchFee === undefined ? undefined :
-    maximumLaunchFee(launchFee);
+  const launchFee =
+    quoteTooOld || oracleQuoteError ? undefined : oracleQuote?.[0];
+  const launchFeeCap =
+    launchFee === undefined ? undefined : maximumLaunchFee(launchFee);
   const reviewQuoteReady = launchFeeCap !== undefined && !oracleQuoteFetching;
   const launchFeeError = oracleQuoteError;
   const buybackShareBps = feeDefaults?.[2];
@@ -285,10 +299,20 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
     } catch (error) {
       return {
         value: null,
-        error: error instanceof Error ? error.message : "Check the optional launch details.",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Check the optional launch details.",
       };
     }
-  }, [draftBio, draftDescription, draftWebsite, draftXUrl, draftTelegramUrl, draftDiscordUrl]);
+  }, [
+    draftBio,
+    draftDescription,
+    draftWebsite,
+    draftXUrl,
+    draftTelegramUrl,
+    draftDiscordUrl,
+  ]);
   const metadataDetailsKey = JSON.stringify({
     name: nameForMetadata,
     symbol: symbolForMetadata,
@@ -414,7 +438,9 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
   } catch {
     initialBuyWei = undefined;
   }
-  const fundingFeeCap = feeReviewOpen ? reviewedFeeCap.current ?? launchFeeCap : launchFeeCap;
+  const fundingFeeCap = feeReviewOpen
+    ? (reviewedFeeCap.current ?? launchFeeCap)
+    : launchFeeCap;
   const funding =
     wethBalance !== undefined &&
     nativeBalance !== undefined &&
@@ -455,7 +481,8 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
     !imageError &&
     funding?.canFund === true &&
     (initialBuyWei === 0n ||
-      (firstBuyLimitWei !== undefined && initialBuyWei !== undefined &&
+      (firstBuyLimitWei !== undefined &&
+        initialBuyWei !== undefined &&
         initialBuyWei <= firstBuyLimitWei)) &&
     canSubmitLaunch({
       name: draftName,
@@ -467,7 +494,11 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
       taxCapBps: creatorTaxCapBps,
     });
   const submitLaunch = (event: React.FormEvent<HTMLFormElement>) => {
-    if (!formReady || !canCreate || (feeReviewConfirmed.current && !reviewQuoteReady)) {
+    if (
+      !formReady ||
+      !canCreate ||
+      (feeReviewConfirmed.current && !reviewQuoteReady)
+    ) {
       event.preventDefault();
       return;
     }
@@ -543,7 +574,9 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
               walletCapBps === undefined ? undefined : Number(walletCapBps)
             }
             buybackShareBps={
-              buybackShareBps === undefined ? undefined : Number(buybackShareBps)
+              buybackShareBps === undefined
+                ? undefined
+                : Number(buybackShareBps)
             }
             buybackUnavailable={feeDefaultsError}
             imageUrl={draftImageUrl}
@@ -643,7 +676,9 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
             <div className="launch-form-group">
               <div className="launch-group-heading">
                 <h2>About and links</h2>
-                <p className="launch-field-help">Everything here is optional and appears on your market page.</p>
+                <p className="launch-field-help">
+                  Everything here is optional and appears on your market page.
+                </p>
               </div>
               <div className="launch-fields">
                 <label className="launch-field-wide">
@@ -664,27 +699,59 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                     maxLength={1000}
                     rows={4}
                     value={draftDescription}
-                    onChange={(event) => setDraftDescription(event.target.value)}
+                    onChange={(event) =>
+                      setDraftDescription(event.target.value)
+                    }
                   />
                 </label>
                 <label className="launch-field-wide">
                   <span>Website</span>
-                  <input type="url" name="website" placeholder="https://example.com" value={draftWebsite} onChange={(event) => setDraftWebsite(event.target.value)} />
+                  <input
+                    type="url"
+                    name="website"
+                    placeholder="https://example.com"
+                    value={draftWebsite}
+                    onChange={(event) => setDraftWebsite(event.target.value)}
+                  />
                 </label>
                 <label className="launch-field-wide">
                   <span>X</span>
-                  <input type="url" name="xUrl" placeholder="https://x.com/yourtoken" value={draftXUrl} onChange={(event) => setDraftXUrl(event.target.value)} />
+                  <input
+                    type="url"
+                    name="xUrl"
+                    placeholder="https://x.com/yourtoken"
+                    value={draftXUrl}
+                    onChange={(event) => setDraftXUrl(event.target.value)}
+                  />
                 </label>
                 <label className="launch-field-wide">
                   <span>Telegram</span>
-                  <input type="url" name="telegramUrl" placeholder="https://t.me/yourtoken" value={draftTelegramUrl} onChange={(event) => setDraftTelegramUrl(event.target.value)} />
+                  <input
+                    type="url"
+                    name="telegramUrl"
+                    placeholder="https://t.me/yourtoken"
+                    value={draftTelegramUrl}
+                    onChange={(event) =>
+                      setDraftTelegramUrl(event.target.value)
+                    }
+                  />
                 </label>
                 <label className="launch-field-wide">
                   <span>Discord</span>
-                  <input type="url" name="discordUrl" placeholder="https://discord.gg/invite" value={draftDiscordUrl} onChange={(event) => setDraftDiscordUrl(event.target.value)} />
+                  <input
+                    type="url"
+                    name="discordUrl"
+                    placeholder="https://discord.gg/invite"
+                    value={draftDiscordUrl}
+                    onChange={(event) => setDraftDiscordUrl(event.target.value)}
+                  />
                 </label>
               </div>
-              {launchDetails.error && <p className="launch-field-error" role="alert">{launchDetails.error}</p>}
+              {launchDetails.error && (
+                <p className="launch-field-error" role="alert">
+                  {launchDetails.error}
+                </p>
+              )}
             </div>
 
             <div className="launch-form-group launch-buy-group">
@@ -692,7 +759,9 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                 <div className="launch-buy-heading">
                   <span>Initial buy</span>
                   <strong>
-                    {initialBuyWei === undefined ? "—" : (
+                    {initialBuyWei === undefined ? (
+                      "—"
+                    ) : (
                       <UsdAmount weth={Number(formatEther(initialBuyWei))} />
                     )}
                   </strong>
@@ -795,17 +864,18 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                           ? "Checking ETH, WETH, and the launch fee…"
                           : initialBuyWei > 0n && firstBuyLimitWei === undefined
                             ? "Checking the first-buy wallet limit…"
-                            : initialBuyWei > 0n && firstBuyLimitWei !== undefined &&
+                            : initialBuyWei > 0n &&
+                                firstBuyLimitWei !== undefined &&
                                 initialBuyWei > firstBuyLimitWei
                               ? `First buy exceeds this wallet's opening limit of ${displayWeth(firstBuyLimitWei)} ETH equivalent.`
-                          : nativeBalance !== undefined &&
-                              nativeBalance.value < LAUNCH_GAS_RESERVE
-                            ? `Keep at least ${formatEther(LAUNCH_GAS_RESERVE)} ETH for network gas.`
-                            : !funding.canFund
-                              ? "Not enough ETH and WETH for the launch fee and first buy."
-                              : funding.ethToWrap > 0n
-                                ? `Curveball will wrap ${displayWeth(funding.ethToWrap)} ETH before launch. Your wallet may ask for separate wrap, approval, and launch confirmations.`
-                                : "Your WETH covers this launch. Keep ETH for network gas."}
+                              : nativeBalance !== undefined &&
+                                  nativeBalance.value < LAUNCH_GAS_RESERVE
+                                ? `Keep at least ${formatEther(LAUNCH_GAS_RESERVE)} ETH for network gas.`
+                                : !funding.canFund
+                                  ? "Not enough ETH and WETH for the launch fee and first buy."
+                                  : funding.ethToWrap > 0n
+                                    ? `Curveball will wrap ${displayWeth(funding.ethToWrap)} ETH before launch. Your wallet may ask for separate wrap, approval, and launch confirmations.`
+                                    : "Your WETH covers this launch. Keep ETH for network gas."}
                   </small>
                 )}
               </div>
@@ -839,7 +909,11 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
             </label>
             <input type="hidden" name="creatorTaxBps" value={draftTaxBps} />
             <input type="hidden" name="uri" value={publishedUri} />
-            <input type="hidden" name="maxLaunchFeeWei" value={launchFeeCap?.toString() ?? ""} />
+            <input
+              type="hidden"
+              name="maxLaunchFeeWei"
+              value={launchFeeCap?.toString() ?? ""}
+            />
 
             {address && paused === true && (
               <p className="notice" role="status">
@@ -849,12 +923,14 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
             )}
             {launchFeeError && (
               <p className="notice" role="alert">
-                Could not verify the onchain launch fee. Try again before launching.
+                Could not verify the onchain launch fee. Try again before
+                launching.
               </p>
             )}
             {quoteTooOld && (
               <p className="notice" role="alert">
-                The oracle quote expired. Wait for a fresh price before launching.
+                The oracle quote expired. Wait for a fresh price before
+                launching.
               </p>
             )}
             {feeDefaultsError && (
@@ -892,11 +968,11 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                             ? "Launches paused"
                             : !canCreate
                               ? "Checking launch status…"
-                            : funding !== null && !funding.canFund
-                              ? "Add ETH or WETH to launch"
-                              : !formReady
-                                ? "Complete form to launch"
-                                : "Launch token"}{" "}
+                              : funding !== null && !funding.canFund
+                                ? "Add ETH or WETH to launch"
+                                : !formReady
+                                  ? "Complete form to launch"
+                                  : "Launch token"}{" "}
                 <ArrowIcon />
               </button>
             </div>
@@ -926,9 +1002,14 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
               )}
               <div>
                 <dt>Launch fee</dt>
-                <dd title={`${formatEther(reviewedLaunchFee.current ?? launchFee ?? 0n)} WETH`}>
+                <dd
+                  title={`${formatEther(reviewedLaunchFee.current ?? launchFee ?? 0n)} WETH`}
+                >
                   $1.00
-                  <small>{displayWeth(reviewedLaunchFee.current ?? launchFee ?? 0n)} WETH</small>
+                  <small>
+                    {displayWeth(reviewedLaunchFee.current ?? launchFee ?? 0n)}{" "}
+                    WETH
+                  </small>
                 </dd>
               </div>
               <div className="launch-fee-review-total">
@@ -957,7 +1038,8 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
               The launch may spend less than this limit. Any WETH left after
               launch stays in your wallet.
               <br />
-              At least {formatEther(LAUNCH_GAS_RESERVE)} ETH is kept available for gas.
+              At least {formatEther(LAUNCH_GAS_RESERVE)} ETH is kept available
+              for gas.
             </p>
             <div className="launch-fee-review-actions">
               <Dialog.Close className="launch-fee-review-cancel">
@@ -966,13 +1048,24 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
               <button
                 type="button"
                 className="launch-modal-action"
-                disabled={!formReady || !canCreate || isPending || !reviewQuoteReady}
+                disabled={
+                  !formReady || !canCreate || isPending || !reviewQuoteReady
+                }
                 onClick={() => {
-                  if (!reviewQuoteReady || !formReady || !canCreate || isPending) return;
+                  if (
+                    !reviewQuoteReady ||
+                    !formReady ||
+                    !canCreate ||
+                    isPending
+                  )
+                    return;
                   const form = formRef.current;
                   if (!form || !form.reportValidity()) return;
                   const capField = form.elements.namedItem("maxLaunchFeeWei");
-                  if (capField instanceof HTMLInputElement && reviewedFeeCap.current !== null)
+                  if (
+                    capField instanceof HTMLInputElement &&
+                    reviewedFeeCap.current !== null
+                  )
                     capField.value = reviewedFeeCap.current.toString();
                   setFeeReviewOpen(false);
                   feeReviewConfirmed.current = true;

@@ -4,7 +4,9 @@ import { fileURLToPath } from "node:url";
 import fastifyStatic from "@fastify/static";
 import { POST as uploadArtwork } from "../../../../api/artwork.js";
 
-const defaultDistRoot = fileURLToPath(new URL("../../../../dist/", import.meta.url));
+const defaultDistRoot = fileURLToPath(
+  new URL("../../../../dist/", import.meta.url),
+);
 const ARTWORK_BODY_LIMIT = 2_200_000;
 
 function forwardedUrl(request) {
@@ -58,17 +60,21 @@ export async function registerWebRoutes(
     { parseAs: "buffer" },
     (_request, body, done) => done(null, body),
   );
-  app.all("/api/artwork", { bodyLimit: ARTWORK_BODY_LIMIT }, async (request, reply) => {
-    const webRequest = new Request(forwardedUrl(request.raw), {
-      method: request.method,
-      headers: request.headers,
-      body: request.method === "POST" ? request.body : undefined,
-    });
-    const response = await uploadArtwork(webRequest);
-    reply.code(response.status);
-    for (const [name, value] of response.headers) reply.header(name, value);
-    return reply.send(Buffer.from(await response.arrayBuffer()));
-  });
+  app.all(
+    "/api/artwork",
+    { bodyLimit: ARTWORK_BODY_LIMIT },
+    async (request, reply) => {
+      const webRequest = new Request(forwardedUrl(request.raw), {
+        method: request.method,
+        headers: request.headers,
+        body: request.method === "POST" ? request.body : undefined,
+      });
+      const response = await uploadArtwork(webRequest);
+      reply.code(response.status);
+      for (const [name, value] of response.headers) reply.header(name, value);
+      return reply.send(Buffer.from(await response.arrayBuffer()));
+    },
+  );
 
   await app.register(fastifyStatic, { root, serve: false });
 
@@ -99,7 +105,10 @@ export async function registerWebRoutes(
 
   app.setNotFoundHandler((request, reply) => {
     if (request.method !== "GET" && request.method !== "HEAD")
-      return reply.code(405).header("Allow", "GET, HEAD").send("Method not allowed");
+      return reply
+        .code(405)
+        .header("Allow", "GET, HEAD")
+        .send("Method not allowed");
     return reply.code(404).send("Not found");
   });
 }

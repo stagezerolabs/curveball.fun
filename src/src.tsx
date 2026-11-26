@@ -6,6 +6,7 @@ import { ErrorBoundary } from "./app/ErrorBoundary";
 import { privyConfig } from "./lib/privyConfig";
 import { PrivyWagmiProvider } from "./lib/PrivyWagmiProvider";
 import { ProfileClaimSync } from "./social/ProfileClaimSync";
+import { ActionToast } from "./components/ActionToast";
 import {
   activeChainId,
   activeDeploymentBlock,
@@ -64,6 +65,7 @@ createRoot(document.getElementById("root")!).render(
         <ErrorBoundary>
           <App />
         </ErrorBoundary>
+        <ActionToast />
       </PrivyWagmiProvider>
     </QueryClientProvider>
   </PrivyProvider>,

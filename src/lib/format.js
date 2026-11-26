@@ -44,3 +44,36 @@ export function formatRelativeTime(value) {
   }
   return "just now";
 }
+
+const SUBSCRIPT_DIGITS = "₀₁₂₃₄₅₆₇₈₉";
+
+// Compact amounts for the trade panel: tiny values collapse their leading
+// zeros into a subscript count (0.000000000002 -> 0.0₁₁2).
+export function formatTradeAmount(value) {
+  if (value === null || value === undefined || !Number.isFinite(value))
+    return "—";
+  if (value === 0) return "0";
+  const absolute = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+  if (absolute >= 0.0001) {
+    const options =
+      absolute >= 1000
+        ? { maximumFractionDigits: 2 }
+        : absolute >= 1
+          ? { maximumFractionDigits: 4 }
+          : { maximumSignificantDigits: 4 };
+    return value.toLocaleString("en-US", options);
+  }
+  let exponent = Math.floor(Math.log10(absolute));
+  let mantissa = (absolute / 10 ** exponent).toPrecision(4);
+  if (Number(mantissa) >= 10) {
+    exponent += 1;
+    mantissa = (absolute / 10 ** exponent).toPrecision(4);
+  }
+  const digits = mantissa.replace(".", "").replace(/0+$/, "") || "0";
+  const zeros = String(-exponent - 1)
+    .split("")
+    .map((digit) => SUBSCRIPT_DIGITS[Number(digit)])
+    .join("");
+  return `${sign}0.0${zeros}${digits}`;
+}

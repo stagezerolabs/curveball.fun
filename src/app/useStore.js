@@ -12,6 +12,7 @@ import {
   requireCurveballSdk,
 } from "../lib/web3";
 import { readableError } from "../lib/errors";
+import { formatTradeAmount } from "../lib/format.js";
 import { PendingTransactionError } from "../sdk/sdk";
 import { hasPublishedArtwork } from "../lib/launchForm";
 import { tradeQuoteKey, tradeVenueForMarket } from "../lib/marketState";
@@ -295,14 +296,26 @@ export function confirmedTradeCacheUpdate(
   };
 }
 
+// A WETH amount is meaningless as a token amount, so switching sides clears it.
+export function sideChangeUpdate(state, side) {
+  return {
+    side,
+    amount: state.side === side ? state.amount : "0",
+    quotePreview: null,
+    quoteContext: null,
+    quoting: false,
+  };
+}
+
 export function confirmedTradeStateUpdate(state, side, token, result) {
-  const received =
-    side === "buy"
-      ? `${formatEther(result.quotedOutput)} ${token.symbol}`
-      : `${formatEther(result.quotedOutput)} WETH`;
+  const received = `${formatTradeAmount(
+    Number(formatEther(result.quotedOutput)),
+  )} ${side === "buy" ? token.symbol : (token.quoteSymbol ?? "WETH")}`;
   return {
     ...confirmedTradeCacheUpdate(state, token, result.marketState),
-    tradeMessage: `${side === "buy" ? "Bought" : "Sold"} ~${received}.`,
+    // The input follows the user: a finished trade starts the next one fresh.
+    amount: "0",
+    tradeMessage: `${side === "buy" ? "Bought" : "Sold"} ${received}`,
     quotePreview: null,
     quoteContext: null,
   };
@@ -341,9 +354,10 @@ export const useStore = create(
       },
       setSide: (side) => {
         quoteRequestId += 1;
-        set({ side, quotePreview: null, quoteContext: null, quoting: false });
+        set((state) => sideChangeUpdate(state, side));
       },
       setActionError: (actionError) => set({ actionError }),
+      clearTradeMessage: () => set({ tradeMessage: "" }),
       clearLaunchProgress: () => set({ launchProgress: null }),
       mergeTokens: (discovered) =>
         set((state) => {
@@ -573,7 +587,9 @@ export const useStore = create(
           symbol: String(form.get("symbol") ?? ""),
           uri: String(form.get("uri") ?? ""),
           creatorTaxBps: Number(form.get("creatorTaxBps") ?? 0),
-          ...(/^\d+$/.test(maxLaunchFeeRaw) ? { maxLaunchFeeWei: BigInt(maxLaunchFeeRaw) } : {}),
+          ...(/^\d+$/.test(maxLaunchFeeRaw)
+            ? { maxLaunchFeeWei: BigInt(maxLaunchFeeRaw) }
+            : {}),
         };
         // The launchpad rejects an empty metadata URI, and metadata is published with the artwork.
         if (!hasPublishedArtwork(input.uri)) {
@@ -724,7 +740,7 @@ export const useStore = create(
             return sdk.claimPoolFees(pool);
           },
           "Claiming pool fees…",
-          "Pool fees credited to the creator, treasury, and buyback.",
+          "Claimed pool fees",
         ),
 
       runBuyback: (token, factory) =>
@@ -744,12 +760,13 @@ export const useStore = create(
         ),
 
       // Escrow claims pay creator fees to the connected wallet.
-      claimEscrow: (asset, factory) =>
+      // `label` names what was claimed, e.g. "0.0123 WETH", for the toast.
+      claimEscrow: (asset, factory, label) =>
         get().runMarketAction(
           factory,
           (sdk) => sdk.claimEscrow(asset),
           "Claiming fees…",
-          "Fees sent to your wallet.",
+          label ? `Claimed ${label} fees` : "Claimed your fees",
         ),
 
       runMarketAction: async (

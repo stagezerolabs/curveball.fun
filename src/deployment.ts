@@ -49,7 +49,11 @@ export async function validateLaunchpad(
     );
   if (expectedQuote && quoteToken !== getAddress(expectedQuote))
     throw new Error("Quote token mismatch.");
-  const buybackTreasury = await read(escrow, curveFeeEscrowAbi, "buybackTreasury");
+  const buybackTreasury = await read(
+    escrow,
+    curveFeeEscrowAbi,
+    "buybackTreasury",
+  );
   const singletons = { escrow, locker, buybackTreasury, tokenImplementation };
   for (const [name, address] of Object.entries(singletons)) {
     if (!(await hasCode(client, address)))
@@ -62,7 +66,9 @@ export async function validateLaunchpad(
   ]);
   if (backPointers.some((pointer) => pointer !== getAddress(launchpad)))
     throw new Error("A singleton points at another launchpad.");
-  if ((await read(buybackTreasury, curveBuybackTreasuryAbi, "escrow")) !== escrow)
+  if (
+    (await read(buybackTreasury, curveBuybackTreasuryAbi, "escrow")) !== escrow
+  )
     throw new Error("Buyback treasury points at another escrow.");
   if ((await read(locker, curveLpLockerAbi, "escrow")) !== escrow)
     throw new Error("Locker points at another escrow.");

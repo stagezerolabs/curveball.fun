@@ -285,7 +285,9 @@ function CreatorLaunchDashboard({
                     <AppLink
                       className="profile-market-link"
                       route="market"
-                      params={{ address: selectedToken.slug ?? selectedToken.address }}
+                      params={{
+                        address: selectedToken.slug ?? selectedToken.address,
+                      }}
                       navigate={navigate}
                     >
                       View market <span aria-hidden="true">↗</span>
@@ -373,9 +375,7 @@ export function ProfilePage({
   }
 
   return (
-    <Suspense
-      fallback={<TraderProfileSkeleton />}
-    >
+    <Suspense fallback={<TraderProfileSkeleton />}>
       <TraderProfilePage
         address={address}
         navigate={navigate}

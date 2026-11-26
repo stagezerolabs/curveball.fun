@@ -71,7 +71,9 @@ function CreatorMarketList({
               </small>
             </span>
             <span className="profile-row-value">
-              <strong><UsdAmount weth={token.marketCap} compact /></strong>
+              <strong>
+                <UsdAmount weth={token.marketCap} compact />
+              </strong>
               <small>
                 {token.graduated
                   ? "Graduated"
@@ -206,9 +208,8 @@ export function TraderProfilePage({
       change24hBps: position.change_24h_bps,
     })),
   );
-  const displayedChange24h = holdingsChange24h === null
-    ? null
-    : Number(holdingsChange24h.toFixed(1));
+  const displayedChange24h =
+    holdingsChange24h === null ? null : Number(holdingsChange24h.toFixed(1));
 
   async function reportProfile() {
     try {
@@ -334,7 +335,9 @@ export function TraderProfilePage({
           <div className="profile-summary-value">
             <small>Portfolio value</small>
             <div className="profile-summary-amount">
-              <strong><UsdAmount weth={portfolioValue} /></strong>
+              <strong>
+                <UsdAmount weth={portfolioValue} />
+              </strong>
               <span
                 className={`profile-summary-change ${displayedChange24h === null || displayedChange24h === 0 ? "muted" : displayedChange24h < 0 ? "negative" : "positive"}`}
                 title="24h token price change in WETH, weighted by current holdings. Excludes buys, sells, transfers, and ETH/USD movement."
@@ -445,7 +448,9 @@ export function TraderProfilePage({
                   <AppLink
                     className="profile-row profile-holding-row"
                     route="market"
-                    params={{ address: position.token_slug ?? position.token_address }}
+                    params={{
+                      address: position.token_slug ?? position.token_address,
+                    }}
                     navigate={navigate}
                   >
                     <span className="profile-row-main">
@@ -457,21 +462,50 @@ export function TraderProfilePage({
                     <span className="profile-holding-metrics">
                       <span className="profile-holding-metric">
                         <small>Amount invested</small>
-                        <strong>{BigInt(position.invested_wei) > 0n
-                          ? <UsdAmount weth={wethAmount(position.invested_wei)} compact />
-                          : "—"}</strong>
+                        <strong>
+                          {BigInt(position.invested_wei) > 0n ? (
+                            <UsdAmount
+                              weth={wethAmount(position.invested_wei)}
+                              compact
+                            />
+                          ) : (
+                            "—"
+                          )}
+                        </strong>
                       </span>
                       <span className="profile-holding-metric">
-                        <small title="Average market cap at buys, weighted by trade size">Avg. buy in</small>
-                        <strong>{position.average_entry_market_cap_wei
-                          ? <UsdAmount weth={wethAmount(position.average_entry_market_cap_wei)} compact />
-                          : "—"}</strong>
+                        <small title="Average market cap at buys, weighted by trade size">
+                          Avg. buy in
+                        </small>
+                        <strong>
+                          {position.average_entry_market_cap_wei ? (
+                            <UsdAmount
+                              weth={wethAmount(
+                                position.average_entry_market_cap_wei,
+                              )}
+                              compact
+                            />
+                          ) : (
+                            "—"
+                          )}
+                        </strong>
                       </span>
                       <span className="profile-holding-metric">
-                        <small title="Average market cap at sells, weighted by trade size">Avg. sell out</small>
-                        <strong>{position.average_exit_market_cap_wei
-                          ? <UsdAmount weth={wethAmount(position.average_exit_market_cap_wei)} compact />
-                          : "—"}</strong>
+                        <small title="Average market cap at sells, weighted by trade size">
+                          Avg. sell out
+                        </small>
+                        <strong>
+                          {position.average_exit_market_cap_wei ? (
+                            <UsdAmount
+                              weth={wethAmount(
+                                position.average_exit_market_cap_wei,
+                              )}
+                              compact
+                            />
+                          ) : (
+                            "—"
+                          )}
+                        </strong>
                       </span>
                     </span>
                     <span className="profile-row-chevron" aria-hidden="true">
@@ -543,7 +577,10 @@ export function TraderProfilePage({
                     </span>
                     <span className="profile-row-value">
                       <strong>
-                        <UsdAmount weth={wethAmount(trade.quoteAmountWei)} compact />
+                        <UsdAmount
+                          weth={wethAmount(trade.quoteAmountWei)}
+                          compact
+                        />
                       </strong>
                       {trade.reactionCount ? (
                         <small>

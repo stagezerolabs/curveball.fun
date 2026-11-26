@@ -221,11 +221,17 @@ export function createCurveballSdk(
   const chainId = deployment.chainId;
   let walletCapPromise: Promise<bigint> | undefined;
   function getWalletCapBps() {
-    walletCapPromise ??= actions.readContract(config, {
-      address: launchpad, abi: curveLaunchpadAbi, functionName: "walletCapBps", chainId,
-    }).then((value) => BigInt(value)).catch(async () =>
-      (await getSupplies()).tokenSupply >= TOKEN_SUPPLY ? 500n : 10_000n
-    );
+    walletCapPromise ??= actions
+      .readContract(config, {
+        address: launchpad,
+        abi: curveLaunchpadAbi,
+        functionName: "walletCapBps",
+        chainId,
+      })
+      .then((value) => BigInt(value))
+      .catch(async () =>
+        (await getSupplies()).tokenSupply >= TOKEN_SUPPLY ? 500n : 10_000n,
+      );
     return walletCapPromise;
   }
 
@@ -577,14 +583,20 @@ export function createCurveballSdk(
       const account = actions.getAccount(config).address;
       if (account && (await getWalletCapBps()) < 10_000n) {
         const quote = await actions.readContract(config, {
-          address: launchpad, abi: curveLaunchpadAbi,
-          functionName: "previewBuyFor", args: [address, account, input], chainId,
+          address: launchpad,
+          abi: curveLaunchpadAbi,
+          functionName: "previewBuyFor",
+          args: [address, account, input],
+          chainId,
         });
         return quote.tokensOut;
       }
       const quote = await actions.readContract(config, {
-        address: launchpad, abi: curveLaunchpadAbi,
-        functionName: "previewBuy", args: [address, input], chainId,
+        address: launchpad,
+        abi: curveLaunchpadAbi,
+        functionName: "previewBuy",
+        args: [address, input],
+        chainId,
       });
       return quote.tokensOut;
     }
@@ -608,23 +620,24 @@ export function createCurveballSdk(
       });
       return { fee, maximum: maximumLaunchFee(fee) };
     };
-    const [fees, feeQuote, graduationTarget, supplies, walletCapBps] = await Promise.all([
-      actions.readContract(config, {
-        address: launchpad,
-        abi: curveLaunchpadAbi,
-        functionName: "feeDefaults",
-        chainId,
-      }),
-      readLaunchFee(),
-      actions.readContract(config, {
-        address: launchpad,
-        abi: curveLaunchpadAbi,
-        functionName: "graduationTarget",
-        chainId,
-      }),
-      getSupplies(),
-      getWalletCapBps(),
-    ]);
+    const [fees, feeQuote, graduationTarget, supplies, walletCapBps] =
+      await Promise.all([
+        actions.readContract(config, {
+          address: launchpad,
+          abi: curveLaunchpadAbi,
+          functionName: "feeDefaults",
+          chainId,
+        }),
+        readLaunchFee(),
+        actions.readContract(config, {
+          address: launchpad,
+          abi: curveLaunchpadAbi,
+          functionName: "graduationTarget",
+          chainId,
+        }),
+        getSupplies(),
+        getWalletCapBps(),
+      ]);
     const [feeBps, , , taxCapBps] = fees;
     return {
       feeBps,
@@ -678,9 +691,13 @@ export function createCurveballSdk(
     const quote = await readQuoteToken();
     const maxLaunchFee = input.maxLaunchFeeWei;
     if (maxLaunchFee === undefined)
-      throw new CurveballSdkError("Review the current launch fee before confirming.");
+      throw new CurveballSdkError(
+        "Review the current launch fee before confirming.",
+      );
     if (maxLaunchFee < policy.launchFee)
-      throw new CurveballSdkError("The launch fee changed. Review the current quote and try again.");
+      throw new CurveballSdkError(
+        "The launch fee changed. Review the current quote and try again.",
+      );
     const { approved } = await ensureApproval(
       wallet,
       quote,
@@ -1060,17 +1077,23 @@ export function createCurveballSdk(
   /** Converts a graduated market's LP-token fee share to the shared WETH budget. */
   async function convertBuybackFees(token: Address) {
     const treasury = await actions.readContract(config, {
-      address: await readSingleton("escrow"), abi: curveFeeEscrowAbi,
-      functionName: "buybackTreasury", chainId,
+      address: await readSingleton("escrow"),
+      abi: curveFeeEscrowAbi,
+      functionName: "buybackTreasury",
+      chainId,
     });
-    return write(treasury, curveBuybackTreasuryAbi, "convert", [getAddress(token)]);
+    return write(treasury, curveBuybackTreasuryAbi, "convert", [
+      getAddress(token),
+    ]);
   }
 
   /** Spends one guarded chunk of the shared budget on CURVE and burns it. */
   async function buyback() {
     const treasury = await actions.readContract(config, {
-      address: await readSingleton("escrow"), abi: curveFeeEscrowAbi,
-      functionName: "buybackTreasury", chainId,
+      address: await readSingleton("escrow"),
+      abi: curveFeeEscrowAbi,
+      functionName: "buybackTreasury",
+      chainId,
     });
     return write(treasury, curveBuybackTreasuryAbi, "buyback", []);
   }

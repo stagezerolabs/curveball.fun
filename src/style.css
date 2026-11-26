@@ -666,7 +666,9 @@ button {
   gap: 11px;
   margin-left: -1px;
   padding: 9px 12px;
-  transition: color 160ms ease, background-color 160ms ease;
+  transition:
+    color 160ms ease,
+    background-color 160ms ease;
 }
 .docs-sidebar-link span {
   color: var(--muted);
@@ -771,7 +773,9 @@ button {
   min-height: 158px;
   padding: 20px;
   position: relative;
-  transition: border-color 160ms ease, transform 160ms ease;
+  transition:
+    border-color 160ms ease,
+    transform 160ms ease;
 }
 .docs-topic-card:hover,
 .docs-topic-card:focus-visible {
@@ -4312,15 +4316,134 @@ select:focus-visible {
   font-size: 18px;
   letter-spacing: -0.025em;
 }
-.trade-row span {
+.trade-row > span {
   color: var(--muted);
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 .trade-row strong {
+  display: grid;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
-  max-width: 68%;
-  overflow-wrap: anywhere;
+  justify-items: end;
+  min-width: 0;
   text-align: right;
+}
+.trade-amount {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trade-amount span {
+  color: var(--muted);
+  font-size: 0.78em;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+.trade-usd {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  margin-top: 2px;
+}
+.trade-row:first-child .trade-usd {
+  font-size: 13px;
+}
+.toast-stack {
+  align-items: center;
+  bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  left: 50%;
+  max-width: calc(100vw - 32px);
+  pointer-events: none;
+  position: fixed;
+  translate: -50% 0;
+  z-index: 1000;
+}
+.trade-toast {
+  align-items: center;
+  animation: trade-toast-life 3s ease-out both;
+  background: var(--raise);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  color: var(--ink);
+  display: flex;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  gap: 10px;
+  max-width: 100%;
+  padding: 11px 18px 11px 14px;
+}
+.trade-toast-text {
+  min-width: 0;
+}
+.trade-toast.error {
+  border-color: rgba(254, 93, 38, 0.35);
+  border-radius: 14px;
+  pointer-events: auto;
+}
+.trade-toast.error .trade-toast-dot {
+  background: var(--orange-ink);
+}
+.trade-toast.claim .trade-toast-dot {
+  background: var(--lime);
+}
+.trade-toast button {
+  background: none;
+  border: 0;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  margin-right: -6px;
+  padding: 0 4px;
+}
+.trade-toast button:hover {
+  color: var(--ink);
+}
+.trade-toast-dot {
+  background: var(--market-up);
+  border-radius: 50%;
+  flex: 0 0 8px;
+  height: 8px;
+}
+.trade-toast.sell .trade-toast-dot {
+  background: var(--orange);
+}
+@keyframes trade-toast-life {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+  8%,
+  90% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .trade-toast {
+    animation-name: trade-toast-fade;
+  }
+  @keyframes trade-toast-fade {
+    0%,
+    100% {
+      opacity: 0;
+    }
+    8%,
+    90% {
+      opacity: 1;
+    }
+  }
 }
 .trade-row strong.warn {
   color: var(--orange-ink);
@@ -6117,7 +6240,11 @@ select:focus-visible {
   outline-offset: 4px;
 }
 .flip-card-shadow {
-  background: color-mix(in srgb, var(--fc-shadow) calc(var(--fc-shadow-opacity) * 100%), transparent);
+  background: color-mix(
+    in srgb,
+    var(--fc-shadow) calc(var(--fc-shadow-opacity) * 100%),
+    transparent
+  );
   border-radius: var(--fc-radius);
   filter: blur(22px);
   inset: 12% 9% -5%;
@@ -6153,7 +6280,11 @@ select:focus-visible {
   transform: rotateX(180deg);
 }
 .flip-card-glare {
-  background: radial-gradient(circle farthest-side at var(--fc-gx, 50%) var(--fc-gy, 50%), rgba(255, 255, 255, var(--fc-glare-opacity)) 0%, rgba(255, 255, 255, 0) 100%);
+  background: radial-gradient(
+    circle farthest-side at var(--fc-gx, 50%) var(--fc-gy, 50%),
+    rgba(255, 255, 255, var(--fc-glare-opacity)) 0%,
+    rgba(255, 255, 255, 0) 100%
+  );
   inset: 0;
   opacity: var(--fc-sheen, 0);
   pointer-events: none;
@@ -6728,7 +6859,9 @@ select:focus-visible {
 .rubber-segment button {
   cursor: pointer;
   opacity: 0.7;
-  transition: opacity 160ms ease, transform 160ms ease;
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
 }
 .rubber-segment button:hover:not(:disabled) {
   opacity: 0.9;
@@ -8382,22 +8515,34 @@ img.profile-hero-avatar {
   height: 25px;
   width: min(220px, 90%);
 }
-.profile-loading-line.medium { width: 160px; }
-.profile-loading-line.short { width: 85px; }
-.profile-loading-summary { min-height: 115px; }
+.profile-loading-line.medium {
+  width: 160px;
+}
+.profile-loading-line.short {
+  width: 85px;
+}
+.profile-loading-summary {
+  min-height: 115px;
+}
 
 .profile-loading-tabs {
   display: flex;
   gap: 16px;
   margin-top: 30px;
 }
-.profile-loading-tabs .skeleton { height: 20px; width: 90px; }
+.profile-loading-tabs .skeleton {
+  height: 20px;
+  width: 90px;
+}
 .profile-loading-rows {
   display: grid;
   gap: 10px;
   margin-top: 22px;
 }
-.profile-loading-rows .skeleton { height: 80px; width: 100%; }
+.profile-loading-rows .skeleton {
+  height: 80px;
+  width: 100%;
+}
 
 .profile-tabs {
   margin-top: 28px;

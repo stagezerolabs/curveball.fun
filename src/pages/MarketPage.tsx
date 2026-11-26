@@ -58,9 +58,10 @@ export function MarketPage({
   const publicClient = usePublicClient({ chainId: activeChainId });
   const backendEnabled = Boolean(socialApiBaseUrl);
   const directAddress = isAddress(tokenAddress);
-  const slug = !directAddress && /^[a-z0-9-]{1,122}$/.test(tokenAddress)
-    ? tokenAddress
-    : null;
+  const slug =
+    !directAddress && /^[a-z0-9-]{1,122}$/.test(tokenAddress)
+      ? tokenAddress
+      : null;
   const slugLookup = useQuery({
     queryKey: ["market-slug", slug],
     queryFn: () => resolveMarketSlug(slug ?? ""),
@@ -70,12 +71,11 @@ export function MarketPage({
   const address = directAddress ? getAddress(tokenAddress) : slugLookup.data;
   const hidden = isHiddenMarketAddress(address ?? tokenAddress);
   const key = (address ?? tokenAddress).toLowerCase();
-  const { tokenCache, tokenFetchedAt, tokenErrors, actionError, loadToken } =
+  const { tokenCache, tokenFetchedAt, tokenErrors, loadToken } =
     useStore() as {
       tokenCache: Record<string, Token | null>;
       tokenFetchedAt: Record<string, number>;
       tokenErrors: Record<string, string>;
-      actionError: string;
       loadToken: (
         client: CreatorTokenClient | undefined,
         address: Address,
@@ -86,7 +86,8 @@ export function MarketPage({
   const hasCachedResult =
     hidden || Object.prototype.hasOwnProperty.call(tokenCache, key);
   const resolvedToken = hidden ? null : tokenCache[key];
-  const [metadataDetails, setMetadataDetails] = useState<Awaited<ReturnType<typeof tokenDetails>>>(null);
+  const [metadataDetails, setMetadataDetails] =
+    useState<Awaited<ReturnType<typeof tokenDetails>>>(null);
   useEffect(() => {
     let active = true;
     setMetadataDetails(null);
@@ -94,19 +95,22 @@ export function MarketPage({
       void tokenDetails(resolvedToken.metadataUri).then((value) => {
         if (active) setMetadataDetails(value);
       });
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [resolvedToken?.metadataUri]);
-  const displayedToken = resolvedToken && metadataDetails
-    ? {
-        ...resolvedToken,
-        bio: resolvedToken.bio || metadataDetails.bio,
-        description: resolvedToken.description || metadataDetails.description,
-        website: resolvedToken.website || metadataDetails.website,
-        xUrl: resolvedToken.xUrl || metadataDetails.xUrl,
-        telegramUrl: resolvedToken.telegramUrl || metadataDetails.telegramUrl,
-        discordUrl: resolvedToken.discordUrl || metadataDetails.discordUrl,
-      }
-    : resolvedToken;
+  const displayedToken =
+    resolvedToken && metadataDetails
+      ? {
+          ...resolvedToken,
+          bio: resolvedToken.bio || metadataDetails.bio,
+          description: resolvedToken.description || metadataDetails.description,
+          website: resolvedToken.website || metadataDetails.website,
+          xUrl: resolvedToken.xUrl || metadataDetails.xUrl,
+          telegramUrl: resolvedToken.telegramUrl || metadataDetails.telegramUrl,
+          discordUrl: resolvedToken.discordUrl || metadataDetails.discordUrl,
+        }
+      : resolvedToken;
   const fetchedAt = tokenFetchedAt[key];
   const statsTokens = useMemo(
     () => (resolvedToken ? [resolvedToken] : []),
@@ -120,7 +124,7 @@ export function MarketPage({
   const discoveryError = tokenErrors[key];
   const error = hidden
     ? ""
-    : actionError || discoveryError ||
+    : discoveryError ||
       (slugLookup.error instanceof Error ? slugLookup.error.message : "");
   const [marketCapChange, setMarketCapChange] =
     useState<MarketPriceChange | null>(null);
@@ -277,20 +281,14 @@ export function MarketPage({
         </aside>
       </div>
 
-      <MarketAbout token={displayedToken ?? resolvedToken} navigate={navigate} />
+      <MarketAbout
+        token={displayedToken ?? resolvedToken}
+        navigate={navigate}
+      />
 
       {error && (
         <div className="notice notice-dismissible floating-notice" role="alert">
           <span>{error}</span>
-          {actionError && (
-            <button
-              type="button"
-              onClick={() => useStore.getState().setActionError("")}
-              aria-label="Dismiss error"
-            >
-              ×
-            </button>
-          )}
         </div>
       )}
     </main>

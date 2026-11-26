@@ -96,3 +96,19 @@ test("a confirmed Icarus pool trade invalidates indexed prices without applying 
   expect(state.creatorFetchedAt[creatorKey]).toBe(0);
   expect(state.quotePreview).toBeNull();
 });
+
+test("a confirmed trade resets the input and reports a readable amount", () => {
+  const token = {
+    address: "0x6D4f1d95c636F44CDeA5D15bf88CbAe5c60BD2A2",
+    creator: "0x5CC42e772F67089b4670eec4dcD904be2F2D511c",
+    symbol: "CASH",
+  };
+  const state = confirmedTradeStateUpdate(
+    { amount: "1", tokens: [], tokenCache: {}, tokenFetchedAt: {}, creatorTokens: {} },
+    "buy",
+    token,
+    { quotedOutput: 801_386_181_912_000_000_000_000n, marketState: null },
+  );
+  expect(state.amount).toBe("0");
+  expect(state.tradeMessage).toBe("Bought 801,386.18 CASH");
+});

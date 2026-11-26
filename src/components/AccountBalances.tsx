@@ -2,16 +2,17 @@ import { formatEther } from "viem";
 import { formatEthAmount } from "../lib/format.js";
 import { UsdAmount } from "./UsdAmount";
 
-export function combinedBalance(
-  nativeBalance?: bigint,
-  wethBalance?: bigint,
-) {
+export function combinedBalance(nativeBalance?: bigint, wethBalance?: bigint) {
   return nativeBalance === undefined || wethBalance === undefined
     ? undefined
     : nativeBalance + wethBalance;
 }
 
-function balanceLabel(balance: bigint | undefined, symbol: string, loading: boolean) {
+function balanceLabel(
+  balance: bigint | undefined,
+  symbol: string,
+  loading: boolean,
+) {
   return balance !== undefined
     ? `${formatEthAmount(Number(formatEther(balance)))} ${symbol}`
     : loading

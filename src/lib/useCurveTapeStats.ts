@@ -2,7 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { formatEther, getAddress, zeroAddress } from "viem";
 import { useReadContract } from "wagmi";
 import mainnetCurveActivation from "../../deployments/4153/curve-activation-schedule.json";
-import { curveLaunchpadAbi, curveFeeEscrowAbi, curveBuybackTreasuryAbi } from "../sdk/contracts";
+import {
+  curveLaunchpadAbi,
+  curveFeeEscrowAbi,
+  curveBuybackTreasuryAbi,
+} from "../sdk/contracts";
 import { launchpadAddress } from "./web3";
 import type { CurveTapeDisplay } from "../components/MarketTape";
 import { formatCompactUsd, useEthUsdRate } from "../components/UsdAmount";
@@ -41,16 +45,25 @@ export function useCurveTapeStats() {
   const usdPerEth = useEthUsdRate();
   const useTreasuryToken = activeChainId !== 4153;
   const { data: escrow } = useReadContract({
-    address: launchpadAddress ?? undefined, abi: curveLaunchpadAbi, functionName: "escrow",
-    chainId: activeChainId, query: { enabled: useTreasuryToken && Boolean(launchpadAddress) },
+    address: launchpadAddress ?? undefined,
+    abi: curveLaunchpadAbi,
+    functionName: "escrow",
+    chainId: activeChainId,
+    query: { enabled: useTreasuryToken && Boolean(launchpadAddress) },
   });
   const { data: treasury } = useReadContract({
-    address: escrow, abi: curveFeeEscrowAbi, functionName: "buybackTreasury",
-    chainId: activeChainId, query: { enabled: useTreasuryToken && Boolean(escrow) },
+    address: escrow,
+    abi: curveFeeEscrowAbi,
+    functionName: "buybackTreasury",
+    chainId: activeChainId,
+    query: { enabled: useTreasuryToken && Boolean(escrow) },
   });
   const { data: treasuryToken } = useReadContract({
-    address: treasury, abi: curveBuybackTreasuryAbi, functionName: "curveToken",
-    chainId: activeChainId, query: { enabled: useTreasuryToken && Boolean(treasury) },
+    address: treasury,
+    abi: curveBuybackTreasuryAbi,
+    functionName: "curveToken",
+    chainId: activeChainId,
+    query: { enabled: useTreasuryToken && Boolean(treasury) },
   });
   const token = useTreasuryToken ? treasuryToken : mainnetCurveToken;
   const query = useQuery({

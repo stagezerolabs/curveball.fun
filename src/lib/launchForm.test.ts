@@ -62,7 +62,9 @@ test("launch funding uses existing WETH first and requires ETH for gas", () => {
     weth + eth - LAUNCH_GAS_RESERVE - fee,
   );
   expect(launchFundingState(parseEther("1"), 0n, fee, 0n).canFund).toBe(false);
-  expect(launchFundingState(0n, fee + LAUNCH_GAS_RESERVE - 1n, fee, 0n).canFund).toBe(false);
+  expect(
+    launchFundingState(0n, fee + LAUNCH_GAS_RESERVE - 1n, fee, 0n).canFund,
+  ).toBe(false);
   expect(initialBuyFromAvailableBalance(0n, fee, fee, 100)).toBe(0n);
 });
 

@@ -1,10 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../app/useStore.js";
-import { formatEthAmount, formatPercent } from "../lib/format.js";
+import {
+  formatEthAmount,
+  formatPercent,
+  formatTradeAmount,
+} from "../lib/format.js";
 import type { Address } from "viem";
 import { formatEther } from "viem";
 import { useReadContract } from "wagmi";
-import { curveFeeEscrowAbi, curveLaunchpadAbi } from "../sdk/contracts";
+import {
+  curveFeeEscrowAbi,
+  curveLaunchpadAbi,
+} from "../sdk/contracts";
 import { activeChainId, launchpadAddress } from "../lib/web3";
 import { selectTradeState } from "../lib/marketState";
 import { factoryForToken } from "../lib/marketFactories";
@@ -84,7 +91,11 @@ export function MilestonePanel({
     useStore() as {
       isPending: boolean;
       claimPoolFees: (pool: Address, factory?: Address) => Promise<void>;
-      claimEscrow: (asset: Address, factory?: Address) => Promise<void>;
+      claimEscrow: (
+        asset: Address,
+        factory?: Address,
+        label?: string,
+      ) => Promise<void>;
       graduateMarket: (token: Address, factory?: Address) => Promise<void>;
     };
 
@@ -92,7 +103,8 @@ export function MilestonePanel({
   const quoteTarget = token.graduationTargetWeth
     ? Number(token.graduationTargetWeth)
     : null;
-  const hasQuoteTarget = quoteTarget !== null && Number.isFinite(quoteTarget) && quoteTarget > 0;
+  const hasQuoteTarget =
+    quoteTarget !== null && Number.isFinite(quoteTarget) && quoteTarget > 0;
   const quoteRaised = token.curveLiquidityWeth;
   const quoteProgress =
     hasQuoteTarget && quoteRaised != null && Number.isFinite(quoteRaised)
@@ -159,9 +171,7 @@ export function MilestonePanel({
       aria-label="Graduation and fees"
     >
       {!token.graduated ? (
-        <div
-          className={`fee-split${progressOpen ? " open" : ""}`}
-        >
+        <div className={`fee-split${progressOpen ? " open" : ""}`}>
           <button
             type="button"
             className="fee-split-trigger"
@@ -187,20 +197,24 @@ export function MilestonePanel({
               <span style={{ width: formatPercent(progress) }} />
             </span>
           </button>
-          <dl className="fee-split-popover milestone-details" id="milestone-details">
+          <dl
+            className="fee-split-popover milestone-details"
+            id="milestone-details"
+          >
             <div>
               <dt>Current cap</dt>
               <dd>
                 <UsdAmount weth={token.marketCap} compact />
               </dd>
             </div>
-            {hasQuoteTarget && (
-              quoteProgress !== null ? (
+            {hasQuoteTarget &&
+              (quoteProgress !== null ? (
                 <>
                   <div>
                     <dt>Net WETH raised</dt>
                     <dd>
-                      {formatEthAmount(quoteRaised)} / {formatEthAmount(quoteTarget)} WETH
+                      {formatEthAmount(quoteRaised)} /{" "}
+                      {formatEthAmount(quoteTarget)} WETH
                     </dd>
                   </div>
                   <div>
@@ -213,8 +227,7 @@ export function MilestonePanel({
                   <dt>Graduation target</dt>
                   <dd>{formatEthAmount(quoteTarget)} WETH</dd>
                 </div>
-              )
-            )}
+              ))}
             <div>
               <dt>Market cap at graduation</dt>
               <dd>
@@ -343,16 +356,23 @@ export function MilestonePanel({
           <h3 className="panel-subhead">Creator fees</h3>
           {hasQuotePayment && quote && (
             <>
-              <p className="panel-note" title={`${formatEther(quoteOwed)} WETH`}>
-                Available: {formatEthAmount(Number(formatEther(quoteOwed)))} WETH
-                across all your launches.
+              <p
+                className="panel-note"
+                title={`${formatEther(quoteOwed)} WETH`}
+              >
+                Available: {formatEthAmount(Number(formatEther(quoteOwed)))}{" "}
+                WETH across all your launches.
               </p>
               <button
                 type="button"
                 className="primary-button claim-button"
                 disabled={isPending}
                 onClick={async () => {
-                  await claimEscrow(quote, marketFactory);
+                  await claimEscrow(
+                    quote,
+                    marketFactory,
+                    `${formatTradeAmount(Number(formatEther(quoteOwed)))} WETH`,
+                  );
                   await refetchQuoteOwed();
                 }}
               >
@@ -362,7 +382,10 @@ export function MilestonePanel({
           )}
           {hasTokenPayment && (
             <>
-              <p className="panel-note" title={`${formatEther(tokenOwed)} ${token.symbol}`}>
+              <p
+                className="panel-note"
+                title={`${formatEther(tokenOwed)} ${token.symbol}`}
+              >
                 Available: {formatEthAmount(Number(formatEther(tokenOwed)))}{" "}
                 {token.symbol}.
               </p>
@@ -371,7 +394,11 @@ export function MilestonePanel({
                 className="primary-button claim-button"
                 disabled={isPending}
                 onClick={async () => {
-                  await claimEscrow(token.address, marketFactory);
+                  await claimEscrow(
+                    token.address,
+                    marketFactory,
+                    `${formatTradeAmount(Number(formatEther(tokenOwed)))} ${token.symbol}`,
+                  );
                   await refetchTokenOwed();
                 }}
               >

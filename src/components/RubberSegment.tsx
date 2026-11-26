@@ -110,7 +110,10 @@ export default function RubberSegment({
   );
   const [inner, setInner] = useState(defaultValue ?? list[0]?.value);
   const current = value ?? inner;
-  const index = Math.max(0, list.findIndex((item) => item.value === current));
+  const index = Math.max(
+    0,
+    list.findIndex((item) => item.value === current),
+  );
   const reduce = useReducedMotion();
   const trackRef = useRef<HTMLDivElement>(null);
   const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -193,7 +196,12 @@ export default function RubberSegment({
     onChange?.(list[i].value, i);
   };
 
-  const land = (to: number, velocity: number | null, flick: boolean, withSquash: boolean) => {
+  const land = (
+    to: number,
+    velocity: number | null,
+    flick: boolean,
+    withSquash: boolean,
+  ) => {
     const slot = slots.current[to];
     if (!slot) return;
     const generationAtStart = ++generation.current;
@@ -249,16 +257,31 @@ export default function RubberSegment({
     }
     const stretchRatio = stretch / 100;
     const tween = { duration: duration(0.19), ease: EASE_OUT };
-    animate(edgeL, end.l + (Math.min(start.l, end.l) - end.l) * stretchRatio, tween);
-    animate(edgeR, end.r + (Math.max(start.r, end.r) - end.r) * stretchRatio, tween);
-    handoff.current = setTimeout(() => land(to, null, false, true), duration(0.15) * 1000);
+    animate(
+      edgeL,
+      end.l + (Math.min(start.l, end.l) - end.l) * stretchRatio,
+      tween,
+    );
+    animate(
+      edgeR,
+      end.r + (Math.max(start.r, end.r) - end.r) * stretchRatio,
+      tween,
+    );
+    handoff.current = setTimeout(
+      () => land(to, null, false, true),
+      duration(0.15) * 1000,
+    );
   };
 
   const localX = (event: { clientX: number }) =>
     event.clientX - (box.current?.left ?? 0) - inset;
 
-  const handlePointerDown = (event: PointerEvent<HTMLButtonElement>, i: number) => {
-    if (disabled || list[i].disabled || drag.current || event.button !== 0) return;
+  const handlePointerDown = (
+    event: PointerEvent<HTMLButtonElement>,
+    i: number,
+  ) => {
+    if (disabled || list[i].disabled || drag.current || event.button !== 0)
+      return;
     box.current = trackRef.current?.getBoundingClientRect() ?? null;
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
@@ -343,7 +366,8 @@ export default function RubberSegment({
     }
     const velocity = velocityOf(active.history, event.timeStamp);
     const flick = Math.abs(velocity) > 110;
-    const projected = (edgeL.get() + edgeR.get()) / 2 + project(velocity, glide);
+    const projected =
+      (edgeL.get() + edgeR.get()) / 2 + project(velocity, glide);
     const enabled = list
       .map((item, i) => (item.disabled ? -1 : i))
       .filter((i) => i >= 0);
@@ -356,9 +380,7 @@ export default function RubberSegment({
         : best;
     });
     if (flick && to === committed.current) {
-      const next = enabled.filter((i) =>
-        velocity > 0 ? i > to : i < to,
-      );
+      const next = enabled.filter((i) => (velocity > 0 ? i > to : i < to));
       if (next.length) to = velocity > 0 ? next[0] : next[next.length - 1];
     }
     commit(to);
@@ -446,7 +468,11 @@ export default function RubberSegment({
           {item.label}
         </button>
       ))}
-      <motion.div className="rubber-segment-thumb" aria-hidden="true" style={{ clipPath }}>
+      <motion.div
+        className="rubber-segment-thumb"
+        aria-hidden="true"
+        style={{ clipPath }}
+      >
         {list.map((item) => (
           <span key={item.value}>
             {item.icon}

@@ -1,7 +1,10 @@
 import { pool } from "../../../platform/db.mjs";
 import { config } from "../../../platform/config.mjs";
 import { shapePublicPulseMoments } from "../../../analytics/pulse.mjs";
-import { followingPulseSql, nowPulseSql } from "../../../analytics/pulseSql.mjs";
+import {
+  followingPulseSql,
+  nowPulseSql,
+} from "../../../analytics/pulseSql.mjs";
 
 const pulseTradeCache = new Map();
 const pulseGraphCache = new Map();
@@ -146,7 +149,6 @@ export async function pulse(url, viewer) {
     sampleTruncated: trades.sampleTruncated,
   };
 }
-
 
 export function invalidateFollow(address) {
   pulseGraphCache.delete(address);

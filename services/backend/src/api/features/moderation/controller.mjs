@@ -10,7 +10,12 @@ export async function handleModeration(request, response, url) {
   const reportMatch = url.pathname.match(/^\/v1\/admin\/reports\/(\d+)$/);
   if (request.method === "PATCH" && reportMatch) {
     await requireModerator(request);
-    return send(request, response, 200, await moderation.updateReport(reportMatch[1], await readJson(request)));
+    return send(
+      request,
+      response,
+      200,
+      await moderation.updateReport(reportMatch[1], await readJson(request)),
+    );
   }
   return false;
 }

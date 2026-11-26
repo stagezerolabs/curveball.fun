@@ -37,7 +37,10 @@ export async function uploadArtworkImage(file, { signal } = {}) {
   return data.cid;
 }
 
-export async function publishTokenMetadata(imageCid, { name, symbol, signal, ...details }) {
+export async function publishTokenMetadata(
+  imageCid,
+  { name, symbol, signal, ...details },
+) {
   if (!CID.test(imageCid)) throw new Error("Artwork has no valid IPFS hash.");
   const normalized = normalizeLaunchDetails(details);
   const form = new FormData();

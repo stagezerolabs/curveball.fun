@@ -78,7 +78,8 @@ export default defineConfig(({ mode }) => {
       deployment.version !== "oracle-v3" ||
       deployment.launchFeeUsd !== "1000000000000000000" ||
       deployment.maxOracleAgeSeconds !== "1800" ||
-      deployment.storkOracle?.toLowerCase() !== "0xacc0a0cf13571d30b4b8637996f5d6d774d4fd62" ||
+      deployment.storkOracle?.toLowerCase() !==
+        "0xacc0a0cf13571d30b4b8637996f5d6d774d4fd62" ||
       adapter.chainId !== 4153 ||
       deployment.launchpad?.toLowerCase() !==
         env.VITE_LAUNCHPAD_ADDRESS.toLowerCase() ||

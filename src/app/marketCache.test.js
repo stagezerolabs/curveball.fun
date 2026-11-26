@@ -1,5 +1,9 @@
 import { expect, test } from "bun:test";
-import { createdTokenCacheUpdate, rehydrateMarketCache, useStore } from "./useStore.js";
+import {
+  createdTokenCacheUpdate,
+  rehydrateMarketCache,
+  useStore,
+} from "./useStore.js";
 import { launchpadAddress } from "../lib/web3";
 
 test("only configured factory markets rehydrate and are revalidated after page load", () => {

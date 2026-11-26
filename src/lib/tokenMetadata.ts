@@ -5,7 +5,9 @@ const MAX_METADATA_BYTES = 32_000;
 const TRUSTED_CONTENT_HOSTS = new Set(["gateway.pinata.cloud"]);
 const cache = new Map<
   string,
-  Promise<({ image: string | null } & ReturnType<typeof readLaunchDetails>) | null>
+  Promise<
+    ({ image: string | null } & ReturnType<typeof readLaunchDetails>) | null
+  >
 >();
 
 async function readMetadata(response: Response): Promise<unknown> {

@@ -100,9 +100,7 @@ export function StatsPage({ navigate }: { navigate: Navigate }) {
           </div>
           <div>
             <dt>Fees earned by creators</dt>
-            <dd>
-              {claimLoading ? "…" : <UsdAmount weth={claimed} compact />}
-            </dd>
+            <dd>{claimLoading ? "…" : <UsdAmount weth={claimed} compact />}</dd>
             <small>Credited in the fee escrow</small>
           </div>
         </dl>

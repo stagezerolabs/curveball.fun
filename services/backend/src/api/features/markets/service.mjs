@@ -1,6 +1,11 @@
 import { pool } from "../../../platform/db.mjs";
 import { config } from "../../../platform/config.mjs";
-import { addressParam, boundedLimit, decodeCursor, encodeCursor } from "../../transport/params.mjs";
+import {
+  addressParam,
+  boundedLimit,
+  decodeCursor,
+  encodeCursor,
+} from "../../transport/params.mjs";
 import { pulseGraph } from "../pulse/pulse.mjs";
 
 function shapeMarket(row) {

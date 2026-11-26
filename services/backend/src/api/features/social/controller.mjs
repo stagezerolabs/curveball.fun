@@ -27,37 +27,71 @@ export async function handleSocial(request, response, url, viewer) {
     return send(request, response, 200, await profile(address, viewer));
   }
 
-
-  const followMatch = url.pathname.match(/^\/v1\/follows\/(0x[a-fA-F0-9]{40})$/);
+  const followMatch = url.pathname.match(
+    /^\/v1\/follows\/(0x[a-fA-F0-9]{40})$/,
+  );
   if (followMatch && ["POST", "DELETE"].includes(request.method)) {
     const address = await requirePrivyWallet(request);
     limitSocialWrite(request, address);
-    return send(request, response, 200, await socialActions.setFollow(address, followMatch[1], request.method === "POST"));
+    return send(
+      request,
+      response,
+      200,
+      await socialActions.setFollow(
+        address,
+        followMatch[1],
+        request.method === "POST",
+      ),
+    );
   }
 
   const blockMatch = url.pathname.match(/^\/v1\/blocks\/(0x[a-fA-F0-9]{40})$/);
   if (blockMatch && ["POST", "DELETE"].includes(request.method)) {
     const address = await requirePrivyWallet(request);
     limitSocialWrite(request, address);
-    return send(request, response, 200, await socialActions.setBlock(address, blockMatch[1], request.method === "POST"));
+    return send(
+      request,
+      response,
+      200,
+      await socialActions.setBlock(
+        address,
+        blockMatch[1],
+        request.method === "POST",
+      ),
+    );
   }
 
   if (request.method === "POST" && url.pathname === "/v1/reports") {
     const address = await requirePrivyWallet(request);
     limitSocialWrite(request, address);
-    return send(request, response, 201, await socialActions.report(address, await readJson(request)));
+    return send(
+      request,
+      response,
+      201,
+      await socialActions.report(address, await readJson(request)),
+    );
   }
 
   if (request.method === "POST" && url.pathname === "/v1/trade-notes") {
     const address = await requirePrivyWallet(request);
     limitSocialWrite(request, address);
-    return send(request, response, 200, await socialActions.setTradeNote(address, await readJson(request)));
+    return send(
+      request,
+      response,
+      200,
+      await socialActions.setTradeNote(address, await readJson(request)),
+    );
   }
 
   if (request.method === "POST" && url.pathname === "/v1/trade-reactions") {
     const address = await requirePrivyWallet(request);
     limitSocialWrite(request, address);
-    return send(request, response, 200, await socialActions.setTradeReaction(address, await readJson(request)));
+    return send(
+      request,
+      response,
+      200,
+      await socialActions.setTradeReaction(address, await readJson(request)),
+    );
   }
   return false;
 }

@@ -1,5 +1,11 @@
 import { createConfig, http } from "wagmi";
-import { defineChain, getAddress, isAddress, type Address, type Hex } from "viem";
+import {
+  defineChain,
+  getAddress,
+  isAddress,
+  type Address,
+  type Hex,
+} from "viem";
 import {
   RISE_MAINNET_CHAIN_ID,
   RISE_MAINNET_EXPLORER_URL,
