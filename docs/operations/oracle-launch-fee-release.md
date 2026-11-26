@@ -4,15 +4,15 @@
 
 This release targets RISE mainnet chain 4153. The operator broadcast the oracle launchpad and adapter from the `dot` Foundry keystore; no smoke token was launched. The verified launchpad is `0xC2C337301303d8bE4803042425aA5A325d30e6d7` and its adapter is `0x01d06FE7D91Af00eFd3D559B9B2B943756cBd797`. The old launchpad continues to exist onchain; old markets are excluded from the new app and indexer. The reset intentionally deletes all local production database rows, including accounts, profiles, follows, market records, trades, candles, notes, notifications, and indexer cursors. It also deletes the production Postgres backup volume. An external/off-host copy, if one exists, must be handled separately.
 
-| Area | Work and acceptance gate | Typical effort | State before operator action |
-| --- | --- | --- | --- |
-| Contract | $1 WETH fee from Stork ETH/USDC, rounded up; 30 minute freshness, future timestamp and $100–$100,000 ETH price checks; creator fee cap; no fallback fee | 0.5–1 day | Implemented; Foundry unit and mainnet fork tests pass |
-| Authority | `dot` deploys; two-day self-administered timelock owns launchpad; `dot` proposes, executes, cancels and guards; pinned treasury receives fee | 0.25–0.5 day | Implemented; nonbroadcasting mainnet simulation passes |
-| Client | Read `quoteLaunchFee`, display $1 target, price age, WETH charge and reviewed cap; refuse unavailable or stale quote | 0.5–1 day | Implemented; TypeScript and UI tests pass |
-| API/indexer/keeper | Index only the new address; reject a database that still names an older launchpad; no legacy market configuration | 0.5 day | Implemented; JavaScript tests pass |
-| Deployment | `dot` Make targets for core and swap adapter, verified records and env sync | 0.5 day | Broadcast and recorded; onchain wiring checked |
-| Data reset | Build images, validate record/env parity, delete both Postgres data and on-host backup volumes, recreate schema and services | 0.25–0.5 day | Prepared; awaiting VPS activation |
-| Public cutover | New records and source on VPS, new containers healthy, empty market list and $1 launch quote | 1–3 hours | Awaiting VPS activation |
+| Area               | Work and acceptance gate                                                                                                                                | Typical effort | State before operator action                           |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ------------------------------------------------------ |
+| Contract           | $1 WETH fee from Stork ETH/USDC, rounded up; 30 minute freshness, future timestamp and $100–$100,000 ETH price checks; creator fee cap; no fallback fee | 0.5–1 day      | Implemented; Foundry unit and mainnet fork tests pass  |
+| Authority          | `dot` deploys; two-day self-administered timelock owns launchpad; `dot` proposes, executes, cancels and guards; pinned treasury receives fee            | 0.25–0.5 day   | Implemented; nonbroadcasting mainnet simulation passes |
+| Client             | Read `quoteLaunchFee`, display $1 target, price age, WETH charge and reviewed cap; refuse unavailable or stale quote                                    | 0.5–1 day      | Implemented; TypeScript and UI tests pass              |
+| API/indexer/keeper | Index only the new address; reject a database that still names an older launchpad; no legacy market configuration                                       | 0.5 day        | Implemented; JavaScript tests pass                     |
+| Deployment         | `dot` Make targets for core and swap adapter, verified records and env sync                                                                             | 0.5 day        | Broadcast and recorded; onchain wiring checked         |
+| Data reset         | Build images, validate record/env parity, delete both Postgres data and on-host backup volumes, recreate schema and services                            | 0.25–0.5 day   | Prepared; awaiting VPS activation                      |
+| Public cutover     | New records and source on VPS, new containers healthy, empty market list and $1 launch quote                                                            | 1–3 hours      | Awaiting VPS activation                                |
 
 The development and review scope is about 2.5–4 working days across those areas. The remaining operator sequence is typically one maintenance window after verified contract broadcasts and records. Allow roughly 1–3 hours for source verification, records, VPS staging, database reset, image builds, health checks, and proxy observation; explorer verification or oracle outages can extend it.
 

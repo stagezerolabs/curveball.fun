@@ -57,13 +57,13 @@ Update `README.md`, `contracts/README.md`, protocol/integration/glossary docs, m
 
 ## Delivery sequence and estimate
 
-| Unit | Verifiable gate | Rough engineering effort |
-| --- | --- | ---: |
-| Oracle policy and live probe | Repeatable mainnet/testnet read; chosen age, price, and depeg rules | 1–2 days |
-| Contract, interface, unit and fork tests | `$1` equivalent WETH paid; all failure and rounding cases pass | 3–5 days |
-| Multi-deployment data, SDK routing, keeper and adapter | Legacy market still trades, graduates, appears in API; v3 markets work | 6–10 days |
-| Launch UI and wallet flow | Browser verifies ETH/WETH funding, cap, review, failure and success | 2–4 days |
-| Release tooling, records, docs and staged rollout | Versioned records, preflight, verification, local and mainnet smoke | 4–7 days |
+| Unit                                                   | Verifiable gate                                                        | Rough engineering effort |
+| ------------------------------------------------------ | ---------------------------------------------------------------------- | -----------------------: |
+| Oracle policy and live probe                           | Repeatable mainnet/testnet read; chosen age, price, and depeg rules    |                 1–2 days |
+| Contract, interface, unit and fork tests               | `$1` equivalent WETH paid; all failure and rounding cases pass         |                 3–5 days |
+| Multi-deployment data, SDK routing, keeper and adapter | Legacy market still trades, graduates, appears in API; v3 markets work |                6–10 days |
+| Launch UI and wallet flow                              | Browser verifies ETH/WETH funding, cap, review, failure and success    |                 2–4 days |
+| Release tooling, records, docs and staged rollout      | Versioned records, preflight, verification, local and mainnet smoke    |                 4–7 days |
 
 **Planning estimate:** roughly 16–28 engineering days for one developer, plus independent contract review and mainnet rollout time. It assumes preserving the live legacy market and no new oracle pusher. This is a sizing estimate, not a commitment. A frontend-only dollar display is much smaller but cannot enforce the fee. Adding a strict USD peg or a self-run Stork pusher adds another workstream.
 

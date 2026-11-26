@@ -98,7 +98,10 @@ export function prepareProductionEnv({
       "Mainnet keeper private key belongs in the host secret file, not keeper/.env.mainnet.local.",
     );
   }
-  const recordPath = resolve(root, `deployments/${chainId}/curveball-oracle-v3.json`);
+  const recordPath = resolve(
+    root,
+    `deployments/${chainId}/curveball-oracle-v3.json`,
+  );
   if (!existsSync(recordPath))
     throw new Error(`Missing RISE ${network} deployment record: ${recordPath}`);
   const deployment = JSON.parse(readFileSync(recordPath, "utf8"));
@@ -145,12 +148,18 @@ export function prepareProductionEnv({
   const expectedChain = String(chainId);
   const launchpad = deployment.launchpad;
   const deploymentBlock = String(deployment.deploymentBlock);
-  if (deployment.version !== "oracle-v3" ||
-        deployment.storkOracle?.toLowerCase() !== "0xacc0a0cf13571d30b4b8637996f5d6d774d4fd62" ||
-        deployment.storkFeedId?.toLowerCase() !== "0x7965e1bfc07a34caf0c3aa8146b200264fbb7a0eb85b1d3b1fdceecffd736b02" ||
-        deployment.launchFeeUsd !== "1000000000000000000" ||
-        deployment.maxOracleAgeSeconds !== "1800")
-    throw new Error("Oracle deployment record does not match the pinned fee policy.");
+  if (
+    deployment.version !== "oracle-v3" ||
+    deployment.storkOracle?.toLowerCase() !==
+      "0xacc0a0cf13571d30b4b8637996f5d6d774d4fd62" ||
+    deployment.storkFeedId?.toLowerCase() !==
+      "0x7965e1bfc07a34caf0c3aa8146b200264fbb7a0eb85b1d3b1fdceecffd736b02" ||
+    deployment.launchFeeUsd !== "1000000000000000000" ||
+    deployment.maxOracleAgeSeconds !== "1800"
+  )
+    throw new Error(
+      "Oracle deployment record does not match the pinned fee policy.",
+    );
   const parity = [
     [
       frontend.VITE_CHAIN_ID,
@@ -255,7 +264,10 @@ export function prepareProductionEnv({
         ["VITE_ICARUS_SWAP_ADAPTER_CODE_HASH", swapRecord?.codeHash],
         ["VITE_SOCIAL_API_URL", "https://social-api.curveball.fun"],
         ["VITE_ADMIN_ADDRESS", adminAddress],
-        ["VITE_PRIVY_APP_ID", requireValue(frontend, "VITE_PRIVY_APP_ID", source.frontend)],
+        [
+          "VITE_PRIVY_APP_ID",
+          requireValue(frontend, "VITE_PRIVY_APP_ID", source.frontend),
+        ],
         ["VITE_PRIVY_CLIENT_ID", frontend.VITE_PRIVY_CLIENT_ID],
       ],
     ],
@@ -278,7 +290,10 @@ export function prepareProductionEnv({
         ["SOCIAL_PUBLIC_ORIGIN", "https://social-api.curveball.fun"],
         ["SOCIAL_TRUST_PROXY_CLIENT_IP", isMainnet ? "1" : undefined],
         ["PRIVY_APP_ID", requireValue(social, "PRIVY_APP_ID", source.social)],
-        ["PRIVY_APP_SECRET", requireValue(social, "PRIVY_APP_SECRET", source.social)],
+        [
+          "PRIVY_APP_SECRET",
+          requireValue(social, "PRIVY_APP_SECRET", source.social),
+        ],
         ["SOCIAL_CONFIRMATIONS", social.SOCIAL_CONFIRMATIONS || "2"],
         ["SOCIAL_POLL_INTERVAL_MS", social.SOCIAL_POLL_INTERVAL_MS || "3000"],
         ["SOCIAL_LOG_RANGE", social.SOCIAL_LOG_RANGE || "2000"],

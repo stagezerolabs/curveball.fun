@@ -32,17 +32,17 @@ flowchart LR
 
 ## Modules and state ownership
 
-| Module           | Interface and responsibility                                                                      | State owned by the implementation                                                                                                                                                  |
-| ---------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CurveLaunchpad` | Launch, buy, sell, abort, graduate, previews, bounded administration                              | Every `Market`, per-creator launch nonce, historical `held` ledger, defaults, target, pause state, and aggregate curve liabilities                                                 |
-| `CurveToken`     | Fixed-supply market ERC-20 with a pre-graduation transfer lock                                    | Clone balances, allowances, total supply, permit nonces, metadata, initialization flag, and permanent unlock flag; launchpad authorization is immutable in implementation bytecode |
-| `CurveFeeEscrow` | Backed fee accounting, pull claims, fee transfer, surplus rescue | Claimable balances and per-asset aggregate liabilities                                                                                       |
-| `CurveBuybackTreasury` | Shared fee custody, guarded market-token conversion, CURVE buybacks | Global WETH budget, token fee credits, selected CURVE, observation boundaries |
-| `CurveLpLocker`  | Permanent LP custody and permissionless fee forwarding                                            | Registered pool-to-market mapping; it has no LP withdrawal interface                                                                                                               |
-| `CurveIcarusSwapAdapter` | Direct exact-input swaps on graduated market pools | No mutable state; it validates the registered canonical pool and transfers input directly into that pool |
-| `CurveMath`      | Curve quotations, target initialization, pool-seed calculation, and fee splitting                 | No state                                                                                                                                                                           |
-| Icarus seam      | Factory discovery/creation, pool reserves, liquidity minting, swaps, observations, and fee claims | External factory and pool state                                                                                                                                                    |
-| Quote-token seam | Curve reserve, fee asset, pool quote asset, and buyback input                                     | External ERC-20 state; configured as RISE WETH                                                                                                                                     |
+| Module                   | Interface and responsibility                                                                      | State owned by the implementation                                                                                                                                                  |
+| ------------------------ | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CurveLaunchpad`         | Launch, buy, sell, abort, graduate, previews, bounded administration                              | Every `Market`, per-creator launch nonce, historical `held` ledger, defaults, target, pause state, and aggregate curve liabilities                                                 |
+| `CurveToken`             | Fixed-supply market ERC-20 with a pre-graduation transfer lock                                    | Clone balances, allowances, total supply, permit nonces, metadata, initialization flag, and permanent unlock flag; launchpad authorization is immutable in implementation bytecode |
+| `CurveFeeEscrow`         | Backed fee accounting, pull claims, fee transfer, surplus rescue                                  | Claimable balances and per-asset aggregate liabilities                                                                                                                             |
+| `CurveBuybackTreasury`   | Shared fee custody, guarded market-token conversion, CURVE buybacks                               | Global WETH budget, token fee credits, selected CURVE, observation boundaries                                                                                                      |
+| `CurveLpLocker`          | Permanent LP custody and permissionless fee forwarding                                            | Registered pool-to-market mapping; it has no LP withdrawal interface                                                                                                               |
+| `CurveIcarusSwapAdapter` | Direct exact-input swaps on graduated market pools                                                | No mutable state; it validates the registered canonical pool and transfers input directly into that pool                                                                           |
+| `CurveMath`              | Curve quotations, target initialization, pool-seed calculation, and fee splitting                 | No state                                                                                                                                                                           |
+| Icarus seam              | Factory discovery/creation, pool reserves, liquidity minting, swaps, observations, and fee claims | External factory and pool state                                                                                                                                                    |
+| Quote-token seam         | Curve reserve, fee asset, pool quote asset, and buyback input                                     | External ERC-20 state; configured as RISE WETH                                                                                                                                     |
 
 `CurveLaunchpad` is the coordinating deep module: callers use a compact lifecycle interface while token deployment, fee routing, custody, state transitions, and pool graduation stay local to its implementation.
 
@@ -173,15 +173,15 @@ The separately deployed `CurveIcarusSwapAdapter` provides exact-input swaps for 
 
 ## Roles and authority
 
-| Role          | Powers                                                                                                                                                         | Explicit limitations                                                                                                                                                        |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Role          | Powers                                                                                                                                                                                                                 | Explicit limitations                                                                                                                                                        |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Owner         | Launchpad owner updates future defaults and target, rotates guardian, unpauses, and rescues surplus; escrow owner rescues escrow surplus; buyback treasury owner selects CURVE once and may trigger immediate buybacks | Two-step ownership; cannot renounce; target must meet minimum, exact-divisibility, and `uint128` bounds; cannot change snapshotted markets, immutable addresses, LP custody |
-| Guardian      | Pause launches and buys                                                                                                                                        | Cannot unpause, seize assets, modify policy, block sells, or block graduation                                                                                               |
-| Treasury      | Receives launch fee and protocol fee share                                                                                                                     | Immutable recipient, no special callable authority                                                                                                                          |
-| Creator       | Chooses metadata, tax within current cap, and optional first buy                                                                       | Fee policy and tax are fixed for that market after launch                                                                                                                   |
-| Trader        | Buy and sell subject to state, pause, deadline, balance, and slippage                                                                                          | Pre-graduation transfers cannot bypass the curve                                                                                                                            |
-| Public caller | Graduate, abort after timeout, claim LP fees, execute buybacks, and claim own balances                                                                         | Cannot redirect another account's claim or move locked LP                                                                                                                   |
-| Icarus pauser | Pauses Icarus swaps                                                                                                                                            | Under the integrated Icarus implementation, pause affects swaps only and does not block graduation; paused swaps make buyback skip                                          |
+| Guardian      | Pause launches and buys                                                                                                                                                                                                | Cannot unpause, seize assets, modify policy, block sells, or block graduation                                                                                               |
+| Treasury      | Receives launch fee and protocol fee share                                                                                                                                                                             | Immutable recipient, no special callable authority                                                                                                                          |
+| Creator       | Chooses metadata, tax within current cap, and optional first buy                                                                                                                                                       | Fee policy and tax are fixed for that market after launch                                                                                                                   |
+| Trader        | Buy and sell subject to state, pause, deadline, balance, and slippage                                                                                                                                                  | Pre-graduation transfers cannot bypass the curve                                                                                                                            |
+| Public caller | Graduate, abort after timeout, claim LP fees, execute buybacks, and claim own balances                                                                                                                                 | Cannot redirect another account's claim or move locked LP                                                                                                                   |
+| Icarus pauser | Pauses Icarus swaps                                                                                                                                                                                                    | Under the integrated Icarus implementation, pause affects swaps only and does not block graduation; paused swaps make buyback skip                                          |
 
 Mainnet deployment creates a self-administered OpenZeppelin timelock with a two-day delay and gives launchpad, escrow, and buyback treasury that owner. The `curveball` deployer EOA holds the proposer, canceller, and executor roles and serves as guardian. The separately pinned treasury EOA receives protocol fees. The three ownership roles can later be transferred independently through timelocked actions. The deployment recorder checks the timelock runtime bytecode, delay, and roles against the compiled release.
 
@@ -199,15 +199,15 @@ All value-moving launchpad entry points and escrow functions that transfer fee a
 
 ## Source map
 
-| Topic                            | Primary source                      |
-| -------------------------------- | ----------------------------------- |
-| Market lifecycle and accounting  | `contracts/CurveLaunchpad.sol`      |
-| Curve formulas and fee splitting | `contracts/libraries/CurveMath.sol` |
-| Token clone and transfer lock    | `contracts/CurveToken.sol`          |
-| Fee claims and distribution      | `contracts/CurveFeeEscrow.sol`      |
-| Fee conversion and CURVE buybacks | `contracts/CurveBuybackTreasury.sol` |
-| LP custody and pool fee routing  | `contracts/CurveLpLocker.sol`       |
-| Graduated exact-input swaps | `contracts/CurveIcarusSwapAdapter.sol` |
-| External integration surface     | `contracts/interfaces/IIcarus.sol`  |
-| Immutable deployment wiring      | `scripts/CurveDeploy.sol`           |
-| Network policy and preflight     | `scripts/Deploy.s.sol`              |
+| Topic                             | Primary source                         |
+| --------------------------------- | -------------------------------------- |
+| Market lifecycle and accounting   | `contracts/CurveLaunchpad.sol`         |
+| Curve formulas and fee splitting  | `contracts/libraries/CurveMath.sol`    |
+| Token clone and transfer lock     | `contracts/CurveToken.sol`             |
+| Fee claims and distribution       | `contracts/CurveFeeEscrow.sol`         |
+| Fee conversion and CURVE buybacks | `contracts/CurveBuybackTreasury.sol`   |
+| LP custody and pool fee routing   | `contracts/CurveLpLocker.sol`          |
+| Graduated exact-input swaps       | `contracts/CurveIcarusSwapAdapter.sol` |
+| External integration surface      | `contracts/interfaces/IIcarus.sol`     |
+| Immutable deployment wiring       | `scripts/CurveDeploy.sol`              |
+| Network policy and preflight      | `scripts/Deploy.s.sol`                 |

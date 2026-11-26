@@ -13,37 +13,37 @@ This document specifies the observable behavior of the current contracts. “Mus
 
 ## Protocol constants
 
-| Constant                 |                Value | Meaning                                                                                |
-| ------------------------ | -------------------: | -------------------------------------------------------------------------------------- |
-| `SUPPLY` (`S`)           | 1,000,000,000 tokens | Supply minted by every market token                                                    |
-| `CURVE_SUPPLY` (`C`)     |   800,000,000 tokens | Maximum inventory sold through the curve                                               |
-| Non-curve supply         |   200,000,000 tokens | Inventory available for pool seed and graduation burn                                  |
-| `walletCapBps`           |    1–10,000 bps | Immutable constructor parameter; the RISE deployment uses 500 bps (40 million curve tokens per wallet) |
-| `MAX_FEE_BPS`            |              200 bps | Maximum curve trading fee                                                              |
-| `MAX_TAX_BPS`            |               50 bps | Maximum creator tax cap                                                                |
-| `MAX_LAUNCH_FEE`         |     0.01 quote token | Constructor bound; deployed value is immutable                                         |
-| `MIN_TARGET`             |       4 quote tokens | Minimum configurable graduation target                                                 |
-| `GRADUATION_TIMEOUT`     |               7 days | Delay before a `Ready` market can abort                                                |
-| Name length              |           1–64 bytes | Enforced by token initialization                                                       |
-| Symbol length            |           1–12 bytes | Enforced by token initialization                                                       |
-| URI length               |        1–2,048 bytes | Enforced by launchpad; URI is event-only                                               |
-| `STALENESS`              |                1 day | Public callers may trigger after this time since the last successful CURVE buyback |
-| `BUYBACK_CHUNK_BPS`      |            2,500 bps | Nominal 25% of remaining buyback credit                                                |
-| `MAX_IMPACT_BPS`         |               25 bps | Input cap of 0.25% of pool input reserves                                              |
-| `SLIPPAGE_BPS`           |              100 bps | 1% tolerance below fee-adjusted TWAP                                                   |
-| `TWAP_WINDOWS`           |                    2 | Last two Icarus observation intervals, each at least 30 minutes and potentially longer |
+| Constant             |                Value | Meaning                                                                                                |
+| -------------------- | -------------------: | ------------------------------------------------------------------------------------------------------ |
+| `SUPPLY` (`S`)       | 1,000,000,000 tokens | Supply minted by every market token                                                                    |
+| `CURVE_SUPPLY` (`C`) |   800,000,000 tokens | Maximum inventory sold through the curve                                                               |
+| Non-curve supply     |   200,000,000 tokens | Inventory available for pool seed and graduation burn                                                  |
+| `walletCapBps`       |         1–10,000 bps | Immutable constructor parameter; the RISE deployment uses 500 bps (40 million curve tokens per wallet) |
+| `MAX_FEE_BPS`        |              200 bps | Maximum curve trading fee                                                                              |
+| `MAX_TAX_BPS`        |               50 bps | Maximum creator tax cap                                                                                |
+| `MAX_LAUNCH_FEE`     |     0.01 quote token | Constructor bound; deployed value is immutable                                                         |
+| `MIN_TARGET`         |       4 quote tokens | Minimum configurable graduation target                                                                 |
+| `GRADUATION_TIMEOUT` |               7 days | Delay before a `Ready` market can abort                                                                |
+| Name length          |           1–64 bytes | Enforced by token initialization                                                                       |
+| Symbol length        |           1–12 bytes | Enforced by token initialization                                                                       |
+| URI length           |        1–2,048 bytes | Enforced by launchpad; URI is event-only                                                               |
+| `STALENESS`          |                1 day | Public callers may trigger after this time since the last successful CURVE buyback                     |
+| `BUYBACK_CHUNK_BPS`  |            2,500 bps | Nominal 25% of remaining buyback credit                                                                |
+| `MAX_IMPACT_BPS`     |               25 bps | Input cap of 0.25% of pool input reserves                                                              |
+| `SLIPPAGE_BPS`       |              100 bps | 1% tolerance below fee-adjusted TWAP                                                                   |
+| `TWAP_WINDOWS`       |                    2 | Last two Icarus observation intervals, each at least 30 minutes and potentially longer                 |
 
 Deployment defaults are separate from hard bounds:
 
-| Default                                       |                                                                    Value |
-| --------------------------------------------- | -----------------------------------------------------------------------: |
+| Default                                       |                                           Value |
+| --------------------------------------------- | ----------------------------------------------: |
 | Launch fee                                    | Stork ETH/USDC priced WETH equivalent of 1 USDC |
-| Curve fee                                     |                                                                   75 bps |
-| Creator share of curve fee                    |                                                          5,000 bps (50%) |
-| Buyback share of curve fee                    |                                                          2,500 bps (25%) |
-| Creator-tax cap                               |                                                                   50 bps |
-| Testnet graduation target for new deployments |                                                                   4 WETH |
-| Mainnet graduation target                     | 4 WETH, pinned in the deployment script |
+| Curve fee                                     |                                          75 bps |
+| Creator share of curve fee                    |                                 5,000 bps (50%) |
+| Buyback share of curve fee                    |                                 2,500 bps (25%) |
+| Creator-tax cap                               |                                          50 bps |
+| Testnet graduation target for new deployments |                                          4 WETH |
+| Mainnet graduation target                     |         4 WETH, pinned in the deployment script |
 
 ## Market data model
 
@@ -63,7 +63,7 @@ Each token maps to one `Market`:
 | `realQuote`           | Quote owed to this ungraduated curve                   |
 | `readyAt`             | Timestamp of first sellout from `Trading`              |
 | `pool`                | Graduated Icarus pool, otherwise zero                  |
-| `launchedAt`          | Timestamp used to calculate the opening buy tax       |
+| `launchedAt`          | Timestamp used to calculate the opening buy tax        |
 
 Before graduation:
 
@@ -341,7 +341,6 @@ The separately deployed adapter provides exact-input WETH/market-token swaps aft
 - Both calls reject zero/quote-token market addresses, a paused Icarus factory, a missing or noncanonical volatile pool, or a pool whose token pair differs from the market token and quote token. The pool must match both `launchpad.poolOf(token)` and `factory.getPool(token, quoteToken, false)`.
 - The quote is an estimate; reserve, fee, and pause changes before execution may change the result or cause a revert. The adapter has no inventory custody or withdrawal function.
 
-
 ## `CurveLpLocker` specification
 
 - Constructor fixes launchpad and escrow forever.
@@ -357,41 +356,41 @@ Correct asset attribution relies on the trusted factory returning the canonical 
 
 ## State and pause matrix
 
-| Operation             |             Trading |                                             Ready |                  Aborted |           Graduated |  Blocked by launchpad pause? |
-| --------------------- | ------------------: | ------------------------------------------------: | -----------------------: | ------------------: | ---------------------------: |
-| Launch new market     |                 n/a |                                               n/a |                      n/a |                 n/a |                          Yes |
-| Buy                   |                 Yes |                                                No | Yes, if inventory exists |                  No |                          Yes |
-| Sell                  |                 Yes | No before timeout; aborts and sells after timeout |                      Yes |                  No |                           No |
-| Explicit abort        |                  No |                                     After timeout |                       No |                  No |                           No |
-| Graduate              |                  No |                                               Yes |          Only at sellout |                  No |                           No |
-| LP fee claim          |                 n/a |                                               n/a |                      n/a |                 Yes |                           No |
-| Fee claim             | Any accrued balance |                               Any accrued balance |      Any accrued balance | Any accrued balance |                           No |
-| Buyback               |             No pool |                                           No pool |                  No pool |                 Yes | No; Icarus pause causes skip |
+| Operation         |             Trading |                                             Ready |                  Aborted |           Graduated |  Blocked by launchpad pause? |
+| ----------------- | ------------------: | ------------------------------------------------: | -----------------------: | ------------------: | ---------------------------: |
+| Launch new market |                 n/a |                                               n/a |                      n/a |                 n/a |                          Yes |
+| Buy               |                 Yes |                                                No | Yes, if inventory exists |                  No |                          Yes |
+| Sell              |                 Yes | No before timeout; aborts and sells after timeout |                      Yes |                  No |                           No |
+| Explicit abort    |                  No |                                     After timeout |                       No |                  No |                           No |
+| Graduate          |                  No |                                               Yes |          Only at sellout |                  No |                           No |
+| LP fee claim      |                 n/a |                                               n/a |                      n/a |                 Yes |                           No |
+| Fee claim         | Any accrued balance |                               Any accrued balance |      Any accrued balance | Any accrued balance |                           No |
+| Buyback           |             No pool |                                           No pool |                  No pool |                 Yes | No; Icarus pause causes skip |
 
 ## Custom events
 
-| Module    | Events                                                                                                                                                                             |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Launchpad | `LaunchCreated`, `Trade`, `GraduationReady`, `GraduationAborted`, `Graduated`, `FeeDefaultsUpdated`, `GraduationTargetUpdated`, `GuardianUpdated`, `Rescued`, `Paused`, `Unpaused` |
-| Token     | `Unlocked` plus inherited ERC-20 events                                                                                                                                            |
-| Escrow    | `FeeAccrued`, `FeeClaimed`, `Rescued`                                                                                                           |
-| Buyback treasury | `Funded`, `Converted`, `CurveTokenSet`, `BuybackBurned`, `SwapSkipped` |
-| Locker    | `PoolRegistered`, `LpFeesClaimed`                                                                                                                                                  |
-| Swap adapter | `SwapExecuted` |
+| Module           | Events                                                                                                                                                                             |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Launchpad        | `LaunchCreated`, `Trade`, `GraduationReady`, `GraduationAborted`, `Graduated`, `FeeDefaultsUpdated`, `GraduationTargetUpdated`, `GuardianUpdated`, `Rescued`, `Paused`, `Unpaused` |
+| Token            | `Unlocked` plus inherited ERC-20 events                                                                                                                                            |
+| Escrow           | `FeeAccrued`, `FeeClaimed`, `Rescued`                                                                                                                                              |
+| Buyback treasury | `Funded`, `Converted`, `CurveTokenSet`, `BuybackBurned`, `SwapSkipped`                                                                                                             |
+| Locker           | `PoolRegistered`, `LpFeesClaimed`                                                                                                                                                  |
+| Swap adapter     | `SwapExecuted`                                                                                                                                                                     |
 
 `Trade.quoteAmount` is all-in spend for a buy and net receipt for a sell. `Trade.antiSnipeTax` is nonzero only on an opening buy. The URI is not stored in contract storage; it is emitted in `LaunchCreated` and also remains visible in launch transaction calldata.
 
 ## Custom errors
 
-| Module     | Errors                                                                                                                                                                                            |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Launchpad  | `InvalidConfig`, `InvalidLaunch`, `NotTrading`, `Slippage`, `Expired`, `NotReady`, `NotAbortable`, `PoolUsed`, `MintMismatch`, `NotGuardian`, `EnforcedPause`, `RenounceDisabled`, `NotRescuable` |
-| Curve math | `InvalidTarget`, `InvalidAmount`, `SoldOut`, `ZeroOutput`, `DustTrade`, `InsufficientReserve`                                                                                                     |
-| Token      | `NotLaunchpad`, `AlreadyInitialized`, `InvalidMetadata`, `Locked`                                                                                                                                 |
-| Escrow     | `Unauthorized`, `InvalidAsset`, `Unbacked`, `ExceedsSurplus`, `RenounceDisabled`                                                                                  |
-| Buyback treasury | `Unauthorized`, `InvalidMarket`, `InvalidTarget`, `AlreadySet`, `NotReady`, `BuybackNotStale`, `NothingToSpend`, `RenounceDisabled`                                                         |
-| Locker     | `NotLaunchpad`, `AlreadyRegistered`, `UnregisteredPool`                                                                                                                                           |
-| Swap adapter | `InvalidConfig`, `InvalidTrade`, `PoolUnavailable`, `PoolMismatch`, `PoolPaused`, `Slippage`, `Expired` |
-| Deployment | `AddressPredictionMismatch`, `WiringMismatch`, `UnsupportedChain`, `Preflight`                                                                                                                    |
+| Module           | Errors                                                                                                                                                                                            |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Launchpad        | `InvalidConfig`, `InvalidLaunch`, `NotTrading`, `Slippage`, `Expired`, `NotReady`, `NotAbortable`, `PoolUsed`, `MintMismatch`, `NotGuardian`, `EnforcedPause`, `RenounceDisabled`, `NotRescuable` |
+| Curve math       | `InvalidTarget`, `InvalidAmount`, `SoldOut`, `ZeroOutput`, `DustTrade`, `InsufficientReserve`                                                                                                     |
+| Token            | `NotLaunchpad`, `AlreadyInitialized`, `InvalidMetadata`, `Locked`                                                                                                                                 |
+| Escrow           | `Unauthorized`, `InvalidAsset`, `Unbacked`, `ExceedsSurplus`, `RenounceDisabled`                                                                                                                  |
+| Buyback treasury | `Unauthorized`, `InvalidMarket`, `InvalidTarget`, `AlreadySet`, `NotReady`, `BuybackNotStale`, `NothingToSpend`, `RenounceDisabled`                                                               |
+| Locker           | `NotLaunchpad`, `AlreadyRegistered`, `UnregisteredPool`                                                                                                                                           |
+| Swap adapter     | `InvalidConfig`, `InvalidTrade`, `PoolUnavailable`, `PoolMismatch`, `PoolPaused`, `Slippage`, `Expired`                                                                                           |
+| Deployment       | `AddressPredictionMismatch`, `WiringMismatch`, `UnsupportedChain`, `Preflight`                                                                                                                    |
 
 Inherited OpenZeppelin, Solady, `SafeERC20`, arithmetic-panic, and external dependency reverts remain possible and are not replaced with protocol-specific errors.

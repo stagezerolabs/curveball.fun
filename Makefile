@@ -13,7 +13,7 @@ TAIL ?= 100
 
 .PHONY: help dev build build-testnet test typecheck js-tests contracts-test \
   preflight-mainnet-dot deploy-mainnet-dot record-mainnet-dot deploy-swap-mainnet-dot \
-  record-swap-mainnet-dot configure-mainnet-dot configure-mainnet-host oracle-status-mainnet reset-mainnet-database \
+  record-swap-mainnet-dot configure-mainnet-dot configure-mainnet-host oracle-status-mainnet set-curve-token-mainnet-dot reset-mainnet-database \
   testnet-preflight deploy-testnet-oracle record-testnet-oracle \
   deploy-swap-testnet-oracle record-swap-testnet-oracle configure-testnet-oracle \
   docker-setup docker-up docker-down docker-rebuild docker-status docker-config \
@@ -25,6 +25,7 @@ help:
 	@echo "Build:    dev, build, build-testnet, test"
 	@echo "Mainnet:  preflight-mainnet-dot, deploy-mainnet-dot, record-mainnet-dot"
 	@echo "          deploy-swap-mainnet-dot, record-swap-mainnet-dot, configure-mainnet-dot, oracle-status-mainnet"
+	@echo "          set-curve-token-mainnet-dot (after CURVE graduation and timelock readiness)"
 	@echo "VPS:      configure-mainnet-host, reset-mainnet-database"
 	@echo "Testnet:  testnet-preflight, deploy-testnet-oracle, record-testnet-oracle"
 	@echo "          deploy-swap-testnet-oracle, record-swap-testnet-oracle, configure-testnet-oracle"
@@ -79,6 +80,10 @@ configure-mainnet-host:
 
 oracle-status-mainnet:
 	$(MAKE) -C contracts oracle-status-mainnet
+
+# Executes the existing timelock operation; it never schedules another one.
+set-curve-token-mainnet-dot:
+	@RISE_MAINNET_RPC_URL="$(MAINNET_RPC_URL)" bash deploy/set-curve-token-mainnet.sh
 
 # Run on /opt/curveball-mainnet after source, deployment records and secrets are staged.
 reset-mainnet-database:

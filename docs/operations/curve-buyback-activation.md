@@ -33,7 +33,9 @@ The operation ID must equal the recorded value, and `getTimestamp` must return `
 
 ## Execute after graduation
 
-Read `poolOf(TOKEN)` again. It must be nonzero, `seedObservations(TOKEN)` must be nonzero, and `curveToken()` must still be zero. Also check that the timelock operation is ready. Then execute with the same `DATA`, `ZERO`, and `SALT` values as above:
+From the repository root, run `make set-curve-token-mainnet-dot`. It checks the mainnet chain, deployment wiring, CURVE graduation, scheduled operation, timelock readiness, and Dot's executor role before prompting for the `dot` keystore password. It executes the existing operation, verifies the selected token, and records `deployments/4153/curve-activation.json`. It does not schedule a new operation.
+
+The equivalent manual execution uses the same `DATA`, `ZERO`, and `SALT` values as above:
 
 ```sh
 cast call "$TREASURY" 'seedObservations(address)(uint256)' "$TOKEN" --rpc-url "$RPC_URL"

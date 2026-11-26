@@ -4,10 +4,10 @@ A standalone Node.js worker for the active Curveball launchpad. It discovers lau
 
 The worker is organized by responsibility:
 
-| Path                               | Purpose                                                                   |
-| ---------------------------------- | ------------------------------------------------------------------------- |
-| `main.mjs`                         | Configuration, clients, sweep coordination, polling cadence, and shutdown |
-| `abi.mjs`                          | Exported launchpad, escrow, and buyback treasury contract ABIs            |
+| Path                                   | Purpose                                                                   |
+| -------------------------------------- | ------------------------------------------------------------------------- |
+| `main.mjs`                             | Configuration, clients, sweep coordination, polling cadence, and shutdown |
+| `abi.mjs`                              | Exported launchpad, escrow, and buyback treasury contract ABIs            |
 | `src/features/markets/catalog.mjs`     | Discover launches and track the scan cursor                               |
 | `src/features/markets/constants.mjs`   | Read launchpad and treasury configuration                                 |
 | `src/features/markets/status.mjs`      | Read a market's current state and token credit                            |

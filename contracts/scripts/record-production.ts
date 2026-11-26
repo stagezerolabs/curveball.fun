@@ -27,7 +27,8 @@ const network =
         chainId: 11_155_931,
         outputPath: "deployments/11155931/curveball-oracle-v3.json",
         rpcUrl:
-          Bun.env.RISE_TESTNET_RPC_URL?.trim() || "https://testnet.riselabs.xyz",
+          Bun.env.RISE_TESTNET_RPC_URL?.trim() ||
+          "https://testnet.riselabs.xyz",
         icarusFactory: getAddress("0x8221dfB70c9A2dE60253dcfC58231FD529bbF4F9"),
         explorerOrigin: "https://explorer.testnet.riselabs.xyz",
         // Testnet authorities are the dot operator; mainnet's are checked by the deploy preflight.
@@ -52,9 +53,16 @@ const coreNames = [
   "CurveLpLocker",
   "CurveLaunchpad",
 ] as const;
-const expectedNames = network.name === "mainnet" ? ["TimelockController", ...coreNames] : [...coreNames];
-const mainnetDeployer = getAddress("0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3");
-const mainnetTreasury = getAddress("0x7e6B1bEfC7dd622c20961140779eF61cd9C62Ce4");
+const expectedNames =
+  network.name === "mainnet"
+    ? ["TimelockController", ...coreNames]
+    : [...coreNames];
+const mainnetDeployer = getAddress(
+  "0xd07988eCBCf446b9650dC93Ed9c61Bf97F02a8d3",
+);
+const mainnetTreasury = getAddress(
+  "0x7e6B1bEfC7dd622c20961140779eF61cd9C62Ce4",
+);
 const timelockAbi = parseAbi([
   "function getMinDelay() view returns (uint256)",
   "function hasRole(bytes32 role, address account) view returns (bool)",
@@ -62,7 +70,9 @@ const timelockAbi = parseAbi([
 const role = (name: string) => keccak256(new TextEncoder().encode(name));
 const adminRole = `0x${"00".repeat(32)}` as Hex;
 const weth = getAddress("0x4200000000000000000000000000000000000006");
-const storkOracleAddress = getAddress("0xacC0a0cF13571d30B4b8637996F5D6D774d4fd62");
+const storkOracleAddress = getAddress(
+  "0xacC0a0cF13571d30B4b8637996F5D6D774d4fd62",
+);
 const explorerApiUrl = `${network.explorerOrigin}/api/v2/smart-contracts`;
 
 type BroadcastTransaction = {
@@ -136,7 +146,9 @@ const created = creations.map((transaction, index) => {
   };
 });
 
-const launchpadDeployment = created.find((item) => item.name === "CurveLaunchpad");
+const launchpadDeployment = created.find(
+  (item) => item.name === "CurveLaunchpad",
+);
 if (!launchpadDeployment) throw new Error("Missing CurveLaunchpad creation.");
 const launchpad = launchpadDeployment.address;
 const client = createPublicClient({ transport: http(rpcUrl) });
@@ -146,7 +158,13 @@ if (network.name === "mainnet") {
   const timelock = created[0];
   if (timelock.name !== "TimelockController")
     throw new Error("Missing mainnet timelock creation.");
-  if (creations.some((item) => !item.transaction?.from || getAddress(item.transaction.from) !== mainnetDeployer))
+  if (
+    creations.some(
+      (item) =>
+        !item.transaction?.from ||
+        getAddress(item.transaction.from) !== mainnetDeployer,
+    )
+  )
     throw new Error("Mainnet broadcast used another deployer.");
   const dirtyContracts = execFileSync(
     "git",
@@ -233,13 +251,22 @@ const [feeBps, creatorShareBps, buybackShareBps, taxCapBps] = feeDefaults;
 const storkOracle = feeConfiguration;
 if (storkOracle !== storkOracleAddress)
   throw new Error("Stork oracle address mismatch.");
-const [fee, price, timestampNs] = await read("quoteLaunchFee") as readonly [bigint, bigint, bigint];
-const oracleAge = await read("MAX_ORACLE_AGE") as bigint;
+const [fee, price, timestampNs] = (await read("quoteLaunchFee")) as readonly [
+  bigint,
+  bigint,
+  bigint,
+];
+const oracleAge = (await read("MAX_ORACLE_AGE")) as bigint;
 const block = await client.getBlock();
-if (price < 100n * 10n ** 18n || price > 100_000n * 10n ** 18n ||
-    fee !== (10n ** 36n + price - 1n) / price || fee > 10n ** 16n ||
-    oracleAge !== 30n * 60n || timestampNs / 1_000_000_000n > block.timestamp ||
-    block.timestamp - timestampNs / 1_000_000_000n > oracleAge)
+if (
+  price < 100n * 10n ** 18n ||
+  price > 100_000n * 10n ** 18n ||
+  fee !== (10n ** 36n + price - 1n) / price ||
+  fee > 10n ** 16n ||
+  oracleAge !== 30n * 60n ||
+  timestampNs / 1_000_000_000n > block.timestamp ||
+  block.timestamp - timestampNs / 1_000_000_000n > oracleAge
+)
   throw new Error("Oracle launch fee or freshness policy mismatch.");
 const oracleQuote = { fee, price, timestampNs };
 if (
@@ -260,23 +287,41 @@ if (
 }
 if (network.name === "mainnet") {
   const timelock = created[0].address;
-  if (owner !== timelock || guardian !== mainnetDeployer || treasury !== mainnetTreasury || graduationTarget !== 4n * 10n ** 18n)
+  if (
+    owner !== timelock ||
+    guardian !== mainnetDeployer ||
+    treasury !== mainnetTreasury ||
+    graduationTarget !== 4n * 10n ** 18n
+  )
     throw new Error("Mainnet authority or graduation target mismatch.");
-  const readTimelockRole = (roleHash: Hex, account: Address) => client.readContract({
-    address: timelock,
-    abi: timelockAbi,
-    functionName: "hasRole",
-    args: [roleHash, account],
-  } as never) as Promise<boolean>;
-  const [delay, proposer, executor, canceller, selfAdmin, deployerAdmin] = await Promise.all([
-    client.readContract({ address: timelock, abi: timelockAbi, functionName: "getMinDelay" } as never) as Promise<bigint>,
-    readTimelockRole(role("PROPOSER_ROLE"), mainnetDeployer),
-    readTimelockRole(role("EXECUTOR_ROLE"), mainnetDeployer),
-    readTimelockRole(role("CANCELLER_ROLE"), mainnetDeployer),
-    readTimelockRole(adminRole, timelock),
-    readTimelockRole(adminRole, mainnetDeployer),
-  ]);
-  if (delay !== 2n * 24n * 60n * 60n || !proposer || !executor || !canceller || !selfAdmin || deployerAdmin)
+  const readTimelockRole = (roleHash: Hex, account: Address) =>
+    client.readContract({
+      address: timelock,
+      abi: timelockAbi,
+      functionName: "hasRole",
+      args: [roleHash, account],
+    } as never) as Promise<boolean>;
+  const [delay, proposer, executor, canceller, selfAdmin, deployerAdmin] =
+    await Promise.all([
+      client.readContract({
+        address: timelock,
+        abi: timelockAbi,
+        functionName: "getMinDelay",
+      } as never) as Promise<bigint>,
+      readTimelockRole(role("PROPOSER_ROLE"), mainnetDeployer),
+      readTimelockRole(role("EXECUTOR_ROLE"), mainnetDeployer),
+      readTimelockRole(role("CANCELLER_ROLE"), mainnetDeployer),
+      readTimelockRole(adminRole, timelock),
+      readTimelockRole(adminRole, mainnetDeployer),
+    ]);
+  if (
+    delay !== 2n * 24n * 60n * 60n ||
+    !proposer ||
+    !executor ||
+    !canceller ||
+    !selfAdmin ||
+    deployerAdmin
+  )
     throw new Error("Mainnet timelock roles or delay mismatch.");
 }
 if (
@@ -376,8 +421,13 @@ const record = {
   launchFeeUsd: "1000000000000000000",
   maxOracleAgeSeconds: oracleAge.toString(),
   storkOracle,
-  storkFeedId: "0x7965e1bfc07a34caf0c3aa8146b200264fbb7a0eb85b1d3b1fdceecffd736b02",
-  oracleQuote: { fee: oracleQuote.fee.toString(), price: oracleQuote.price.toString(), timestampNs: oracleQuote.timestampNs.toString() },
+  storkFeedId:
+    "0x7965e1bfc07a34caf0c3aa8146b200264fbb7a0eb85b1d3b1fdceecffd736b02",
+  oracleQuote: {
+    fee: oracleQuote.fee.toString(),
+    price: oracleQuote.price.toString(),
+    timestampNs: oracleQuote.timestampNs.toString(),
+  },
   graduationTarget: graduationTarget.toString(),
   feeDefaults: { feeBps, creatorShareBps, buybackShareBps, taxCapBps },
   supply: supply.toString(),

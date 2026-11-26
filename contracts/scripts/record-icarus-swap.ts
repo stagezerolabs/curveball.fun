@@ -36,7 +36,10 @@ const launchpadRecord = (await Bun.file(launchpadRecordPath).json()) as {
   quote: string;
   icarusFactory: string;
 };
-if (launchpadRecord.chainId !== chainId || launchpadRecord.version !== "oracle-v3")
+if (
+  launchpadRecord.chainId !== chainId ||
+  launchpadRecord.version !== "oracle-v3"
+)
   throw new Error("Launchpad record is for another chain.");
 const launchpad = getAddress(launchpadRecord.launchpad);
 const quoteToken = getAddress(launchpadRecord.quote);

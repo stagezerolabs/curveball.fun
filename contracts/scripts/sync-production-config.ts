@@ -58,9 +58,12 @@ const keeperValues = {
   KEEPER_DEPLOYMENT_BLOCK: record.deploymentBlock,
 };
 const release = `${requestedNetwork}-oracle-v3-${record.launchpad.slice(2, 10).toLowerCase()}`;
-const obsolete = /^(?:VITE_LAUNCH_FEE_MODE|SOCIAL_LAUNCH_FEE_MODE|VITE_LEGACY_[A-Z_]+|SOCIAL_LEGACY_LAUNCHPADS|KEEPER_LEGACY_LAUNCHPADS|VITE_FACTORY_VERSION)=.*(?:\r?\n|$)/gm;
+const obsolete =
+  /^(?:VITE_LAUNCH_FEE_MODE|SOCIAL_LAUNCH_FEE_MODE|VITE_LEGACY_[A-Z_]+|SOCIAL_LEGACY_LAUNCHPADS|KEEPER_LEGACY_LAUNCHPADS|VITE_FACTORY_VERSION)=.*(?:\r?\n|$)/gm;
 async function updateEnv(path: string, entries: Record<string, string>) {
-  let source = (await Bun.file(path).exists()) ? await Bun.file(path).text() : "";
+  let source = (await Bun.file(path).exists())
+    ? await Bun.file(path).text()
+    : "";
   source = source.replace(obsolete, "");
   for (const [key, value] of Object.entries(entries)) {
     const line = `${key}=${value}`;
@@ -69,11 +72,17 @@ async function updateEnv(path: string, entries: Record<string, string>) {
       : `${source.trimEnd() ? `${source.trimEnd()}\n` : ""}${line}\n`;
   }
   await Bun.write(path, source);
-  console.log(`Updated ${path} for RISE ${requestedNetwork} launchpad ${record.launchpad}.`);
+  console.log(
+    `Updated ${path} for RISE ${requestedNetwork} launchpad ${record.launchpad}.`,
+  );
 }
 
 if (isTestnet) {
-  await updateEnv(".env", { ...frontendValues, ...socialValues, ...keeperValues });
+  await updateEnv(".env", {
+    ...frontendValues,
+    ...socialValues,
+    ...keeperValues,
+  });
 } else {
   await updateEnv(".env.production", frontendValues);
   if (await Bun.file("services/backend/.env.mainnet.local").exists())
@@ -83,8 +92,14 @@ if (isTestnet) {
 }
 for (const [path, entries] of [
   ["deploy/production.env", { ...frontendValues, CURVEBALL_RELEASE: release }],
-  ["deploy/social.env", { ...socialValues, SENTRY_RELEASE: `curveball-backend@${release}` }],
-  ["deploy/keeper.env", { ...keeperValues, SENTRY_RELEASE: `curveball-keeper@${release}` }],
+  [
+    "deploy/social.env",
+    { ...socialValues, SENTRY_RELEASE: `curveball-backend@${release}` },
+  ],
+  [
+    "deploy/keeper.env",
+    { ...keeperValues, SENTRY_RELEASE: `curveball-keeper@${release}` },
+  ],
   ["deploy/web.env", frontendValues],
 ] as const) {
   if (await Bun.file(path).exists()) await updateEnv(path, entries);

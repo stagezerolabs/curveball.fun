@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Curveball | Perp-backed launches — product brief</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font:
+          16px/1.55 system-ui,
+          sans-serif;
+        color: #182320;
+        background: #f6f8f6;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        max-width: 860px;
+        margin: auto;
+        padding: 40px 24px 72px;
+      }
+      header {
+        border-bottom: 2px solid #183d32;
+        padding-bottom: 18px;
+      }
+      .eyebrow {
+        margin: 0 0 8px;
+        color: #17634c;
+        font-size: 0.8rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      h1 {
+        margin: 0;
+        font-size: clamp(2rem, 5vw, 3rem);
+        line-height: 1.15;
+      }
+      h2 {
+        margin: 34px 0 10px;
+        font-size: 1.35rem;
+        line-height: 1.25;
+      }
+      h3 {
+        margin: 24px 0 8px;
+        font-size: 1.05rem;
+      }
+      p,
+      ul,
+      ol {
+        margin: 10px 0 16px;
+      }
+      li {
+        margin: 7px 0;
+      }
+      .meta {
+        color: #53645c;
+        font-size: 0.92rem;
+      }
+      .example {
+        padding: 16px 18px;
+        border-left: 4px solid #17634c;
+        background: #e9f3ed;
+      }
+      .caution {
+        padding: 16px 18px;
+        border-left: 4px solid #b3541e;
+        background: #f7eee6;
+      }
+      .table-wrap {
+        overflow-x: auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: #fff;
+      }
+      th,
+      td {
+        padding: 11px 13px;
+        border-bottom: 1px solid #d9e2dc;
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        background: #e9f0eb;
+      }
+      @media (max-width: 600px) {
+        body {
+          padding: 26px 16px 56px;
+        }
+        th,
+        td {
+          padding: 9px;
+        }
+      }
+      @media print {
+        :root {
+          background: #fff;
+        }
+        body {
+          max-width: none;
+          padding: 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <p class="eyebrow">Curveball / product brief</p>
+      <h1>Perp-backed launches</h1>
+      <p class="meta">
+        Product summary for the team · design draft, 17&nbsp;November&nbsp;2026
+        · not approved to build yet
+      </p>
+    </header>
+
+    <h2>The idea in one paragraph</h2>
+    <p>
+      A creator launches a token that comes with a published, guaranteed
+      <strong>minimum USDC redemption value</strong> — a “floor.” The same
+      launch also lets the creator run one separate trading position on RISEx,
+      up to 10× leverage, as a strategy for the token. Anyone who holds the
+      token can burn it at any time and get the published USDC floor from a
+      reserve. If the trading strategy wins, the realized profits can push the
+      floor higher. If it loses or gets liquidated, only the trading money is at
+      risk — the floor reserve is untouchable.
+    </p>
+    <p class="caution">
+      <strong>What “floor” does not mean:</strong> it is not a guaranteed sale
+      price on the market, not protection against the token's market price going
+      down, and not insurance against USDC, the chain, or the platform failing.
+      The floor is specifically “how much USDC a holder can redeem from the
+      reserve under the contract rules.” Market price can be above or below it.
+    </p>
+    <p>
+      This is a <strong>new launch type</strong>. Existing Curveball tokens and
+      the normal WETH launch flow stay exactly as they are.
+    </p>
+
+    <h2>Why we need it</h2>
+    <p>
+      Current launches sell tokens, open trading, and lock the money raised into
+      market liquidity — holders get no redeemable claim and no money-back
+      promise. This design adds two things: a reserve that actually backs a
+      published floor, and a perp position that gives the token a story and a
+      chance to raise that floor over time.
+    </p>
+    <p>
+      The technical heart of it: the money must be split into three separate
+      pots, because each pot has a different job and a different risk. This is
+      the single most important design rule.
+    </p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Pot of money</th>
+            <th>Where it comes from</th>
+            <th>What it may be used for</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Floor reserve</strong></td>
+            <td>Creator's USDC deposit; later realized profits</td>
+            <td>Holder redemptions and nothing else</td>
+          </tr>
+          <tr>
+            <td><strong>Trading margin</strong></td>
+            <td>Separate creator USDC deposit</td>
+            <td>One trading position; can be lost entirely</td>
+          </tr>
+          <tr>
+            <td><strong>Market liquidity</strong></td>
+            <td>Launch capital and token inventory</td>
+            <td>Normal trading (curve / pool); never counted as the floor</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>The economics in plain terms</h2>
+    <p>A simple formula drives everything:</p>
+    <div class="example">
+      <p>
+        <strong
+          >Floor per token = USDC in the reserve ÷ total tokens that can ever be
+          in circulation.</strong
+        >
+      </p>
+      <p>
+        Real example: a launch of 1&nbsp;billion tokens promises a floor of
+        $0.00001 per token. That needs
+        <strong>$10,000 USDC in the reserve</strong>. A separate
+        <strong>$1,000 trading margin</strong>
+        is enough for roughly $10,000 of position at 10× leverage. If that
+        position is liquidated, the $1,000 may be gone — the $10,000 redemption
+        reserve is still fully there.
+      </p>
+    </div>
+    <ul>
+      <li>
+        The floor is set when the launch activates and can only go
+        <strong>up</strong>, and only once real USDC actually lands in the
+        reserve.
+      </li>
+      <li>
+        Nobody counts “promised” money: no unrealized trading profit, no
+        position equity, no pool reserves, no future deposits.
+      </li>
+      <li>
+        Every token that could eventually circulate counts against the floor —
+        including unsold inventory and tokens set aside for the pool.
+      </li>
+      <li>
+        Redemptions shrink both the reserve and the token count together at the
+        current floor; small rounding leftovers stay in the reserve.
+      </li>
+      <li>
+        The creator pays for both the reserve and the trading margin up front.
+        Buying tokens on the curve does not fund either.
+      </li>
+    </ul>
+
+    <h2>The product journey, step by step</h2>
+    <ol>
+      <li>
+        <strong>Prepare.</strong> Creator picks a RISEx market, long or short,
+        the 10× target, the floor amount, and the trading margin. The launch
+        form shows exactly how much USDC is needed, the position size, and
+        honest examples of funding, liquidation, and whether the asset is even
+        listed.
+      </li>
+      <li>
+        <strong>Fund.</strong> The reserve receives the floor money; a separate
+        account receives the trading margin. Neither comes from existing trading
+        fees or treasury money.
+      </li>
+      <li>
+        <strong>Open.</strong> The operator places the order and must verify an
+        actual, filled position — a submitted order is not enough. A partial
+        fill must meet a minimum exposure or the position is closed before
+        launch.
+      </li>
+      <li>
+        <strong>Activate.</strong> Trading opens only after the reserve is
+        funded <em>and</em> the position is verified. If anything fails or times
+        out, no backed market opens: the strategy is closed and uncommitted
+        creator funds are returned.
+      </li>
+      <li>
+        <strong>Trade.</strong> The market page shows the token price and a
+        separate live “backing” panel. Holders can redeem at any time — even
+        mid-launch, during an outage, or after a liquidation.
+      </li>
+      <li>
+        <strong>Settle profits.</strong> The operator can close or reduce the
+        position. A floor increase is recorded only after realized USDC is
+        actually withdrawn and deposited into the reserve.
+      </li>
+      <li>
+        <strong>Graduate.</strong> Normal trading liquidity can move into a pool
+        as usual. The reserve and redemption right continue unchanged, and
+        pooled tokens stay redeemable once a user owns them. Graduation never
+        sends reserve or trading money into the pool.
+      </li>
+      <li>
+        <strong>End state.</strong> If the position is liquidated, we say so
+        plainly and keep redemptions open. Nothing silently opens a replacement
+        position or uses reserve money to rescue it.
+      </li>
+    </ol>
+
+    <h2>What we show in the product</h2>
+    <ul>
+      <li>
+        <strong>Launch form:</strong> a distinct “backed launch” path with the
+        floor, margin, worst-case loss, and liquidation sensitivity shown before
+        committing. The ordinary launch stays simple.
+      </li>
+      <li>
+        <strong>Market card:</strong> a “backed” badge only on verified,
+        activated markets, with the current redeemable USDC value per token.
+        Pending or liquidated positions get their own status — never hidden.
+      </li>
+      <li>
+        <strong>Market page:</strong> reserve balance and contract link; the
+        floor and redeemable supply; the position's side, size, entry, current
+        health, funding, and liquidation state; last successful update time; and
+        separate buttons for normal trading vs. on-chain redemption.
+      </li>
+      <li>
+        <strong>Operator view:</strong> funding/order/activation state, balance
+        checks between the API and the chain, stale-data and margin alerts,
+        close/reduce controls, recovery from failed steps, and an audit log.
+      </li>
+    </ul>
+    <p>
+      Worth saying for naming and marketing:
+      <strong>“floor-backed launch with a perp strategy”</strong> describes the
+      design more accurately than “perp-backed launch.” The position supplies
+      the upside story; the reserve supplies the actual protection.
+    </p>
+
+    <h2>What is deliberately out of scope for version one</h2>
+    <ul>
+      <li>Making existing tokens retroactively “backed.”</li>
+      <li>
+        Automatic re-leveraging after losses, automatic top-ups, or using the
+        reserve as margin.
+      </li>
+      <li>
+        Promising trading profits, profit forecasts, or a guaranteed market
+        price.
+      </li>
+      <li>
+        Community-funded pieces of the position, creator withdrawals from the
+        floor, dynamic leverage, multiple positions, or per-market buybacks.
+      </li>
+      <li>
+        Counting an unfilled order, unrealized profit, or a wallet balance as
+        backing.
+      </li>
+    </ul>
+
+    <h2>What has to be true before we build it</h2>
+    <ol>
+      <li>
+        <strong>Market exists.</strong> The intended asset must actually be
+        listed on RISEx with the order size and leverage we need. As of the
+        draft date, there is no RISE/USDC pair — if “RISE perp” means the RISE
+        token, that market is currently unavailable.
+      </li>
+      <li>
+        <strong>We can control the position safely.</strong> Prove a dedicated
+        account can be owned by our contract or smart wallet, with signer
+        permissions and withdrawal destination locked down. Otherwise we
+        document and accept operator custody for the trading leg.
+      </li>
+      <li>
+        <strong>The math is safe.</strong> Simulate simultaneous selling and
+        redeeming, supply changes, arbitrage, rounding, and graduation to prove
+        the reserve can always cover every outstanding token's floor.
+      </li>
+      <li>
+        <strong>It works end to end on testnet.</strong> Deposit, signer
+        registration, margin setup, order, confirmed fill, close, withdraw,
+        reconciliation — including partial fills and an aborted launch after a
+        position was opened.
+      </li>
+      <li>
+        <strong>Operations and assurance.</strong> Who holds emergency
+        authority, how a signer gets revoked, what happens when RISEx is down,
+        independent contract review, and the legal review needed before
+        marketing a redeemable financial product.
+      </li>
+    </ol>
+
+    <h2>The decisions we still need to make</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Question</th>
+            <th>Working recommendation</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>What does “backed” mean?</td>
+            <td>
+              An on-chain USDC redemption right per token, separate from the
+              trading margin
+            </td>
+          </tr>
+          <tr>
+            <td>Who funds it?</td>
+            <td>Creator funds both the reserve and the margin up front</td>
+          </tr>
+          <tr>
+            <td>What position?</td>
+            <td>One isolated 10× position on a currently supported market</td>
+          </tr>
+          <tr>
+            <td>Who gets profits?</td>
+            <td>Realized net USDC goes into the reserve, raising the floor</td>
+          </tr>
+          <tr>
+            <td>What happens on a loss?</td>
+            <td>
+              Trading margin may go to zero; reserve and redemptions continue
+            </td>
+          </tr>
+          <tr>
+            <td>Where does token trading happen?</td>
+            <td>
+              A new backed launch path, with pool liquidity after graduation
+            </td>
+          </tr>
+          <tr>
+            <td>Can the operator touch the floor?</td>
+            <td>No — reserve withdrawals are holder redemptions only</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>The one big unanswered question</h3>
+    <p>
+      Do we really promise an enforceable floor? If yes, this whole design — the
+      reserve, the token accounting, the activation rules — is the core
+      requirement. If the real intent is instead “a token treasury that takes a
+      10× trade and buys back tokens with the wins,” that is a different,
+      simpler product, and it should be named and scoped as such — no floor
+      claim at all. This choice governs how much we build.
+    </p>
+  </body>
+</html>

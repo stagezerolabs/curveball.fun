@@ -198,15 +198,15 @@ Launched tokens use Solady ERC-20 behavior with 18 decimals, clone-specific perm
 
 Shared parameters encoded by `Deploy`:
 
-| Parameter         | Value           |
-| ----------------- | --------------- |
-| Quote token       | RISE WETH above |
-| Launch fee        | 1 USDC equivalent in WETH from Stork ETH/USDC |
+| Parameter         | Value                                                        |
+| ----------------- | ------------------------------------------------------------ |
+| Quote token       | RISE WETH above                                              |
+| Launch fee        | 1 USDC equivalent in WETH from Stork ETH/USDC                |
 | Wallet cap        | 500 bps of 800 million curve tokens (40 million per address) |
-| Curve fee         | 75 bps          |
-| Creator fee share | 5,000 bps       |
-| Buyback fee share | 2,500 bps       |
-| Creator-tax cap   | 50 bps          |
+| Curve fee         | 75 bps                                                       |
+| Creator fee share | 5,000 bps                                                    |
+| Buyback fee share | 2,500 bps                                                    |
+| Creator-tax cap   | 50 bps                                                       |
 
 Testnet additionally fixes:
 
@@ -302,19 +302,19 @@ The factory address is immutable inside Curveball, but any external administrato
 
 ## Integration trust and failure matrix
 
-| Assumption or failure                               | Curveball response                                                   |
-| --------------------------------------------------- | -------------------------------------------------------------------- |
+| Assumption or failure                               | Curveball response                                                                                      |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | Wrong factory/pool bytecode with matching interface | `Deploy` alone does not attest it; `production-preflight` compares pinned factory/implementation hashes |
-| Factory returns wrong token pair                    | Not independently detected; may misattribute reserves/fees           |
-| Icarus paused at deployment                         | Deployment can proceed; pool swaps remain unavailable until unpaused |
-| Icarus paused during graduation                     | Graduation proceeds; mint/skim are assumed usable                    |
-| Icarus paused during buyback                        | Emits skip before transfer; interval not consumed                    |
-| Insufficient TWAP observations                      | Buyback skip                                                         |
-| TWAP `quote` reverts                                | Buyback skip                                                         |
-| Spot price outside fee-adjusted TWAP band           | Buyback skip                                                         |
-| Other unexpected Icarus call reverts                | Calling transaction reverts atomically                               |
-| Existing initialized pool                           | Graduation reverts `PoolUsed`                                        |
-| Synced token contamination                          | Graduation reverts `PoolUsed`                                        |
-| Post-mint reserve mismatch                          | Graduation reverts `MintMismatch`                                    |
-| WETH transfer charges a fee or rebases              | Unsupported; accounting/checks may revert or become invalid          |
-| Timelock-compatible malicious contract              | Interface preflight can pass; implementation is not attested         |
+| Factory returns wrong token pair                    | Not independently detected; may misattribute reserves/fees                                              |
+| Icarus paused at deployment                         | Deployment can proceed; pool swaps remain unavailable until unpaused                                    |
+| Icarus paused during graduation                     | Graduation proceeds; mint/skim are assumed usable                                                       |
+| Icarus paused during buyback                        | Emits skip before transfer; interval not consumed                                                       |
+| Insufficient TWAP observations                      | Buyback skip                                                                                            |
+| TWAP `quote` reverts                                | Buyback skip                                                                                            |
+| Spot price outside fee-adjusted TWAP band           | Buyback skip                                                                                            |
+| Other unexpected Icarus call reverts                | Calling transaction reverts atomically                                                                  |
+| Existing initialized pool                           | Graduation reverts `PoolUsed`                                                                           |
+| Synced token contamination                          | Graduation reverts `PoolUsed`                                                                           |
+| Post-mint reserve mismatch                          | Graduation reverts `MintMismatch`                                                                       |
+| WETH transfer charges a fee or rebases              | Unsupported; accounting/checks may revert or become invalid                                             |
+| Timelock-compatible malicious contract              | Interface preflight can pass; implementation is not attested                                            |
