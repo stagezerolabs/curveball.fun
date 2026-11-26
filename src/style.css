@@ -8136,6 +8136,111 @@ button.notifications-read-dot {
   font-size: 12px;
   margin-top: 3px;
 }
+.pulse-leader-return strong.negative {
+  color: var(--market-down);
+}
+.pulse-leader-freshness {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 0 0 12px;
+}
+.pulse-no-qualifiers {
+  display: grid;
+  gap: 18px;
+}
+.pulse-requirements {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.pulse-requirements li {
+  align-items: center;
+  display: flex;
+  font-size: 14px;
+  gap: 10px;
+}
+.pulse-check-icon {
+  color: var(--lime);
+  flex: none;
+  height: 18px;
+  width: 18px;
+}
+.pulse-watching h3 {
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  margin: 0 0 10px;
+  text-transform: uppercase;
+}
+.pulse-watching-list {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.pulse-watching-row {
+  align-items: center;
+  background: var(--panel);
+  border: 1px dashed var(--line);
+  border-radius: 14px;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: 14px 18px;
+}
+.pulse-not-ranked {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  white-space: nowrap;
+}
+.pulse-watching-activity {
+  display: grid;
+  justify-items: end;
+  text-align: right;
+}
+.pulse-watching-activity strong {
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.pulse-watching-activity span {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+.pulse-ranking-method {
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 20px;
+  padding-top: 14px;
+}
+.pulse-ranking-method summary {
+  color: var(--ink);
+  cursor: pointer;
+  font-weight: 600;
+}
+.pulse-ranking-method ul {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding-left: 18px;
+}
+@media (max-width: 560px) {
+  .pulse-watching-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .pulse-not-ranked {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}
 @media (max-width: 760px) {
   .pulse-leader {
     gap: 14px;
