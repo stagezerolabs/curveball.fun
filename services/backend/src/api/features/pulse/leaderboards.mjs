@@ -15,7 +15,7 @@ async function publishedBoard(category) {
   const cached = leaderboardPublicCache.get(category);
   if (cached && cached.expires > Date.now()) return cached.value;
   const value = (async () => {
-    const query = publishedSnapshotQuery(config.chainId, category);
+    const query = publishedSnapshotQuery(config.chainId, category, config.leaderboardRules);
     const snapshotResult = await pool.query(query.text, query.values);
     const snapshot = snapshotResult.rows[0] || null;
     if (!snapshot || snapshot.status !== "ranked") return { snapshot, rows: [] };
@@ -55,6 +55,7 @@ export async function leaderboards(url, viewer) {
     graph,
     limit: boundedLimit(url, 12, 50),
     now: new Date(),
+    rules: config.leaderboardRules,
   });
 }
 

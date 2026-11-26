@@ -159,7 +159,8 @@ function evaluateWallet({ wallet, events, ctx, window = null }) {
   const openValue = perMarketRows.reduce((sum, row) => sum + row.openValue, 0n);
   const realizedCost = perMarketRows.reduce((sum, row) => sum + row.position.realizedCost, 0n);
   const net = realized + unrealized;
-  const scored = scoredPnl(realized, unrealized);
+  // A null cap (preview profile only) lets marked open positions count in full.
+  const scored = rules.openPositionCapBps === null ? net : scoredPnl(realized, unrealized);
   const shares = allocateScoredUnrealized(perMarketRows, scored - realized);
   const perMarket = perMarketRows.map((row, index) => {
     const qualifyingHere = qualifying.filter((trade) => trade.token === row.token).length;

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { evaluateLeaderboards } from "../../src/analytics/leaderboardEngine.mjs";
+import { LEADERBOARD_RULES_PREVIEW } from "../../src/analytics/leaderboardRules.mjs";
 import {
   AS_OF,
   CREATOR,
@@ -331,5 +332,23 @@ describe("evaluateLeaderboards", () => {
     expect(row).toBeUndefined();
     const allTime = evaluationOf(result, "0xholder");
     expect(allTime.metrics.realizedPnlWei).toBe("60000000000000000");
+  });
+
+  test("preview rules rank an unrealized-only holder that strict rules hold back", () => {
+    const f = eventFactory();
+    crowd(f, ["0xa"]);
+    f.buy("0xholder", "0xa", 100000000n * E, milli(100), { at: AS_OF - 2 * DAY });
+    f.buy("0xholder", "0xa", 1000000n * E, milli(2), { at: AS_OF - DAY });
+    const strict = evaluateLeaderboards(engineInput(f, MARKETS));
+    expect(addresses(strict.categories.new)).not.toContain("0xholder");
+    const preview = evaluateLeaderboards(
+      engineInput(f, MARKETS, { rules: LEADERBOARD_RULES_PREVIEW }),
+    );
+    const holder = evaluationOf(preview, "0xholder").metrics;
+    expect(holder.realizedPnlWei).toBe("0");
+    expect(holder.scoredPnlWei).toBe(holder.netPnlWei);
+    expect(BigInt(holder.scoredPnlWei) > 0n).toBe(true);
+    expect(addresses(preview.categories.new)).toEqual(["0xholder"]);
+    expect(preview.categories.new.rules.preview).toBe(true);
   });
 });

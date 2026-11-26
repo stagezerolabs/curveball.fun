@@ -8,8 +8,10 @@ import {
   twapVirtualQuote,
 } from "../../src/analytics/curveExit.mjs";
 import {
+  LEADERBOARD_RULES_PREVIEW,
   LEADERBOARD_RULES_V3,
   publicRules,
+  rulesForProfile,
 } from "../../src/analytics/leaderboardRules.mjs";
 
 const E = 10n ** 18n;
@@ -175,5 +177,35 @@ describe("TWAP and conservative mark", () => {
       windowSec: 6 * H,
     });
     expect(mark).toBe(11841483679525223n);
+  });
+});
+
+describe("preview rules profile", () => {
+  test("preview is frozen, separately versioned and uncapped", () => {
+    expect(Object.isFrozen(LEADERBOARD_RULES_PREVIEW)).toBe(true);
+    expect(LEADERBOARD_RULES_PREVIEW.methodologyVersion).toBe(
+      "curve-exit-realized-v3-preview",
+    );
+    expect(LEADERBOARD_RULES_PREVIEW.preview).toBe(true);
+    expect(LEADERBOARD_RULES_PREVIEW.openPositionCapBps).toBeNull();
+    expect(LEADERBOARD_RULES_PREVIEW.minQualifyingTradeWei).toBe("1000000000000000");
+    expect(LEADERBOARD_RULES_PREVIEW.categories.consistent.minQualifyingTrades).toBe(2);
+    expect(LEADERBOARD_RULES_V3.preview).toBe(false);
+  });
+
+  test("profiles resolve to strict by default and reject typos", () => {
+    expect(rulesForProfile(undefined)).toBe(LEADERBOARD_RULES_V3);
+    expect(rulesForProfile("")).toBe(LEADERBOARD_RULES_V3);
+    expect(rulesForProfile("strict")).toBe(LEADERBOARD_RULES_V3);
+    expect(rulesForProfile("preview")).toBe(LEADERBOARD_RULES_PREVIEW);
+    expect(() => rulesForProfile("previw")).toThrow(/strict or preview/);
+  });
+
+  test("public preview rules say so and carry the preview thresholds", () => {
+    const rules = publicRules("consistent", LEADERBOARD_RULES_PREVIEW);
+    expect(rules.preview).toBe(true);
+    expect(rules.minQualifyingTrades).toBe(2);
+    expect(rules.openPositionCapBps).toBeNull();
+    expect(publicRules("consistent").preview).toBe(false);
   });
 });

@@ -16,6 +16,9 @@ const {
   publishLeaderboards,
   refreshPerformanceSnapshot,
 } = await import("../../src/analytics/performance.mjs");
+const { LEADERBOARD_RULES_PREVIEW } = await import(
+  "../../src/analytics/leaderboardRules.mjs"
+);
 const { AS_OF, DAY, E, LAUNCHPAD, eventFactory } = await import(
   "./ledgerFixtures.mjs"
 );
@@ -180,5 +183,20 @@ describe("v3 leaderboard publishing", () => {
     expect(PERFORMANCE_SNAPSHOT_METHODOLOGY).toBe("curve-known-basis-v2");
     expect(queries).toHaveLength(1);
     expect(queries[0].values.at(-1)).toBe("curve-known-basis-v2");
+  });
+
+  test("preview rules publish and prune only under the preview label", async () => {
+    const { db, queries } = recordingDb();
+    await publishLeaderboards(db, 42n, asOfDate, { rules: LEADERBOARD_RULES_PREVIEW });
+    const snapshots = queries.filter(({ sql }) =>
+      sql.includes("INSERT INTO leaderboard_snapshots"),
+    );
+    expect(snapshots).toHaveLength(4);
+    for (const { values } of snapshots) {
+      expect(values).toContain("curve-exit-realized-v3-preview");
+      expect(values).not.toContain("curve-exit-realized-v3");
+    }
+    const prune = queries.find(({ sql }) => sql.includes("DELETE FROM leaderboard_snapshots"));
+    expect(prune.values[1]).toBe("curve-exit-realized-v3-preview");
   });
 });

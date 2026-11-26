@@ -165,3 +165,8 @@ test("How ranking works panel is present", () => {
   expect(html).toContain("block 28100000");
   expect(html).not.toMatch(/linked wallet/i);
 });
+
+test("preview boards carry a visible Preview rules badge", () => {
+  expect(render({ ...leaderboard, preview: true })).toContain("Preview rules");
+  expect(render(leaderboard)).not.toContain("Preview rules");
+});

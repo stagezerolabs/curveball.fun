@@ -23,13 +23,13 @@ const WATCHING_FIELDS = [
   "lastTradeAt",
 ];
 
-export function publishedSnapshotQuery(chainId, category) {
+export function publishedSnapshotQuery(chainId, category, rules = LEADERBOARD_RULES_V3) {
   return {
     text: `SELECT id,period,methodology_version,as_of_block,as_of_time,calculated_at,published_at,status,details
       FROM leaderboard_snapshots
       WHERE chain_id=$1 AND category=$2 AND methodology_version=$3 AND published_at IS NOT NULL
       ORDER BY as_of_block DESC,published_at DESC LIMIT 1`,
-    values: [chainId, category, LEADERBOARD_METHODOLOGY],
+    values: [chainId, category, rules.methodologyVersion],
   };
 }
 
@@ -65,11 +65,20 @@ function rankedItem(row, snapshot, graph) {
   };
 }
 
-export function shapeLeaderboardResponse({ category, snapshot, rows, graph, limit, now = new Date() }) {
+export function shapeLeaderboardResponse({
+  category,
+  snapshot,
+  rows,
+  graph,
+  limit,
+  now = new Date(),
+  rules: profile = LEADERBOARD_RULES_V3,
+}) {
   const base = {
     category,
     label: LABELS[category],
-    methodologyVersion: LEADERBOARD_METHODOLOGY,
+    methodologyVersion: profile.methodologyVersion,
+    preview: profile.preview === true,
   };
   if (!snapshot) {
     return {
@@ -81,7 +90,7 @@ export function shapeLeaderboardResponse({ category, snapshot, rows, graph, limi
       stale: false,
       paused: false,
       ageMinutes: null,
-      rules: publicRules(category),
+      rules: publicRules(category, profile),
       items: [],
       watching: [],
       progress: [],
@@ -114,10 +123,10 @@ export function shapeLeaderboardResponse({ category, snapshot, rows, graph, limi
     asOfTime: snapshot.as_of_time,
     calculatedAt: snapshot.calculated_at,
     publishedAt: snapshot.published_at,
-    stale: ageMinutes >= LEADERBOARD_RULES_V3.apiStaleMinutes,
-    paused: ageMinutes >= LEADERBOARD_RULES_V3.apiPausedMinutes,
+    stale: ageMinutes >= profile.apiStaleMinutes,
+    paused: ageMinutes >= profile.apiPausedMinutes,
     ageMinutes,
-    rules: details.rules || publicRules(category),
+    rules: details.rules || publicRules(category, profile),
     items,
     watching,
     progress: details.progress || [],

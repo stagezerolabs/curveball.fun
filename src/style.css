@@ -8139,6 +8139,23 @@ button.notifications-read-dot {
 .pulse-leader-return strong.negative {
   color: var(--market-down);
 }
+.pulse-preview-badge {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 12px;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+.pulse-preview-badge span {
+  border: 1px solid var(--orange);
+  border-radius: 999px;
+  color: var(--orange-ink);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+}
 .pulse-leader-freshness {
   color: var(--muted);
   font-size: 12px;

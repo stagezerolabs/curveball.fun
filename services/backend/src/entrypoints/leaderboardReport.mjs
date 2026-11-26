@@ -3,7 +3,6 @@
 // Without --at, the as-of time of the published v3 snapshot at that block is used (so the
 // output reproduces the published numbers), falling back to now.
 import { evaluateLeaderboards } from "../analytics/leaderboardEngine.mjs";
-import { LEADERBOARD_RULES_V3 } from "../analytics/leaderboardRules.mjs";
 import {
   PERFORMANCE_METHODOLOGY,
   loadLeaderboardInputs,
@@ -37,7 +36,7 @@ try {
   const inputs = await loadLeaderboardInputs(pool, asOfBlock, asOfTime);
   const { categories, evaluations } = evaluateLeaderboards({
     ...inputs,
-    rules: LEADERBOARD_RULES_V3,
+    rules: config.leaderboardRules,
   });
   const placement = (address) =>
     Object.fromEntries(

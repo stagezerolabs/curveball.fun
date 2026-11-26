@@ -1,4 +1,5 @@
 import { getAddress, isAddress } from "viem";
+import { rulesForProfile } from "../analytics/leaderboardRules.mjs";
 
 function required(name) {
   const value = process.env[name]?.trim();
@@ -98,4 +99,6 @@ export const config = Object.freeze({
   ipfsGateway: metadata.gateway,
   metadataHosts: metadata.hosts,
   rnsApiUrl: rnsApiUrl.endsWith("/") ? rnsApiUrl : `${rnsApiUrl}/`,
+  // "strict" (default) or "preview": the leaderboard rule set to publish and serve.
+  leaderboardRules: rulesForProfile(process.env.LEADERBOARD_RULES_PROFILE),
 });

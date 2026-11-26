@@ -1,10 +1,10 @@
 import { config } from "../platform/config.mjs";
 import { RANKED_CATEGORIES, evaluateLeaderboards } from "./leaderboardEngine.mjs";
-import { LEADERBOARD_RULES_V3 } from "./leaderboardRules.mjs";
 
-// Leaderboards use the v3 engine. Per-wallet performance snapshots (a realized/basis cache
+// Leaderboards use the v3 engine with the configured rule profile (strict unless
+// LEADERBOARD_RULES_PROFILE=preview). Per-wallet performance snapshots (a realized/basis cache
 // for profiles) keep their own label so their rows are never mislabelled v3.
-export const PERFORMANCE_METHODOLOGY = LEADERBOARD_RULES_V3.methodologyVersion;
+export const PERFORMANCE_METHODOLOGY = config.leaderboardRules.methodologyVersion;
 export const PERFORMANCE_SNAPSHOT_METHODOLOGY = "curve-known-basis-v2";
 
 export async function refreshPerformanceSnapshot(db, address, asOfBlock) {
@@ -76,7 +76,12 @@ const epoch = (value) => (value === null || value === undefined ? null : Number(
 
 // One bulk, read-only load of everything the v3 engine needs at `asOfBlock`. Curve state and
 // TWAP history come from trades at or before the block, so a rerun is reproducible.
-export async function loadLeaderboardInputs(db, asOfBlock, asOfTime, { chainId = config.chainId } = {}) {
+export async function loadLeaderboardInputs(
+  db,
+  asOfBlock,
+  asOfTime,
+  { chainId = config.chainId, rules = config.leaderboardRules } = {},
+) {
   const block = asOfBlock.toString();
   const marketScope = `SELECT token_address FROM markets WHERE chain_id=$1 AND orphaned=false`;
   const [marketRows, tradeRows, transferRows, protocolRows, followRows] = await Promise.all([
@@ -112,7 +117,7 @@ export async function loadLeaderboardInputs(db, asOfBlock, asOfTime, { chainId =
   ]);
 
   const asOfSeconds = Math.floor(asOfTime.getTime() / 1000);
-  const windowStart = asOfSeconds - LEADERBOARD_RULES_V3.twapWindowSec;
+  const windowStart = asOfSeconds - rules.twapWindowSec;
   const trades = tradeRows.rows.map((row) => ({
     token: row.token_address,
     trader: row.trader_address,
@@ -225,11 +230,21 @@ async function inTransaction(db, run) {
 const jsonWithBigInt = (value) =>
   JSON.stringify(value, (_key, item) => (typeof item === "bigint" ? item.toString() : item));
 
-export async function publishLeaderboards(db, asOfBlock, asOfTime = new Date(), { chainId = config.chainId } = {}) {
+export async function publishLeaderboards(
+  db,
+  asOfBlock,
+  asOfTime = new Date(),
+  { chainId = config.chainId, rules = config.leaderboardRules } = {},
+) {
   const started = Date.now();
-  const inputs = await loadLeaderboardInputs(db, asOfBlock, asOfTime, { chainId });
-  const { categories, evaluations } = evaluateLeaderboards({ ...inputs, rules: LEADERBOARD_RULES_V3 });
-  const summary = { asOfBlock: asOfBlock.toString(), walletCount: evaluations.length, categories: {} };
+  const inputs = await loadLeaderboardInputs(db, asOfBlock, asOfTime, { chainId, rules });
+  const { categories, evaluations } = evaluateLeaderboards({ ...inputs, rules });
+  const summary = {
+    asOfBlock: asOfBlock.toString(),
+    methodologyVersion: rules.methodologyVersion,
+    walletCount: evaluations.length,
+    categories: {},
+  };
 
   for (const category of RANKED_CATEGORIES) {
     const board = categories[category];
@@ -256,7 +271,7 @@ export async function publishLeaderboards(db, asOfBlock, asOfTime = new Date(), 
         [
           chainId,
           category,
-          PERFORMANCE_METHODOLOGY,
+          rules.methodologyVersion,
           asOfBlock.toString(),
           board.status,
           asOfTime,
@@ -285,7 +300,7 @@ export async function publishLeaderboards(db, asOfBlock, asOfTime = new Date(), 
       AND s.published_at<(SELECT max(latest.published_at) FROM leaderboard_snapshots latest
         WHERE latest.chain_id=s.chain_id AND latest.category=s.category
           AND latest.methodology_version=$2)`,
-    [chainId, PERFORMANCE_METHODOLOGY],
+    [chainId, rules.methodologyVersion],
   );
 
   summary.durationMs = Date.now() - started;

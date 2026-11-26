@@ -5,6 +5,7 @@ import {
   shapeLeaderboardResponse,
 } from "../../../../src/api/features/pulse/leaderboardResponse.mjs";
 import * as pulseSql from "../../../../src/analytics/pulseSql.mjs";
+import { LEADERBOARD_RULES_PREVIEW } from "../../../../src/analytics/leaderboardRules.mjs";
 
 const NOW = new Date("2026-11-26T12:00:00Z");
 const minutesAgo = (m) => new Date(NOW.getTime() - m * 60_000);
@@ -197,5 +198,31 @@ describe("leaderboard response", () => {
 
   test("pulseSql no longer exports provisionalLeaderboardSql", () => {
     expect(pulseSql).not.toHaveProperty("provisionalLeaderboardSql");
+  });
+
+  test("preview profile reads only preview snapshots and flags the response", () => {
+    const query = publishedSnapshotQuery(4153, "new", LEADERBOARD_RULES_PREVIEW);
+    expect(query.values).toEqual([4153, "new", "curve-exit-realized-v3-preview"]);
+    const pending = shapeLeaderboardResponse({
+      category: "new",
+      snapshot: null,
+      rows: [],
+      graph: graph(),
+      limit: 12,
+      now: NOW,
+      rules: LEADERBOARD_RULES_PREVIEW,
+    });
+    expect(pending.preview).toBe(true);
+    expect(pending.methodologyVersion).toBe("curve-exit-realized-v3-preview");
+    expect(pending.rules.minQualifyingTrades).toBe(1);
+    const strict = shapeLeaderboardResponse({
+      category: "new",
+      snapshot: null,
+      rows: [],
+      graph: graph(),
+      limit: 12,
+      now: NOW,
+    });
+    expect(strict.preview).toBe(false);
   });
 });

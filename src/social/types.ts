@@ -155,9 +155,11 @@ export type WatchingTrader = {
 /** Public checklist and scoring numbers; the API generates these from the backend rules. */
 export type LeaderboardRules = {
   methodologyVersion?: string;
+  preview?: boolean;
   minTradeWei?: string;
   shrinkageK?: number;
-  openPositionCapBps?: number;
+  /** null when the preview profile disables the open-position cap. */
+  openPositionCapBps?: number | null;
   updateIntervalSec?: number;
   minQualifyingTrades?: number;
   minMarkets?: number;
@@ -184,6 +186,8 @@ export type LeaderboardSnapshot = {
   category: LeaderboardCategory;
   label?: string;
   status: LeaderboardStatus;
+  /** Product-validation rules (LEADERBOARD_RULES_PROFILE=preview): looser gates, uncapped. */
+  preview?: boolean;
   methodologyVersion?: string | null;
   asOfBlock?: string | null;
   asOfTime?: string | null;

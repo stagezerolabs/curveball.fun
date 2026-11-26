@@ -3,11 +3,12 @@
 // Wei amounts are decimal strings; convert with BigInt at the point of use.
 export const LEADERBOARD_RULES_V3 = Object.freeze({
   methodologyVersion: "curve-exit-realized-v3",
+  preview: false,
   minQualifyingTradeWei: "5000000000000000", // 0.005 WETH net quote
   qualifyingTradePeakCapitalBps: 100, // and >= 1% of the wallet's peak capital
   minPeakCapitalWei: "20000000000000000", // 0.02 WETH for every P&L category
   shrinkageK: 8,
-  openPositionCapBps: 5000,
+  openPositionCapBps: 5000, // null disables the cap (preview only)
   twapWindowSec: 6 * 3600,
   staleMarketSec: 7 * 86400,
   depthGateRealQuoteWei: "500000000000000000", // 0.5 WETH real quote
@@ -56,6 +57,60 @@ export const LEADERBOARD_RULES_V3 = Object.freeze({
   }),
 });
 
+// Product-validation profile, enabled with LEADERBOARD_RULES_PROFILE=preview. Same engine,
+// looser sample gates, and no open-position cap, so today's thin data produces a ranking.
+// Snapshots carry their own methodology label and never mix with the strict board.
+const strict = LEADERBOARD_RULES_V3;
+export const LEADERBOARD_RULES_PREVIEW = Object.freeze({
+  ...strict,
+  methodologyVersion: "curve-exit-realized-v3-preview",
+  preview: true,
+  minQualifyingTradeWei: "1000000000000000", // 0.001 WETH
+  minPeakCapitalWei: "10000000000000000", // 0.01 WETH
+  openPositionCapBps: null,
+  depthGateRealQuoteWei: "100000000000000000", // 0.1 WETH real quote
+  depthGateOtherTraders: 2,
+  categories: Object.freeze({
+    consistent: Object.freeze({
+      ...strict.categories.consistent,
+      minQualifyingTrades: 2,
+      minMarkets: 1,
+      minActiveDays: 1,
+      minFirstTradeAgeDays: 0,
+      minPeakCapitalWei: "10000000000000000",
+      maxSingleMarketShareBps: 10000,
+    }),
+    new: Object.freeze({
+      ...strict.categories.new,
+      minQualifyingTrades: 1,
+      minMarkets: 1,
+      minActiveDays: 1,
+      minPeakCapitalWei: "10000000000000000",
+    }),
+    trending: Object.freeze({
+      ...strict.categories.trending,
+      minQualifyingTrades: 1,
+      minMarkets: 1,
+      minActiveDays: 1,
+      minPeakCapitalWei: "10000000000000000",
+    }),
+    followers: Object.freeze({
+      ...strict.categories.followers,
+      minQualifyingTrades: 1,
+      minActiveDays: 1,
+      minFollowerVolumeWei: "1000000000000000",
+      minFollowerAccountAgeDays: 0,
+    }),
+  }),
+});
+
+export function rulesForProfile(profile) {
+  const name = (profile ?? "").trim();
+  if (name === "" || name === "strict") return LEADERBOARD_RULES_V3;
+  if (name === "preview") return LEADERBOARD_RULES_PREVIEW;
+  throw new Error("LEADERBOARD_RULES_PROFILE must be strict or preview.");
+}
+
 const PUBLIC_CATEGORY_KEYS = [
   "minQualifyingTrades",
   "minMarkets",
@@ -74,6 +129,7 @@ export function publicRules(category, rules = LEADERBOARD_RULES_V3) {
   const gates = rules.categories[category] ?? {};
   const out = {
     methodologyVersion: rules.methodologyVersion,
+    preview: rules.preview === true,
     minTradeWei: rules.minQualifyingTradeWei,
     shrinkageK: rules.shrinkageK,
     openPositionCapBps: rules.openPositionCapBps,

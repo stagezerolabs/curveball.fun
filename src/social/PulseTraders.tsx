@@ -281,6 +281,12 @@ export function PulseTraders({
 
   return (
     <>
+      {data.preview ? (
+        <p className="pulse-preview-badge" role="note">
+          <span>Preview rules</span>
+          Relaxed thresholds for product validation, not the final ranking.
+        </p>
+      ) : null}
       {data.stale && !data.paused && data.ageMinutes !== null ? (
         <p className="pulse-leader-freshness" role="status">
           Updated {data.ageMinutes} min ago
