@@ -155,13 +155,11 @@ export function MarketHeader({
               }
             >
               <strong aria-hidden="true">
-                {direction === "up"
-                  ? "↗ "
-                  : direction === "down"
-                    ? "↘ "
-                    : direction === "flat"
-                      ? "→ "
-                      : ""}
+                {direction === "up" ||
+                direction === "down" ||
+                direction === "flat" ? (
+                  <TrendArrow direction={direction} />
+                ) : null}
                 {marketCapChange ? `${formattedChange}%` : "—"}
               </strong>
               <span>
@@ -277,4 +275,27 @@ function changeClass(value: number | null | undefined) {
     : value > 0
       ? "positive"
       : "negative";
+}
+
+const trendRotation = { up: -45, flat: 0, down: 45 } as const;
+
+function TrendArrow({ direction }: { direction: keyof typeof trendRotation }) {
+  return (
+    <svg
+      className="trend-arrow"
+      viewBox="0 0 16 16"
+      width="12"
+      height="12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+      style={{ transform: `rotate(${trendRotation[direction]}deg)` }}
+    >
+      <path d="M2.5 8h11M9 3.5 13.5 8 9 12.5" />
+    </svg>
+  );
 }

@@ -3577,7 +3577,13 @@ select:focus-visible {
   line-height: 1.2;
 }
 .market-cap-change strong {
+  align-items: center;
+  display: inline-flex;
   font-size: 13px;
+  gap: 3px;
+}
+.market-cap-change .trend-arrow {
+  flex: none;
 }
 .market-cap-change.up {
   color: var(--market-up);
