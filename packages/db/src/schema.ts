@@ -725,6 +725,13 @@ export const leaderboardSnapshots = curveball.table(
       .notNull()
       .defaultNow(),
     publishedAt: timestamp("published_at", { withTimezone: true }),
+    // v3: "no_qualifiers" snapshots carry no ranked rows; the Watching list, progress
+    // counts and public rules live in `details`, never in leaderboard_rows.
+    status: text("status").notNull().default("ranked"),
+    asOfTime: timestamp("as_of_time", { withTimezone: true }),
+    details: jsonb("details")
+      .notNull()
+      .default(sql`'{}'::jsonb`),
   },
   (table) => [
     uniqueIndex("leaderboard_snapshots_uidx").on(
@@ -742,6 +749,10 @@ export const leaderboardSnapshots = curveball.table(
     check(
       "leaderboard_snapshots_category_check",
       sql`${table.category} in ('trending','consistent','followers','new')`,
+    ),
+    check(
+      "leaderboard_snapshots_status_check",
+      sql`${table.status} in ('ranked','no_qualifiers')`,
     ),
   ],
 );
