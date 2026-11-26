@@ -29,12 +29,12 @@ export function AccountPopover({
   address,
   label,
   navigate,
-  profileActive = false,
+  dashboardActive = false,
 }: {
   address: Address;
   label: string;
   navigate: Navigate;
-  profileActive?: boolean;
+  dashboardActive?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const balance = useBalance({
@@ -64,8 +64,8 @@ export function AccountPopover({
       <Popover.Trigger
         className="nav-profile account-popover-trigger"
         aria-label={`Open profile and account menu for ${label}`}
-        aria-current={profileActive ? "page" : undefined}
-        title="Profile and account"
+        aria-current={dashboardActive ? "page" : undefined}
+        title="Dashboard and account"
       >
         <ProfileGlyph />
       </Popover.Trigger>
@@ -90,10 +90,10 @@ export function AccountPopover({
                 type="button"
                 onClick={() => {
                   setOpen(false);
-                  navigate("profile");
+                  navigate("dashboard");
                 }}
               >
-                View profile
+                Dashboard
               </button>
               <button
                 className="account-popover-logout"

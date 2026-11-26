@@ -23,7 +23,7 @@ import { socialApi, socialApiConfigured } from "../social/api";
 import { useSocialAuth } from "../social/useSocialAuth";
 import { calculateHoldingsChange24h } from "../social/portfolioChange";
 
-export type ProfileTab = "holdings" | "activity" | "launches";
+export type ProfileTab = "profile" | "holdings" | "activity" | "launches";
 
 function wethAmount(wei: string) {
   return Number(formatEther(BigInt(wei || "0")));
@@ -95,7 +95,7 @@ export function TraderProfilePage({
   address: routeAddress,
   navigate,
   launches = null,
-  initialTab = "holdings",
+  initialTab = "profile",
 }: {
   address: string;
   navigate: Navigate;
@@ -247,40 +247,129 @@ export function TraderProfilePage({
     }
   }
 
-  return (
-    <main className="trader-profile-page wrap">
-      {notice ? (
-        <p className="notice notice-dismissible" role="status">
-          <span>{notice}</span>
-          <button
-            type="button"
-            onClick={() => setNotice("")}
-            aria-label="Dismiss message"
-          >
-            ×
-          </button>
-        </p>
-      ) : null}
+  const showLaunches = Boolean(launches || creatorMarkets.data?.length);
+  const sections: { value: ProfileTab; label: string }[] = [
+    { value: "profile", label: "Profile" },
+    { value: "holdings", label: "Holdings" },
+    { value: "activity", label: "Activity" },
+    ...(showLaunches
+      ? [{ value: "launches" as const, label: "Launches" }]
+      : []),
+  ];
 
-      <div className="profile-top">
-        <header className="profile-hero" aria-labelledby="trader-profile-name">
-          <TraderAvatar
-            className="profile-hero-avatar"
-            address={traderAddress}
-            name={name}
-          />
-          <div className="profile-hero-copy">
-            <h1 id="trader-profile-name">{name}</h1>
-            <p className="profile-hero-meta">
-              <a
-                href={`${activeExplorerUrl}/address/${traderAddress}`}
-                target="_blank"
-                rel="noreferrer"
-                title={traderAddress}
+  return (
+    <main className="trader-profile-page profile-shell">
+      <Tabs.Root
+        className="profile-layout"
+        orientation="vertical"
+        value={tab}
+        onValueChange={(value) => setTab(value as ProfileTab)}
+      >
+        <aside className="profile-sidebar" aria-label="Profile sections">
+          <Tabs.List className="profile-rail" aria-label="Profile sections">
+            {sections.map((section) => (
+              <Tabs.Tab
+                key={section.value}
+                value={section.value}
+                className="profile-rail-tab"
               >
-                {formatAddress(traderAddress)} <InlineArrow />
-              </a>
+                {section.label}
+              </Tabs.Tab>
+            ))}
+            <Tabs.Indicator className="profile-rail-indicator" />
+          </Tabs.List>
+        </aside>
+
+        <div className="profile-stage">
+          {tab !== "profile" ? (
+            <h1 className="visually-hidden">{name}</h1>
+          ) : null}
+          {notice ? (
+            <p className="notice notice-dismissible" role="status">
+              <span>{notice}</span>
+              <button
+                type="button"
+                onClick={() => setNotice("")}
+                aria-label="Dismiss message"
+              >
+                ×
+              </button>
             </p>
+          ) : null}
+
+          {reporting ? (
+            <form
+              id="trader-report-form"
+              className="profile-settings-card trader-report-form"
+              aria-label="Report this profile"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void reportProfile();
+              }}
+            >
+              <div>
+                <label htmlFor="trader-report-reason">Reason</label>
+                <select
+                  id="trader-report-reason"
+                  value={reportReason}
+                  onChange={(event) => setReportReason(event.target.value)}
+                >
+                  <option value="spam">Spam</option>
+                  <option value="impersonation">Impersonation</option>
+                  <option value="manipulation">Suspected manipulation</option>
+                  <option value="harmful_content">Harmful content</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="trader-report-details">
+                  Details <span>(optional)</span>
+                </label>
+                <textarea
+                  id="trader-report-details"
+                  maxLength={1000}
+                  value={reportDetails}
+                  onChange={(event) => setReportDetails(event.target.value)}
+                />
+              </div>
+              <div className="profile-editor-actions">
+                <button type="button" onClick={() => setReporting(false)}>
+                  Cancel
+                </button>
+                <button className="primary-button" type="submit">
+                  Submit report
+                </button>
+              </div>
+            </form>
+          ) : null}
+          <Tabs.Panel
+            value="profile"
+            className="profile-section-panel profile-overview"
+          >
+            <header
+              className="profile-hero"
+              aria-labelledby="trader-profile-name"
+            >
+              <TraderAvatar
+                className="profile-hero-avatar"
+                address={traderAddress}
+                name={name}
+              />
+              <div className="profile-hero-copy">
+                <h1 id="trader-profile-name">{name}</h1>
+                <p className="profile-hero-meta">
+                  <a
+                    href={`${activeExplorerUrl}/address/${traderAddress}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={traderAddress}
+                  >
+                    {formatAddress(traderAddress)} <InlineArrow />
+                  </a>
+                </p>
+              </div>
+            </header>
+
             <p className="profile-hero-social">
               <span>
                 <strong>{data.followers}</strong> followers
@@ -289,6 +378,7 @@ export function TraderProfilePage({
                 <strong>{data.following}</strong> following
               </span>
             </p>
+
             {!isOwner ? (
               <div className="profile-hero-actions">
                 <FollowButton
@@ -329,289 +419,218 @@ export function TraderProfilePage({
                 </Menu.Root>
               </div>
             ) : null}
-          </div>
-        </header>
 
-        <section className="profile-summary" aria-label="Trading summary">
-          <div className="profile-summary-value">
-            <small>Portfolio value</small>
-            <div className="profile-summary-amount">
-              <strong>
-                <UsdAmount weth={portfolioValue} />
-              </strong>
-              <span
-                className={`profile-summary-change ${displayedChange24h === null || displayedChange24h === 0 ? "muted" : displayedChange24h < 0 ? "negative" : "positive"}`}
-                title="24h token price change in WETH, weighted by current holdings. Excludes buys, sells, transfers, and ETH/USD movement."
-              >
-                {displayedChange24h === null
-                  ? "—"
-                  : `${displayedChange24h > 0 ? "+" : ""}${displayedChange24h.toFixed(1)}%`}
-              </span>
-            </div>
-          </div>
-        </section>
-      </div>
-
-      {reporting ? (
-        <form
-          id="trader-report-form"
-          className="profile-settings-card trader-report-form"
-          aria-label="Report this profile"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void reportProfile();
-          }}
-        >
-          <div>
-            <label htmlFor="trader-report-reason">Reason</label>
-            <select
-              id="trader-report-reason"
-              value={reportReason}
-              onChange={(event) => setReportReason(event.target.value)}
-            >
-              <option value="spam">Spam</option>
-              <option value="impersonation">Impersonation</option>
-              <option value="manipulation">Suspected manipulation</option>
-              <option value="harmful_content">Harmful content</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-          <div>
-            <label htmlFor="trader-report-details">
-              Details <span>(optional)</span>
-            </label>
-            <textarea
-              id="trader-report-details"
-              maxLength={1000}
-              value={reportDetails}
-              onChange={(event) => setReportDetails(event.target.value)}
-            />
-          </div>
-          <div className="profile-editor-actions">
-            <button type="button" onClick={() => setReporting(false)}>
-              Cancel
-            </button>
-            <button className="primary-button" type="submit">
-              Submit report
-            </button>
-          </div>
-        </form>
-      ) : null}
-
-      <Tabs.Root
-        className="profile-tabs"
-        value={tab}
-        onValueChange={(value) => setTab(value as ProfileTab)}
-      >
-        <Tabs.List
-          className="profile-section-nav"
-          aria-label="Profile sections"
-        >
-          <Tabs.Tab value="holdings">
-            Holdings{positions.length ? <span>{positions.length}</span> : null}
-          </Tabs.Tab>
-          <Tabs.Tab value="activity">Activity</Tabs.Tab>
-          {launches || creatorMarkets.data?.length ? (
-            <Tabs.Tab value="launches">
-              Launches
-              {creatorMarkets.data?.length ? (
-                <span>{creatorMarkets.data.length}</span>
-              ) : null}
-            </Tabs.Tab>
-          ) : null}
-          <Tabs.Indicator className="profile-section-indicator" />
-        </Tabs.List>
-
-        <Tabs.Panel value="holdings" className="profile-section-panel">
-          {!positions.length ? (
-            <EmptyState
-              title="No holdings yet"
-              action={
-                isOwner ? (
-                  <AppLink
-                    className="profile-secondary-action"
-                    route="markets"
-                    navigate={navigate}
+            <section className="profile-summary" aria-label="Trading summary">
+              <div className="profile-summary-value">
+                <small>Portfolio value</small>
+                <div className="profile-summary-amount">
+                  <strong>
+                    <UsdAmount weth={portfolioValue} />
+                  </strong>
+                  <span
+                    className={`profile-summary-change ${displayedChange24h === null || displayedChange24h === 0 ? "muted" : displayedChange24h < 0 ? "negative" : "positive"}`}
+                    title="24h token price change in WETH, weighted by current holdings. Excludes buys, sells, transfers, and ETH/USD movement."
                   >
-                    Explore markets
-                  </AppLink>
-                ) : null
-              }
-            >
-              {isOwner
-                ? "Tokens you buy on a curve show up here."
-                : "This trader holds no curve tokens right now."}
-            </EmptyState>
-          ) : (
-            <ul className="profile-list profile-holdings-list">
-              {positions.map(({ position, balance }) => (
-                <li key={position.token_address}>
-                  <AppLink
-                    className="profile-row profile-holding-row"
-                    route="market"
-                    params={{
-                      address: position.token_slug ?? position.token_address,
-                    }}
-                    navigate={navigate}
-                  >
-                    <span className="profile-row-main">
-                      <strong>{position.token_name}</strong>
-                      <small>
-                        {formatEthAmount(balance)} ${position.token_symbol}
-                      </small>
-                    </span>
-                    <span className="profile-holding-metrics">
-                      <span className="profile-holding-metric">
-                        <small>Amount invested</small>
-                        <strong>
-                          {BigInt(position.invested_wei) > 0n ? (
-                            <UsdAmount
-                              weth={wethAmount(position.invested_wei)}
-                              compact
-                            />
-                          ) : (
-                            "—"
-                          )}
-                        </strong>
-                      </span>
-                      <span className="profile-holding-metric">
-                        <small title="Average market cap at buys, weighted by trade size">
-                          Avg. buy in
-                        </small>
-                        <strong>
-                          {position.average_entry_market_cap_wei ? (
-                            <UsdAmount
-                              weth={wethAmount(
-                                position.average_entry_market_cap_wei,
-                              )}
-                              compact
-                            />
-                          ) : (
-                            "—"
-                          )}
-                        </strong>
-                      </span>
-                      <span className="profile-holding-metric">
-                        <small title="Average market cap at sells, weighted by trade size">
-                          Avg. sell out
-                        </small>
-                        <strong>
-                          {position.average_exit_market_cap_wei ? (
-                            <UsdAmount
-                              weth={wethAmount(
-                                position.average_exit_market_cap_wei,
-                              )}
-                              compact
-                            />
-                          ) : (
-                            "—"
-                          )}
-                        </strong>
-                      </span>
-                    </span>
-                    <span className="profile-row-chevron" aria-hidden="true">
-                      ›
-                    </span>
-                  </AppLink>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Tabs.Panel>
+                    {displayedChange24h === null
+                      ? "—"
+                      : `${displayedChange24h > 0 ? "+" : ""}${displayedChange24h.toFixed(1)}%`}
+                  </span>
+                </div>
+              </div>
+            </section>
+          </Tabs.Panel>
 
-        <Tabs.Panel value="activity" className="profile-section-panel">
-          {trades.isLoading ? (
-            <div
-              className="profile-list-skeleton"
-              aria-busy="true"
-              aria-label="Loading activity"
-            >
-              {Array.from({ length: 4 }, (_, index) => (
-                <span className="skeleton" key={index} />
-              ))}
-            </div>
-          ) : trades.isError ? (
-            <EmptyState
-              title="Activity is unavailable"
-              action={
-                <button
-                  className="profile-secondary-action"
-                  type="button"
-                  onClick={() => void trades.refetch()}
-                >
-                  Retry
-                </button>
-              }
-            >
-              {trades.error instanceof Error
-                ? trades.error.message
-                : "Try again shortly."}
-            </EmptyState>
-          ) : !trades.data?.items.length ? (
-            <EmptyState title="No trades yet">
-              {isOwner
-                ? "Your buys and sells on Curveball show up here."
-                : "This trader hasn't traded on Curveball yet."}
-            </EmptyState>
-          ) : (
-            <ul className="profile-list">
-              {trades.data.items.slice(0, 20).map((trade) => (
-                <li key={trade.id}>
-                  <AppLink
-                    className="profile-row"
-                    route="market"
-                    params={{ address: trade.tokenSlug ?? trade.tokenAddress }}
-                    navigate={navigate}
-                  >
-                    <span
-                      className={`social-side ${trade.isBuy ? "buy" : "sell"}`}
+          <Tabs.Panel value="holdings" className="profile-section-panel">
+            {!positions.length ? (
+              <EmptyState
+                title="No holdings yet"
+                action={
+                  isOwner ? (
+                    <AppLink
+                      className="profile-secondary-action"
+                      route="markets"
+                      navigate={navigate}
                     >
-                      {trade.isBuy ? "Buy" : "Sell"}
-                    </span>
-                    <span className="profile-row-main">
-                      <strong>{trade.tokenName}</strong>
-                      <small>
-                        {trade.note
-                          ? `"${trade.note}"`
-                          : `$${trade.tokenSymbol}`}
-                      </small>
-                    </span>
-                    <span className="profile-row-value">
-                      <strong>
-                        <UsdAmount
-                          weth={wethAmount(trade.quoteAmountWei)}
-                          compact
-                        />
-                      </strong>
-                      {trade.reactionCount ? (
+                      Explore markets
+                    </AppLink>
+                  ) : null
+                }
+              >
+                {isOwner
+                  ? "Tokens you buy on a curve show up here."
+                  : "This trader holds no curve tokens right now."}
+              </EmptyState>
+            ) : (
+              <ul className="profile-list profile-holdings-list">
+                {positions.map(({ position, balance }) => (
+                  <li key={position.token_address}>
+                    <AppLink
+                      className="profile-row profile-holding-row"
+                      route="market"
+                      params={{
+                        address: position.token_slug ?? position.token_address,
+                      }}
+                      navigate={navigate}
+                    >
+                      <span className="profile-row-main">
+                        <strong>{position.token_name}</strong>
                         <small>
-                          {trade.reactionCount}{" "}
-                          {trade.reactionCount === 1
-                            ? "conviction"
-                            : "convictions"}
+                          {formatEthAmount(balance)} ${position.token_symbol}
                         </small>
-                      ) : null}
-                      <time dateTime={trade.blockTimestamp}>
-                        {formatRelativeTime(trade.blockTimestamp)}
-                      </time>
-                    </span>
-                  </AppLink>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Tabs.Panel>
-
-        {launches || creatorMarkets.data?.length ? (
-          <Tabs.Panel value="launches" className="profile-section-panel">
-            {launches ?? (
-              <CreatorMarketList
-                tokens={creatorMarkets.data ?? []}
-                navigate={navigate}
-              />
+                      </span>
+                      <span className="profile-holding-metrics">
+                        <span className="profile-holding-metric">
+                          <small>Amount invested</small>
+                          <strong>
+                            {BigInt(position.invested_wei) > 0n ? (
+                              <UsdAmount
+                                weth={wethAmount(position.invested_wei)}
+                                compact
+                              />
+                            ) : (
+                              "—"
+                            )}
+                          </strong>
+                        </span>
+                        <span className="profile-holding-metric">
+                          <small title="Average market cap at buys, weighted by trade size">
+                            Avg. buy in
+                          </small>
+                          <strong>
+                            {position.average_entry_market_cap_wei ? (
+                              <UsdAmount
+                                weth={wethAmount(
+                                  position.average_entry_market_cap_wei,
+                                )}
+                                compact
+                              />
+                            ) : (
+                              "—"
+                            )}
+                          </strong>
+                        </span>
+                        <span className="profile-holding-metric">
+                          <small title="Average market cap at sells, weighted by trade size">
+                            Avg. sell out
+                          </small>
+                          <strong>
+                            {position.average_exit_market_cap_wei ? (
+                              <UsdAmount
+                                weth={wethAmount(
+                                  position.average_exit_market_cap_wei,
+                                )}
+                                compact
+                              />
+                            ) : (
+                              "—"
+                            )}
+                          </strong>
+                        </span>
+                      </span>
+                      <span className="profile-row-chevron" aria-hidden="true">
+                        ›
+                      </span>
+                    </AppLink>
+                  </li>
+                ))}
+              </ul>
             )}
           </Tabs.Panel>
-        ) : null}
+
+          <Tabs.Panel value="activity" className="profile-section-panel">
+            {trades.isLoading ? (
+              <div
+                className="profile-list-skeleton"
+                aria-busy="true"
+                aria-label="Loading activity"
+              >
+                {Array.from({ length: 4 }, (_, index) => (
+                  <span className="skeleton" key={index} />
+                ))}
+              </div>
+            ) : trades.isError ? (
+              <EmptyState
+                title="Activity is unavailable"
+                action={
+                  <button
+                    className="profile-secondary-action"
+                    type="button"
+                    onClick={() => void trades.refetch()}
+                  >
+                    Retry
+                  </button>
+                }
+              >
+                {trades.error instanceof Error
+                  ? trades.error.message
+                  : "Try again shortly."}
+              </EmptyState>
+            ) : !trades.data?.items.length ? (
+              <EmptyState title="No trades yet">
+                {isOwner
+                  ? "Your buys and sells on Curveball show up here."
+                  : "This trader hasn't traded on Curveball yet."}
+              </EmptyState>
+            ) : (
+              <ul className="profile-list">
+                {trades.data.items.slice(0, 20).map((trade) => (
+                  <li key={trade.id}>
+                    <AppLink
+                      className="profile-row"
+                      route="market"
+                      params={{ address: trade.tokenSlug ?? trade.tokenAddress }}
+                      navigate={navigate}
+                    >
+                      <span
+                        className={`social-side ${trade.isBuy ? "buy" : "sell"}`}
+                      >
+                        {trade.isBuy ? "Buy" : "Sell"}
+                      </span>
+                      <span className="profile-row-main">
+                        <strong>{trade.tokenName}</strong>
+                        <small>
+                          {trade.note
+                            ? `"${trade.note}"`
+                            : `$${trade.tokenSymbol}`}
+                        </small>
+                      </span>
+                      <span className="profile-row-value">
+                        <strong>
+                          <UsdAmount
+                            weth={wethAmount(trade.quoteAmountWei)}
+                            compact
+                          />
+                        </strong>
+                        {trade.reactionCount ? (
+                          <small>
+                            {trade.reactionCount}{" "}
+                            {trade.reactionCount === 1
+                              ? "conviction"
+                              : "convictions"}
+                          </small>
+                        ) : null}
+                        <time dateTime={trade.blockTimestamp}>
+                          {formatRelativeTime(trade.blockTimestamp)}
+                        </time>
+                      </span>
+                    </AppLink>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Tabs.Panel>
+
+          {showLaunches ? (
+            <Tabs.Panel value="launches" className="profile-section-panel">
+              {launches ?? (
+                <CreatorMarketList
+                  tokens={creatorMarkets.data ?? []}
+                  navigate={navigate}
+                />
+              )}
+            </Tabs.Panel>
+          ) : null}
+        </div>
       </Tabs.Root>
     </main>
   );

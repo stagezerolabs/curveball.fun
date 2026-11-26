@@ -22,7 +22,7 @@ const routes: Route[] = [
   { id: "docsPage", path: "/docs/:slug", title: "Docs — Curveball" },
   { id: "market", path: "/markets/:address", title: "Market — Curveball" },
   { id: "launch", path: "/launch", title: "Launch — Curveball" },
-  { id: "profile", path: "/profile", title: "Profile — Curveball" },
+  { id: "dashboard", path: "/dashboard", title: "Dashboard — Curveball" },
   {
     id: "trader",
     path: "/profile/:address",
@@ -68,6 +68,13 @@ export function resolveRoute(pathname: string) {
   const fallback = routes.find((route) => route.path === "*");
   if (!fallback) throw Error("Missing fallback route");
   return { id: fallback.id, params: {}, title: fallback.title };
+}
+
+const marketTapeRoutes = new Set(["landing", "markets", "social"]);
+
+/** The market tape is a discovery banner, shown only on browsing pages. */
+export function showsMarketTape(routeId: string) {
+  return marketTapeRoutes.has(routeId);
 }
 
 export function routeHref(id: string, params: Record<string, string> = {}) {

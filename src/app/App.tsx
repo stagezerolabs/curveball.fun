@@ -3,6 +3,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useAccount } from "wagmi";
 import { Header, LandingFooter, LandingHeader } from "../components/Navigation";
 import { MarketTape } from "../components/MarketTape";
+import { showsMarketTape } from "./routeTree";
 import { LandingPage } from "../pages/LandingPage";
 import { useRouter } from "./useRouter.js";
 import { useSocialStream } from "../social/useNotifications";
@@ -174,7 +175,7 @@ export function App() {
         </Suspense>
       );
       break;
-    case "profile":
+    case "dashboard":
       page = (
         <Suspense fallback={<PageFallback />}>
           <ProfilePage key={route.id} navigate={navigate} />
@@ -235,7 +236,7 @@ export function App() {
           onThemeToggle={toggleTheme}
         />
       )}
-      {isDocs ? null : isLanding ? (
+      {!showsMarketTape(route.id) ? null : isLanding ? (
         <Suspense fallback={<MarketTape />}>
           <MarketTapeCurve />
         </Suspense>

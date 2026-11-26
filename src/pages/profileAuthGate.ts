@@ -1,4 +1,4 @@
-// Decides which view /profile should render while authentication settles.
+// Decides which view /dashboard should render while authentication settles.
 //
 // The bug this guards: the page used to show the sign-in screen whenever wagmi's
 // `address` was missing, so a refresh flashed a login page and offered "Create

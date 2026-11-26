@@ -112,11 +112,11 @@ export function RiseLogo() {
 function WalletNavButton({
   address,
   navigate,
-  profileActive = false,
+  dashboardActive = false,
 }: {
   address?: Address;
   navigate: Navigate;
-  profileActive?: boolean;
+  dashboardActive?: boolean;
 }) {
   const { ready, authenticated, login } = usePrivy();
   const { connectWallet } = useConnectWallet();
@@ -203,7 +203,7 @@ function WalletNavButton({
       address={address}
       label={walletLabel}
       navigate={navigate}
-      profileActive={profileActive}
+      dashboardActive={dashboardActive}
     />
   );
 }
@@ -335,7 +335,7 @@ export function Header({
   };
   const marketsClass = ["markets", "market"].includes(routeId) ? "active" : "";
   const socialClass = ["social", "trader"].includes(routeId) ? "active" : "";
-  const profileClass = routeId === "profile" ? "active" : "";
+  const dashboardClass = routeId === "dashboard" ? "active" : "";
   const adminClass = routeId === "admin" ? "active" : "";
 
   const primaryLinks = (
@@ -357,12 +357,12 @@ export function Header({
         Pulse
       </AppLink>
       <AppLink
-        className={`nav-link ${profileClass}`}
-        route="profile"
+        className={`nav-link ${dashboardClass}`}
+        route="dashboard"
         navigate={go}
-        aria-current={profileClass ? "page" : undefined}
+        aria-current={dashboardClass ? "page" : undefined}
       >
-        Profile
+        Dashboard
       </AppLink>
       {isAdmin && (
         <AppLink
@@ -473,7 +473,7 @@ export function Header({
           <WalletNavButton
             address={address}
             navigate={go}
-            profileActive={Boolean(profileClass)}
+            dashboardActive={Boolean(dashboardClass)}
           />
         </div>
         <button

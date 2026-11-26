@@ -1826,115 +1826,10 @@ a.market-snapshot-token:focus-visible {
   cursor: pointer;
   margin-top: 28px;
 }
-.creator-data-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-.creator-data-heading p {
-  color: var(--muted);
-  font-size: 12px;
-}
-.creator-insights button:focus-visible {
-  outline: 2px solid var(--lime);
-  outline-offset: 3px;
-}
-.profile-token-workspace {
-  display: grid;
-  gap: 20px;
-  margin-top: 20px;
-  min-width: 0;
-}
-.creator-insights {
-  display: grid;
-  gap: 16px;
-  min-width: 0;
-}
-.creator-data-heading p {
-  margin: 0;
-}
-.creator-data-panel {
-  background: var(--panel);
-  border-radius: 16px;
-  min-width: 0;
-  overflow: hidden;
-}
-.creator-data-heading {
-  padding: 20px 22px;
-}
-.creator-data-heading h3 {
-  font-size: 17px;
-  margin: 0 0 4px;
-}
-.creator-data-actions {
-  align-items: center;
-  display: flex;
-  gap: 12px;
-}
-.creator-data-actions > strong {
-  color: var(--lime);
-  font-size: 12px;
-  white-space: nowrap;
-}
 .creator-data-status {
   color: var(--muted);
   margin: 0;
   padding: 24px 22px;
-}
-.creator-table-wrap {
-  max-width: 100%;
-  overflow-x: auto;
-}
-.creator-table-wrap:focus-visible {
-  outline: 2px solid var(--lime);
-  outline-offset: -2px;
-}
-.creator-table {
-  border-collapse: collapse;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  width: 100%;
-}
-.creator-table th,
-.creator-table td {
-  border-top: 1px solid var(--line);
-  padding: 12px 16px;
-  text-align: left;
-  white-space: nowrap;
-}
-.creator-table th {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 500;
-}
-.creator-table tbody tr:hover {
-  background: var(--raise);
-}
-.creator-table a {
-  color: var(--ink);
-  text-decoration: none;
-}
-.creator-table a:hover {
-  color: var(--lime);
-}
-.creator-holder-wallet {
-  align-items: center;
-  display: flex;
-  gap: 8px;
-}
-.creator-table a:focus-visible {
-  outline: 2px solid var(--lime);
-  outline-offset: 2px;
-}
-.creator-show-more {
-  margin: 12px 22px 18px;
-}
-@media (max-width: 640px) {
-  .creator-data-heading {
-    align-items: flex-start;
-    flex-direction: column;
-  }
 }
 .floating-notice {
   margin-bottom: 70px;
@@ -8386,16 +8281,7 @@ button.notifications-read-dot {
 .profile-editor-actions .primary-button {
   min-height: 40px;
 }
-/* Profile: identity, summary, then one tabbed section at a time */
-.trader-profile-page > .notice {
-  margin-bottom: 16px;
-}
-.profile-top {
-  align-items: center;
-  display: grid;
-  gap: 28px 64px;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-}
+/* Profile: sticky sidebar (identity, value, section rail) beside one section */
 .profile-hero {
   align-items: center;
   display: grid;
@@ -8620,15 +8506,6 @@ img.profile-hero-avatar {
   min-height: 115px;
 }
 
-.profile-loading-tabs {
-  display: flex;
-  gap: 16px;
-  margin-top: 30px;
-}
-.profile-loading-tabs .skeleton {
-  height: 20px;
-  width: 90px;
-}
 .profile-loading-rows {
   display: grid;
   gap: 10px;
@@ -8639,17 +8516,6 @@ img.profile-hero-avatar {
   width: 100%;
 }
 
-.profile-tabs {
-  margin-top: 28px;
-}
-.profile-tabs > .profile-section-nav {
-  margin-top: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.profile-tabs > .profile-section-panel {
-  padding-top: 16px;
-}
 .profile-section-nav.profile-subnav {
   background: var(--panel);
   border: 0;
@@ -8994,7 +8860,6 @@ img.profile-hero-avatar {
   max-width: 640px;
 }
 @media (max-width: 900px) {
-  .profile-top,
   .profile-settings {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -9303,253 +9168,6 @@ img.profile-hero-avatar {
 .profile-page > .profile-connect {
   grid-column: 1 / -1;
 }
-.profile-dashboard {
-  align-items: start;
-  display: grid;
-  gap: 28px;
-  grid-template-columns: 260px minmax(0, 1fr);
-}
-.profile-dashboard-loading {
-  display: grid;
-  gap: 28px;
-  grid-template-columns: 260px minmax(0, 1fr);
-}
-.profile-dashboard-loading .skeleton {
-  min-height: 360px;
-}
-.profile-launch-directory {
-  align-self: start;
-  background: var(--panel);
-  border-radius: 16px;
-  display: flex;
-  flex-direction: column;
-  max-height: calc(100dvh - 40px);
-  min-width: 0;
-  overflow: hidden;
-  position: sticky;
-  top: 20px;
-  z-index: 2;
-}
-.profile-directory-controls {
-  display: grid;
-  gap: 8px;
-  padding: 12px;
-}
-.profile-directory-controls input {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  color: var(--ink);
-  font-size: 12px;
-  min-height: 40px;
-  padding: 0 11px;
-  width: 100%;
-}
-.profile-directory-controls input::placeholder {
-  color: var(--muted);
-}
-.profile-directory-controls input:focus-visible {
-  border-color: var(--muted);
-  outline: 2px solid var(--ink);
-  outline-offset: 2px;
-}
-.profile-status-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.profile-status-filter {
-  align-items: center;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  color: var(--muted);
-  cursor: pointer;
-  display: flex;
-  font-size: 11px;
-  font-weight: 600;
-  gap: 6px;
-  justify-content: space-between;
-  line-height: 1.2;
-  min-height: 38px;
-  padding: 7px 9px;
-  text-align: left;
-}
-.profile-status-filter span {
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-.profile-status-filter:hover {
-  color: var(--ink);
-}
-.profile-status-filter.active {
-  background: var(--raise);
-  border-color: var(--line);
-  color: var(--ink);
-}
-.profile-status-filter.active span {
-  color: var(--lime);
-}
-.profile-status-filter:focus-visible {
-  outline: 2px solid var(--ink);
-  outline-offset: 2px;
-}
-.profile-launch-list {
-  list-style: none;
-  margin: 0;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 5px;
-  scrollbar-color: var(--raise) transparent;
-}
-.profile-launch-list li + li {
-  margin-top: 2px;
-}
-.profile-launch-item {
-  align-items: center;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  color: var(--ink);
-  cursor: pointer;
-  display: grid;
-  gap: 10px;
-  grid-template-columns: 36px minmax(0, 1fr);
-  min-height: 62px;
-  padding: 9px;
-  text-align: left;
-  width: 100%;
-}
-.profile-launch-item:hover {
-  background: var(--raise);
-}
-.profile-launch-item.selected {
-  background: var(--raise);
-  box-shadow: inset 3px 0 var(--lime);
-}
-.profile-launch-item:focus-visible {
-  outline: 2px solid var(--ink);
-  outline-offset: -2px;
-}
-.profile-launch-avatar.token-avatar {
-  border-radius: 8px;
-  height: 36px;
-  width: 36px;
-}
-.profile-launch-item-copy {
-  display: grid;
-  min-width: 0;
-}
-.profile-launch-item-copy strong {
-  font-size: 13px;
-  line-height: 1.25;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.profile-launch-item-copy small {
-  color: var(--muted);
-  font-size: 11px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.profile-launch-item .profile-launch-status {
-  grid-column: 2;
-  justify-self: start;
-  margin-top: -4px;
-}
-.profile-launch-status {
-  color: var(--lime);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-}
-.profile-launch-status.ready {
-  color: var(--orange-ink);
-}
-.profile-launch-status.graduated {
-  color: var(--orange-ink);
-}
-.profile-directory-empty {
-  color: var(--muted);
-  font-size: 12px;
-  margin: 0;
-  padding: 22px 18px;
-}
-.profile-detail {
-  min-width: 0;
-}
-.profile-token-header {
-  align-items: center;
-  display: flex;
-  gap: 24px;
-  justify-content: space-between;
-  min-width: 0;
-  padding: 0 0 18px;
-}
-.profile-token-identity {
-  align-items: center;
-  display: flex;
-  gap: 14px;
-  min-width: 0;
-}
-.profile-token-avatar.token-avatar {
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  flex: 0 0 auto;
-  height: 56px;
-  object-fit: cover;
-  width: 56px;
-}
-.profile-token-identity > div {
-  min-width: 0;
-}
-.profile-token-identity h3 {
-  font-size: clamp(22px, 2.2vw, 28px);
-  letter-spacing: -0.04em;
-  line-height: 1.15;
-  margin: 0 0 5px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.profile-token-identity p {
-  color: var(--muted);
-  display: flex;
-  flex-wrap: wrap;
-  font-size: 12px;
-  gap: 0 10px;
-  margin: 0;
-}
-.profile-token-identity p span + span::before {
-  content: "·";
-  margin-right: 10px;
-  opacity: 0.6;
-}
-.profile-token-identity p span:nth-child(2) {
-  color: var(--ink);
-  font-weight: 700;
-}
-.profile-market-link:focus-visible {
-  outline: 2px solid var(--lime);
-  outline-offset: 3px;
-}
-.profile-token-actions {
-  align-items: center;
-  display: flex;
-  flex: 0 0 auto;
-  gap: 16px;
-}
-.profile-market-link {
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  font-size: 12px;
-  font-weight: 700;
-  padding: 10px 13px;
-  white-space: nowrap;
-}
 .profile-section-nav {
   border-bottom: 1px solid var(--line);
   display: flex;
@@ -9623,14 +9241,6 @@ img.profile-hero-avatar {
     animation: none;
   }
 }
-.profile-token-workspace {
-  gap: 26px;
-  margin-top: 22px;
-}
-.profile-token-workspace > div,
-.profile-token-workspace .holder-airdrop {
-  min-width: 0;
-}
 @media (max-width: 1120px) {
   .profile-page {
     display: block;
@@ -9642,47 +9252,6 @@ img.profile-hero-avatar {
   }
   .profile-page {
     padding-block: 30px 80px;
-  }
-  .profile-dashboard,
-  .profile-dashboard-loading {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 20px;
-  }
-  .profile-launch-directory {
-    display: block;
-    max-height: none;
-    position: static;
-  }
-  .profile-directory-controls {
-    grid-template-columns: 1fr;
-  }
-  .profile-launch-list {
-    display: grid;
-    gap: 4px;
-    grid-auto-columns: minmax(175px, 210px);
-    grid-auto-flow: column;
-    overflow-x: auto;
-    padding: 6px;
-  }
-  .profile-launch-list li + li {
-    margin-top: 0;
-  }
-  .profile-launch-item {
-    min-height: 74px;
-  }
-}
-@media (max-width: 520px) {
-  .profile-directory-controls {
-    grid-template-columns: 1fr;
-  }
-  .profile-token-header {
-    align-items: start;
-    flex-direction: column;
-    gap: 12px;
-  }
-  .profile-token-actions {
-    justify-content: space-between;
-    width: 100%;
   }
 }
 
@@ -10332,5 +9901,380 @@ img.profile-hero-avatar {
   }
   .market-detail-activity {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Profile shell: an on-theme sidebar holds only the section rail; the stage
+   beside it shows one section at a time, Profile included. */
+.trader-profile-page.profile-shell {
+  margin-inline: auto;
+  padding-block: 16px 96px;
+  width: min(1440px, calc(100% - 48px));
+}
+.profile-layout {
+  align-items: start;
+  display: grid;
+  gap: 40px;
+  grid-template-columns: 280px minmax(0, 1fr);
+}
+.profile-sidebar {
+  padding-top: 8px;
+  position: sticky;
+  top: 16px;
+}
+.profile-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+}
+.profile-rail-tab {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 14px;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.045em;
+  line-height: 1.1;
+  min-height: 60px;
+  padding: 8px 20px;
+  position: relative;
+  text-align: left;
+  transition:
+    color 120ms ease-out,
+    background-color 120ms ease-out;
+  white-space: nowrap;
+  z-index: 1;
+}
+.profile-rail-tab:hover {
+  color: color-mix(in srgb, var(--ink) 80%, var(--muted));
+}
+.profile-rail-tab[aria-selected="true"] {
+  color: var(--ink);
+}
+.profile-rail-tab:focus-visible {
+  outline: 2px solid var(--lime);
+  outline-offset: 2px;
+}
+.profile-rail-indicator {
+  height: var(--active-tab-height);
+  left: 0;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  transform: translate(var(--active-tab-left), var(--active-tab-top));
+  transition:
+    transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    width 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    height 260ms cubic-bezier(0.22, 1, 0.36, 1);
+  width: var(--active-tab-width);
+}
+.profile-rail-indicator::before {
+  background: var(--lime);
+  border-radius: 0 3px 3px 0;
+  bottom: 16px;
+  content: "";
+  left: 0;
+  position: absolute;
+  top: 16px;
+  width: 3px;
+}
+.profile-loading-rail {
+  display: grid;
+  gap: 10px;
+}
+.profile-loading-rail .skeleton {
+  border-radius: 14px;
+  height: 52px;
+}
+
+.profile-stage {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.profile-stage > .notice,
+.profile-stage > .trader-report-form {
+  margin: 0;
+}
+.profile-stage.profile-loading-rows {
+  margin-top: 0;
+}
+
+/* Profile tab: identity on the left, portfolio value beside it. */
+.profile-overview {
+  align-content: start;
+  display: grid;
+  gap: 14px 48px;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 440px);
+}
+.profile-overview > :not(.profile-summary) {
+  grid-column: 1;
+}
+.profile-overview > .profile-summary {
+  align-self: start;
+  grid-column: 2;
+  grid-row: 1 / span 3;
+}
+.profile-overview .profile-hero-social,
+.profile-overview .profile-hero-actions {
+  margin: 0;
+  padding-left: 100px;
+}
+
+/* The stage is narrower than a full page, so the profile overview stacks
+   its portfolio card under the identity earlier. */
+@media (max-width: 1240px) {
+  .profile-overview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .profile-overview > .profile-summary {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
+@media (max-width: 1080px) {
+  .profile-layout {
+    gap: 28px;
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+  .profile-rail-tab {
+    font-size: 24px;
+  }
+}
+@media (max-width: 900px) {
+  .profile-layout {
+    gap: 20px;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .profile-sidebar {
+    border-bottom: 1px solid var(--line);
+    padding-top: 0;
+    position: static;
+  }
+  .profile-rail {
+    flex-direction: row;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .profile-rail-tab {
+    flex: 0 0 auto;
+    font-size: 18px;
+    min-height: 44px;
+    padding: 6px 16px;
+  }
+  .profile-rail-indicator::before {
+    border-radius: 3px 3px 0 0;
+    height: 3px;
+    left: 16px;
+    right: 16px;
+    top: auto;
+    bottom: 0;
+    width: auto;
+  }
+}
+@media (max-width: 680px) {
+  .trader-profile-page.profile-shell {
+    padding-block: 14px 74px;
+    width: min(100% - 28px, 1440px);
+  }
+  .profile-overview .profile-hero-social,
+  .profile-overview .profile-hero-actions {
+    padding-left: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .profile-rail-tab,
+  .profile-rail-indicator {
+    transition: none;
+  }
+}
+
+/* Dashboard launches: a wrapping grid of token names, then a short summary
+   of the selected one. Charts, trades, and holders stay on the market page. */
+.creator-launch-dashboard {
+  display: grid;
+  gap: 28px;
+  min-width: 0;
+}
+.launch-toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+.launch-search {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  font-size: 13px;
+  min-height: 40px;
+  padding: 0 12px;
+  width: min(240px, 100%);
+}
+.launch-search:focus-visible {
+  outline: 2px solid var(--lime);
+  outline-offset: 2px;
+}
+.launch-picker-empty {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+}
+
+.launch-status {
+  color: var(--lime);
+  font-weight: 600;
+}
+.launch-status.ready {
+  color: var(--orange-ink);
+}
+.launch-status.graduated {
+  color: var(--ink);
+}
+.launch-loading {
+  display: grid;
+  gap: 28px;
+}
+.launch-loading-header {
+  border-radius: 12px;
+  height: 48px;
+}
+.launch-loading-table {
+  border-radius: 12px;
+  height: 140px;
+}
+.launch-gallery {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.launch-tile {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  font-size: 14px;
+  font-weight: 600;
+  gap: 10px;
+  min-height: 48px;
+  overflow: hidden;
+  padding: 0 14px;
+  text-align: left;
+  text-overflow: ellipsis;
+  transition:
+    color 120ms ease-out,
+    border-color 120ms ease-out;
+  white-space: nowrap;
+  width: 100%;
+}
+.launch-tile:hover {
+  color: var(--ink);
+}
+.launch-tile.selected {
+  border-color: var(--lime);
+  color: var(--ink);
+}
+.launch-tile:focus-visible {
+  outline: 2px solid var(--lime);
+  outline-offset: 2px;
+}
+.launch-tile-dot {
+  background: var(--lime);
+  border-radius: 50%;
+  flex: 0 0 auto;
+  height: 6px;
+  width: 6px;
+}
+.launch-tile-dot.ready {
+  background: var(--orange-ink);
+}
+.launch-tile-dot.graduated {
+  background: var(--muted);
+}
+
+.launch-summary {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 20px;
+  padding-top: 24px;
+}
+.launch-summary-header h2 {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+  margin: 0 0 4px;
+}
+.launch-summary-header p {
+  color: var(--muted);
+  display: flex;
+  font-size: 13px;
+  gap: 8px;
+  margin: 0;
+}
+.launch-summary-header p span + span::before {
+  color: var(--muted);
+  content: "·";
+  margin-right: 8px;
+}
+.launch-summary-progress {
+  display: grid;
+  gap: 10px;
+}
+.launch-summary-progress > span:first-child {
+  align-items: baseline;
+  color: var(--muted);
+  display: flex;
+  font-size: 13px;
+  justify-content: space-between;
+}
+.launch-summary-progress strong {
+  color: var(--ink);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+.launch-summary-stats {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+}
+.launch-summary-stats div {
+  display: grid;
+  gap: 4px;
+}
+.launch-summary-stats dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+.launch-summary-stats dd {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+@media (max-width: 640px) {
+  .launch-gallery {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  }
+  .launch-summary-stats {
+    gap: 16px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .launch-tile {
+    transition: none;
   }
 }

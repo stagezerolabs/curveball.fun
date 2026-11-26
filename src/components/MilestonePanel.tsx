@@ -15,24 +15,9 @@ import {
 import { activeChainId, launchpadAddress } from "../lib/web3";
 import { selectTradeState } from "../lib/marketState";
 import { factoryForToken } from "../lib/marketFactories";
+import { graduationStats } from "../lib/graduationStats";
 import type { Token } from "../types";
 import { UsdAmount } from "./UsdAmount";
-
-function getTargetMarketCap(token: Token) {
-  if (token.targetPrice == null) return null;
-  try {
-    const supply = token.supply
-      ? Number(formatEther(BigInt(token.supply)))
-      : token.price && token.marketCap != null
-        ? token.marketCap / token.price
-        : null;
-    return supply == null || !Number.isFinite(supply)
-      ? null
-      : token.targetPrice * supply;
-  } catch {
-    return null;
-  }
-}
 
 function InfoIcon() {
   return (
@@ -99,17 +84,9 @@ export function MilestonePanel({
       graduateMarket: (token: Address, factory?: Address) => Promise<void>;
     };
 
-  const progress = token.progress ?? 0;
-  const quoteTarget = token.graduationTargetWeth
-    ? Number(token.graduationTargetWeth)
-    : null;
-  const hasQuoteTarget =
-    quoteTarget !== null && Number.isFinite(quoteTarget) && quoteTarget > 0;
-  const quoteRaised = token.curveLiquidityWeth;
-  const quoteProgress =
-    hasQuoteTarget && quoteRaised != null && Number.isFinite(quoteRaised)
-      ? (quoteRaised / quoteTarget) * 100
-      : null;
+  const { progress, quoteTarget, quoteRaised, quoteProgress, targetMarketCap } =
+    graduationStats(token);
+  const hasQuoteTarget = quoteTarget !== null;
   const marketFactory = launchpadAddress
     ? factoryForToken(token.factory)
     : undefined;
@@ -162,7 +139,6 @@ export function MilestonePanel({
   });
   const hasQuotePayment = quoteOwed !== undefined && quoteOwed > 0n;
   const hasTokenPayment = tokenOwed !== undefined && tokenOwed > 0n;
-  const targetMarketCap = getTargetMarketCap(token);
 
   return (
     <section

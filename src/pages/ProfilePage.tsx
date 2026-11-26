@@ -6,21 +6,15 @@ import { useAccount, usePublicClient } from "wagmi";
 import type { Address } from "viem";
 import { useStore } from "../app/useStore.js";
 import { AppLink } from "../components/Navigation";
-import { CreatorTokenInsights } from "../components/CreatorTokenInsights";
-import { TokenAvatar } from "../components/TokenAvatar";
+import { LaunchGallery, LaunchSummary } from "../components/LaunchGallery";
 import { TraderProfileSkeleton } from "../components/TraderProfileSkeleton";
-import { UsdAmount } from "../components/UsdAmount";
 import type { CreatorTokenClient } from "../creatorTokens";
-import { formatRelativeTime } from "../lib/format.js";
-import { getMarketDisplayStatus } from "../lib/marketState";
 import { fetchCreatorMarkets } from "../markets/api";
 import { socialApiConfigured } from "../social/api";
 import { activeChainId } from "../lib/web3";
 import type { Navigate, Token } from "../types";
 import type { ProfileTab } from "./TraderProfilePage";
 import { selectProfileAuthView } from "./profileAuthGate";
-
-type LaunchFilter = "all" | "live" | "ready" | "graduated";
 
 const TraderProfilePage = lazy(() =>
   import("./TraderProfilePage").then((module) => ({
@@ -94,47 +88,30 @@ function CreatorLaunchDashboard({
     return () => window.clearInterval(timer);
   }, [address, awaitingPool, loadCreatorTokens, publicClient]);
 
-  const counts = useMemo(
-    () => ({
-      live: tokens.filter(
-        (token) => getMarketDisplayStatus(token).kind === "live",
-      ).length,
-      ready: tokens.filter(
-        (token) => getMarketDisplayStatus(token).kind === "ready",
-      ).length,
-      graduated: tokens.filter((token) => token.graduated).length,
-    }),
-    [tokens],
-  );
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<LaunchFilter>("all");
+  // The newest launch is open until the creator picks another tile.
+  const sortedTokens = useMemo(
+    () =>
+      [...tokens].sort(
+        (a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt),
+      ),
+    [tokens],
+  );
   const visibleTokens = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return [...tokens]
-      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
-      .filter(
+    return sortedTokens.filter(
         (token) =>
-          (filter === "all" || getMarketDisplayStatus(token).kind === filter) &&
-          (!query ||
-            `${token.name} ${token.symbol} ${token.address}`
-              .toLowerCase()
-              .includes(query)),
+          !query ||
+          `${token.name} ${token.symbol} ${token.address}`
+            .toLowerCase()
+            .includes(query),
       );
-  }, [tokens, search, filter]);
+  }, [sortedTokens, search]);
   const selectedToken =
-    visibleTokens.find(
+    sortedTokens.find(
       (token) => token.address.toLowerCase() === selectedAddress,
-    ) ?? visibleTokens[0];
-
-  const filters = (
-    [
-      ["all", "All", tokens.length],
-      ["live", "Live", counts.live],
-      ["ready", "Bonding complete", counts.ready],
-      ["graduated", "Graduated", counts.graduated],
-    ] as const
-  ).filter(([value, , count]) => value === "all" || count > 0);
+    ) ?? sortedTokens[0];
 
   return (
     <section className="creator-launch-dashboard" aria-label="Your launches">
@@ -145,12 +122,12 @@ function CreatorLaunchDashboard({
       )}
       {initialLoading ? (
         <div
-          className="profile-dashboard-loading"
+          className="launch-loading"
           aria-busy="true"
           aria-label="Loading launches"
         >
-          <div className="skeleton" />
-          <div className="skeleton" />
+          <span className="skeleton launch-loading-header" />
+          <span className="skeleton launch-loading-table" />
         </div>
       ) : !tokens.length ? (
         <div className="profile-empty-state">
@@ -165,150 +142,39 @@ function CreatorLaunchDashboard({
           </AppLink>
         </div>
       ) : (
-        <div className="profile-dashboard">
-          <aside className="profile-launch-directory" aria-label="Launches">
-            {tokens.length > 1 ? (
-              <div className="profile-directory-controls">
-                {tokens.length > 6 ? (
-                  <>
-                    <label
-                      className="visually-hidden"
-                      htmlFor="profile-launch-search"
-                    >
-                      Search launches
-                    </label>
-                    <input
-                      id="profile-launch-search"
-                      type="search"
-                      placeholder="Search launches"
-                      value={search}
-                      onChange={(event) => setSearch(event.target.value)}
-                    />
-                  </>
-                ) : null}
-                {filters.length > 2 ? (
-                  <div
-                    className="profile-status-filters"
-                    role="group"
-                    aria-label="Filter launches by status"
-                  >
-                    {filters.map(([value, label, count]) => (
-                      <button
-                        key={value}
-                        type="button"
-                        className={
-                          filter === value
-                            ? "profile-status-filter active"
-                            : "profile-status-filter"
-                        }
-                        aria-pressed={filter === value}
-                        onClick={() => setFilter(value)}
-                      >
-                        {label}
-                        <span>{count}</span>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-            {visibleTokens.length ? (
-              <ul className="profile-launch-list">
-                {visibleTokens.map((token, index) => {
-                  const status = getMarketDisplayStatus(token);
-                  return (
-                    <li key={token.address}>
-                      <button
-                        type="button"
-                        className={
-                          selectedToken?.address === token.address
-                            ? "profile-launch-item selected"
-                            : "profile-launch-item"
-                        }
-                        aria-pressed={selectedToken?.address === token.address}
-                        onClick={() =>
-                          setSelectedAddress(token.address.toLowerCase())
-                        }
-                      >
-                        <TokenAvatar
-                          token={token}
-                          index={index}
-                          className="profile-launch-avatar"
-                        />
-                        <span className="profile-launch-item-copy">
-                          <strong>{token.name}</strong>
-                          <small>
-                            ${token.symbol} ·{" "}
-                            {formatRelativeTime(token.createdAt)}
-                          </small>
-                        </span>
-                        <span
-                          className={`profile-launch-status ${status.kind}`}
-                        >
-                          {status.label}
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : (
-              <p className="profile-directory-empty">
-                No launches match your search or filter.
-              </p>
-            )}
-          </aside>
-
-          <div className="profile-detail" aria-live="polite">
-            {selectedToken ? (
-              <>
-                <header className="profile-token-header">
-                  <div className="profile-token-identity">
-                    <TokenAvatar
-                      token={selectedToken}
-                      className="profile-token-avatar"
-                    />
-                    <div>
-                      <h3>{selectedToken.name}</h3>
-                      <p>
-                        <span>${selectedToken.symbol}</span>
-                        <span>
-                          MC{" "}
-                          <UsdAmount weth={selectedToken.marketCap} compact />
-                        </span>
-                        <span>
-                          Launched {formatRelativeTime(selectedToken.createdAt)}
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-                  <div className="profile-token-actions">
-                    <AppLink
-                      className="profile-market-link"
-                      route="market"
-                      params={{
-                        address: selectedToken.slug ?? selectedToken.address,
-                      }}
-                      navigate={navigate}
-                    >
-                      View market <InlineArrow />
-                    </AppLink>
-                  </div>
-                </header>
-                <div className="profile-token-workspace profile-section-panel">
-                  <CreatorTokenInsights
-                    token={selectedToken}
-                    navigate={navigate}
-                  />
-                </div>
-              </>
-            ) : (
-              <p className="profile-directory-empty">
-                Choose a launch to view its details.
-              </p>
-            )}
-          </div>
-        </div>
+        <>
+          {tokens.length > 12 ? (
+            <div className="launch-toolbar">
+              <label className="visually-hidden" htmlFor="profile-launch-search">
+                Search launches
+              </label>
+              <input
+                id="profile-launch-search"
+                className="launch-search"
+                type="search"
+                placeholder="Search launches"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </div>
+          ) : null}
+          {visibleTokens.length ? (
+            <LaunchGallery
+              tokens={visibleTokens}
+              selected={selectedToken?.address}
+              onSelect={(token) =>
+                setSelectedAddress(token.address.toLowerCase())
+              }
+            />
+          ) : (
+            <p className="launch-picker-empty">
+              No launches match your search.
+            </p>
+          )}
+          {selectedToken ? (
+            <LaunchSummary token={selectedToken} />
+          ) : null}
+        </>
       )}
     </section>
   );
@@ -326,7 +192,7 @@ export function ProfilePage({
 
   // On a refresh the Privy session restores asynchronously and wagmi's address
   // arrives only after the wallet sync finishes. Gate on both before showing
-  // the sign-in screen, otherwise /profile flashes a login page at every load
+  // the sign-in screen, otherwise /dashboard flashes a login page at every load
   // and offers "Create account or sign in" while a session is already live.
   const view = selectProfileAuthView({
     ready: privyReady,
@@ -339,7 +205,7 @@ export function ProfilePage({
         className="page-main profile-page wrap"
         aria-busy="true"
         aria-label={
-          view === "loading" ? "Loading profile" : "Restoring signed-in session"
+          view === "loading" ? "Loading dashboard" : "Restoring signed-in session"
         }
       >
         <div className="trader-profile-skeleton skeleton" />
@@ -350,7 +216,7 @@ export function ProfilePage({
   if (view === "login" || !address || !authenticated) {
     return (
       <main className="page-main profile-page wrap">
-        <h1 className="visually-hidden">Profile</h1>
+        <h1 className="visually-hidden">Dashboard</h1>
         <section
           className="profile-connect"
           aria-labelledby="profile-connect-title"
