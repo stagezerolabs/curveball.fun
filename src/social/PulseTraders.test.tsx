@@ -8,22 +8,29 @@ const address = "0x1111111111111111111111111111111111111111";
 
 const leaderboard: LeaderboardSnapshot = {
   category: "consistent",
+  status: "ranked",
+  stale: false,
+  paused: false,
+  ageMinutes: 1,
+  rules: { minQualifyingTrades: 10 },
+  watching: [],
+  progress: [],
   items: [
     {
       address,
       rank: 1,
+      confidence: "developing",
       stats: {
         tradeCount: 12,
-        buyCount: 8,
-        sellCount: 4,
-        volumeWei: "1000000000000000000",
+        qualifyingTradeCount: 12,
         realizedPnlWei: "100000000000000000",
+        realizedCostWei: "1000000000000000000",
         realizedReturnPct: 10,
         marketsTraded: 3,
         firstTrade: "2026-01-01T00:00:00.000Z",
         lastTrade: "2026-01-02T00:00:00.000Z",
       },
-      publishedMetrics: { returnBps: 1_000 },
+      publishedMetrics: { returnBps: 1_000, netPnlWei: "100000000000000000" },
     },
   ],
 };

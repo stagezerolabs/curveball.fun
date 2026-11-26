@@ -83,46 +83,118 @@ export type PulseResponse = {
   sampleTruncated: boolean;
 };
 
+export type LeaderboardCategory = "consistent" | "new" | "trending" | "followers";
+
+/** Published v3 ("curve-exit-realized-v3") metrics. Wei amounts are decimal strings. */
 export type LeaderboardMetrics = {
-  tradeCount?: number;
-  marketCount?: number;
-  tradingDayCount?: number;
-  recentTradingDayCount?: number;
-  recentMarketCount?: number;
-  investedWei?: string;
+  methodologyVersion?: string;
+  entityId?: string;
   realizedPnlWei?: string;
+  realizedCostWei?: string;
+  openValueWei?: string;
   unrealizedPnlWei?: string;
   netPnlWei?: string;
+  scoredPnlWei?: string;
+  scoreWei?: string;
+  peakCapitalWei?: string;
   returnBps?: number | null;
+  qualifyingTradeCount?: number;
+  tradeCount?: number;
+  marketCount?: number;
+  activeDayCount?: number;
+  staleMarkCount?: number;
+  thinMarketCount?: number;
+  transferOutCount?: number;
+  exitMarkShareBps?: number | null;
+  confidence?: LeaderboardConfidence;
+  windowDays?: number | null;
+  eligibleFollowerCount?: number;
   firstTradeAt?: string | null;
   lastTradeAt?: string | null;
-  sampleLabel?: "established" | "provisional";
-  methodologyVersion?: string;
-  methodologyCaveat?: string;
+};
+
+export type LeaderboardConfidence = "established" | "developing" | "new";
+
+export type LeaderboardStats = {
+  tradeCount: number;
+  qualifyingTradeCount: number;
+  realizedPnlWei: string;
+  realizedCostWei: string;
+  realizedReturnPct: number | null;
+  marketsTraded: number;
+  firstTrade: string | null;
+  lastTrade: string | null;
 };
 
 export type LeaderboardTrader = {
   address: Address;
   rank: number;
-  stats: TraderStats;
+  stats: LeaderboardStats;
   publishedMetrics: LeaderboardMetrics;
+  confidence: LeaderboardConfidence;
+  followers?: number;
+  isFollowed?: boolean;
   asOfBlock?: string;
-  calculatedAt?: string;
   publishedAt?: string | null;
   methodologyVersion?: string | null;
-  period?: string | null;
 };
 
+/** An unranked wallet shown while nobody qualifies. Never carries P&L or percentages. */
+export type WatchingTrader = {
+  address: Address;
+  rank: null;
+  provisional: true;
+  qualifyingTradeCount: number | null;
+  marketCount: number | null;
+  activeDayCount: number | null;
+  requirementsMet: number | null;
+  requirementsTotal: number | null;
+  lastTradeAt: string | null;
+};
+
+/** Public checklist and scoring numbers; the API generates these from the backend rules. */
+export type LeaderboardRules = {
+  methodologyVersion?: string;
+  minTradeWei?: string;
+  shrinkageK?: number;
+  openPositionCapBps?: number;
+  updateIntervalSec?: number;
+  minQualifyingTrades?: number;
+  minMarkets?: number;
+  minActiveDays?: number;
+  minFirstTradeAgeDays?: number;
+  maxFirstTradeAgeDays?: number;
+  maxLastTradeAgeDays?: number;
+  windowDays?: number;
+  minPeakCapitalWei?: string;
+  maxSingleMarketShareBps?: number;
+  minFollowerVolumeWei?: string;
+  minFollowerAccountAgeDays?: number;
+};
+
+export type LeaderboardProgress = {
+  requirementsMet: number;
+  requirementsTotal: number;
+  walletCount: number;
+};
+
+export type LeaderboardStatus = "ranked" | "no_qualifiers" | "pending";
+
 export type LeaderboardSnapshot = {
-  category: "consistent" | "new";
-  /** Ranked from stored per-trader performance while no current snapshot has qualified traders. */
-  provisional?: boolean;
-  items: LeaderboardTrader[];
-  asOfBlock?: string | null;
-  calculatedAt?: string | null;
-  publishedAt?: string | null;
+  category: LeaderboardCategory;
+  label?: string;
+  status: LeaderboardStatus;
   methodologyVersion?: string | null;
-  period?: string | null;
+  asOfBlock?: string | null;
+  asOfTime?: string | null;
+  publishedAt?: string | null;
+  stale: boolean;
+  paused: boolean;
+  ageMinutes: number | null;
+  rules: LeaderboardRules;
+  items: LeaderboardTrader[];
+  watching: WatchingTrader[];
+  progress: LeaderboardProgress[];
 };
 
 export type TraderPosition = {
