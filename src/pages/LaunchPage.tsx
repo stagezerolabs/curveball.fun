@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import { usePrivy } from "@privy-io/react-auth";
-import { ArrowIcon } from "../components/ArrowIcon";
+import { ArrowIcon, InlineArrow } from "../components/ArrowIcon";
 import { LaunchPreview } from "../components/LaunchPreview";
 import { UsdAmount } from "../components/UsdAmount";
 import RubberSegment from "../components/RubberSegment";
@@ -1143,7 +1143,7 @@ export function LaunchPage({ navigate }: { navigate: Navigate }) {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                View transaction ↗
+                View transaction <InlineArrow />
               </a>
             )}
             {phase === "error" && (

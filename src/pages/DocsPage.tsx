@@ -1,3 +1,4 @@
+import { InlineArrow } from "../components/ArrowIcon";
 import type { ReactNode } from "react";
 import { AppLink } from "../components/Navigation";
 import type { Navigate } from "../types";
@@ -54,7 +55,7 @@ function ContractList({
             rel="noreferrer"
           >
             <code>{contract.address}</code>
-            <span aria-hidden="true">↗</span>
+            <InlineArrow />
           </a>
         </div>
       ))}
@@ -118,7 +119,7 @@ function DocsContent({
                   <strong>{chapter.label}</strong>
                   <span>{chapter.description}</span>
                   <span className="docs-topic-arrow" aria-hidden="true">
-                    ↗
+                    <InlineArrow />
                   </span>
                 </DocLink>
               ))}
@@ -302,7 +303,7 @@ export function DocsPage({
         <h1>That page is not here.</h1>
         <p>Choose a topic from the documentation home.</p>
         <AppLink route="docs" navigate={navigate}>
-          Browse docs ↗
+          Browse docs <InlineArrow />
         </AppLink>
       </main>
     );
@@ -356,7 +357,7 @@ export function DocsPage({
                 navigate={navigate}
                 className="docs-pagination-link"
               >
-                <span>← Previous</span>
+                <span><InlineArrow direction="left" /> Previous</span>
                 <strong>{previous.label}</strong>
               </DocLink>
             ) : (
@@ -368,7 +369,7 @@ export function DocsPage({
                 navigate={navigate}
                 className="docs-pagination-link next"
               >
-                <span>Next →</span>
+                <span>Next <InlineArrow direction="right" /></span>
                 <strong>{next.label}</strong>
               </DocLink>
             ) : (

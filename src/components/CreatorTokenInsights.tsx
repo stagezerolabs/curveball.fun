@@ -1,3 +1,4 @@
+import { InlineArrow } from "./ArrowIcon";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { formatEther, type Address } from "viem";
@@ -203,7 +204,7 @@ export function CreatorTokenInsights({
                             rel="noreferrer"
                             title={holder.address}
                           >
-                            {shortAddress(holder.address)} ↗
+                            {shortAddress(holder.address)} <InlineArrow />
                           </a>
                         )}
                       </td>

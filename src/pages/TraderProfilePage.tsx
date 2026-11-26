@@ -1,3 +1,4 @@
+import { InlineArrow } from "../components/ArrowIcon";
 import { useEffect, useState, type ReactNode } from "react";
 import { Menu } from "@base-ui/react/menu";
 import { Tabs } from "@base-ui/react/tabs";
@@ -277,7 +278,7 @@ export function TraderProfilePage({
                 rel="noreferrer"
                 title={traderAddress}
               >
-                {formatAddress(traderAddress)} <span aria-hidden="true">↗</span>
+                {formatAddress(traderAddress)} <InlineArrow />
               </a>
             </p>
             <p className="profile-hero-social">

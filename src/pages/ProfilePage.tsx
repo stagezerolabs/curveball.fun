@@ -1,3 +1,4 @@
+import { InlineArrow } from "../components/ArrowIcon";
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useQuery } from "@tanstack/react-query";
@@ -290,7 +291,7 @@ function CreatorLaunchDashboard({
                       }}
                       navigate={navigate}
                     >
-                      View market <span aria-hidden="true">↗</span>
+                      View market <InlineArrow />
                     </AppLink>
                   </div>
                 </header>
@@ -355,7 +356,7 @@ export function ProfilePage({
           aria-labelledby="profile-connect-title"
         >
           <span className="profile-connect-icon" aria-hidden="true">
-            ↗
+            <InlineArrow />
           </span>
           <h2 id="profile-connect-title">Connect your wallet</h2>
           <p>

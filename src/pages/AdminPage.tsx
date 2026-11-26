@@ -1,3 +1,4 @@
+import { InlineArrow } from "../components/ArrowIcon";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccount, useSwitchChain } from "wagmi";
@@ -61,7 +62,7 @@ function ExplorerAddress({
       title={address}
       aria-label={`${label}: ${address}. View on explorer`}
     >
-      {formatAddress(address)} <span aria-hidden="true">↗</span>
+      {formatAddress(address)} <InlineArrow />
     </a>
   );
 }
@@ -195,7 +196,7 @@ function ModerationRow({
           target="_blank"
           rel="noreferrer"
         >
-          {formatAddress(report.subject_address)} ↗
+          {formatAddress(report.subject_address)} <InlineArrow />
         </a>
       </p>
       {report.details ? <blockquote>{report.details}</blockquote> : null}
@@ -457,7 +458,7 @@ export function AdminPage() {
                   target="_blank"
                   rel="noreferrer"
                 >
-                  View transaction ↗
+                  View transaction <InlineArrow />
                 </a>
               )}
             </p>

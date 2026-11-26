@@ -1,3 +1,4 @@
+import { InlineArrow } from "../components/ArrowIcon";
 import { formatEther } from "viem";
 import { AppLink } from "../components/Navigation";
 import { TokenAvatar } from "../components/TokenAvatar";
@@ -73,7 +74,7 @@ export function SocialTradeCard({
             target="_blank"
             rel="noreferrer"
           >
-            View transaction <span aria-hidden="true">↗</span>
+            View transaction <InlineArrow />
           </a>
           <AppLink
             route="market"

@@ -606,6 +606,15 @@ button {
   min-height: calc(100vh - 194px);
 }
 
+/* SVG arrow sized to surrounding text (never use Unicode/emoji arrows) */
+.inline-arrow {
+  display: inline-block;
+  flex: none;
+  height: 0.9em;
+  vertical-align: -0.1em;
+  width: 0.9em;
+}
+
 /* Documentation */
 .docs-page {
   padding-block: 46px 120px;
@@ -622,8 +631,8 @@ button {
 }
 .docs-breadcrumb a:hover,
 .docs-breadcrumb a:focus-visible,
-.docs-section a:hover,
-.docs-section a:focus-visible {
+.docs-section p a:hover,
+.docs-section p a:focus-visible {
   color: var(--lime-ink);
 }
 .docs-breadcrumb [aria-current] {
@@ -751,7 +760,7 @@ button {
   margin: 0 0 18px;
   max-width: 72ch;
 }
-.docs-section a {
+.docs-section p a {
   color: var(--ink);
   font-weight: 700;
   text-decoration: underline;
@@ -766,6 +775,9 @@ button {
 }
 .docs-topic-card {
   background: var(--surface);
+  color: var(--ink);
+  min-width: 0;
+  text-decoration: none;
   border: 1px solid var(--line);
   border-radius: 14px;
   display: grid;
@@ -852,6 +864,7 @@ button {
 }
 .docs-contract a {
   align-items: center;
+  color: var(--ink);
   display: flex;
   gap: 8px;
   justify-content: space-between;
@@ -889,8 +902,14 @@ button {
   border-color: var(--lime);
 }
 .docs-pagination-link span {
+  align-items: center;
   color: var(--muted);
+  display: inline-flex;
   font-size: 12px;
+  gap: 5px;
+}
+.docs-pagination-link.next span {
+  justify-content: flex-end;
 }
 .docs-pagination-link strong {
   font-size: 15px;
@@ -908,18 +927,32 @@ button {
 }
 @media (max-width: 850px) {
   .docs-layout {
-    gap: 35px;
-    grid-template-columns: 1fr;
+    gap: 28px;
+    grid-template-columns: minmax(0, 1fr);
   }
   .docs-sidebar {
+    min-width: 0;
     position: static;
+  }
+  .docs-sidebar-label {
+    display: none;
   }
   .docs-sidebar nav {
     border-left: 0;
     display: flex;
     gap: 6px;
+    margin-inline: -16px;
     overflow-x: auto;
-    padding-bottom: 8px;
+    overscroll-behavior-x: contain;
+    padding: 0 16px 6px;
+    scroll-padding-inline: 16px;
+    scrollbar-width: none;
+  }
+  .docs-sidebar nav::-webkit-scrollbar {
+    display: none;
+  }
+  .docs-sidebar-link span {
+    display: none;
   }
   .docs-sidebar-link {
     border: 1px solid var(--line);
@@ -934,22 +967,76 @@ button {
 }
 @media (max-width: 600px) {
   .docs-page {
-    padding-block: 28px 84px;
+    padding-block: 20px 72px;
+    width: calc(100% - 32px);
   }
   .docs-breadcrumb {
-    margin-bottom: 32px;
+    margin-bottom: 20px;
   }
   .docs-steps,
   .docs-card-grid,
   .docs-two-up,
   .docs-contract {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .docs-contract {
+    gap: 8px;
+    padding: 14px 0;
+  }
+  .docs-contract a {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .docs-section {
+    margin-top: 36px;
+    padding-top: 28px;
+  }
+  .docs-section h1,
+  .docs-section h2 {
+    margin-bottom: 14px;
+  }
+  .docs-section p {
+    font-size: 14px;
+    line-height: 1.65;
+  }
+  .docs-topic-card {
+    gap: 6px;
+    min-height: 0;
+    padding: 16px 44px 16px 16px;
+  }
+  .docs-topic-card strong {
+    font-size: 18px;
+  }
+  .docs-topic-arrow {
+    right: 16px;
+    top: 16px;
+  }
+  .docs-two-up > div {
+    padding: 18px;
+  }
+  .docs-steps-vertical > div {
+    gap: 6px 14px;
+    grid-template-columns: 32px minmax(0, 1fr);
   }
   .docs-pagination {
     gap: 10px;
+    margin-top: 44px;
   }
   .docs-pagination-link {
+    min-width: 0;
     padding: 13px;
+  }
+  .docs-pagination-link strong {
+    font-size: 14px;
+    overflow-wrap: anywhere;
+  }
+  .docs-not-found {
+    padding-block: 48px;
+  }
+  .docs-not-found h1 {
+    font-size: 3rem;
   }
 }
 .markets-page {
@@ -3584,6 +3671,8 @@ select:focus-visible {
 }
 .market-cap-change .trend-arrow {
   flex: none;
+  height: 12px;
+  width: 12px;
 }
 .market-cap-change.up {
   color: var(--market-up);

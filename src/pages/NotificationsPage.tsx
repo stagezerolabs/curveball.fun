@@ -1,3 +1,4 @@
+import { InlineArrow } from "../components/ArrowIcon";
 import { useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -135,7 +136,7 @@ export function NotificationsPage({ navigate }: { navigate: Navigate }) {
           aria-labelledby="notifications-connect-title"
         >
           <span className="profile-connect-icon" aria-hidden="true">
-            ↗
+            <InlineArrow />
           </span>
           <h2 id="notifications-connect-title">Sign in to see notifications</h2>
           <p>

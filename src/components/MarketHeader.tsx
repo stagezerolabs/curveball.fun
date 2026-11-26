@@ -1,3 +1,4 @@
+import { ArrowIcon } from "./ArrowIcon";
 import { motion, useReducedMotion } from "motion/react";
 import { TokenAvatar } from "./TokenAvatar";
 import { formatPercent } from "../lib/format.js";
@@ -158,7 +159,10 @@ export function MarketHeader({
                 {direction === "up" ||
                 direction === "down" ||
                 direction === "flat" ? (
-                  <TrendArrow direction={direction} />
+                  <ArrowIcon
+                    direction={trendDirection[direction]}
+                    className="trend-arrow"
+                  />
                 ) : null}
                 {marketCapChange ? `${formattedChange}%` : "—"}
               </strong>
@@ -277,25 +281,8 @@ function changeClass(value: number | null | undefined) {
       : "negative";
 }
 
-const trendRotation = { up: -45, flat: 0, down: 45 } as const;
-
-function TrendArrow({ direction }: { direction: keyof typeof trendRotation }) {
-  return (
-    <svg
-      className="trend-arrow"
-      viewBox="0 0 16 16"
-      width="12"
-      height="12"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-      style={{ transform: `rotate(${trendRotation[direction]}deg)` }}
-    >
-      <path d="M2.5 8h11M9 3.5 13.5 8 9 12.5" />
-    </svg>
-  );
-}
+const trendDirection = {
+  up: "up-right",
+  flat: "right",
+  down: "down-right",
+} as const;

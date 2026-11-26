@@ -1,3 +1,4 @@
+import { InlineArrow } from "../components/ArrowIcon";
 import { formatUnits } from "viem";
 import { AppLink } from "../components/Navigation";
 import { useProtocolStats } from "../components/LandingProtocolStats";
@@ -139,7 +140,7 @@ export function StatsPage({ navigate }: { navigate: Navigate }) {
           <div className="protocol-stats-section-head">
             <h2 id="stats-recent-title">Recently on the curve.</h2>
             <AppLink className="text-link" route="markets" navigate={navigate}>
-              All markets →
+              All markets <InlineArrow direction="right" />
             </AppLink>
           </div>
           {loading ? (
@@ -180,7 +181,7 @@ export function StatsPage({ navigate }: { navigate: Navigate }) {
                     >
                       {token.graduated ? "Graduated" : "Not graduated"}
                     </span>
-                    <span aria-hidden="true">↗</span>
+                    <InlineArrow />
                   </AppLink>
                 </li>
               ))}
@@ -217,7 +218,7 @@ export function StatsPage({ navigate }: { navigate: Navigate }) {
               target="_blank"
               rel="noreferrer"
             >
-              View launchpad on explorer ↗
+              View launchpad on explorer <InlineArrow />
             </a>
           )}
         </div>
