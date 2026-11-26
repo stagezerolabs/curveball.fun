@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../app/useStore.js";
-import { formatAddress, formatEthAmount, formatPercent } from "../lib/format.js";
+import { formatEthAmount, formatPercent } from "../lib/format.js";
 import type { Address } from "viem";
-import { formatEther, zeroAddress } from "viem";
+import { formatEther } from "viem";
 import { useReadContract } from "wagmi";
-import { curveFeeEscrowAbi, curveLaunchpadAbi, curveBuybackTreasuryAbi } from "../sdk/contracts";
+import { curveFeeEscrowAbi, curveLaunchpadAbi } from "../sdk/contracts";
 import { activeChainId, launchpadAddress } from "../lib/web3";
 import { selectTradeState } from "../lib/marketState";
 import { factoryForToken } from "../lib/marketFactories";
@@ -80,12 +80,11 @@ export function MilestonePanel({
       document.removeEventListener("keydown", close);
     };
   }, [openDetail]);
-  const { isPending, claimPoolFees, claimEscrow, runBuyback, graduateMarket } =
+  const { isPending, claimPoolFees, claimEscrow, graduateMarket } =
     useStore() as {
       isPending: boolean;
       claimPoolFees: (pool: Address, factory?: Address) => Promise<void>;
       claimEscrow: (asset: Address, factory?: Address) => Promise<void>;
-      runBuyback: (token: Address, factory?: Address) => Promise<void>;
       graduateMarket: (token: Address, factory?: Address) => Promise<void>;
     };
 
@@ -149,23 +148,8 @@ export function MilestonePanel({
     chainId: activeChainId,
     query: { enabled: Boolean(isCreator && escrow) },
   });
-  const { data: buybackTreasury } = useReadContract({
-    address: escrow, abi: curveFeeEscrowAbi, functionName: "buybackTreasury",
-    chainId: activeChainId, query: { enabled: Boolean(escrow) },
-  });
-  const { data: curveTarget } = useReadContract({
-    address: buybackTreasury, abi: curveBuybackTreasuryAbi, functionName: "curveToken",
-    chainId: activeChainId, query: { enabled: Boolean(buybackTreasury) },
-  });
-  const { data: buybackBalance, refetch: refetchBuyback } = useReadContract({
-    address: buybackTreasury, abi: curveBuybackTreasuryAbi, functionName: "quoteBudget",
-    chainId: activeChainId, query: { enabled: Boolean(buybackTreasury) },
-  });
   const hasQuotePayment = quoteOwed !== undefined && quoteOwed > 0n;
   const hasTokenPayment = tokenOwed !== undefined && tokenOwed > 0n;
-  const hasCurveTarget = Boolean(curveTarget && curveTarget !== zeroAddress);
-  const buybackWeth =
-    buybackBalance === undefined ? null : Number(formatEther(buybackBalance));
   const targetMarketCap = getTargetMarketCap(token);
 
   return (
@@ -353,35 +337,6 @@ export function MilestonePanel({
           </button>
         </div>
       )}
-
-      {isCreator && buybackBalance !== undefined &&
-        buybackBalance > 0n && (
-          <div className="claim-block">
-            <h3 className="panel-subhead">Buyback</h3>
-            <p className="panel-note">
-              Shared treasury: {formatEthAmount(buybackWeth)} WETH (
-              <UsdAmount weth={buybackWeth} />) for CURVE buybacks.
-            </p>
-            <p className="panel-note">
-              Target: {hasCurveTarget ? (
-                <span title={curveTarget}>{formatAddress(curveTarget)}</span>
-              ) : (
-                "Waiting for CURVE to graduate"
-              )}
-            </p>
-            <button
-              type="button"
-              className="primary-button claim-button"
-              disabled={isPending || !hasCurveTarget}
-              onClick={async () => {
-                await runBuyback(token.address, marketFactory);
-                await refetchBuyback();
-              }}
-            >
-              {isPending ? "Running…" : "Run buyback"}
-            </button>
-          </div>
-        )}
 
       {isCreator && (hasQuotePayment || hasTokenPayment) && (
         <div className="claim-block">
