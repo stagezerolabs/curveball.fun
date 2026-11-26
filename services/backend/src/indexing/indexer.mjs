@@ -13,6 +13,10 @@ import {
   publishLeaderboards,
   refreshPerformanceSnapshot,
 } from "../analytics/performance.mjs";
+import {
+  publishAsOfBlock,
+  shouldPublish,
+} from "../analytics/publishSchedule.mjs";
 import { traceBackendTask } from "../platform/instrument.mjs";
 
 // The lean launchpad (docs/adr/0003-lean-singleton-launchpad.md): one contract runs every market's
@@ -821,6 +825,7 @@ async function indexTradeRange(fromBlock, toBlock, onEvent) {
   );
   const timestamps = new Map();
   const emitted = [];
+  let wroteRows = logs.length > 0;
 
   await transaction(async (db) => {
     await db.query(
@@ -1015,8 +1020,8 @@ async function indexTradeRange(fromBlock, toBlock, onEvent) {
     for (const traderAddress of affectedTraders) {
       await refreshPerformanceSnapshot(db, traderAddress, toBlock);
     }
-    if (affectedTraders.size) await publishLeaderboards(db, toBlock);
-
+    // Leaderboards are recomputed at publish time from the tick, never inside this transaction.
+    if (affectedTraders.size) wroteRows = true;
     await db.query(
       `INSERT INTO chain_cursors (chain_id, stream, next_block) VALUES ($1,'trades',$2)
        ON CONFLICT (chain_id, stream) DO UPDATE SET next_block = EXCLUDED.next_block, updated_at = now()`,
@@ -1025,6 +1030,7 @@ async function indexTradeRange(fromBlock, toBlock, onEvent) {
   });
 
   for (const event of emitted) onEvent?.(event);
+  return wroteRows;
 }
 
 async function logsFor(addresses, event, fromBlock, toBlock) {
@@ -1259,13 +1265,12 @@ async function indexLedgerRange(fromBlock, toBlock) {
     }
     for (const address of affectedWallets)
       await refreshPerformanceSnapshot(db, address, toBlock);
-    if (affectedWallets.size) await publishLeaderboards(db, toBlock);
     await db.query(
       `INSERT INTO chain_cursors (chain_id,stream,next_block) VALUES ($1,'ledger',$2)
       ON CONFLICT (chain_id,stream) DO UPDATE SET next_block=EXCLUDED.next_block,updated_at=now()`,
       [config.chainId, (toBlock + 1n).toString()],
     );
-  });
+  });  return affectedWallets.size > 0;
 }
 
 async function pairForPool(poolAddress) {
@@ -1472,14 +1477,16 @@ async function scanStream(stream, safeHead, scan) {
   let fromBlock =
     stored > REORG_OVERLAP ? stored - REORG_OVERLAP : config.deploymentBlock;
   if (fromBlock < config.deploymentBlock) fromBlock = config.deploymentBlock;
+  let wrote = false;
   while (fromBlock <= safeHead) {
     const toBlock =
       fromBlock + config.logRange - 1n < safeHead
         ? fromBlock + config.logRange - 1n
         : safeHead;
-    await scan(fromBlock, toBlock);
+    if (await scan(fromBlock, toBlock)) wrote = true;
     fromBlock = toBlock + 1n;
   }
+  return wrote;
 }
 
 export function startIndexer({ onEvent, onError } = {}) {
@@ -1490,6 +1497,39 @@ export function startIndexer({ onEvent, onError } = {}) {
   // The API caches RNS name answers in rns_cache; expired rows are never read again, so the
   // leader prunes them hourly to keep the table bounded by one hour of lookups.
   let nextRnsPruneAt = 0;
+  // Leaderboards publish from the tick at a finalized as-of block, never inside indexing
+  // transactions: after indexed trades or transfers (coalesced), plus a heartbeat.
+  let leaderboardDirty = false;
+  let lastLeaderboardPublishAt = null;
+
+  const publishLeaderboardsIfDue = async (head) => {
+    const now = Date.now();
+    if (
+      !shouldPublish({
+        dirty: leaderboardDirty,
+        lastPublishedAt: lastLeaderboardPublishAt,
+        now,
+      })
+    )
+      return;
+    const asOfBlock = publishAsOfBlock({
+      head,
+      cursors: { trades: await cursor("trades"), ledger: await cursor("ledger") },
+    });
+    if (asOfBlock === null) return;
+    try {
+      await traceBackendTask("social.leaderboard.publish", async () => {
+        const summary = await publishLeaderboards(pool, asOfBlock, new Date());
+        console.log("social.leaderboard.publish", JSON.stringify(summary));
+      });
+      leaderboardDirty = false;
+    } catch (error) {
+      onError?.(error);
+    } finally {
+      // A failing publish retries on the next window instead of blocking indexing.
+      lastLeaderboardPublishAt = now;
+    }
+  };
 
   const acquireLeadership = async () => {
     if (leadershipClient) return true;
@@ -1532,11 +1572,16 @@ export function startIndexer({ onEvent, onError } = {}) {
           head > config.confirmations ? head - config.confirmations : 0n;
         if (safeHead >= config.deploymentBlock) {
           await scanStream("factory", safeHead, indexFactoryRange);
-          await scanStream("trades", safeHead, (from, to) =>
-            indexTradeRange(from, to, onEvent),
-          );
-          await scanStream("ledger", safeHead, indexLedgerRange);
+          if (
+            await scanStream("trades", safeHead, (from, to) =>
+              indexTradeRange(from, to, onEvent),
+            )
+          )
+            leaderboardDirty = true;
+          if (await scanStream("ledger", safeHead, indexLedgerRange))
+            leaderboardDirty = true;
           await scanStream("venue", safeHead, indexVenueRange);
+          await publishLeaderboardsIfDue(head);
         }
       } catch (error) {
         onError?.(error);

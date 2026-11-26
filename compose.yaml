@@ -81,6 +81,8 @@ services:
     environment:
       <<: *local-db
       PINATA_JWT: ${PINATA_JWT:-}
+      # strict (default) or preview: relaxed product-validation leaderboard rules.
+      LEADERBOARD_RULES_PROFILE: ${LEADERBOARD_RULES_PROFILE:-strict}
     command:
       [
         "bun",

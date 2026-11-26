@@ -7645,8 +7645,8 @@ select:focus-visible {
 }
 .pulse-tab-list {
   display: grid;
-  flex: 0 1 480px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  flex: 0 1 320px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   min-width: 0;
   position: relative;
 }
@@ -7656,18 +7656,15 @@ select:focus-visible {
   bottom: 0;
   content: "";
   height: 3px;
-  left: 16.6667%;
+  left: 25%;
   pointer-events: none;
   position: absolute;
   transform: translateX(-50%);
   transition: left 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
   width: 64px;
 }
-.pulse-tab-list[data-selected="following"]::before {
-  left: 50%;
-}
 .pulse-tab-list[data-selected="leaderboard"]::before {
-  left: 83.3333%;
+  left: 75%;
 }
 .pulse-tab-list button {
   background: transparent;
@@ -8135,6 +8132,93 @@ button.notifications-read-dot {
   color: var(--muted);
   font-size: 12px;
   margin-top: 3px;
+}
+.pulse-leader-return strong.negative {
+  color: var(--market-down);
+}
+.pulse-leader-freshness {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 0 0 12px;
+}
+.pulse-no-qualifiers {
+  display: grid;
+  gap: 18px;
+}
+.pulse-requirements {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.pulse-requirements li {
+  align-items: center;
+  display: flex;
+  font-size: 14px;
+  gap: 10px;
+}
+.pulse-check-icon {
+  color: var(--lime);
+  flex: none;
+  height: 18px;
+  width: 18px;
+}
+.pulse-watching h3 {
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  margin: 0 0 10px;
+  text-transform: uppercase;
+}
+.pulse-watching-list {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.pulse-watching-row {
+  align-items: center;
+  background: var(--panel);
+  border: 1px dashed var(--line);
+  border-radius: 14px;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: 14px 18px;
+}
+.pulse-not-ranked {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  white-space: nowrap;
+}
+.pulse-watching-activity {
+  display: grid;
+  justify-items: end;
+  text-align: right;
+}
+.pulse-watching-activity strong {
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.pulse-watching-activity span {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+@media (max-width: 560px) {
+  .pulse-watching-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .pulse-not-ranked {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
 }
 @media (max-width: 760px) {
   .pulse-leader {

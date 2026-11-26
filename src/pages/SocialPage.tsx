@@ -1,18 +1,19 @@
 import { useState, type ReactNode } from "react";
 import { Tabs } from "@base-ui/react/tabs";
-import { usePrivy } from "@privy-io/react-auth";
 import { useQuery } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 import type { Navigate } from "../types";
-import { AppLink } from "../components/Navigation";
-import { PulseFollowingCard } from "../social/PulseFollowingCard";
 import { PulseNowCard } from "../social/PulseNowCard";
 import { PulseTraders } from "../social/PulseTraders";
 import { socialApi, socialApiConfigured } from "../social/api";
-import { useFollowingActivity } from "../social/useFollowingActivity";
 import { useNowPulse } from "../social/useNowPulse";
 
-type PulseTab = "now" | "following" | "leaderboard";
+export const PULSE_TABS = [
+  { value: "now", label: "Now" },
+  { value: "leaderboard", label: "Leaderboard" },
+] as const;
+
+type PulseTab = (typeof PULSE_TABS)[number]["value"];
 
 function FeedState({
   title,
@@ -55,11 +56,9 @@ function LoadingState() {
 
 export function SocialPage({ navigate }: { navigate: Navigate }) {
   const { address } = useAccount();
-  const { ready: privyReady, authenticated, login } = usePrivy();
   const [tab, setTab] = useState<PulseTab>("now");
   const board = "consistent";
   const now = useNowPulse("24h", tab === "now");
-  const following = useFollowingActivity(tab === "following");
   const leaders = useQuery({
     queryKey: ["social", "leaderboard", board, address?.toLowerCase()],
     queryFn: () => socialApi.leaderboard(board),
@@ -73,7 +72,7 @@ export function SocialPage({ navigate }: { navigate: Navigate }) {
         <div>
           <h1>Pulse</h1>
           <p className="social-page-description">
-            Follow market flow, your traders, and the leaderboard.
+            Follow market flow and the leaderboard.
           </p>
         </div>
       </header>
@@ -89,21 +88,15 @@ export function SocialPage({ navigate }: { navigate: Navigate }) {
             aria-label="Pulse views"
             data-selected={tab}
           >
-            <Tabs.Tab value="now" className={tab === "now" ? "active" : ""}>
-              Now
-            </Tabs.Tab>
-            <Tabs.Tab
-              value="following"
-              className={tab === "following" ? "active" : ""}
-            >
-              Following
-            </Tabs.Tab>
-            <Tabs.Tab
-              value="leaderboard"
-              className={tab === "leaderboard" ? "active" : ""}
-            >
-              Leaderboard
-            </Tabs.Tab>
+            {PULSE_TABS.map(({ value, label }) => (
+              <Tabs.Tab
+                key={value}
+                value={value}
+                className={tab === value ? "active" : ""}
+              >
+                {label}
+              </Tabs.Tab>
+            ))}
           </Tabs.List>
           <div className="pulse-toolbar-controls">
             {tab === "leaderboard" ? (
@@ -163,74 +156,6 @@ export function SocialPage({ navigate }: { navigate: Navigate }) {
                     key={moment.tokenAddress}
                     moment={moment}
                     token={token}
-                    navigate={navigate}
-                  />
-                ))}
-              </div>
-            )}
-          </section>
-        </Tabs.Panel>
-
-        <Tabs.Panel value="following" className="pulse-panel">
-          <section
-            className="pulse-content"
-            aria-label="Markets your follows are active in"
-          >
-            {!socialApiConfigured ? (
-              <FeedState
-                title="Follows need the social service."
-                detail="Without it Curveball can only read the chain, so this list is every wallet's recent buys rather than your follows."
-              />
-            ) : !address ? (
-              <FeedState
-                title="Sign in to see your follows."
-                detail="Pulse Following lists the markets wallets you follow created, bought, or sold."
-                action={
-                  <button
-                    type="button"
-                    className="primary-button"
-                    disabled={!privyReady}
-                    onClick={login}
-                  >
-                    Create account or sign in
-                  </button>
-                }
-              />
-            ) : following.isPending ? (
-              <LoadingState />
-            ) : following.isError ? (
-              <FeedState
-                title="Following is unavailable."
-                detail={following.error.message}
-                retry={() => void following.refetch()}
-              />
-            ) : !following.data?.followedCount ? (
-              <FeedState
-                title="You are not following anyone yet."
-                detail="Follow a trader from their profile, and their launches, buys, and sells land here."
-                action={
-                  <AppLink
-                    className="primary-button"
-                    route="markets"
-                    navigate={navigate}
-                  >
-                    Find traders to follow
-                  </AppLink>
-                }
-              />
-            ) : !following.data.items.length ? (
-              <FeedState
-                title="Your follows have not traded yet."
-                detail={`You follow ${following.data.followedCount} ${following.data.followedCount === 1 ? "wallet" : "wallets"}. Their launches, buys, and sells show here.`}
-              />
-            ) : (
-              <div className="pulse-moment-list">
-                {following.data.items.map(({ activity, token }) => (
-                  <PulseFollowingCard
-                    key={activity.tokenAddress}
-                    activity={activity}
-                    token={token}
-                    scope={following.data!.scope}
                     navigate={navigate}
                   />
                 ))}

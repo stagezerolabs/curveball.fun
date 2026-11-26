@@ -6,6 +6,7 @@ import { isHiddenMarketAddress } from "../lib/marketVisibility";
 import type {
   FollowingActivity,
   ModerationReport,
+  LeaderboardCategory,
   LeaderboardSnapshot,
   Notification,
   NotificationPreferences,
@@ -162,7 +163,7 @@ export const socialApi = {
       ),
     };
   },
-  leaderboard(category: "consistent" | "new") {
+  leaderboard(category: LeaderboardCategory) {
     return api<LeaderboardSnapshot>(`/v1/leaderboards/${category}`);
   },
   async profile(address: Address) {

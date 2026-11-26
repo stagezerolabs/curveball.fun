@@ -70,17 +70,6 @@ export const nowPulseSql = `SELECT t.token_address,m.name AS token_name,m.symbol
     - COALESCE(SUM(t.net_trader_quote) FILTER (WHERE NOT t.is_buy),0) DESC,latest_at DESC
   LIMIT 12`;
 
-// Leaderboard fallback while no current-method snapshot is published: every trader's latest stored
-// performance, ranked by return. Params: $1 chain, $2 limit.
-export const provisionalLeaderboardSql = `SELECT ps.address,ps.methodology_version,
-    ps.return_bps,ps.realized_pnl_quote,ps.unrealized_pnl_quote,ps.invested_quote,ps.trade_count,ps.market_count
-  FROM (SELECT DISTINCT ON (address) * FROM trader_performance_snapshots
-    WHERE chain_id=$1 ORDER BY address,as_of_block DESC) ps
-  WHERE ps.trade_count>0
-    AND NOT EXISTS (SELECT 1 FROM protocol_accounts pa WHERE pa.chain_id=$1
-      AND pa.address=ps.address AND pa.is_user_attributable=false)
-  ORDER BY ps.return_bps DESC NULLS LAST,ps.invested_quote DESC LIMIT $2`;
-
 // Following: markets the given wallets created, bought or sold, newest activity first, with each
 // actor's address and WETH size. The caller must supply at least one followed wallet: this read has
 // no "every wallet" mode, because a Following tab that lists strangers is not a follow graph.

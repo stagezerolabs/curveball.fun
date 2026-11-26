@@ -92,6 +92,13 @@
       "when": 1795632399467,
       "tag": "0012_ambitious_secret_warriors",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1795702607236,
+      "tag": "0013_handy_rawhide_kid",
+      "breakpoints": true
     }
   ]
 }
