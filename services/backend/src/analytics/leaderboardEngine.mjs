@@ -155,6 +155,7 @@ function evaluateWallet({ wallet, events, ctx }) {
   const realized = perMarketRows.reduce((sum, row) => sum + row.realized, 0n);
   const unrealized = perMarketRows.reduce((sum, row) => sum + row.unrealized, 0n);
   const openValue = perMarketRows.reduce((sum, row) => sum + row.openValue, 0n);
+  const realizedCost = perMarketRows.reduce((sum, row) => sum + row.position.realizedCost, 0n);
   const net = realized + unrealized;
   const scored = scoredPnl(realized, unrealized);
   const shares = allocateScoredUnrealized(perMarketRows, scored - realized);
@@ -232,6 +233,7 @@ function evaluateWallet({ wallet, events, ctx }) {
       methodologyVersion: rules.methodologyVersion,
       entityId: replay.entityId,
       realizedPnlWei: realized.toString(),
+      realizedCostWei: realizedCost.toString(),
       openValueWei: openValue.toString(),
       unrealizedPnlWei: unrealized.toString(),
       netPnlWei: net.toString(),

@@ -59,6 +59,7 @@ describe("evaluateLeaderboards", () => {
     expect(board.items[0].score).toBe(36000000000000000n);
     expect(board.items[0].metrics.netPnlWei).toBe("60000000000000000");
     expect(board.items[0].metrics.confidence).toBe("developing");
+    expect(board.items[0].metrics.realizedCostWei).toBe("300000000000000000");
   });
 
   test("wash round-trip does not rank", () => {
