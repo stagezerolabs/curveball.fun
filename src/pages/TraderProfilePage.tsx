@@ -23,7 +23,7 @@ import { socialApi, socialApiConfigured } from "../social/api";
 import { useSocialAuth } from "../social/useSocialAuth";
 import { calculateHoldingsChange24h } from "../social/portfolioChange";
 
-export type ProfileTab = "profile" | "holdings" | "activity" | "launches";
+export type ProfileTab = "profile" | "activity" | "launches";
 
 function wethAmount(wei: string) {
   return Number(formatEther(BigInt(wei || "0")));
@@ -250,7 +250,6 @@ export function TraderProfilePage({
   const showLaunches = Boolean(launches || creatorMarkets.data?.length);
   const sections: { value: ProfileTab; label: string }[] = [
     { value: "profile", label: "Profile" },
-    { value: "holdings", label: "Holdings" },
     { value: "activity", label: "Activity" },
     ...(showLaunches
       ? [{ value: "launches" as const, label: "Launches" }]
@@ -344,197 +343,205 @@ export function TraderProfilePage({
           ) : null}
           <Tabs.Panel
             value="profile"
-            className="profile-section-panel profile-overview"
+            className="profile-section-panel profile-home"
           >
-            <header
-              className="profile-hero"
-              aria-labelledby="trader-profile-name"
-            >
-              <TraderAvatar
-                className="profile-hero-avatar"
-                address={traderAddress}
-                name={name}
-              />
-              <div className="profile-hero-copy">
-                <h1 id="trader-profile-name">{name}</h1>
-                <p className="profile-hero-meta">
-                  <a
-                    href={`${activeExplorerUrl}/address/${traderAddress}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    title={traderAddress}
-                  >
-                    {formatAddress(traderAddress)} <InlineArrow />
-                  </a>
-                </p>
-              </div>
-            </header>
-
-            <p className="profile-hero-social">
-              <span>
-                <strong>{data.followers}</strong> followers
-              </span>
-              <span>
-                <strong>{data.following}</strong> following
-              </span>
-            </p>
-
-            {!isOwner ? (
-              <div className="profile-hero-actions">
-                <FollowButton
-                  trader={traderAddress}
-                  following={data.isFollowed}
-                  onError={setNotice}
-                />
-                <Menu.Root>
-                  <Menu.Trigger
-                    className="profile-icon-button"
-                    aria-label="More actions"
-                    title="More actions"
-                  >
-                    <span aria-hidden="true">⋯</span>
-                  </Menu.Trigger>
-                  <Menu.Portal>
-                    <Menu.Positioner
-                      className="profile-menu-positioner"
-                      sideOffset={8}
-                      align="start"
-                    >
-                      <Menu.Popup className="profile-menu">
-                        <Menu.Item
-                          className="profile-menu-item"
-                          onClick={() => void toggleBlock()}
-                        >
-                          {data.isBlocked ? "Unblock" : "Block"}
-                        </Menu.Item>
-                        <Menu.Item
-                          className="profile-menu-item danger"
-                          onClick={() => setReporting(true)}
-                        >
-                          Report
-                        </Menu.Item>
-                      </Menu.Popup>
-                    </Menu.Positioner>
-                  </Menu.Portal>
-                </Menu.Root>
-              </div>
-            ) : null}
-
-            <section className="profile-summary" aria-label="Trading summary">
-              <div className="profile-summary-value">
-                <small>Portfolio value</small>
-                <div className="profile-summary-amount">
-                  <strong>
-                    <UsdAmount weth={portfolioValue} />
-                  </strong>
-                  <span
-                    className={`profile-summary-change ${displayedChange24h === null || displayedChange24h === 0 ? "muted" : displayedChange24h < 0 ? "negative" : "positive"}`}
-                    title="24h token price change in WETH, weighted by current holdings. Excludes buys, sells, transfers, and ETH/USD movement."
-                  >
-                    {displayedChange24h === null
-                      ? "—"
-                      : `${displayedChange24h > 0 ? "+" : ""}${displayedChange24h.toFixed(1)}%`}
-                  </span>
-                </div>
-              </div>
-            </section>
-          </Tabs.Panel>
-
-          <Tabs.Panel value="holdings" className="profile-section-panel">
-            {!positions.length ? (
-              <EmptyState
-                title="No holdings yet"
-                action={
-                  isOwner ? (
-                    <AppLink
-                      className="profile-secondary-action"
-                      route="markets"
-                      navigate={navigate}
-                    >
-                      Explore markets
-                    </AppLink>
-                  ) : null
-                }
+            <div className="profile-overview">
+              <header
+                className="profile-hero"
+                aria-labelledby="trader-profile-name"
               >
-                {isOwner
-                  ? "Tokens you buy on a curve show up here."
-                  : "This trader holds no curve tokens right now."}
-              </EmptyState>
-            ) : (
-              <ul className="profile-list profile-holdings-list">
-                {positions.map(({ position, balance }) => (
-                  <li key={position.token_address}>
-                    <AppLink
-                      className="profile-row profile-holding-row"
-                      route="market"
-                      params={{
-                        address: position.token_slug ?? position.token_address,
-                      }}
-                      navigate={navigate}
+                <TraderAvatar
+                  className="profile-hero-avatar"
+                  address={traderAddress}
+                  name={name}
+                />
+                <div className="profile-hero-copy">
+                  <h1 id="trader-profile-name">{name}</h1>
+                  <p className="profile-hero-meta">
+                    <a
+                      href={`${activeExplorerUrl}/address/${traderAddress}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      title={traderAddress}
                     >
-                      <span className="profile-row-main">
-                        <strong>{position.token_name}</strong>
-                        <small>
-                          {formatEthAmount(balance)} ${position.token_symbol}
-                        </small>
-                      </span>
-                      <span className="profile-holding-metrics">
-                        <span className="profile-holding-metric">
-                          <small>Amount invested</small>
-                          <strong>
-                            {BigInt(position.invested_wei) > 0n ? (
-                              <UsdAmount
-                                weth={wethAmount(position.invested_wei)}
-                                compact
-                              />
-                            ) : (
-                              "—"
-                            )}
-                          </strong>
-                        </span>
-                        <span className="profile-holding-metric">
-                          <small title="Average market cap at buys, weighted by trade size">
-                            Avg. buy in
+                      {formatAddress(traderAddress)} <InlineArrow />
+                    </a>
+                  </p>
+                </div>
+              </header>
+
+              <p className="profile-hero-social">
+                <span>
+                  <strong>{data.followers}</strong> followers
+                </span>
+                <span>
+                  <strong>{data.following}</strong> following
+                </span>
+              </p>
+
+              {!isOwner ? (
+                <div className="profile-hero-actions">
+                  <FollowButton
+                    trader={traderAddress}
+                    following={data.isFollowed}
+                    onError={setNotice}
+                  />
+                  <Menu.Root>
+                    <Menu.Trigger
+                      className="profile-icon-button"
+                      aria-label="More actions"
+                      title="More actions"
+                    >
+                      <span aria-hidden="true">⋯</span>
+                    </Menu.Trigger>
+                    <Menu.Portal>
+                      <Menu.Positioner
+                        className="profile-menu-positioner"
+                        sideOffset={8}
+                        align="start"
+                      >
+                        <Menu.Popup className="profile-menu">
+                          <Menu.Item
+                            className="profile-menu-item"
+                            onClick={() => void toggleBlock()}
+                          >
+                            {data.isBlocked ? "Unblock" : "Block"}
+                          </Menu.Item>
+                          <Menu.Item
+                            className="profile-menu-item danger"
+                            onClick={() => setReporting(true)}
+                          >
+                            Report
+                          </Menu.Item>
+                        </Menu.Popup>
+                      </Menu.Positioner>
+                    </Menu.Portal>
+                  </Menu.Root>
+                </div>
+              ) : null}
+
+              <section className="profile-summary" aria-label="Trading summary">
+                <div className="profile-summary-value">
+                  <small>Portfolio value</small>
+                  <div className="profile-summary-amount">
+                    <strong>
+                      <UsdAmount weth={portfolioValue} />
+                    </strong>
+                    <span
+                      className={`profile-summary-change ${displayedChange24h === null || displayedChange24h === 0 ? "muted" : displayedChange24h < 0 ? "negative" : "positive"}`}
+                      title="24h token price change in WETH, weighted by current holdings. Excludes buys, sells, transfers, and ETH/USD movement."
+                    >
+                      {displayedChange24h === null
+                        ? "—"
+                        : `${displayedChange24h > 0 ? "+" : ""}${displayedChange24h.toFixed(1)}%`}
+                    </span>
+                  </div>
+                </div>
+              </section>
+            </div>
+            <section
+              className="profile-holdings"
+              aria-labelledby="profile-holdings-title"
+            >
+              <h2 id="profile-holdings-title">
+                Holdings
+                {positions.length ? <span>{positions.length}</span> : null}
+              </h2>
+              {!positions.length ? (
+                <EmptyState
+                  title="No holdings yet"
+                  action={
+                    isOwner ? (
+                      <AppLink
+                        className="profile-secondary-action"
+                        route="markets"
+                        navigate={navigate}
+                      >
+                        Explore markets
+                      </AppLink>
+                    ) : null
+                  }
+                >
+                  {isOwner
+                    ? "Tokens you buy on a curve show up here."
+                    : "This trader holds no curve tokens right now."}
+                </EmptyState>
+              ) : (
+                <ul className="profile-list profile-holdings-list">
+                  {positions.map(({ position, balance }) => (
+                    <li key={position.token_address}>
+                      <AppLink
+                        className="profile-row profile-holding-row"
+                        route="market"
+                        params={{
+                          address: position.token_slug ?? position.token_address,
+                        }}
+                        navigate={navigate}
+                      >
+                        <span className="profile-row-main">
+                          <strong>{position.token_name}</strong>
+                          <small>
+                            {formatEthAmount(balance)} ${position.token_symbol}
                           </small>
-                          <strong>
-                            {position.average_entry_market_cap_wei ? (
-                              <UsdAmount
-                                weth={wethAmount(
-                                  position.average_entry_market_cap_wei,
-                                )}
-                                compact
-                              />
-                            ) : (
-                              "—"
-                            )}
-                          </strong>
                         </span>
-                        <span className="profile-holding-metric">
-                          <small title="Average market cap at sells, weighted by trade size">
-                            Avg. sell out
-                          </small>
-                          <strong>
-                            {position.average_exit_market_cap_wei ? (
-                              <UsdAmount
-                                weth={wethAmount(
-                                  position.average_exit_market_cap_wei,
-                                )}
-                                compact
-                              />
-                            ) : (
-                              "—"
-                            )}
-                          </strong>
+                        <span className="profile-holding-metrics">
+                          <span className="profile-holding-metric">
+                            <small>Amount invested</small>
+                            <strong>
+                              {BigInt(position.invested_wei) > 0n ? (
+                                <UsdAmount
+                                  weth={wethAmount(position.invested_wei)}
+                                  compact
+                                />
+                              ) : (
+                                "—"
+                              )}
+                            </strong>
+                          </span>
+                          <span className="profile-holding-metric">
+                            <small title="Average market cap at buys, weighted by trade size">
+                              Avg. buy in
+                            </small>
+                            <strong>
+                              {position.average_entry_market_cap_wei ? (
+                                <UsdAmount
+                                  weth={wethAmount(
+                                    position.average_entry_market_cap_wei,
+                                  )}
+                                  compact
+                                />
+                              ) : (
+                                "—"
+                              )}
+                            </strong>
+                          </span>
+                          <span className="profile-holding-metric">
+                            <small title="Average market cap at sells, weighted by trade size">
+                              Avg. sell out
+                            </small>
+                            <strong>
+                              {position.average_exit_market_cap_wei ? (
+                                <UsdAmount
+                                  weth={wethAmount(
+                                    position.average_exit_market_cap_wei,
+                                  )}
+                                  compact
+                                />
+                              ) : (
+                                "—"
+                              )}
+                            </strong>
+                          </span>
                         </span>
-                      </span>
-                      <span className="profile-row-chevron" aria-hidden="true">
-                        ›
-                      </span>
-                    </AppLink>
-                  </li>
-                ))}
-              </ul>
-            )}
+                        <span className="profile-row-chevron" aria-hidden="true">
+                          ›
+                        </span>
+                      </AppLink>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
           </Tabs.Panel>
 
           <Tabs.Panel value="activity" className="profile-section-panel">

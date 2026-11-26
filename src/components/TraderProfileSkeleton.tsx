@@ -11,7 +11,6 @@ export function TraderProfileSkeleton() {
             <span className="skeleton" />
             <span className="skeleton" />
             <span className="skeleton" />
-            <span className="skeleton" />
           </div>
         </div>
         <div className="profile-stage profile-overview">

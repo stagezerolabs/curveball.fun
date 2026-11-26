@@ -10232,58 +10232,38 @@ img.profile-hero-avatar {
   height: 140px;
 }
 .launch-gallery {
-  display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
   list-style: none;
   margin: 0;
   padding: 0;
 }
 .launch-tile {
-  align-items: center;
   background: transparent;
-  border: 1px solid var(--line);
-  border-radius: 12px;
+  border: 0;
+  border-radius: 10px;
   color: var(--muted);
   cursor: pointer;
-  display: flex;
   font-size: 14px;
   font-weight: 600;
-  gap: 10px;
-  min-height: 48px;
-  overflow: hidden;
+  min-height: 40px;
   padding: 0 14px;
-  text-align: left;
-  text-overflow: ellipsis;
   transition:
     color 120ms ease-out,
-    border-color 120ms ease-out;
+    background-color 120ms ease-out;
   white-space: nowrap;
-  width: 100%;
 }
 .launch-tile:hover {
   color: var(--ink);
 }
 .launch-tile.selected {
-  border-color: var(--lime);
+  background: var(--surface);
   color: var(--ink);
 }
 .launch-tile:focus-visible {
   outline: 2px solid var(--lime);
   outline-offset: 2px;
-}
-.launch-tile-dot {
-  background: var(--lime);
-  border-radius: 50%;
-  flex: 0 0 auto;
-  height: 6px;
-  width: 6px;
-}
-.launch-tile-dot.ready {
-  background: var(--orange-ink);
-}
-.launch-tile-dot.graduated {
-  background: var(--muted);
 }
 
 .launch-summary {
@@ -10292,21 +10272,14 @@ img.profile-hero-avatar {
   gap: 20px;
   padding-top: 24px;
 }
-.launch-summary-header h2 {
-  font-size: 26px;
-  font-weight: 700;
-  letter-spacing: -0.04em;
-  line-height: 1.1;
-  margin: 0 0 4px;
-}
-.launch-summary-header p {
+.launch-summary-meta {
   color: var(--muted);
   display: flex;
   font-size: 13px;
   gap: 8px;
   margin: 0;
 }
-.launch-summary-header p span + span::before {
+.launch-summary-meta span + span::before {
   color: var(--muted);
   content: "·";
   margin-right: 8px;
@@ -10349,9 +10322,6 @@ img.profile-hero-avatar {
   margin: 0;
 }
 @media (max-width: 640px) {
-  .launch-gallery {
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-  }
   .launch-summary-stats {
     gap: 16px;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -10361,4 +10331,31 @@ img.profile-hero-avatar {
   .launch-tile {
     transition: none;
   }
+}
+
+/* Profile tab: identity and value on top, holdings beneath. */
+.profile-home {
+  display: grid;
+  gap: 40px;
+  min-width: 0;
+}
+.profile-holdings {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.profile-holdings h2 {
+  align-items: baseline;
+  display: flex;
+  font-size: 18px;
+  font-weight: 650;
+  gap: 8px;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+.profile-holdings h2 span {
+  color: var(--muted);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
 }

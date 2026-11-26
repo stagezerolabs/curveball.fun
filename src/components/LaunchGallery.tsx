@@ -17,7 +17,6 @@ export function LaunchGallery({
   return (
     <ul className="launch-gallery" aria-label="Your launches">
       {tokens.map((token) => {
-        const status = getMarketDisplayStatus(token);
         const isSelected =
           selected?.toLowerCase() === token.address.toLowerCase();
         return (
@@ -26,13 +25,8 @@ export function LaunchGallery({
               type="button"
               className={isSelected ? "launch-tile selected" : "launch-tile"}
               aria-pressed={isSelected}
-              title={`${token.name} · ${status.label}`}
               onClick={() => onSelect(token)}
             >
-              <span
-                className={`launch-tile-dot ${status.kind}`}
-                aria-hidden="true"
-              />
               {token.name}
             </button>
           </li>
@@ -48,14 +42,11 @@ export function LaunchSummary({ token }: { token: Token }) {
   const { progress, quoteTarget, quoteRaised, quoteProgress, targetMarketCap } =
     graduationStats(token);
   return (
-    <section className="launch-summary" aria-labelledby="launch-summary-name">
-      <header className="launch-summary-header">
-        <h2 id="launch-summary-name">{token.name}</h2>
-        <p>
-          <span>${token.symbol}</span>
-          <span className={`launch-status ${status.kind}`}>{status.label}</span>
-        </p>
-      </header>
+    <section className="launch-summary" aria-label={token.name}>
+      <p className="launch-summary-meta">
+        <span>${token.symbol}</span>
+        <span className={`launch-status ${status.kind}`}>{status.label}</span>
+      </p>
       {token.graduated ? null : (
         <div className="launch-summary-progress">
           <span>

@@ -56,7 +56,7 @@ test("the summary shows graduation progress like the market panel", () => {
       })}
     />,
   );
-  expect(html).toContain("Alpha");
+  expect(html).not.toContain("<h2");
   expect(html).toContain("$ALPHA");
   expect(html).toContain("Curve tokens sold");
   expect(html).toContain("24.4%");
